@@ -1,0 +1,656 @@
+/* ===== GLOBAL STYLES ===== */
+:root {
+  --primary-color: #3498db;
+  --primary-dark: #2980b9;
+  --secondary-color: #2ecc71;
+  --danger-color: #e74c3c;
+  --text-color: #333333;
+  --light-gray: #f5f5f5;
+  --medium-gray: #e0e0e0;
+  --dark-gray: #777777;
+  --white: #ffffff;
+  --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --border-radius: 8px;
+  --transition: all 0.3s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  color: var(--text-color);
+  background-color: var(--light-gray);
+  padding: 0;
+  margin: 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ===== HEADER ===== */
+header {
+  background-color: var(--white);
+  box-shadow: var(--shadow);
+  padding: 20px 0;
+  margin-bottom: 30px;
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-title h1 {
+  color: var(--primary-color);
+  font-size: 2.2rem;
+  margin: 0;
+}
+
+.app-title i {
+  font-size: 2rem;
+  margin-right: 15px;
+  color: var(--primary-color);
+}
+
+/* ===== MAIN CONTENT ===== */
+.main-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 30px;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== FORM PANEL ===== */
+.form-panel {
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 25px;
+}
+
+.form-panel h2 {
+  color: var(--primary-color);
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  border-bottom: 2px solid var(--medium-gray);
+  padding-bottom: 10px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form-control {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+}
+
+.file-input-wrapper {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+.file-input-label {
+  display: block;
+  background-color: var(--primary-color);
+  color: var(--white);
+  text-align: center;
+  padding: 12px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.file-input-label:hover {
+  background-color: var(--primary-dark);
+}
+
+.file-input-label i {
+  margin-right: 8px;
+}
+
+.file-input {
+  position: absolute;
+  font-size: 100px;
+  opacity: 0;
+  right: 0;
+  top: 0;
+  cursor: pointer;
+}
+
+.file-name {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--dark-gray);
+  word-break: break-all;
+}
+
+.btn {
+  display: inline-block;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  border: none;
+  padding: 12px 25px;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: var(--border-radius);
+  transition: var(--transition);
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-primary {
+  color: var(--white);
+  background-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  color: var(--white);
+  background-color: var(--secondary-color);
+}
+
+.btn-secondary:hover {
+  background-color: #27ae60;
+}
+
+.btn-danger {
+  color: var(--white);
+  background-color: var(--danger-color);
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+/* ===== WARRANTIES LIST ===== */
+.warranties-panel {
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 25px;
+}
+
+.warranties-panel h2 {
+  color: var(--primary-color);
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+  border-bottom: 2px solid var(--medium-gray);
+  padding-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: var(--transition);
+}
+
+.refresh-btn:hover {
+  transform: rotate(90deg);
+}
+
+.search-box {
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 12px 15px 12px 40px;
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+}
+
+.search-box i {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dark-gray);
+}
+
+.warranties-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.warranty-card {
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  padding: 15px;
+  margin-bottom: 15px;
+  transition: var(--transition);
+  border-left: 4px solid var(--primary-color);
+  position: relative;
+}
+
+.warranty-card:hover {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.warranty-card.expired {
+  border-left-color: var(--danger-color);
+}
+
+.warranty-card.expiring-soon {
+  border-left-color: #f39c12;
+}
+
+.warranty-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.warranty-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.warranty-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--dark-gray);
+  transition: var(--transition);
+}
+
+.edit-btn:hover {
+  color: var(--primary-color);
+}
+
+.delete-btn:hover {
+  color: var(--danger-color);
+}
+
+.warranty-details {
+  color: var(--dark-gray);
+  font-size: 0.9rem;
+}
+
+.warranty-details div {
+  margin-bottom: 5px;
+}
+
+.warranty-details span {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.warranty-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 10px;
+}
+
+.status-active {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #27ae60;
+}
+
+.status-expired {
+  background-color: rgba(231, 76, 60, 0.15);
+  color: #c0392b;
+}
+
+.status-expiring {
+  background-color: rgba(243, 156, 18, 0.15);
+  color: #d35400;
+}
+
+.invoice-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  margin-top: 10px;
+  transition: var(--transition);
+}
+
+.invoice-link i {
+  margin-right: 5px;
+}
+
+.invoice-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* ===== MODAL ===== */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: var(--transition);
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal {
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  width: 90%;
+  max-width: 500px;
+  transform: translateY(-20px);
+  transition: var(--transition);
+}
+
+.modal-backdrop.active .modal {
+  transform: translateY(0);
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--medium-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 1.2rem;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--dark-gray);
+  transition: var(--transition);
+}
+
+.close-btn:hover {
+  color: var(--danger-color);
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--medium-gray);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-footer .btn {
+  width: auto;
+}
+
+/* ===== TOAST NOTIFICATIONS ===== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1001;
+}
+
+.toast {
+  min-width: 250px;
+  margin-bottom: 10px;
+  padding: 15px 20px;
+  border-radius: var(--border-radius);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: slide-in 0.3s ease, fade-out 0.3s ease 2.7s forwards;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.toast-success {
+  background-color: var(--secondary-color);
+  color: var(--white);
+}
+
+.toast-error {
+  background-color: var(--danger-color);
+  color: var(--white);
+}
+
+.toast-warning {
+  background-color: #f39c12;
+  color: var(--white);
+}
+
+.toast-info {
+  background-color: var(--primary-color);
+  color: var(--white);
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--white);
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: var(--transition);
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+/* ===== LOADING SPINNER ===== */
+.loading-spinner {
+  display: inline-block;
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.loading-spinner:after {
+  content: " ";
+  display: block;
+  border-radius: 50%;
+  width: 0;
+  height: 0;
+  margin: 8px;
+  box-sizing: border-box;
+  border: 32px solid var(--primary-color);
+  border-color: var(--primary-color) transparent var(--primary-color) transparent;
+  animation: loading-spinner 1.2s infinite;
+}
+
+@keyframes loading-spinner {
+  0% { transform: rotate(0); animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width
+.loading-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1002;
+  opacity: 0;
+  visibility: hidden;
+  transition: var(--transition);
+}
+
+.loading-container.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--dark-gray);
+}
+
+.empty-state i {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.3;
+}
+
+.empty-state h3 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 768px) {
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-panel, .warranties-panel {
+    margin-bottom: 20px;
+  }
+  
+  .warranty-header {
+    flex-direction: column;
+  }
+  
+  .warranty-actions {
+    margin-top: 10px;
+  }
+}
+
+/* ===== UTILITIES ===== */
+.text-danger {
+  color: var(--danger-color);
+}
+
+.text-warning {
+  color: #f39c12;
+}
+
+.text-success {
+  color: var(--secondary-color);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+.mt-20 {
+  margin-top: 20px;
+}
+
+.mb-10 {
+  margin-bottom: 10px;
+}
+
+.mb-20 {
+  margin-bottom: 20px;
+}
