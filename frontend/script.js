@@ -18,7 +18,7 @@ let warranties = [];
 let currentWarrantyId = null;
 
 // API URL
-const API_URL = 'http://localhost:5000/api/warranties';
+const API_URL = '/api/warranties'; //  CORRECTED API_URL (relative URL)
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -109,7 +109,7 @@ async function loadWarranties() {
     showLoading();
     
     try {
-        const response = await fetch(API_URL);
+        const response = await fetch(API_URL); // This fetch call now uses the CORRECTED API_URL
         if (!response.ok) {
             throw new Error('Failed to load warranties');
         }
