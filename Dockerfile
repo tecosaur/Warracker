@@ -53,7 +53,7 @@ RUN echo 'server {\n\
     \n\
     # Proxy API requests to backend\n\
     location /api/ {\n\
-        proxy_pass http://localhost:5000;\n\
+        proxy_pass http://127.0.0.1:5000;\n\
         proxy_set_header Host $host;\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
     }\n\

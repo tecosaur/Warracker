@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 import psycopg2
 from psycopg2 import pool
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import logging
@@ -98,7 +98,7 @@ def get_warranties():
                 warranty_dict = dict(zip(columns, row))
                 # Convert date objects to ISO format strings for JSON serialization
                 for key, value in warranty_dict.items():
-                    if isinstance(value, datetime.date):
+                    if isinstance(value, (datetime, date)):
                         warranty_dict[key] = value.isoformat()
                 warranties_list.append(warranty_dict)
                 
