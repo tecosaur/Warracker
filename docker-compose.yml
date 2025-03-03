@@ -1,21 +1,20 @@
-version: '3.8'
 services:
-  app:
+  warracker:
     build: .
     ports:
       - "8005:80"
     volumes:
       - ./uploads:/data/uploads
     environment:
-      - DB_HOST=db
+      - DB_HOST=warrackerdb
       - DB_NAME=warranty_db
       - DB_USER=warranty_user
       - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
     depends_on:
-      - db
+      - warrackerdb
     restart: unless-stopped
     
-  db:
+  warrackerdb:
     image: "postgres:15-alpine"
     volumes:
       - postgres_data:/var/lib/postgresql/data

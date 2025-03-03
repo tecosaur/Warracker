@@ -22,7 +22,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
 # PostgreSQL connection pool
-DB_HOST = os.environ.get('DB_HOST', 'db')
+DB_HOST = os.environ.get('DB_HOST', 'warrackerdb')
 DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
 DB_USER = os.environ.get('DB_USER', 'warranty_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
@@ -302,10 +302,11 @@ def update_warranty(warranty_id):
         if conn:
             release_db_connection(conn)
 
-@app.route('/uploads/<filename>')
+@app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        # Make sure this is pointing to the correct absolute path
+        return send_from_directory('/data/uploads', filename)
     except Exception as e:
         logger.error(f"Error serving file {filename}: {e}")
         return jsonify({"error": "File not found"}), 404
