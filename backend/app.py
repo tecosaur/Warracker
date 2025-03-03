@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import logging
+import time
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -27,17 +28,47 @@ DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
 DB_USER = os.environ.get('DB_USER', 'warranty_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
 
-# Create a connection pool
-connection_pool = pool.SimpleConnectionPool(
-    1, 10,  # min, max connections
-    host=DB_HOST,
-    database=DB_NAME,
-    user=DB_USER,
-    password=DB_PASSWORD
-)
+# Add connection retry logic
+def create_db_pool(max_retries=5, retry_delay=5):
+    attempt = 0
+    last_exception = None
+    
+    while attempt < max_retries:
+        try:
+            logger.info(f"Attempting to connect to database (attempt {attempt+1}/{max_retries})")
+            connection_pool = pool.SimpleConnectionPool(
+                1, 10,  # min, max connections
+                host=DB_HOST,
+                database=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD
+            )
+            logger.info("Database connection successful")
+            return connection_pool
+        except Exception as e:
+            last_exception = e
+            logger.error(f"Database connection error: {e}")
+            logger.info(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+            attempt += 1
+    
+    # If we got here, all connection attempts failed
+    logger.error(f"Failed to connect to database after {max_retries} attempts")
+    raise last_exception
+
+# Create a connection pool with retry logic
+try:
+    connection_pool = create_db_pool()
+except Exception as e:
+    logger.error(f"Fatal database connection error: {e}")
+    # Allow the app to start even if DB connection fails
+    # This lets us serve static files while DB is unavailable
+    connection_pool = None
 
 def get_db_connection():
     try:
+        if connection_pool is None:
+            raise Exception("Database connection pool not initialized")
         return connection_pool.getconn()
     except Exception as e:
         logger.error(f"Database connection error: {e}")
@@ -304,12 +335,13 @@ def update_warranty(warranty_id):
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
+    """Serve files from the uploads directory."""
     try:
-        # Make sure this is pointing to the correct absolute path
+        # Simple and direct file serving
         return send_from_directory('/data/uploads', filename)
     except Exception as e:
         logger.error(f"Error serving file {filename}: {e}")
-        return jsonify({"error": "File not found"}), 404
+        return jsonify({"error": f"Error serving file: {str(e)}"}), 500
 
 @app.errorhandler(413)
 def request_entity_too_large(error):

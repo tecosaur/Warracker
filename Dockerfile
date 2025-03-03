@@ -18,30 +18,41 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/app.py .
 
-# Create directory for uploads
-RUN mkdir -p /data/uploads
+# Create directory for uploads with proper permissions
+RUN mkdir -p /data/uploads && chmod 777 /data/uploads
 
 # Copy frontend files
 COPY frontend/index.html /var/www/html/
 COPY frontend/script.js /var/www/html/
 COPY frontend/style.css /var/www/html/
+COPY test.html /var/www/html/
 
 # Configure nginx
 RUN rm /etc/nginx/sites-enabled/default
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create startup script
+# Create startup script with directory permission check
 RUN echo '#!/bin/bash\n\
+echo "Checking /data/uploads directory:"\n\
+ls -la /data/uploads\n\
+echo "Setting permissions:"\n\
+chmod -R 777 /data/uploads\n\
+ls -la /data/uploads\n\
+echo "Starting services..."\n\
 nginx\n\
 gunicorn --bind 0.0.0.0:5000 --workers 4 app:app\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# Create nginx configuration
+# This is just a fallback, the copied nginx.conf will be used
 RUN echo 'server {\n\
     listen 80;\n\
     server_name localhost;\n\
     root /var/www/html;\n\
     index index.html;\n\
+    \n\
+    # Enable detailed error logging\n\
+    error_log /var/log/nginx/error.log debug;\n\
+    access_log /var/log/nginx/access.log;\n\
     \n\
     # Enable gzip compression\n\
     gzip on;\n\
@@ -58,17 +69,18 @@ RUN echo 'server {\n\
         proxy_set_header X-Real-IP $remote_addr;\n\
     }\n\
     \n\
-    # Proxy uploads to backend\n\
+    # Direct access to uploads directory\n\
     location /uploads/ {\n\
-        proxy_pass http://localhost:5000;\n\
-        proxy_set_header Host $host;\n\
-        proxy_set_header X-Real-IP $remote_addr;\n\
-    }\n\
-    \n\
-    # Cache static assets\n\
-    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg)$ {\n\
-        expires 7d;\n\
-        add_header Cache-Control "public, max-age=604800";\n\
+        alias /data/uploads/;\n\
+        autoindex on;\n\
+        \n\
+        # Set appropriate MIME types\n\
+        types {\n\
+            image/png png PNG;\n\
+            image/jpeg jpg jpeg JPG JPEG;\n\
+            application/pdf pdf PDF;\n\
+            text/plain txt TXT;\n\
+        }\n\
     }\n\
 }' > /etc/nginx/conf.d/default.conf
 
@@ -102,7 +114,7 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:gunicorn]
-command=gunicorn --bind 0.0.0.0:5000 --workers 4 app:app
+command=/app/start.sh
 directory=/app
 autostart=true
 autorestart=true
@@ -111,6 +123,9 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 EOF
+
+# Make sure the uploads directory is writable
+RUN chmod -R 777 /data/uploads
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

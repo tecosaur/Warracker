@@ -11,7 +11,8 @@ services:
       - DB_USER=warranty_user
       - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
     depends_on:
-      - warrackerdb
+      warrackerdb:
+        condition: service_healthy
     restart: unless-stopped
     
   warrackerdb:
