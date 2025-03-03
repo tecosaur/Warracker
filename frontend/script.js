@@ -188,8 +188,6 @@ function renderWarranties(filteredWarranties = null) {
                 <div class="warranty-actions">
                     <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
                         <i class="fas fa-edit"></i>
-<button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
                         <i class="fas fa-trash"></i>
