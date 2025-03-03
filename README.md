@@ -108,6 +108,9 @@ warracker/
 *   Mobile app.
 *   Settings page.
 *   Status page.
+*   Status page.
+*   Tags
+*   Serials
 
 ## 🛠️ Troubleshooting
 
