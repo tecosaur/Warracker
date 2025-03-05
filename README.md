@@ -105,7 +105,6 @@ warracker/
 
 *   User authentication.
 *   Email reminders for expiring warranties.
-*   Mobile app.
 *   Settings page.
 *   Status page.
 
