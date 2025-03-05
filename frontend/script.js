@@ -1,5 +1,78 @@
 // DOM Elements
 const warrantyForm = document.getElementById('warrantyForm');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsMenu = document.getElementById('settingsMenu');
+const darkModeToggle = document.getElementById('darkModeToggle');
+
+// Theme Management
+function setTheme(isDark) {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    localStorage.setItem('darkMode', isDark);
+    darkModeToggle.checked = isDark;
+}
+
+// Initialize theme based on user preference or system preference
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('darkMode');
+    
+    if (savedTheme !== null) {
+        // Use saved preference
+        setTheme(savedTheme === 'true');
+    } else {
+        // Check for system preference
+        const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDarkMode);
+    }
+}
+
+// Initialize theme when page loads
+initializeTheme();
+
+// Settings menu toggle
+settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    settingsMenu.classList.toggle('active');
+});
+
+// Close settings menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
+        settingsMenu.classList.remove('active');
+    }
+});
+
+// Dark mode toggle
+darkModeToggle.addEventListener('change', (e) => {
+    setTheme(e.target.checked);
+});
+
+const serialNumbersContainer = document.getElementById('serialNumbersContainer');
+
+// Add event listener for adding new serial number inputs
+serialNumbersContainer.addEventListener('click', (e) => {
+    if (e.target.closest('.add-serial-number')) {
+        addSerialNumberInput();
+    }
+});
+
+function addSerialNumberInput(container = serialNumbersContainer) {
+    const newInput = document.createElement('div');
+    newInput.className = 'serial-number-input';
+    newInput.innerHTML = `
+        <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+        <button type="button" class="btn btn-sm btn-danger remove-serial-number">
+            <i class="fas fa-minus"></i> Remove
+        </button>
+    `;
+    
+    // Add remove button functionality
+    newInput.querySelector('.remove-serial-number').addEventListener('click', function() {
+        this.parentElement.remove();
+    });
+    
+    container.appendChild(newInput);
+}
+
 const warrantiesList = document.getElementById('warrantiesList');
 const refreshBtn = document.getElementById('refreshBtn');
 const searchInput = document.getElementById('searchWarranties');
@@ -180,6 +253,11 @@ function renderWarranties(filteredWarranties = null) {
             statusText = `${daysRemaining} days remaining`;
         }
         
+        // Make sure serial numbers array exists and is valid
+        const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
+            ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
+            : [];
+        
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : ''}`;
         cardElement.innerHTML = `
@@ -199,6 +277,14 @@ function renderWarranties(filteredWarranties = null) {
                 <div>Warranty: <span>${warranty.warranty_years} ${warranty.warranty_years > 1 ? 'years' : 'year'}</span></div>
                 <div>Expires: <span>${formatDate(expirationDate)}</span></div>
                 <span class="warranty-status status-${statusClass}">${statusText}</span>
+                ${validSerialNumbers.length > 0 ? `
+                    <div class="serial-numbers">
+                        <strong>Serial Numbers:</strong>
+                        <ul>
+                            ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
                 ${warranty.invoice_path ? `
                     <div>
                         <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
@@ -253,6 +339,18 @@ async function addWarranty(event) {
     
     const formData = new FormData(warrantyForm);
     
+    // Get all serial numbers and add them to formData
+    const serialNumbers = [];
+    document.querySelectorAll('input[name="serial_numbers[]"]').forEach(input => {
+        if (input.value.trim()) {
+            serialNumbers.push(input.value.trim());
+        }
+    });
+    formData.delete('serial_numbers[]'); // Remove the original array
+    if (serialNumbers.length > 0) {
+        serialNumbers.forEach(sn => formData.append('serial_numbers', sn));
+    }
+    
     try {
         const response = await fetch(API_URL, {
             method: 'POST',
@@ -270,6 +368,26 @@ async function addWarranty(event) {
         // Reset form
         warrantyForm.reset();
         fileName.textContent = '';
+        
+        // Completely reset serial number inputs
+        serialNumbersContainer.innerHTML = '';
+        
+        // Create a fresh initial serial number input
+        const initialInput = document.createElement('div');
+        initialInput.className = 'serial-number-input';
+        initialInput.innerHTML = `
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+            <button type="button" class="btn btn-sm btn-secondary add-serial-number">
+                <i class="fas fa-plus"></i> Add Another
+            </button>
+        `;
+        
+        // Add the event listener for the "Add Another" button
+        initialInput.querySelector('.add-serial-number').addEventListener('click', function() {
+            addSerialNumberInput();
+        });
+        
+        serialNumbersContainer.appendChild(initialInput);
         
         // Reload warranties
         loadWarranties();
@@ -289,6 +407,57 @@ function openEditModal(warranty) {
     document.getElementById('editProductName').value = warranty.product_name;
     document.getElementById('editPurchaseDate').value = new Date(warranty.purchase_date).toISOString().split('T')[0];
     document.getElementById('editWarrantyYears').value = warranty.warranty_years;
+    
+    // Clear existing serial number inputs
+    const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
+    editSerialNumbersContainer.innerHTML = '';
+    
+    // Make sure serial numbers array exists and is valid
+    const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
+        ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
+        : [];
+        
+    // Add initial serial number input
+    const initialInput = document.createElement('div');
+    initialInput.className = 'serial-number-input';
+    initialInput.innerHTML = `
+        <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+        <button type="button" class="btn btn-sm btn-secondary add-serial-number">
+            <i class="fas fa-plus"></i> Add Another
+        </button>
+    `;
+    editSerialNumbersContainer.appendChild(initialInput);
+    
+    // Add existing serial numbers
+    if (validSerialNumbers.length > 0) {
+        validSerialNumbers.forEach((serialNumber, index) => {
+            if (index === 0) {
+                // Use the first input we already created
+                editSerialNumbersContainer.querySelector('input').value = serialNumber;
+            } else {
+                const newInput = document.createElement('div');
+                newInput.className = 'serial-number-input';
+                newInput.innerHTML = `
+                    <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${serialNumber}">
+                    <button type="button" class="btn btn-sm btn-danger remove-serial-number">
+                        <i class="fas fa-minus"></i> Remove
+                    </button>
+                `;
+                editSerialNumbersContainer.appendChild(newInput);
+            }
+        });
+    }
+    
+    // Add event listeners for the serial number buttons
+    editSerialNumbersContainer.querySelectorAll('.add-serial-number').forEach(btn => {
+        btn.addEventListener('click', () => addSerialNumberInput(editSerialNumbersContainer));
+    });
+    
+    editSerialNumbersContainer.querySelectorAll('.remove-serial-number').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.parentElement.remove();
+        });
+    });
     
     // Show current invoice if exists
     const currentInvoiceElement = document.getElementById('currentInvoice');
@@ -328,6 +497,20 @@ async function updateWarranty() {
     showLoading();
     
     const formData = new FormData(editWarrantyForm);
+    
+    // Get all serial numbers and add them to formData
+    const serialNumbers = [];
+    document.querySelectorAll('#editSerialNumbersContainer input[name="serial_numbers[]"]').forEach(input => {
+        if (input.value.trim()) {
+            serialNumbers.push(input.value.trim());
+        }
+    });
+    
+    // Remove the original array and add clean values
+    formData.delete('serial_numbers[]');
+    if (serialNumbers.length > 0) {
+        serialNumbers.forEach(sn => formData.append('serial_numbers', sn));
+    }
     
     try {
         const response = await fetch(`${API_URL}/${currentWarrantyId}`, {

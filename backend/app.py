@@ -103,6 +103,21 @@ def init_db():
             cur.execute('CREATE INDEX IF NOT EXISTS idx_expiration_date ON warranties(expiration_date)')
             cur.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON warranties(product_name)')
             
+            # Create serial numbers table
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS serial_numbers (
+                    id SERIAL PRIMARY KEY,
+                    warranty_id INTEGER NOT NULL,
+                    serial_number VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (warranty_id) REFERENCES warranties(id) ON DELETE CASCADE
+                )
+            ''')
+            
+            # Add indexes for serial numbers
+            cur.execute('CREATE INDEX IF NOT EXISTS idx_warranty_id ON serial_numbers(warranty_id)')
+            cur.execute('CREATE INDEX IF NOT EXISTS idx_serial_number ON serial_numbers(serial_number)')
+            
         conn.commit()
         logger.info("Database initialized successfully")
     except Exception as e:
@@ -131,6 +146,13 @@ def get_warranties():
                 for key, value in warranty_dict.items():
                     if isinstance(value, (datetime, date)):
                         warranty_dict[key] = value.isoformat()
+                
+                # Get serial numbers for this warranty
+                warranty_id = warranty_dict['id']
+                cur.execute('SELECT serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+                serial_numbers = [row[0] for row in cur.fetchall()]
+                warranty_dict['serial_numbers'] = serial_numbers
+                
                 warranties_list.append(warranty_dict)
                 
             return jsonify(warranties_list)
@@ -162,6 +184,7 @@ def add_warranty():
         # Process the data
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
+        serial_numbers = request.form.getlist('serial_numbers')
         
         try:
             purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
@@ -192,12 +215,23 @@ def add_warranty():
         # Save to database
         conn = get_db_connection()
         with conn.cursor() as cur:
+            # Insert warranty
             cur.execute('''
                 INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path))
             warranty_id = cur.fetchone()[0]
+            
+            # Insert serial numbers
+            if serial_numbers:
+                for serial_number in serial_numbers:
+                    if serial_number.strip():  # Only insert non-empty serial numbers
+                        cur.execute('''
+                            INSERT INTO serial_numbers (warranty_id, serial_number)
+                            VALUES (%s, %s)
+                        ''', (warranty_id, serial_number.strip()))
+            
             conn.commit()
             
         return jsonify({
@@ -272,6 +306,7 @@ def update_warranty(warranty_id):
         # Process the data
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
+        serial_numbers = request.form.getlist('serial_numbers')
         
         try:
             purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
@@ -320,6 +355,19 @@ def update_warranty(warranty_id):
                 WHERE id = %s
             ''', (product_name, purchase_date, warranty_years, expiration_date, 
                   db_invoice_path, warranty_id))
+            
+            # Update serial numbers
+            # First, delete existing serial numbers for this warranty
+            cur.execute('DELETE FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+            
+            # Then insert the new serial numbers
+            if serial_numbers:
+                for serial_number in serial_numbers:
+                    if serial_number.strip():  # Only insert non-empty serial numbers
+                        cur.execute('''
+                            INSERT INTO serial_numbers (warranty_id, serial_number)
+                            VALUES (%s, %s)
+                        ''', (warranty_id, serial_number.strip()))
             
             conn.commit()
             return jsonify({"message": "Warranty updated successfully"}), 200

@@ -16,6 +16,20 @@
                 <i class="fas fa-shield-alt"></i>
                 <h1>Warranty Tracker</h1>
             </div>
+            <div class="settings-container">
+                <button id="settingsBtn" class="settings-btn" aria-label="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div id="settingsMenu" class="settings-menu">
+                    <div class="settings-item">
+                        <span>Dark Mode</span>
+                        <label class="toggle-switch" title="Toggle dark mode">
+                            <input type="checkbox" id="darkModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -39,6 +53,18 @@
                     <div class="form-group">
                         <label for="warrantyYears">Warranty Period (Years)</label>
                         <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Serial Numbers</label>
+                        <div id="serialNumbersContainer">
+                            <div class="serial-number-input">
+                                <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+                                <button type="button" class="btn btn-sm btn-secondary add-serial-number">
+                                    <i class="fas fa-plus"></i> Add Another
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -105,6 +131,18 @@
                     <div class="form-group">
                         <label for="editWarrantyYears">Warranty Period (Years)</label>
                         <input type="number" id="editWarrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Serial Numbers</label>
+                        <div id="editSerialNumbersContainer">
+                            <div class="serial-number-input">
+                                <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+                                <button type="button" class="btn btn-sm btn-secondary add-serial-number">
+                                    <i class="fas fa-plus"></i> Add Another
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="form-group">

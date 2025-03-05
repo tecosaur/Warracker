@@ -44,7 +44,7 @@ Warracker is a web-based application that provides a centralized system for mana
 1.  **Clone the Repository:**
 
     ```bash
-    git clone https://github.com/sassanix/warracker.git
+    git clone https://github.com/yourusername/warracker.git
     cd warracker
     ```
 2.  **Start the Application:**
@@ -108,9 +108,6 @@ warracker/
 *   Mobile app.
 *   Settings page.
 *   Status page.
-*   Status page.
-*   Tags
-*   Serials
 
 ## 🛠️ Troubleshooting
 
