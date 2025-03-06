@@ -14,7 +14,11 @@ Warracker is a web-based application that provides a centralized system for mana
 
 ## 📸 Screenshots
 
+
 ![image](https://github.com/user-attachments/assets/7b343fa3-0880-48e9-8809-55a72be4d5e4)
+
+![image](https://github.com/user-attachments/assets/0a4de195-fdcb-4dcb-87c3-e518323462ba)
+
 
 ## ✨ Features
 
