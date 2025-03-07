@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Page</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .test-container {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .error {
+            color: #F44336;
+            font-weight: bold;
+        }
+        .navbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .navbar a {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="status.html">Status Page</a>
+        <a href="simple-status.html">Simple Test</a>
+        <a href="status-simple.html">Chart Test</a>
+        <a href="api-test.html" style="background-color: #2980b9;">API Test</a>
+        <a href="page-test.html">Page Test</a>
+    </div>
+
+    <h1>API Test Page</h1>
+    <p>Use this page to test various API endpoints and see if they're responding correctly.</p>
+
+    <div class="test-container">
+        <h2>Test Simple API Endpoint</h2>
+        <button id="testSimpleBtn">Test /api/test</button>
+        <pre id="testSimpleResults">Results will appear here</pre>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Warranties API Endpoint</h2>
+        <button id="testWarrantiesBtn">Test /api/warranties</button>
+        <pre id="testWarrantiesResults">Results will appear here</pre>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Statistics API Endpoint</h2>
+        <button id="testStatisticsBtn">Test /api/statistics</button>
+        <pre id="testStatisticsResults">Results will appear here</pre>
+    </div>
+
+    <script>
+        // Helper function to handle API calls
+        async function callApi(url, resultsElement) {
+            resultsElement.textContent = 'Testing...';
+            resultsElement.className = '';
+            
+            try {
+                console.log(`Testing ${url}...`);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                let responseText;
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    responseText = JSON.stringify(await response.json(), null, 2);
+                } else {
+                    responseText = await response.text();
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status} - ${responseText}`);
+                }
+                
+                resultsElement.innerHTML = `<span class="success">SUCCESS (${response.status})</span>\n\n${responseText}`;
+                
+            } catch (error) {
+                console.error(`API test failed for ${url}:`, error);
+                resultsElement.innerHTML = `<span class="error">ERROR</span>\n\n${error.message}`;
+            }
+        }
+        
+        // Test simple endpoint
+        document.getElementById('testSimpleBtn').addEventListener('click', () => {
+            callApi('/api/test', document.getElementById('testSimpleResults'));
+        });
+        
+        // Test warranties endpoint
+        document.getElementById('testWarrantiesBtn').addEventListener('click', () => {
+            callApi('/api/warranties', document.getElementById('testWarrantiesResults'));
+        });
+        
+        // Test statistics endpoint
+        document.getElementById('testStatisticsBtn').addEventListener('click', () => {
+            callApi('/api/statistics', document.getElementById('testStatisticsResults'));
+        });
+    </script>
+</body>
+</html> 

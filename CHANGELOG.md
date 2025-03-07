@@ -1,6 +1,38 @@
 # Changelog
 
-## [0.05.2-beta] - 2024-03-05
+## [0.2.0] - 2025-03-06
+
+### Added
+- Export functionality for warranty data as CSV
+- Refresh button for manual data updates
+- Search and filtering options for warranty list
+- Enhanced mobile responsiveness
+
+### Changed
+- Removed Debug Information panel from status page
+- Improved error handling and data validation across all dashboard functions
+- Enhanced chart creation with support for various data formats
+- Streamlined user interface by removing development elements
+- Improved data normalization for warranty information
+- Added fallback mechanisms for missing or invalid data
+- Updated status chart calculations for better accuracy
+
+### Fixed
+- API connection error handling
+- Chart instance memory leaks
+- Invalid data structure handling from API responses
+- Negative value calculations in status charts
+
+## [0.1.0] - New Features and enhancements 
+
+### Added
+- Basic warranty tracking functionality
+- Dashboard with warranty statistics
+- Timeline visualization
+- Status overview chart
+- Recent expirations list
+
+## [0.05.2-beta] - 2025-03-05
 
 ### Added
 - Multiple serial numbers support for warranties

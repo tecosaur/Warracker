@@ -395,6 +395,121 @@ def uploaded_file(filename):
 def request_entity_too_large(error):
     return jsonify({"error": "File too large. Maximum size is 16MB"}), 413
 
+@app.route('/api/statistics', methods=['GET'])
+def get_statistics():
+    conn = None
+    cursor = None
+    try:
+        logger.info("Statistics endpoint called")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Calculate expiration ranges
+        today = date.today()
+        logger.info(f"Current date: {today}")
+        thirty_days_later = today + timedelta(days=30)
+        ninety_days_later = today + timedelta(days=90)
+        
+        # Get total count
+        cursor.execute("SELECT COUNT(*) FROM warranties")
+        total_count = cursor.fetchone()[0]
+        logger.info(f"Total warranties: {total_count}")
+        
+        # Get active count
+        cursor.execute("SELECT COUNT(*) FROM warranties WHERE expiration_date > %s", (today,))
+        active_count = cursor.fetchone()[0]
+        logger.info(f"Active warranties: {active_count}")
+        
+        # Get expired count
+        cursor.execute("SELECT COUNT(*) FROM warranties WHERE expiration_date <= %s", (today,))
+        expired_count = cursor.fetchone()[0]
+        logger.info(f"Expired warranties: {expired_count}")
+        
+        # Get expiring soon count (30 days)
+        cursor.execute("SELECT COUNT(*) FROM warranties WHERE expiration_date > %s AND expiration_date <= %s", 
+                      (today, thirty_days_later))
+        expiring_soon_count = cursor.fetchone()[0]
+        logger.info(f"Expiring soon warranties: {expiring_soon_count}")
+        
+        # Get expiration timeline (next 90 days, grouped by month)
+        cursor.execute("""
+            SELECT 
+                EXTRACT(YEAR FROM expiration_date) as year,
+                EXTRACT(MONTH FROM expiration_date) as month,
+                COUNT(*) as count
+            FROM warranties
+            WHERE expiration_date > %s AND expiration_date <= %s
+            GROUP BY EXTRACT(YEAR FROM expiration_date), EXTRACT(MONTH FROM expiration_date)
+            ORDER BY year, month
+        """, (today, ninety_days_later))
+        
+        timeline = []
+        for row in cursor.fetchall():
+            year = int(row[0])
+            month = int(row[1])
+            count = row[2]
+            timeline.append({
+                "year": year,
+                "month": month,
+                "count": count
+            })
+        
+        # Get recent expiring warranties (30 days before and after today)
+        thirty_days_ago = today - timedelta(days=30)
+        cursor.execute("""
+            SELECT 
+                id, product_name, purchase_date, warranty_years, 
+                expiration_date, invoice_path
+            FROM warranties
+            WHERE expiration_date >= %s AND expiration_date <= %s
+            ORDER BY expiration_date
+            LIMIT 10
+        """, (thirty_days_ago, thirty_days_later))
+        
+        columns = [desc[0] for desc in cursor.description]
+        recent_warranties = []
+        
+        for row in cursor.fetchall():
+            warranty = dict(zip(columns, row))
+            
+            # Convert dates to string format
+            if warranty['purchase_date']:
+                warranty['purchase_date'] = warranty['purchase_date'].isoformat()
+            if warranty['expiration_date']:
+                warranty['expiration_date'] = warranty['expiration_date'].isoformat()
+                
+            recent_warranties.append(warranty)
+        
+        statistics = {
+            'total': total_count,
+            'active': active_count,
+            'expired': expired_count,
+            'expiring_soon': expiring_soon_count,
+            'timeline': timeline,
+            'recent_warranties': recent_warranties
+        }
+        
+        return jsonify(statistics)
+    
+    except Exception as e:
+        logger.error(f"Error getting warranty statistics: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+    finally:
+        if cursor and cursor.closed is False:
+            cursor.close()
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    """Simple test endpoint to check if the API is responding."""
+    return jsonify({
+        "status": "success",
+        "message": "API is responding correctly",
+        "timestamp": datetime.now().isoformat()
+    })
+
 if __name__ == '__main__':
     try:
         init_db()

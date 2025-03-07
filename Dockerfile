@@ -22,14 +22,16 @@ COPY backend/app.py .
 RUN mkdir -p /data/uploads && chmod 777 /data/uploads
 
 # Copy frontend files
-COPY frontend/index.html /var/www/html/
-COPY frontend/script.js /var/www/html/
-COPY frontend/style.css /var/www/html/
+COPY frontend/*.html /var/www/html/
+COPY frontend/*.js /var/www/html/
+COPY frontend/*.css /var/www/html/
 COPY test.html /var/www/html/
 
 # Configure nginx
 RUN rm /etc/nginx/sites-enabled/default
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Add MIME type configuration - this is now included in nginx.conf
 
 # Create startup script with directory permission check
 RUN echo '#!/bin/bash\n\
