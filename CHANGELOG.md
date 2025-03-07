@@ -23,6 +23,8 @@
 - Invalid data structure handling from API responses
 - Negative value calculations in status charts
 
+[0.2.0-beta]: [https://github.com/username/warracker/releases/tag/v0.05.2-beta](https://github.com/sassanix/Warracker/releases/tag/0.2.0)
+
 ## [0.1.0] - New Features and enhancements 
 
 ### Added
