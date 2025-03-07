@@ -1,7 +1,5 @@
 # Changelog
 
-# Changelog
-
 ## [0.2.5-beta] - 2025-03-07
 
 ### Added
