@@ -9,15 +9,21 @@ Warracker is a web-based application that provides a centralized system for mana
 *   Tracking product warranties in one central location.
 *   Adding warranty details, including purchase dates and duration.
 *   Uploading and storing warranty documentation and receipts.
-*   Providing visual indicators for active, expiring soon, and expired warranties.
+*   Providing visual indicators for active, expiring soon (less than 30 days), and expired warranties.
 *   Searching through your warranty collection.
 
 ## 📸 Screenshots
 
+**Home Page**
 
 ![image](https://github.com/user-attachments/assets/7b343fa3-0880-48e9-8809-55a72be4d5e4)
 
 ![image](https://github.com/user-attachments/assets/0a4de195-fdcb-4dcb-87c3-e518323462ba)
+
+**Status Dashboard**  
+
+![image](https://github.com/user-attachments/assets/dc35f8ac-97d1-4db9-906a-f52c05803c2a)
+
 
 
 ## ✨ Features
