@@ -8,6 +8,8 @@ CREATE TABLE warranties (
     expiration_date DATE,
     invoice_path TEXT,
     manual_path TEXT,
+    product_url TEXT,
+    purchase_price DECIMAL(10, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

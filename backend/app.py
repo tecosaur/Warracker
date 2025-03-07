@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import logging
 import time
+from decimal import Decimal
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -96,6 +97,8 @@ def init_db():
                     expiration_date DATE,
                     invoice_path TEXT,
                     manual_path TEXT,
+                    product_url TEXT,
+                    purchase_price DECIMAL(10, 2),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -147,6 +150,9 @@ def get_warranties():
                 for key, value in warranty_dict.items():
                     if isinstance(value, (datetime, date)):
                         warranty_dict[key] = value.isoformat()
+                    # Convert Decimal objects to float for JSON serialization
+                    elif isinstance(value, Decimal):
+                        warranty_dict[key] = float(value)
                 
                 # Get serial numbers for this warranty
                 warranty_id = warranty_dict['id']
@@ -186,6 +192,17 @@ def add_warranty():
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
         serial_numbers = request.form.getlist('serial_numbers')
+        product_url = request.form.get('product_url', '')
+        
+        # Handle purchase price (optional)
+        purchase_price = None
+        if request.form.get('purchase_price'):
+            try:
+                purchase_price = float(request.form.get('purchase_price'))
+                if purchase_price < 0:
+                    return jsonify({"error": "Purchase price cannot be negative"}), 400
+            except ValueError:
+                return jsonify({"error": "Purchase price must be a valid number"}), 400
         
         try:
             purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
@@ -237,10 +254,10 @@ def add_warranty():
         with conn.cursor() as cur:
             # Insert warranty
             cur.execute('''
-                INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path, manual_path)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path, manual_path, product_url, purchase_price)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path, db_manual_path))
+            ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path, db_manual_path, product_url, purchase_price))
             warranty_id = cur.fetchone()[0]
             
             # Insert serial numbers
@@ -334,6 +351,17 @@ def update_warranty(warranty_id):
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
         serial_numbers = request.form.getlist('serial_numbers')
+        product_url = request.form.get('product_url', '')
+        
+        # Handle purchase price (optional)
+        purchase_price = None
+        if request.form.get('purchase_price'):
+            try:
+                purchase_price = float(request.form.get('purchase_price'))
+                if purchase_price < 0:
+                    return jsonify({"error": "Purchase price cannot be negative"}), 400
+            except ValueError:
+                return jsonify({"error": "Purchase price must be a valid number"}), 400
         
         try:
             purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
@@ -400,10 +428,10 @@ def update_warranty(warranty_id):
             cur.execute('''
                 UPDATE warranties
                 SET product_name = %s, purchase_date = %s, warranty_years = %s, 
-                    expiration_date = %s, invoice_path = %s, manual_path = %s
+                    expiration_date = %s, invoice_path = %s, manual_path = %s, product_url = %s, purchase_price = %s
                 WHERE id = %s
             ''', (product_name, purchase_date, warranty_years, expiration_date, 
-                  db_invoice_path, db_manual_path, warranty_id))
+                  db_invoice_path, db_manual_path, product_url, purchase_price, warranty_id))
             
             # Update serial numbers
             # First, delete existing serial numbers for this warranty
@@ -508,7 +536,7 @@ def get_statistics():
         cursor.execute("""
             SELECT 
                 id, product_name, purchase_date, warranty_years, 
-                expiration_date, invoice_path
+                expiration_date, invoice_path, manual_path, product_url, purchase_price
             FROM warranties
             WHERE expiration_date >= %s AND expiration_date <= %s
             ORDER BY expiration_date
@@ -526,6 +554,10 @@ def get_statistics():
                 warranty['purchase_date'] = warranty['purchase_date'].isoformat()
             if warranty['expiration_date']:
                 warranty['expiration_date'] = warranty['expiration_date'].isoformat()
+            
+            # Convert Decimal objects to float for JSON serialization
+            if warranty.get('purchase_price') and isinstance(warranty['purchase_price'], Decimal):
+                warranty['purchase_price'] = float(warranty['purchase_price'])
                 
             recent_warranties.append(warranty)
         
@@ -545,7 +577,7 @@ def get_statistics():
         return jsonify({"error": str(e)}), 500
     
     finally:
-        if cursor and cursor.closed is False:
+        if cursor:
             cursor.close()
         if conn:
             release_db_connection(conn)
