@@ -1,6 +1,28 @@
 # Changelog
 
-## [0.2.0] - 2025-03-06
+# Changelog
+
+## [0.2.5-beta] - 2025-03-07
+
+### Added
+- Product manual upload support
+  - Users can now upload a second document for product manuals
+  - Manual documents are displayed alongside invoices in the warranty details
+  - Both add and edit forms support manual uploads
+
+### Changed
+- Improved document link styling for consistency
+  - Enhanced visual appearance of document links
+  - Consistent styling between invoice and manual links
+  - Better hover effects for document links
+  - Fixed styling inconsistencies between document links
+
+### Fixed
+- Styling inconsistency between View Invoice and View Manual buttons
+- Removed unused CSS file to prevent styling conflicts
+
+
+## [0.2.0-beta] - 2025-03-06
 
 ### Added
 - Export functionality for warranty data as CSV
