@@ -78,6 +78,8 @@ const refreshBtn = document.getElementById('refreshBtn');
 const searchInput = document.getElementById('searchWarranties');
 const fileInput = document.getElementById('invoice');
 const fileName = document.getElementById('fileName');
+const manualInput = document.getElementById('manual');
+const manualFileName = document.getElementById('manualFileName');
 const editModal = document.getElementById('editModal');
 const deleteModal = document.getElementById('deleteModal');
 const editWarrantyForm = document.getElementById('editWarrantyForm');
@@ -115,9 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // File input change event
-fileInput.addEventListener('change', updateFileName);
+fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
+manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
 document.getElementById('editInvoice').addEventListener('change', () => {
     updateFileName(null, 'editInvoice', 'editFileName');
+});
+document.getElementById('editManual').addEventListener('change', () => {
+    updateFileName(null, 'editManual', 'editManualFileName');
 });
 
 // Form submission
@@ -286,9 +292,16 @@ function renderWarranties(filteredWarranties = null) {
                     </div>
                 ` : ''}
                 ${warranty.invoice_path ? `
-                    <div>
+                    <div class="document-link-container">
                         <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
                             <i class="fas fa-file-invoice"></i> View Invoice
+                        </a>
+                    </div>
+                ` : ''}
+                ${warranty.manual_path ? `
+                    <div class="document-link-container">
+                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                            <i class="fas fa-book"></i> View Manual
                         </a>
                     </div>
                 ` : ''}
@@ -471,6 +484,20 @@ function openEditModal(warranty) {
         `;
     } else {
         currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+    }
+    
+    // Show current manual if exists
+    const currentManualElement = document.getElementById('currentManual');
+    if (warranty.manual_path) {
+        currentManualElement.innerHTML = `
+            <span class="text-success">
+                <i class="fas fa-check-circle"></i> Current manual: 
+                <a href="${warranty.manual_path}" target="_blank">View</a>
+                (Upload a new file to replace)
+            </span>
+        `;
+    } else {
+        currentManualElement.innerHTML = '<span>No manual uploaded</span>';
     }
     
     // Reset file input display

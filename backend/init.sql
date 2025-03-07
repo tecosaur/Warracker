@@ -7,6 +7,7 @@ CREATE TABLE warranties (
     warranty_years INTEGER NOT NULL,
     expiration_date DATE,
     invoice_path TEXT,
+    manual_path TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

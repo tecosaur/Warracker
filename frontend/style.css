@@ -1295,3 +1295,32 @@ tr.status-expiring {
 .refresh-btn.loading i {
     animation: spin 1s linear infinite;
 }
+
+/* Document links */
+.document-link-container {
+    margin-top: 10px;
+}
+
+.invoice-link, .manual-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    color: var(--primary-color) !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    padding: 5px 10px !important;
+    background-color: var(--light-gray) !important;
+    border-radius: var(--border-radius) !important;
+    transition: var(--transition) !important;
+    border: none !important;
+}
+
+.invoice-link i, .manual-link i {
+    margin-right: 5px !important;
+    font-size: 1rem !important;
+}
+
+.invoice-link:hover, .manual-link:hover {
+    text-decoration: none !important;
+    background-color: var(--medium-gray) !important;
+    color: var(--primary-dark) !important;
+}

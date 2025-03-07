@@ -95,6 +95,7 @@ def init_db():
                     warranty_years INTEGER NOT NULL,
                     expiration_date DATE,
                     invoice_path TEXT,
+                    manual_path TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -193,7 +194,7 @@ def add_warranty():
             
         expiration_date = purchase_date + timedelta(days=warranty_years * 365)
         
-        # Handle file upload
+        # Handle invoice file upload
         db_invoice_path = None
         if 'invoice' in request.files:
             invoice = request.files['invoice']
@@ -212,15 +213,34 @@ def add_warranty():
                 invoice.save(invoice_path)
                 db_invoice_path = os.path.join('uploads', filename)
         
+        # Handle manual file upload
+        db_manual_path = None
+        if 'manual' in request.files:
+            manual = request.files['manual']
+            if manual.filename != '':
+                if not allowed_file(manual.filename):
+                    return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
+                    
+                filename = secure_filename(manual.filename)
+                # Make filename unique by adding timestamp
+                filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
+                manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                # Ensure directory exists
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                
+                manual.save(manual_path)
+                db_manual_path = os.path.join('uploads', filename)
+        
         # Save to database
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Insert warranty
             cur.execute('''
-                INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path, manual_path)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path))
+            ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path, db_manual_path))
             warranty_id = cur.fetchone()[0]
             
             # Insert serial numbers
@@ -255,13 +275,14 @@ def delete_warranty(warranty_id):
         conn = get_db_connection()
         with conn.cursor() as cur:
             # First get the invoice path to delete the file
-            cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+            cur.execute('SELECT invoice_path, manual_path FROM warranties WHERE id = %s', (warranty_id,))
             result = cur.fetchone()
             
             if not result:
                 return jsonify({"error": "Warranty not found"}), 404
                 
             invoice_path = result[0]
+            manual_path = result[1]
             
             # Delete the warranty from database
             cur.execute('DELETE FROM warranties WHERE id = %s', (warranty_id,))
@@ -271,6 +292,12 @@ def delete_warranty(warranty_id):
             # Delete the invoice file if it exists
             if invoice_path:
                 full_path = os.path.join('/data', invoice_path)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+            
+            # Delete the manual file if it exists
+            if manual_path:
+                full_path = os.path.join('/data', manual_path)
                 if os.path.exists(full_path):
                     os.remove(full_path)
             
@@ -318,15 +345,16 @@ def update_warranty(warranty_id):
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if warranty exists
-            cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+            cur.execute('SELECT invoice_path, manual_path FROM warranties WHERE id = %s', (warranty_id,))
             result = cur.fetchone()
             
             if not result:
                 return jsonify({"error": "Warranty not found"}), 404
                 
             old_invoice_path = result[0]
+            old_manual_path = result[1]
             
-            # Handle file upload if new file is provided
+            # Handle invoice file upload if new file is provided
             db_invoice_path = old_invoice_path
             if 'invoice' in request.files:
                 invoice = request.files['invoice']
@@ -347,14 +375,35 @@ def update_warranty(warranty_id):
                         if os.path.exists(old_full_path):
                             os.remove(old_full_path)
             
+            # Handle manual file upload if new file is provided
+            db_manual_path = old_manual_path
+            if 'manual' in request.files:
+                manual = request.files['manual']
+                if manual.filename != '':
+                    if not allowed_file(manual.filename):
+                        return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
+                        
+                    filename = secure_filename(manual.filename)
+                    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
+                    manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    
+                    manual.save(manual_path)
+                    db_manual_path = os.path.join('uploads', filename)
+                    
+                    # Remove old manual file if exists and different from new one
+                    if old_manual_path and old_manual_path != db_manual_path:
+                        old_full_path = os.path.join('/data', old_manual_path)
+                        if os.path.exists(old_full_path):
+                            os.remove(old_full_path)
+            
             # Update the warranty in database
             cur.execute('''
                 UPDATE warranties
                 SET product_name = %s, purchase_date = %s, warranty_years = %s, 
-                    expiration_date = %s, invoice_path = %s
+                    expiration_date = %s, invoice_path = %s, manual_path = %s
                 WHERE id = %s
             ''', (product_name, purchase_date, warranty_years, expiration_date, 
-                  db_invoice_path, warranty_id))
+                  db_invoice_path, db_manual_path, warranty_id))
             
             # Update serial numbers
             # First, delete existing serial numbers for this warranty
