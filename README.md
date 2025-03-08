@@ -138,7 +138,7 @@ services:
 
 volumes:
   postgres_data:
-
+```
 
 
 ### Project Structure
