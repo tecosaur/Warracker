@@ -94,52 +94,6 @@ Warracker is a web-based application that provides a centralized system for mana
     docker-compose up -d
     ```
 
-### Docker Compose
-
-## Docker Compose Configuration
-
-Use the following Docker Compose configuration to deploy the latest build of the image:
-
-```yaml
-version: '3'
-
-services:
-  warracker:
-    image: ghcr.io/sassanix/warracker/main:latest
-    ports:
-      - "8005:80"
-    volumes:
-      - ./uploads:/data/uploads
-    environment:
-      - DB_HOST=warrackerdb
-      - DB_NAME=warranty_db
-      - DB_USER=warranty_user
-      - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
-    depends_on:
-      warrackerdb:
-        condition: service_healthy
-    restart: unless-stopped
-
-  warrackerdb:
-    image: "postgres:15-alpine"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
-    environment:
-      - POSTGRES_DB=warranty_db
-      - POSTGRES_USER=warranty_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U warranty_user -d warranty_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-```
-
 
 ### Project Structure
 
