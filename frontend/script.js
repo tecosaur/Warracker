@@ -226,20 +226,29 @@ function updateFileName(event, inputId = 'invoice', outputId = 'fileName') {
 async function loadWarranties() {
     showLoading();
     
+    // Add loading animation to refresh button
+    refreshBtn.classList.add('loading');
+    
     try {
-        const response = await fetch(API_URL); // This fetch call now uses the CORRECTED API_URL
+        // Add cache-busting parameter to prevent browser caching
+        const cacheBuster = `?_=${Date.now()}`;
+        const response = await fetch(`${API_URL}${cacheBuster}`);
+        
         if (!response.ok) {
             throw new Error('Failed to load warranties');
         }
         
         warranties = await response.json();
         renderWarranties();
+        showToast('Warranties refreshed successfully', 'success');
     } catch (error) {
         showToast(error.message, 'error');
         console.error('Error loading warranties:', error);
         renderEmptyState('Could not load warranties. Please try again.');
     } finally {
         hideLoading();
+        // Remove loading animation from refresh button
+        refreshBtn.classList.remove('loading');
     }
 }
 
@@ -318,7 +327,7 @@ function renderWarranties(filteredWarranties = null) {
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
         cardElement.innerHTML = `
-            <div class="warranty-header">
+            <div class="product-name-header">
                 <h3 class="warranty-title">${warranty.product_name}</h3>
                 <div class="warranty-actions">
                     <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
@@ -329,37 +338,41 @@ function renderWarranties(filteredWarranties = null) {
                     </button>
                 </div>
             </div>
-            <div class="warranty-details">
-                <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                <div>Warranty: <span>${warranty.warranty_years} ${warranty.warranty_years > 1 ? 'years' : 'year'}</span></div>
-                <div>Expires: <span>${formatDate(expirationDate)}</span></div>
-                ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
-                <span class="warranty-status status-${statusClass}">${statusText}</span>
-                ${validSerialNumbers.length > 0 ? `
-                    <div class="serial-numbers">
-                        <strong>Serial Numbers:</strong>
-                        <ul>
-                            ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                        </ul>
-                    </div>
-                ` : ''}
-                <div class="document-links-row">
-                    ${warranty.product_url ? `
-                        <a href="${warranty.product_url}" class="product-link" target="_blank">
-                            <i class="fas fa-globe"></i> Product Website
-                        </a>
-                    ` : ''}
-                    ${warranty.invoice_path ? `
-                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
-                            <i class="fas fa-file-invoice"></i> Invoice
-                        </a>
-                    ` : ''}
-                    ${warranty.manual_path ? `
-                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
-                            <i class="fas fa-book"></i> Manual
-                        </a>
+            <div class="warranty-content">
+                <div class="warranty-info">
+                    <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                    <div>Warranty: <span>${warranty.warranty_years} ${warranty.warranty_years > 1 ? 'years' : 'year'}</span></div>
+                    <div>Expires: <span>${formatDate(expirationDate)}</span></div>
+                    ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                    ${validSerialNumbers.length > 0 ? `
+                        <div class="serial-numbers">
+                            <strong>Serial Numbers:</strong>
+                            <ul>
+                                ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
+                            </ul>
+                        </div>
                     ` : ''}
                 </div>
+            </div>
+            <div class="warranty-status-row status-${statusClass}">
+                <span>${statusText}</span>
+            </div>
+            <div class="document-links-row">
+                ${warranty.product_url ? `
+                    <a href="${warranty.product_url}" class="product-link" target="_blank">
+                        <i class="fas fa-globe"></i> Product Website
+                    </a>
+                ` : ''}
+                ${warranty.invoice_path ? `
+                    <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                        <i class="fas fa-file-invoice"></i> Invoice
+                    </a>
+                ` : ''}
+                ${warranty.manual_path ? `
+                    <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                        <i class="fas fa-book"></i> Manual
+                    </a>
+                ` : ''}
             </div>
         `;
         

@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.1] - 2025-03-08
+
+### Changed
+- Improved warranty status display
+  - Status information now consistently displayed at the bottom of warranty cards
+  - Better visual hierarchy with status as the last item before document links
+  - Enhanced color-coding for different status types (active, expiring, expired)
+  - Consistent status positioning across all view types (grid, list, table)
+
+### Fixed
+- Table view layout and display issues
+  - Fixed product names being truncated in table view
+  - Improved column width distribution for better content display
+  - Prevented document links from overflowing their container
+  - Enhanced mobile responsiveness for table view
+  - Better alignment of table headers with content
+  - Improved styling of links in table view for better readability
+  - Fixed vertical stacking of document links on smaller screens
+
 
 ## [0.5.0] - 2025-03-07
 

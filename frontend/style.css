@@ -467,6 +467,7 @@ input.invalid {
   border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  height: auto; /* Allow height to be determined by content */
 }
 
 .warranty-card:hover {
@@ -562,6 +563,8 @@ input.invalid {
   font-size: 0.85rem;
   font-weight: 600;
   margin: 10px 0;
+  /* This class is kept for backward compatibility but we're now using warranty-status-row */
+  display: none;
 }
 
 .status-active {
@@ -1161,8 +1164,10 @@ input:checked + .toggle-slider:after {
 
 #recentExpirationsTable {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     table-layout: fixed;
+    border-right: 1px solid transparent;
 }
 
 #recentExpirationsTable th, 
@@ -1220,6 +1225,65 @@ input:checked + .toggle-slider:after {
     text-align: center;
     color: var(--dark-gray);
     padding: 30px;
+}
+
+/* Fix for the last column to ensure border extends fully */
+#recentExpirationsTable tr {
+    position: relative;
+}
+
+#recentExpirationsTable tr:after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background-color: var(--border-color);
+    z-index: 0;
+}
+
+#recentExpirationsTable td:last-child {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    border-bottom: none;
+}
+
+#recentExpirationsTable .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background-color: var(--light-gray);
+    color: var(--text-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 1;
+}
+
+#recentExpirationsTable .action-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+#recentExpirationsTable .edit-btn:hover {
+    background-color: var(--secondary-color);
+}
+
+#recentExpirationsTable .view-btn:hover {
+    background-color: var(--info-color);
+}
+
+@media (max-width: 768px) {
+    #recentExpirationsTable td:last-child {
+        padding: 8px;
+    }
 }
 
 /* Status styling */
@@ -1761,6 +1825,30 @@ input.invalid {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
   margin-top: 20px;
+  grid-auto-flow: row dense; /* Optimize grid item placement */
+}
+
+/* Make cards in grid view dynamic height based on content */
+.grid-view .warranty-card {
+  display: flex;
+  flex-direction: column;
+  height: auto; /* Allow height to be determined by content */
+}
+
+/* Ensure content is properly structured */
+.warranty-content {
+  display: flex;
+  padding: 15px;
+  flex: 0 1 auto; /* Don't force flex grow, allow natural sizing */
+}
+
+/* Keep document links at the bottom */
+.document-links-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 15px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-top: 1px solid var(--border-color);
 }
 
 /* List View */
@@ -1773,34 +1861,26 @@ input.invalid {
 
 .list-view .warranty-card {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  margin-bottom: 15px;
 }
 
-.list-view .warranty-header {
-  width: 200px;
-  border-bottom: none;
-  border-right: 1px solid var(--border-color);
-  height: 100%;
-  padding: 15px;
-}
-
-.list-view .warranty-details {
+.list-view .warranty-content {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
+}
+
+.list-view .warranty-info {
+  display: flex;
+  flex-wrap: wrap;
   gap: 15px;
-  padding: 15px;
 }
 
-.list-view .warranty-details > div {
+.list-view .warranty-info > div {
   margin-bottom: 0;
-  margin-right: 20px;
-}
-
-.list-view .document-links-row {
-  margin-left: auto;
+  margin-right: 15px;
 }
 
 /* Table View */
@@ -1809,6 +1889,7 @@ input.invalid {
   width: 100%;
   border-collapse: collapse;
   margin-top: 20px;
+  table-layout: fixed; /* Add fixed table layout for better column control */
 }
 
 .table-view .warranty-card {
@@ -1832,6 +1913,32 @@ input.invalid {
   background-color: rgba(46, 204, 113, 0.05);
 }
 
+/* Ensure proper display of content in table view */
+.table-view .product-name-header {
+  display: table-cell;
+  vertical-align: middle;
+  padding: 12px 15px;
+  width: 25%; /* Increase width for product names */
+  max-width: none; /* Remove max-width constraint */
+  white-space: normal; /* Allow text to wrap */
+  word-break: break-word; /* Break long words if needed */
+  background-color: transparent; /* Remove background color in table view */
+  border-bottom: none;
+  color: inherit; /* Use default text color instead of white */
+}
+
+.table-view .warranty-content {
+  display: table-cell;
+  vertical-align: middle;
+  padding: 12px 15px;
+  width: 30%; /* Set width for warranty details */
+}
+
+.table-view .warranty-info {
+  display: flex;
+  flex-direction: column;
+}
+
 .table-view .warranty-header,
 .table-view .warranty-details {
   display: table-cell;
@@ -1849,9 +1956,45 @@ input.invalid {
   margin: 0;
 }
 
+/* Ensure the status row is properly displayed in table view */
+.table-view .warranty-status-row {
+  display: table-cell;
+  vertical-align: middle;
+  padding: 12px 15px;
+  border-top: none;
+  text-align: center;
+  width: 15%; /* Adjust width for status column */
+}
+
 .table-view .document-links-row {
-  display: flex;
-  gap: 8px;
+  display: table-cell;
+  vertical-align: middle;
+  padding: 12px 15px;
+  width: 20%; /* Set width for document links */
+  overflow: hidden; /* Prevent overflow */
+  text-align: center; /* Center align the content */
+}
+
+/* Specific styling for links in table view */
+.table-view .document-links-row a {
+  display: inline-block !important; /* Allow links to be centered */
+  margin: 0 auto 5px !important; /* Center links and add space between */
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 90% !important; /* Slightly narrower to ensure centering works */
+  font-size: 0.9rem !important; /* Slightly smaller font size */
+  padding: 4px 8px !important; /* Smaller padding */
+  text-align: left !important; /* Keep text left-aligned within the link */
+}
+
+.table-view .document-links-row a i {
+  font-size: 0.9rem !important; /* Smaller icon size */
+  margin-right: 4px !important; /* Less spacing after icon */
+}
+
+.table-view .document-links-row a:last-child {
+  margin-bottom: 0 !important;
 }
 
 .table-view .serial-numbers {
@@ -1874,6 +2017,29 @@ input.invalid {
   font-weight: 600;
   color: var(--text-color);
   border-bottom: 2px solid var(--border-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Set specific widths for table headers to match cells */
+.table-view-header th:nth-child(1) {
+  width: 25%; /* Product column */
+}
+
+.table-view-header th:nth-child(2),
+.table-view-header th:nth-child(3) {
+  width: 15%; /* Purchase date and expiration columns */
+}
+
+.table-view-header th:nth-child(4) {
+  width: 15%; /* Status column */
+  text-align: center; /* Center align status header */
+}
+
+.table-view-header th:nth-child(5) {
+  width: 20%; /* Actions column */
+  text-align: center; /* Center align actions header */
 }
 
 /* Responsive adjustments */
@@ -1882,30 +2048,79 @@ input.invalid {
     width: 100%;
   }
   
-  .list-view .warranty-card,
-  .table-view .warranty-card {
-    flex-direction: column;
+  /* Convert table view to card-like view on mobile */
+  .warranties-list.table-view {
+    display: block;
   }
   
-  .list-view .warranty-header,
-  .table-view .warranty-header {
+  .table-view .warranty-card {
+    display: block;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .table-view-header {
+    display: none !important; /* Hide table headers on mobile */
+  }
+  
+  .table-view .product-name-header {
+    display: flex;
     width: 100%;
-    border-right: none;
+    padding: 15px;
+    background-color: var(--secondary-color);
+    color: white;
     border-bottom: 1px solid var(--border-color);
   }
   
-  .list-view .warranty-details,
-  .table-view .warranty-details {
-    flex-direction: column;
-    align-items: flex-start;
+  .table-view .warranty-card.expired .product-name-header {
+    background-color: var(--danger-color);
   }
   
-  .list-view .document-links-row,
+  .table-view .warranty-card.expiring-soon .product-name-header {
+    background-color: var(--warning-color);
+  }
+  
+  .table-view .product-name-header .warranty-title {
+    color: white;
+    font-size: 1.1rem;
+  }
+  
+  .table-view .warranty-content,
+  .table-view .warranty-status-row,
   .table-view .document-links-row {
-    margin-left: 0;
-    margin-top: 10px;
-    flex-direction: column;
+    display: block;
     width: 100%;
+    padding: 12px 15px;
+  }
+  
+  .table-view .warranty-status-row {
+    text-align: left;
+    border-top: 1px solid var(--border-color);
+    font-weight: bold;
+  }
+  
+  .table-view .document-links-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-top: 1px solid var(--border-color);
+    background-color: rgba(0, 0, 0, 0.03);
+    padding: 12px 15px;
+    width: 100%;
+  }
+  
+  /* Reset the block display for links on mobile */
+  .table-view .document-links-row a {
+    display: inline-flex !important;
+    margin-bottom: 0 !important;
+    max-width: none !important;
+    flex: 0 1 auto !important;
+  }
+  
+  .table-view .warranty-actions .action-btn {
+    color: white;
   }
 }
 
@@ -1926,4 +2141,318 @@ input.invalid {
 
 .price-input-wrapper .form-control {
   padding-left: 25px;
+}
+
+/* Product name header at the top of cards */
+.product-name-header {
+  width: 100%;
+  padding: 15px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  color: white;
+  transition: background-color 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+/* Default color for active warranties */
+.warranty-card .product-name-header {
+  background-color: var(--secondary-color);
+}
+
+/* Color for expiring soon warranties */
+.warranty-card.expiring-soon .product-name-header {
+  background-color: var(--warning-color);
+}
+
+/* Color for expired warranties */
+.warranty-card.expired .product-name-header {
+  background-color: var(--danger-color);
+}
+
+.product-name-header .warranty-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 80px); /* Make room for the action buttons */
+  flex: 1;
+  text-align: left;
+  padding-left: 5px;
+}
+
+.product-name-header .warranty-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.warranty-actions .action-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.8);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.warranty-actions .action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.warranty-content {
+  display: flex;
+  padding: 15px;
+  flex: 1;
+}
+
+.warranty-info {
+  flex: 0 1 auto; /* Allow natural sizing */
+  display: flex;
+  flex-direction: column;
+}
+
+.warranty-info > div {
+  margin-bottom: 8px;
+}
+
+.warranty-info > div:last-child {
+  margin-bottom: 0;
+}
+
+/* Serial numbers section */
+.serial-numbers {
+  margin-top: 10px;
+}
+
+.serial-numbers ul {
+  margin: 5px 0 0 0;
+  padding-left: 20px;
+}
+
+.serial-numbers li {
+  margin-bottom: 3px;
+}
+
+/* Update list view styles */
+.list-view .warranty-card {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.list-view .warranty-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.list-view .warranty-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.list-view .warranty-info > div {
+  margin-bottom: 0;
+  margin-right: 15px;
+}
+
+/* Document links row */
+.document-links-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 15px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-top: 1px solid var(--border-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .product-name-header {
+    padding: 12px 15px;
+  }
+  
+  .product-name-header .warranty-title {
+    font-size: 1.1rem;
+  }
+  
+  .warranty-content {
+    flex-direction: column;
+  }
+  
+  .list-view .warranty-info {
+    flex-direction: column;
+    gap: 5px;
+  }
+}
+
+#recentExpirationsTable td:last-child {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Override the border-collapse for this specific table */
+#recentExpirationsTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/* Ensure all cells have proper borders */
+#recentExpirationsTable th, 
+#recentExpirationsTable td {
+  border-bottom: 1px solid var(--border-color);
+}
+
+#recentExpirationsTable .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background-color: var(--light-gray);
+  color: var(--text-color);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+#recentExpirationsTable .action-btn:hover {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+#recentExpirationsTable .edit-btn:hover {
+  background-color: var(--secondary-color);
+}
+
+#recentExpirationsTable .view-btn:hover {
+  background-color: var(--info-color);
+}
+
+@media (max-width: 768px) {
+  #recentExpirationsTable td:last-child {
+    padding: 8px;
+  }
+}
+
+/* GitHub link styling */
+.settings-link.github-link {
+  background-color: #24292e; /* GitHub's dark color */
+  color: white !important;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-link.github-link:hover {
+  background-color: #2b3137; /* Slightly lighter on hover */
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.settings-link.github-link i {
+  font-size: 1.2em;
+  margin-right: 8px;
+}
+
+/* Warranty status row styling */
+.warranty-status-row {
+  display: flex;
+  justify-content: center;
+  padding: 8px 15px;
+  font-weight: 600;
+  border-top: 1px solid var(--border-color);
+}
+
+.warranty-status-row.status-active {
+  background-color: rgba(40, 167, 69, 0.1);
+  color: var(--success-color);
+}
+
+.warranty-status-row.status-expiring {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: var(--warning-color);
+}
+
+.warranty-status-row.status-expired {
+  background-color: rgba(220, 53, 69, 0.1);
+  color: var(--danger-color);
+}
+
+/* List view status row styling */
+.list-view .warranty-status-row {
+  text-align: left;
+  justify-content: flex-start;
+  padding-left: 20px;
+}
+
+.table-view .product-name-header .warranty-title {
+  color: var(--text-color); /* Use default text color */
+  white-space: normal; /* Allow text to wrap */
+  overflow: visible; /* Show overflow text */
+  text-overflow: clip; /* Don't use ellipsis */
+  max-width: none; /* Remove max-width constraint */
+  font-size: 1rem; /* Slightly smaller font size for table view */
+}
+
+.table-view .product-name-header .warranty-actions {
+  position: static; /* Reset position */
+  margin-left: auto; /* Push to the right */
+}
+
+.table-view .warranty-actions .action-btn {
+  color: var(--text-color); /* Use default text color */
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.table-view .warranty-actions .action-btn:hover {
+  opacity: 1;
+}
+
+/* Improve warranty info display in table view */
+.table-view .warranty-info > div {
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.table-view .warranty-info > div:last-child {
+  margin-bottom: 0;
+}
+
+/* Improve serial numbers display in table view */
+.table-view .serial-numbers {
+  margin-top: 5px;
+}
+
+.table-view .serial-numbers ul {
+  padding-left: 20px;
+  margin: 5px 0 0;
+}
+
+.table-view .serial-numbers li {
+  font-size: 0.85rem;
+  margin-bottom: 2px;
 }
