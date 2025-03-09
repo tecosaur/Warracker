@@ -4,7 +4,6 @@
 ![image](https://github.com/user-attachments/assets/b65106d3-2c3c-4f6c-a4b7-4ec6e010e5b8)
 
 </div>
-![b569d5b8-039d-4dd7-bf6c-eec8dac58f6e](https://github.com/user-attachments/assets/4e51ac45-75cd-4b62-b564-dad982464c73)
 
 <div align="center">
     
