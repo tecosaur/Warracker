@@ -48,9 +48,7 @@ Warracker is a web-based application that provides a centralized system for mana
 *   Docker and Docker Compose installed on your system.
 *   Git (for cloning the repository).
 
-### Setup
-
-    ### Fresh Installation 🆕
+### Fresh Installation 🆕
 1. Clone the repository:
    ```
    git clone https://github.com/sassanix/Warracker.git
