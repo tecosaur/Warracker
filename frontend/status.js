@@ -372,9 +372,45 @@ function filterAndSortWarranties() {
     tableBody.innerHTML = '';
     
     if (!allWarranties || allWarranties.length === 0) {
+        // Create a full-width, centered overlay message instead of using table structure
+        const tableContainer = document.querySelector('.table-responsive');
+        const emptyMessage = document.createElement('div');
+        
+        // Apply styles directly to ensure centering
+        emptyMessage.style.position = 'absolute';
+        emptyMessage.style.top = '0';
+        emptyMessage.style.left = '0';
+        emptyMessage.style.width = '100%';
+        emptyMessage.style.height = '300px';
+        emptyMessage.style.display = 'flex';
+        emptyMessage.style.justifyContent = 'center';
+        emptyMessage.style.alignItems = 'center';
+        emptyMessage.style.fontSize = '1.2em';
+        emptyMessage.style.color = 'var(--text-color)';
+        emptyMessage.style.backgroundColor = 'var(--card-bg)';
+        emptyMessage.style.zIndex = '1'; // Ensure it's on top
+        
+        // Add the message text
+        emptyMessage.textContent = 'No recently expired or expiring warranties.';
+        
+        // Make sure table container has position relative
+        tableContainer.style.position = 'relative';
+        
+        // Clear any existing error messages
+        const existingMessages = tableContainer.querySelectorAll('.empty-message-overlay');
+        existingMessages.forEach(msg => msg.remove());
+        
+        // Add class for easier removal later
+        emptyMessage.classList.add('empty-message-overlay');
+        
+        // Add to the table container
+        tableContainer.appendChild(emptyMessage);
+        
+        // Add a blank row to maintain table structure
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="5" class="no-data">No recently expired or expiring warranties.</td>';
+        row.innerHTML = '<td colspan="5" style="height: 300px;"></td>';
         tableBody.appendChild(row);
+        
         return;
     }
     
@@ -447,9 +483,45 @@ function filterAndSortWarranties() {
     
     // Render filtered and sorted warranties
     if (filteredWarranties.length === 0) {
+        // Create a full-width, centered overlay message instead of using table structure
+        const tableContainer = document.querySelector('.table-responsive');
+        const emptyMessage = document.createElement('div');
+        
+        // Apply styles directly to ensure centering
+        emptyMessage.style.position = 'absolute';
+        emptyMessage.style.top = '0';
+        emptyMessage.style.left = '0';
+        emptyMessage.style.width = '100%';
+        emptyMessage.style.height = '300px';
+        emptyMessage.style.display = 'flex';
+        emptyMessage.style.justifyContent = 'center';
+        emptyMessage.style.alignItems = 'center';
+        emptyMessage.style.fontSize = '1.2em';
+        emptyMessage.style.color = 'var(--text-color)';
+        emptyMessage.style.backgroundColor = 'var(--card-bg)';
+        emptyMessage.style.zIndex = '1'; // Ensure it's on top
+        
+        // Add the message text
+        emptyMessage.textContent = 'No warranties match your search criteria.';
+        
+        // Make sure table container has position relative
+        tableContainer.style.position = 'relative';
+        
+        // Clear any existing error messages
+        const existingMessages = tableContainer.querySelectorAll('.empty-message-overlay');
+        existingMessages.forEach(msg => msg.remove());
+        
+        // Add class for easier removal later
+        emptyMessage.classList.add('empty-message-overlay');
+        
+        // Add to the table container
+        tableContainer.appendChild(emptyMessage);
+        
+        // Add a blank row to maintain table structure
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="5" class="no-data">No warranties match your search criteria.</td>';
+        row.innerHTML = '<td colspan="5" style="height: 300px;"></td>';
         tableBody.appendChild(row);
+        
         return;
     }
     

@@ -424,31 +424,34 @@ input.invalid {
 }
 
 .search-box {
-  margin-bottom: 20px;
   position: relative;
+  margin-bottom: 0;
 }
 
 .search-box input {
   width: 100%;
-  padding: 12px 15px 12px 40px;
-  border: 1px solid var(--medium-gray);
+  padding: 8px 10px 8px 35px;
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  font-size: 1rem;
+  font-size: 0.95rem;
+  background-color: var(--bg-color);
+  color: var(--text-color);
   transition: var(--transition);
 }
 
 .search-box input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
 .search-box i {
   position: absolute;
-  left: 15px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--dark-gray);
+  font-size: 1rem;
 }
 
 .warranties-list {
@@ -1224,7 +1227,17 @@ input:checked + .toggle-slider:after {
 #recentExpirationsTable .no-data {
     text-align: center;
     color: var(--dark-gray);
-    padding: 30px;
+    padding: 50px 30px;
+    font-size: 1.2em;
+}
+
+#recentExpirationsTable .empty-row {
+    height: 250px; /* Fixed height for the empty row */
+}
+
+#recentExpirationsTable .empty-row td {
+    vertical-align: middle;
+    text-align: center;
 }
 
 /* Fix for the last column to ensure border extends fully */
@@ -1657,7 +1670,7 @@ input.invalid {
 
 .search-box {
   position: relative;
-  margin-bottom: 15px;
+  margin-bottom: 0;
 }
 
 .search-box i {
@@ -1671,7 +1684,7 @@ input.invalid {
 
 .search-box input {
   width: 100%;
-  padding: 10px 10px 10px 35px;
+  padding: 8px 10px 8px 35px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   font-size: 0.95rem;
@@ -1708,12 +1721,12 @@ input.invalid {
 }
 
 .filter-select {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
-  background-color: var(--bg-color);
+  background-color: var(--card-bg);
   color: var(--text-color);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   cursor: pointer;
   transition: var(--transition);
   appearance: none;
@@ -2455,4 +2468,24 @@ input.invalid {
 .table-view .serial-numbers li {
   font-size: 0.85rem;
   margin-bottom: 2px;
+}
+
+#recentExpirationsTable tbody {
+    min-height: 250px; /* Ensure minimum height for the table body */
+}
+
+#recentExpirationsTable .no-data {
+    text-align: center;
+    color: var(--dark-gray);
+    padding: 50px 30px;
+    font-size: 1.2em;
+}
+
+#recentExpirationsTable .empty-row {
+    height: 250px; /* Fixed height for the empty row */
+}
+
+#recentExpirationsTable .empty-row td {
+    vertical-align: middle;
+    text-align: center;
 }

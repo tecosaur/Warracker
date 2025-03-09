@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.2] - 2025-03-09
+
+### Changed
+- Enhanced user interface consistency and dark mode support
+  - Fixed alignment issues between search field and status dropdown
+  - Improved empty state display in both light and dark modes
+  - Standardized padding and sizing for search and filter controls
+  - Better vertical alignment of form controls in table header
+
+### Fixed
+- Proper centering of "No warranties" message in the dashboard table
+  - Implemented responsive overlay for empty state messages
+  - Fixed background colors in dark mode for empty state displays
+  - Ensured consistent text color across all themes
+  - Improved mobile responsiveness for empty state messages
+
 ## [0.5.1] - 2025-03-08
 
 ### Changed
