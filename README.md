@@ -1,6 +1,8 @@
 # 🛡️ Warracker
 <div align="center">
+    
 ![image](https://github.com/user-attachments/assets/398dedba-e8ed-4af6-87e8-89f7f088380c)
+
 </div>
 
 Warracker is an open-source warranty tracker application designed to help you effortlessly keep track of product warranties, expiration dates, and related documentation.
