@@ -4,15 +4,17 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 
 <div align="center">
-    ![GitHub forks](https://img.shields.io/github/forks/sassanix/Warracker?style=social) -->
+    
+    <!-- ![GitHub forks](https://img.shields.io/github/forks/sassanix/Warracker?style=social) -->
     ![GitHub issues](https://img.shields.io/github/issues/sassanix/Warracker)
     ![GitHub license](https://img.shields.io/github/license/sassanix/Warracker)
     ![GitHub last commit](https://img.shields.io/github/last-commit/sassanix/Warracker)
     ![GitHub release](https://img.shields.io/github/v/release/sassanix/Warracker)
     ![GitHub contributors](https://img.shields.io/github/contributors/sassanix/Warracker)
-    ![Downloads](https://img.shields.io/github/downloads/sassanix/Warracker/total) -->
+    <!-- ![Downloads](https://img.shields.io/github/downloads/sassanix/Warracker/total) -->
     [![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/denser-org/denser-retriever/pulls?utf8=%E2%9C%93&q=is%3Apr%20author%3Aapp%2Fdependabot)
     ![Maintenance](https://img.shields.io/badge/Maintained-Actively-green)
+    
 </div>
 
 ## 🌟 Overview
