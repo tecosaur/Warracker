@@ -50,39 +50,7 @@ Warracker is a web-based application that provides a centralized system for mana
 
 ### Setup
 
-1.  **Clone the Repository:**
-
-    ```bash
-    git clone https://github.com/sassanix/warracker.git
-    cd warracker
-    ```
-2.  **Start the Application:**
-
-    ```bash
-    docker-compose up -d
-    ```
-3.  **Access the Application:**
-
-    Open your browser and navigate to `http://localhost:8005`.
-
-## 📝 Usage
-
-### Adding a Warranty
-
-1.  Fill in the product details on the left panel.
-2.  Enter the purchase date and warranty duration.
-3.  Optionally upload receipt/documentation.
-4.  Click the "Add Warranty" button.
-
-### Managing Warranties
-
-*   Use the search box to filter warranties.
-*   Click the edit icon to modify warranty details.
-*   Click the delete icon to remove a warranty.
-
-## 💻 Development
-
-### Fresh Installation 🆕
+    ### Fresh Installation 🆕
 1. Clone the repository:
    ```
    git clone https://github.com/sassanix/Warracker.git
@@ -106,6 +74,37 @@ Warracker is a web-based application that provides a centralized system for mana
    docker compose down
    docker compose up --build
    ```
+3.  **Access the Application:**
+
+    Open your browser and navigate to `http://localhost:8005`.
+
+## 📝 Usage
+
+### Adding a Warranty
+
+1.  Fill in the product details on the left panel.
+2.  Enter the purchase date and warranty duration.
+3.  Optionally upload receipt/documentation.
+4.  Click the "Add Warranty" button.
+
+### Managing Warranties
+
+*   Use the search box to filter warranties.
+*   Click the edit icon to modify warranty details.
+*   Click the delete icon to remove a warranty.
+
+## 💻 Development
+
+### Local Development Environment
+
+1.  Clone the repository.
+2.  Make your changes.
+3.  Build and run with Docker Compose:
+
+    ```bash
+    docker-compose build
+    docker-compose up -d
+    ```
 
 ### Project Structure
 
