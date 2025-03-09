@@ -154,3 +154,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   Flask
 *   PostgreSQL
 *   Docker
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=sassanix/Warracker&type=Date)](https://star-history.com/#sassanix/Warracker&Date)
