@@ -16,9 +16,9 @@ Warracker is a web-based application that provides a centralized system for mana
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/7b343fa3-0880-48e9-8809-55a72be4d5e4)
+![image](https://github.com/user-attachments/assets/a833ab2e-b70b-4b4c-9b1d-b22305ce73da)
 
-![image](https://github.com/user-attachments/assets/0a4de195-fdcb-4dcb-87c3-e518323462ba)
+![image](https://github.com/user-attachments/assets/9b3300ff-e5f2-46b9-be48-95ac782029b4)
 
 **Status Dashboard**  
 
@@ -93,6 +93,7 @@ Warracker is a web-based application that provides a centralized system for mana
     docker-compose build
     docker-compose up -d
     ```
+
 
 ### Project Structure
 
