@@ -16,14 +16,13 @@ Warracker is a web-based application that provides a centralized system for mana
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/a833ab2e-b70b-4b4c-9b1d-b22305ce73da)
+![image](https://github.com/user-attachments/assets/883908de-df49-438d-8587-eaecb445421c)
 
-![image](https://github.com/user-attachments/assets/9b3300ff-e5f2-46b9-be48-95ac782029b4)
+![image](https://github.com/user-attachments/assets/f502d46d-fa81-4fb0-92d9-3a100ebbc1a4)
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/dc35f8ac-97d1-4db9-906a-f52c05803c2a)
-
+![image](https://github.com/user-attachments/assets/b3ed5b18-b668-4dc6-bba7-f3dfbde631e7)
 
 
 ## ✨ Features
@@ -83,17 +82,30 @@ Warracker is a web-based application that provides a centralized system for mana
 
 ## 💻 Development
 
-### Local Development Environment
+### Fresh Installation 🆕
+1. Clone the repository:
+   ```
+   git clone https://github.com/sassanix/Warracker.git
+   ```
+2. Navigate to the project directory:
+   ```
+   cd Warracker
+   ```
+3. Start the application using Docker:
+   ```
+   docker compose up
+   ```
 
-1.  Clone the repository.
-2.  Make your changes.
-3.  Build and run with Docker Compose:
-
-    ```bash
-    docker-compose build
-    docker-compose up -d
-    ```
-
+### Updating from a Previous Version ⬆️
+1. Pull the latest changes:
+   ```
+   git pull origin main
+   ```
+2. Rebuild and restart the containers:
+   ```
+   docker compose down
+   docker compose up --build
+   ```
 
 ### Project Structure
 
