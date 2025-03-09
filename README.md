@@ -175,7 +175,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   PostgreSQL
 *   Docker
 
-## Star History
+## ⭐ Star History
 
 <a href="https://star-history.com/#sassanix/Warracker&Date">
  <picture>
