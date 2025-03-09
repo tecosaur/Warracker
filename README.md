@@ -146,7 +146,7 @@ warracker/
 *   User authentication.
 *   Email reminders for expiring warranties.
 *   Settings page.
-*   Status page.
+*   Status page. ✅
 
 ## 🛠️ Troubleshooting
 
