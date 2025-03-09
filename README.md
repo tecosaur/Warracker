@@ -18,7 +18,6 @@
 ![Maintenance](https://img.shields.io/badge/Maintained-Actively-green)
     
 </div>
-#
 
 # 🛡️ Warracker
 
