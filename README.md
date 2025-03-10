@@ -179,7 +179,6 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   Docker
 
 ## ⭐ Star History
-
 <a href="https://star-history.com/#sassanix/Warracker&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sassanix/Warracker&type=Date&theme=dark" />
