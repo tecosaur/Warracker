@@ -14,7 +14,8 @@ const sortableHeaders = document.querySelectorAll('.sortable');
 const exportBtn = document.getElementById('exportBtn');
 
 // Configuration
-const API_URL = '/api/statistics'; // Full URL for statistics endpoint
+const API_BASE_URL = '/api/statistics'; // Base URL for statistics endpoint
+const API_URL = window.location.origin + API_BASE_URL; // Full URL for statistics endpoint
 const EXPIRING_SOON_DAYS = 30; // Number of days to consider "expiring soon"
 
 // Global variables for sorting and filtering
@@ -49,17 +50,35 @@ function initializeTheme() {
 // Initialize theme when page loads
 initializeTheme();
 
-// Settings menu toggle
-settingsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    settingsMenu.classList.toggle('active');
-});
-
-// Close settings menu when clicking outside
-document.addEventListener('click', (e) => {
-    if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
-        settingsMenu.classList.remove('active');
+// Initialize settings button
+document.addEventListener('DOMContentLoaded', () => {
+    // Ensure auth state is checked
+    if (window.auth && window.auth.checkAuthState) {
+        window.auth.checkAuthState();
     }
+    
+    // Ensure settings button works
+    if (settingsBtn && settingsMenu) {
+        console.log('Status page: Settings button found, adding event listener');
+        settingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            settingsMenu.classList.toggle('active');
+            console.log('Status page: Settings button clicked, menu toggled');
+        });
+        
+        // Close settings menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (settingsMenu.classList.contains('active') && 
+                !settingsMenu.contains(e.target) && 
+                !settingsBtn.contains(e.target)) {
+                settingsMenu.classList.remove('active');
+            }
+        });
+    } else {
+        console.error('Status page: Settings button or menu not found');
+    }
+    
+    // ... existing code ...
 });
 
 // Dark mode toggle
@@ -144,7 +163,38 @@ function hideError() {
 // Fetch statistics from API
 async function fetchStatistics() {
     try {
-        const response = await fetch(API_URL);
+        console.log('Checking authentication status...');
+        console.log('window.auth exists:', !!window.auth);
+        
+        // Check if auth is available and user is authenticated
+        if (!window.auth) {
+            console.error('Auth object not available. Make sure auth.js is loaded before status.js');
+            throw new Error('Authentication system not available. Please refresh the page.');
+        }
+        
+        console.log('User is authenticated:', window.auth.isAuthenticated());
+        if (!window.auth.isAuthenticated()) {
+            throw new Error('Authentication required. Please log in to view statistics.');
+        }
+        
+        // Get the auth token
+        const token = window.auth.getToken();
+        console.log('Auth token available:', !!token);
+        if (!token) {
+            throw new Error('Authentication token not available. Please log in again.');
+        }
+        
+        // Create request with auth header
+        const options = {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        console.log('Fetching statistics from:', API_URL);
+        const response = await fetch(API_URL, options);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -647,126 +697,32 @@ async function initDashboard() {
         
         // Create charts
         createStatusChart(summary);
-        
-        // Handle timeline data
-        if (Array.isArray(timeline) && timeline.length > 0) {
-            createTimelineChart(timeline);
-        } else {
-            // Create default timeline if none provided
-            createTimelineChart([
-                { month: 1, year: new Date().getFullYear(), count: 0 },
-                { month: 2, year: new Date().getFullYear(), count: 0 },
-                { month: 3, year: new Date().getFullYear(), count: 0 }
-            ]);
-        }
+        createTimelineChart(timeline);
         
         // Update recent expirations table
-        if (Array.isArray(recentWarranties)) {
-            updateRecentExpirations(recentWarranties);
-        } else {
-            updateRecentExpirations([]);
-        }
+        updateRecentExpirations(recentWarranties);
         
-        showToast('Dashboard updated successfully', 'success');
+        // Store all warranties for filtering
+        allWarranties = recentWarranties;
+        
+        // Set up event listeners for filtering and sorting
+        setupEventListeners();
+        
+        hideLoading();
     } catch (error) {
         console.error('Error initializing dashboard:', error);
-        showError(
-            'There was a problem loading the warranty statistics. Please try refreshing the page.',
-            error.message
-        );
         
-        // Fallback to static data for demonstration if API fails
-        document.getElementById('activeCount').textContent = '10';
-        document.getElementById('expiringCount').textContent = '5';
-        document.getElementById('expiredCount').textContent = '3';
-        document.getElementById('totalCount').textContent = '18';
-        
-        // Create a simple chart with static data
-        try {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (window.statusChart) window.statusChart.destroy();
+        // Check if it's an authentication error
+        if (error.message.includes('Authentication required') || 
+            error.message.includes('Authentication token') || 
+            error.message.includes('401')) {
             
-            window.statusChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Active', 'Expiring Soon', 'Expired'],
-                    datasets: [{
-                        data: [10, 5, 3],
-                        backgroundColor: [
-                            '#4CAF50',
-                            '#FF9800',
-                            '#F44336'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-            
-            // Create a simple timeline chart
-            const timelineCtx = document.getElementById('timelineChart').getContext('2d');
-            if (window.timelineChart) window.timelineChart.destroy();
-            
-            window.timelineChart = new Chart(timelineCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan 2023', 'Feb 2023', 'Mar 2023'],
-                    datasets: [{
-                        label: 'Warranties Expiring',
-                        data: [2, 3, 4],
-                        backgroundColor: '#3498db',
-                        borderColor: '#2980b9',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    }
-                }
-            });
-            
-            // Add some sample data to the table
-            const sampleWarranties = [
-                {
-                    id: 1,
-                    product_name: 'Sample Product 1',
-                    purchase_date: '2022-01-01',
-                    expiration_date: '2023-01-01',
-                    invoice_path: null
-                },
-                {
-                    id: 2,
-                    product_name: 'Sample Product 2',
-                    purchase_date: '2022-01-01',
-                    expiration_date: '2023-06-15',
-                    invoice_path: null
-                }
-            ];
-            
-            // Update the table with sample data
-            updateRecentExpirations(sampleWarranties);
-            
-        } catch (chartError) {
-            console.error('Error creating fallback charts:', chartError);
+            showError('Authentication Required', 
+                'Please <a href="login.html">log in</a> to view your warranty statistics.');
+        } else {
+            showError('Error Loading Dashboard', 
+                'There was a problem loading the warranty statistics. Please try refreshing the page.');
         }
-        
-        showToast('Using demo data - API connection failed', 'warning');
     } finally {
         hideLoading();
     }
@@ -905,4 +861,112 @@ function exportWarrantyData() {
     document.body.removeChild(link);
     
     showToast('Data exported successfully', 'success');
+}
+
+// Set up event listeners for filtering and sorting
+function setupEventListeners() {
+    // Refresh button
+    if (refreshDashboardBtn) {
+        refreshDashboardBtn.addEventListener('click', refreshDashboard);
+    }
+    
+    // Search input
+    if (searchWarranties) {
+        searchWarranties.addEventListener('input', filterAndSortWarranties);
+    }
+    
+    // Status filter
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterAndSortWarranties);
+    }
+    
+    // Sortable headers
+    if (sortableHeaders) {
+        sortableHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.getAttribute('data-column');
+                
+                // Toggle direction if same column, otherwise default to ascending
+                if (currentSort.column === column) {
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort.column = column;
+                    currentSort.direction = 'asc';
+                }
+                
+                // Update header classes to show sort direction
+                updateSortHeaderClasses();
+                
+                // Apply the new sort
+                filterAndSortWarranties();
+            });
+        });
+    }
+    
+    // Export button
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportWarrantyData);
+    }
+    
+    // Dark mode toggle
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('change', (e) => {
+            setTheme(e.target.checked);
+            
+            // Redraw charts with new theme colors if they exist
+            if (window.statusChart) {
+                createStatusChart({
+                    active: parseInt(document.getElementById('activeCount').textContent) || 0,
+                    expiring_soon: parseInt(document.getElementById('expiringCount').textContent) || 0,
+                    expired: parseInt(document.getElementById('expiredCount').textContent) || 0
+                });
+            }
+            
+            if (window.timelineChart && allWarranties.length > 0) {
+                createTimelineChart(extractTimelineData(allWarranties));
+            }
+        });
+    }
+}
+
+// Helper function to extract timeline data from warranties
+function extractTimelineData(warranties) {
+    // Create a map to store counts by month and year
+    const timelineMap = new Map();
+    
+    // Get current date for reference
+    const today = new Date();
+    
+    // Process each warranty
+    warranties.forEach(warranty => {
+        if (warranty.expiration_date) {
+            const expDate = new Date(warranty.expiration_date);
+            const month = expDate.getMonth() + 1; // 1-12
+            const year = expDate.getFullYear();
+            
+            // Create a key for this month/year
+            const key = `${year}-${month}`;
+            
+            // Increment the count for this month/year
+            if (timelineMap.has(key)) {
+                timelineMap.set(key, timelineMap.get(key) + 1);
+            } else {
+                timelineMap.set(key, 1);
+            }
+        }
+    });
+    
+    // Convert the map to an array of objects
+    const timeline = Array.from(timelineMap.entries()).map(([key, count]) => {
+        const [year, month] = key.split('-').map(Number);
+        return { year, month, count };
+    });
+    
+    // Sort by date
+    timeline.sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+    });
+    
+    return timeline;
 } 

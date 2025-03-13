@@ -17,6 +17,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY backend/app.py .
+COPY backend/run_migrations.py .
+COPY backend/fix_permissions.py .
+COPY backend/fix_permissions.sql .
+COPY backend/migrations/ ./migrations/
 
 # Create directory for uploads with proper permissions
 RUN mkdir -p /data/uploads && chmod 777 /data/uploads
@@ -31,15 +35,32 @@ COPY test.html /var/www/html/
 RUN rm /etc/nginx/sites-enabled/default
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Add MIME type configuration - this is now included in nginx.conf
-
-# Create startup script with directory permission check
+# Create startup script with directory permission check and database initialization
 RUN echo '#!/bin/bash\n\
 echo "Checking /data/uploads directory:"\n\
 ls -la /data/uploads\n\
 echo "Setting permissions:"\n\
 chmod -R 777 /data/uploads\n\
 ls -la /data/uploads\n\
+echo "Running database migrations..."\n\
+python /app/run_migrations.py\n\
+echo "Ensuring admin role has proper permissions..."\n\
+# Retry logic for granting superuser privileges\n\
+max_attempts=5\n\
+attempt=0\n\
+while [ $attempt -lt $max_attempts ]; do\n\
+  echo "Attempt $((attempt+1)) to grant superuser privileges..."\n\
+  if PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE warranty_user WITH SUPERUSER;" 2>/dev/null; then\n\
+    echo "Successfully granted superuser privileges to warranty_user"\n\
+    break\n\
+  else\n\
+    echo "Failed to grant privileges, retrying in 5 seconds..."\n\
+    sleep 5\n\
+    attempt=$((attempt+1))\n\
+  fi\n\
+done\n\
+echo "Running fix permissions script..."\n\
+python /app/fix_permissions.py\n\
 echo "Starting services..."\n\
 nginx\n\
 gunicorn --bind 0.0.0.0:5000 --workers 4 app:app\n\

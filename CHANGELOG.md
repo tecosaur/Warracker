@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.9.7] - 2025-03-13
+
+- **Authentication Enhancements**
+  - Added "Remember Me" functionality to the login page, allowing users to stay logged in across sessions.
+  - Implemented auto-login feature that checks for a valid session cookie and automatically logs in users if they have opted for "Remember Me".
+  - Updated the login endpoint to accept a `remember_me` parameter and set a persistent session cookie when checked.
+  - Created a new `/api/auth/auto-login` endpoint to handle auto-login requests.
+
+- **User Management Improvements**
+  - Enhanced user registration process to validate email format and password strength.
+  - Added functionality to check if registration is enabled or disabled via the `/api/auth/registration-status` endpoint.
+  - Implemented user profile update functionality, allowing users to change their first and last names.
+  - Added admin-only endpoints for managing user accounts, including viewing, updating, and deleting users.
+  - **User Deletion Functionality**
+    - Enhanced modal functionality for user deletion, including improved error checking and logging.
+    - Improved `deleteUser` function with better error handling and user ID retrieval.
+    - Added support for handling both numeric IDs and usernames in the deletion process.
+    - Created diagnostic functions to test modal functionality and user deletion processes.
+    - Improved event handling for user-related actions, ensuring proper setup of event listeners.
+
+- **Admin Management**
+  - View Users: Admins can view a list of all registered users, including their details such as usernames, email addresses, and account statuses.
+  - Delete User Accounts: Admins have the ability to delete user accounts, removing them from the system entirely.
+  - Monitor System Health: Admins can check the health of the application and server, ensuring that everything is running smoothly.
+
+- **Settings Page Updates**
+  - Created a settings page for users to manage their preferences, including email notifications and default view settings.
+  - Implemented backend support for retrieving and updating user preferences via the `/api/auth/preferences` endpoint.
+  - Added validation for user preferences to ensure only valid values are accepted.
+
+- **Database Enhancements**
+  - Updated database schema to include user sessions and password reset tokens for improved security and functionality.
+  - Added indexes to improve query performance for user and warranty data.
+  - Implemented error handling and logging for database operations to facilitate easier debugging and maintenance.
+
+- **UI/UX Improvements**
+  - Enhanced the login form with a "Remember Me" checkbox and improved styling for better user experience.
+  - Added loading indicators and toast notifications for better feedback during authentication processes.
+  - Improved the overall layout and design of the settings and authentication pages for a more cohesive look.
+  - Added a "Show Users List" button to the admin controls for easy access to user management.
+
+- **Security Enhancements**
+  - Implemented secure cookie handling for session tokens to prevent XSS attacks.
+  - Added validation checks for user input to prevent SQL injection and other common vulnerabilities.
+  - Ensured that sensitive operations are protected by authentication and authorization checks.
+
+- **What's not working**
+  - The menu still needs work done, the gear icon is not consistent 
+  - When putting in the wrong password, you will need to refresh the page and try again manually.
+  - Email notification still doesn't work
+  - Users can't delete their own account, but admins can
+  - Users can't delete their own account, but admins can
+
+
 ## [0.5.2] - 2025-03-09
 
 ### Changed

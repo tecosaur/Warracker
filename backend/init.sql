@@ -1,5 +1,8 @@
 -- backend/init.sql
 
+-- Grant superuser privileges to warranty_user
+ALTER ROLE warranty_user WITH SUPERUSER;
+
 CREATE TABLE warranties (
     id SERIAL PRIMARY KEY,
     product_name VARCHAR(255) NOT NULL,

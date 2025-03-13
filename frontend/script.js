@@ -49,17 +49,32 @@ function initializeTheme() {
 // Initialize theme when page loads
 initializeTheme();
 
-// Settings menu toggle
-settingsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    settingsMenu.classList.toggle('active');
-});
-
-// Close settings menu when clicking outside
-document.addEventListener('click', (e) => {
-    if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
-        settingsMenu.classList.remove('active');
+// Initialize page
+document.addEventListener('DOMContentLoaded', () => {
+    // Ensure auth state is checked
+    if (window.auth && window.auth.checkAuthState) {
+        window.auth.checkAuthState();
     }
+    
+    // Initialize settings button
+    if (settingsBtn && settingsMenu) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsMenu.classList.toggle('active');
+        });
+        
+        // Close settings menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (settingsMenu.classList.contains('active') && 
+                !settingsMenu.contains(e.target) && 
+                !settingsBtn.contains(e.target)) {
+                settingsMenu.classList.remove('active');
+            }
+        });
+    }
+    
+    // Initialize other event listeners and functionality
+    // ... existing initialization code ...
 });
 
 // Dark mode toggle
@@ -77,19 +92,40 @@ serialNumbersContainer.addEventListener('click', (e) => {
 });
 
 function addSerialNumberInput(container = serialNumbersContainer) {
+    // Check if this is the first input or an additional one
+    const isFirstInput = container.querySelectorAll('.serial-number-input').length === 0;
+    
     const newInput = document.createElement('div');
     newInput.className = 'serial-number-input';
-    newInput.innerHTML = `
-        <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
-        <button type="button" class="btn btn-sm btn-danger remove-serial-number">
-            <i class="fas fa-minus"></i> Remove
-        </button>
-    `;
     
-    // Add remove button functionality
-    newInput.querySelector('.remove-serial-number').addEventListener('click', function() {
-        this.parentElement.remove();
-    });
+    if (isFirstInput) {
+        // First input should have both Add and Remove buttons
+        newInput.innerHTML = `
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+            <button type="button" class="btn btn-sm btn-primary add-serial-number">
+                <i class="fas fa-plus"></i> Add Another
+            </button>
+        `;
+        
+        // Add event listener for the Add button
+        newInput.querySelector('.add-serial-number').addEventListener('click', function(e) {
+            e.stopPropagation(); // Stop event from bubbling up to the container
+            addSerialNumberInput(container);
+        });
+    } else {
+        // Additional inputs should have only Remove button
+        newInput.innerHTML = `
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
+            <button type="button" class="btn btn-sm btn-danger remove-serial-number">
+                <i class="fas fa-minus"></i> Remove
+            </button>
+        `;
+        
+        // Add remove button functionality
+        newInput.querySelector('.remove-serial-number').addEventListener('click', function() {
+            this.parentElement.remove();
+        });
+    }
     
     container.appendChild(newInput);
 }
@@ -109,7 +145,19 @@ const API_URL = '/api/warranties';
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM fully loaded, initializing app...');
+    
+    // Initialize the app
+    initializeTheme();
+    
+    // Load warranties
     loadWarranties();
+    
+    // Initialize form tabs
+    initFormTabs();
+    
+    // Initialize the form
+    resetForm();
     
     // Close modals when clicking outside or on close button
     document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
@@ -119,66 +167,79 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
-
+    
     // Prevent modal content clicks from closing the modal
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', (e) => {
             e.stopPropagation();
         });
     });
-
-    // Initialize form tabs
-    initFormTabs();
     
     // Filter event listeners
-    searchInput.addEventListener('input', () => {
-        currentFilters.search = searchInput.value.toLowerCase();
-        applyFilters();
-    });
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            currentFilters.search = searchInput.value.toLowerCase();
+            applyFilters();
+        });
+    }
     
-    statusFilter.addEventListener('change', () => {
-        currentFilters.status = statusFilter.value;
-        applyFilters();
-    });
+    if (statusFilter) {
+        statusFilter.addEventListener('change', () => {
+            currentFilters.status = statusFilter.value;
+            applyFilters();
+        });
+    }
     
-    sortBySelect.addEventListener('change', () => {
-        currentFilters.sort = sortBySelect.value;
-        applyFilters();
-    });
+    if (sortBySelect) {
+        sortBySelect.addEventListener('change', () => {
+            currentFilters.sort = sortBySelect.value;
+            applyFilters();
+        });
+    }
     
     // View switcher event listeners
-    gridViewBtn.addEventListener('click', () => switchView('grid'));
-    listViewBtn.addEventListener('click', () => switchView('list'));
-    tableViewBtn.addEventListener('click', () => switchView('table'));
+    if (gridViewBtn) gridViewBtn.addEventListener('click', () => switchView('grid'));
+    if (listViewBtn) listViewBtn.addEventListener('click', () => switchView('list'));
+    if (tableViewBtn) tableViewBtn.addEventListener('click', () => switchView('table'));
     
     // Export button event listener
-    exportBtn.addEventListener('click', exportWarranties);
+    if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
+    
+    // File input change event
+    if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
+    if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
+    
+    const editInvoice = document.getElementById('editInvoice');
+    if (editInvoice) {
+        editInvoice.addEventListener('change', () => {
+            updateFileName(null, 'editInvoice', 'editFileName');
+        });
+    }
+    
+    const editManual = document.getElementById('editManual');
+    if (editManual) {
+        editManual.addEventListener('change', () => {
+            updateFileName(null, 'editManual', 'editManualFileName');
+        });
+    }
+    
+    // Form submission
+    if (warrantyForm) warrantyForm.addEventListener('submit', addWarranty);
+    
+    // Refresh button
+    if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
+    
+    // Save warranty changes
+    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', updateWarranty);
+    
+    // Confirm delete button
+    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
     
     // Load saved view preference
     loadViewPreference();
+    
+    console.log('App initialization complete');
 });
-
-// File input change event
-fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
-manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
-document.getElementById('editInvoice').addEventListener('change', () => {
-    updateFileName(null, 'editInvoice', 'editFileName');
-});
-document.getElementById('editManual').addEventListener('change', () => {
-    updateFileName(null, 'editManual', 'editManualFileName');
-});
-
-// Form submission
-warrantyForm.addEventListener('submit', addWarranty);
-
-// Refresh button
-refreshBtn.addEventListener('click', loadWarranties);
-
-// Save warranty changes
-saveWarrantyBtn.addEventListener('click', updateWarranty);
-
-// Confirm delete button
-confirmDeleteBtn.addEventListener('click', deleteWarranty);
 
 // Functions
 function showLoading() {
@@ -223,32 +284,147 @@ function updateFileName(event, inputId = 'invoice', outputId = 'fileName') {
     }
 }
 
+// Helper function to process warranty data
+function processWarrantyData(warranty) {
+    console.log('Processing warranty data:', warranty);
+    
+    // Create a copy of the warranty object to avoid modifying the original
+    const processedWarranty = { ...warranty };
+    
+    // Ensure product_name exists
+    if (!processedWarranty.product_name) {
+        processedWarranty.product_name = 'Unnamed Product';
+    }
+    
+    const today = new Date();
+    
+    // Handle purchase date
+    let purchaseDate = null;
+    if (processedWarranty.purchase_date) {
+        purchaseDate = new Date(processedWarranty.purchase_date);
+        // Check if date is valid
+        if (isNaN(purchaseDate.getTime())) {
+            purchaseDate = null;
+        }
+    }
+    processedWarranty.purchaseDate = purchaseDate;
+    
+    // Handle expiration date
+    let expirationDate = null;
+    if (processedWarranty.expiration_date) {
+        expirationDate = new Date(processedWarranty.expiration_date);
+        // Check if date is valid
+        if (isNaN(expirationDate.getTime())) {
+            expirationDate = null;
+        }
+    }
+    processedWarranty.expirationDate = expirationDate;
+    
+    // Calculate days remaining only if expiration date is valid
+    let daysRemaining = null;
+    if (expirationDate && !isNaN(expirationDate.getTime())) {
+        daysRemaining = Math.floor((expirationDate - today) / (1000 * 60 * 60 * 24));
+    }
+    
+    let statusClass = 'active';
+    let statusText = 'Active';
+    
+    if (daysRemaining === null) {
+        statusClass = 'unknown';
+        statusText = 'Unknown status';
+    } else if (daysRemaining < 0) {
+        statusClass = 'expired';
+        statusText = 'Expired';
+    } else if (daysRemaining < 30) {
+        statusClass = 'expiring';
+        statusText = `Expiring Soon (${daysRemaining} days)`;
+    } else {
+        statusText = `${daysRemaining} days remaining`;
+    }
+    
+    // Add status to warranty object
+    processedWarranty.status = statusClass;
+    processedWarranty.daysRemaining = daysRemaining;
+    processedWarranty.statusText = statusText;
+    
+    console.log('Processed warranty data result:', processedWarranty);
+    return processedWarranty;
+}
+
+// Function to process all warranties in the array
+function processAllWarranties() {
+    console.log('Processing all warranties in array...');
+    if (warranties && warranties.length > 0) {
+        warranties = warranties.map(warranty => processWarrantyData(warranty));
+    }
+    console.log('Processed warranties:', warranties);
+}
+
 async function loadWarranties() {
-    showLoading();
-    
-    // Add loading animation to refresh button
-    refreshBtn.classList.add('loading');
-    
     try {
-        // Add cache-busting parameter to prevent browser caching
-        const cacheBuster = `?_=${Date.now()}`;
-        const response = await fetch(`${API_URL}${cacheBuster}`);
+        console.log('Loading warranties...');
+        showLoading();
         
-        if (!response.ok) {
-            throw new Error('Failed to load warranties');
+        // Use the full URL to avoid path issues
+        const apiUrl = window.location.origin + '/api/warranties';
+        
+        // Check if auth is available and user is authenticated
+        if (!window.auth || !window.auth.isAuthenticated()) {
+            console.log('User not authenticated, showing empty state');
+            renderEmptyState('Please log in to view your warranties.');
+            hideLoading();
+            return;
         }
         
-        warranties = await response.json();
-        renderWarranties();
-        showToast('Warranties refreshed successfully', 'success');
+        // Get the auth token
+        const token = window.auth.getToken();
+        if (!token) {
+            console.log('No auth token available');
+            renderEmptyState('Authentication error. Please log in again.');
+            hideLoading();
+            return;
+        }
+        
+        // Create request with auth header
+        const options = {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        console.log('Fetching warranties with auth token');
+        const response = await fetch(apiUrl, options);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            console.error('Error loading warranties:', response.status, errorData);
+            throw new Error(`Error loading warranties: ${errorData.message || response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Received warranties from server:', data);
+        
+        // Process each warranty to calculate status and days remaining
+        warranties = data.map(warranty => {
+            return processWarrantyData(warranty);
+        });
+        
+        console.log('Processed warranties:', warranties);
+        
+        if (warranties.length === 0) {
+            console.log('No warranties found, showing empty state');
+            renderEmptyState('No warranties found. Add your first warranty using the form.');
+        } else {
+            console.log('Applying filters to display warranties');
+            applyFilters();
+        }
     } catch (error) {
-        showToast(error.message, 'error');
         console.error('Error loading warranties:', error);
-        renderEmptyState('Could not load warranties. Please try again.');
+        renderEmptyState('Error loading warranties. Please try again later.');
     } finally {
         hideLoading();
-        // Remove loading animation from refresh button
-        refreshBtn.classList.remove('loading');
     }
 }
 
@@ -262,10 +438,27 @@ function renderEmptyState(message = 'No warranties yet. Add your first warranty 
     `;
 }
 
-function renderWarranties(filteredWarranties = null) {
-    const warrantiesToRender = filteredWarranties || warranties;
+function formatDate(date) {
+    if (!date) return 'N/A';
     
-    if (warrantiesToRender.length === 0) {
+    // If date is already a Date object, use it directly
+    const dateObj = date instanceof Date ? date : new Date(date);
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+        return 'N/A';
+    }
+    
+    return dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+async function renderWarranties(warrantiesToRender) {
+    console.log('renderWarranties called with:', warrantiesToRender);
+    if (!warrantiesToRender || warrantiesToRender.length === 0) {
         renderEmptyState();
         return;
     }
@@ -280,11 +473,11 @@ function renderWarranties(filteredWarranties = null) {
             case 'name':
                 return a.product_name.localeCompare(b.product_name);
             case 'purchase':
-                return new Date(b.purchase_date) - new Date(a.purchase_date);
+                return new Date(b.purchase_date || 0) - new Date(a.purchase_date || 0);
             case 'expiration':
             default:
-                const dateA = new Date(a.expiration_date);
-                const dateB = new Date(b.expiration_date);
+                const dateA = new Date(a.expiration_date || 0);
+                const dateB = new Date(b.expiration_date || 0);
                 
                 const isExpiredA = dateA < today;
                 const isExpiredB = dateB < today;
@@ -297,27 +490,31 @@ function renderWarranties(filteredWarranties = null) {
         }
     });
     
+    console.log('Sorted warranties:', sortedWarranties);
+    
+    // Update the container class based on current view
+    warrantiesList.className = `warranties-list ${currentView}-view`;
+    
+    // Show/hide table header for table view
+    if (tableViewHeader) {
+        tableViewHeader.classList.toggle('visible', currentView === 'table');
+    }
+    
+    // Update view buttons to reflect current view
+    if (gridViewBtn && listViewBtn && tableViewBtn) {
+        gridViewBtn.classList.toggle('active', currentView === 'grid');
+        listViewBtn.classList.toggle('active', currentView === 'list');
+        tableViewBtn.classList.toggle('active', currentView === 'table');
+    }
+    
     sortedWarranties.forEach(warranty => {
-        const purchaseDate = new Date(warranty.purchase_date);
-        const expirationDate = new Date(warranty.expiration_date);
-        const daysRemaining = Math.floor((expirationDate - today) / (1000 * 60 * 60 * 24));
+        // Use the pre-processed dates from the warranty object
+        const purchaseDate = warranty.purchaseDate;
+        const expirationDate = warranty.expirationDate;
         
-        let statusClass = 'active';
-        let statusText = 'Active';
-        
-        if (daysRemaining < 0) {
-            statusClass = 'expired';
-            statusText = 'Expired';
-        } else if (daysRemaining < 30) {
-            statusClass = 'expiring';
-            statusText = `Expiring Soon (${daysRemaining} days)`;
-        } else {
-            statusText = `${daysRemaining} days remaining`;
-        }
-        
-        // Add status to warranty object for filtering
-        warranty.status = statusClass;
-        warranty.daysRemaining = daysRemaining;
+        // Use the pre-calculated status and days remaining from the warranty object
+        const statusClass = warranty.status || 'unknown';
+        const statusText = warranty.statusText || 'Unknown status';
         
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
@@ -326,55 +523,152 @@ function renderWarranties(filteredWarranties = null) {
         
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
-        cardElement.innerHTML = `
-            <div class="product-name-header">
-                <h3 class="warranty-title">${warranty.product_name}</h3>
-                <div class="warranty-actions">
-                    <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
+        
+        // Create different HTML structure based on the current view
+        if (currentView === 'grid') {
+            // Grid view HTML structure
+            cardElement.innerHTML = `
+                <div class="product-name-header">
+                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <div class="warranty-actions">
+                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div class="warranty-content">
-                <div class="warranty-info">
-                    <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                    <div>Warranty: <span>${warranty.warranty_years} ${warranty.warranty_years > 1 ? 'years' : 'year'}</span></div>
-                    <div>Expires: <span>${formatDate(expirationDate)}</span></div>
-                    ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
-                    ${validSerialNumbers.length > 0 ? `
-                        <div class="serial-numbers">
-                            <strong>Serial Numbers:</strong>
-                            <ul>
-                                ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                            </ul>
-                        </div>
+                <div class="warranty-content">
+                    <div class="warranty-info">
+                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Warranty: <span>${warranty.warranty_years !== undefined ? `${warranty.warranty_years} ${warranty.warranty_years === 1 ? 'year' : 'years'}` : 'N/A'}</span></div>
+                        <div>Expires: <span>${formatDate(expirationDate)}</span></div>
+                        ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${validSerialNumbers.length > 0 ? `
+                            <div class="serial-numbers">
+                                <strong>Serial Numbers:</strong>
+                                <ul>
+                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
+                <div class="document-links-row">
+                    ${warranty.product_url ? `
+                        <a href="${warranty.product_url}" class="product-link" target="_blank">
+                            <i class="fas fa-globe"></i> Product Website
+                        </a>
+                    ` : ''}
+                    ${warranty.invoice_path ? `
+                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                            <i class="fas fa-file-invoice"></i> Invoice
+                        </a>
+                    ` : ''}
+                    ${warranty.manual_path ? `
+                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                            <i class="fas fa-book"></i> Manual
+                        </a>
                     ` : ''}
                 </div>
-            </div>
-            <div class="warranty-status-row status-${statusClass}">
-                <span>${statusText}</span>
-            </div>
-            <div class="document-links-row">
-                ${warranty.product_url ? `
-                    <a href="${warranty.product_url}" class="product-link" target="_blank">
-                        <i class="fas fa-globe"></i> Product Website
-                    </a>
-                ` : ''}
-                ${warranty.invoice_path ? `
-                    <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
-                        <i class="fas fa-file-invoice"></i> Invoice
-                    </a>
-                ` : ''}
-                ${warranty.manual_path ? `
-                    <a href="${warranty.manual_path}" class="manual-link" target="_blank">
-                        <i class="fas fa-book"></i> Manual
-                    </a>
-                ` : ''}
-            </div>
-        `;
+            `;
+        } else if (currentView === 'list') {
+            // List view HTML structure
+            cardElement.innerHTML = `
+                <div class="product-name-header">
+                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <div class="warranty-actions">
+                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="warranty-content">
+                    <div class="warranty-info">
+                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Warranty: <span>${warranty.warranty_years !== undefined ? `${warranty.warranty_years} ${warranty.warranty_years === 1 ? 'year' : 'years'}` : 'N/A'}</span></div>
+                        <div>Expires: <span>${formatDate(expirationDate)}</span></div>
+                        ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${validSerialNumbers.length > 0 ? `
+                            <div class="serial-numbers">
+                                <strong>Serial Numbers:</strong>
+                                <ul>
+                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
+                <div class="document-links-row">
+                    ${warranty.product_url ? `
+                        <a href="${warranty.product_url}" class="product-link" target="_blank">
+                            <i class="fas fa-globe"></i> Product Website
+                        </a>
+                    ` : ''}
+                    ${warranty.invoice_path ? `
+                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                            <i class="fas fa-file-invoice"></i> Invoice
+                        </a>
+                    ` : ''}
+                    ${warranty.manual_path ? `
+                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                            <i class="fas fa-book"></i> Manual
+                        </a>
+                    ` : ''}
+                </div>
+            `;
+        } else if (currentView === 'table') {
+            // Table view HTML structure
+            cardElement.innerHTML = `
+                <div class="product-name-header">
+                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <div class="warranty-actions">
+                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="warranty-content">
+                    <div class="warranty-info">
+                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Expires: <span>${formatDate(expirationDate)}</span></div>
+                    </div>
+                </div>
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
+                <div class="document-links-row">
+                    ${warranty.product_url ? `
+                        <a href="${warranty.product_url}" class="product-link" target="_blank">
+                            <i class="fas fa-globe"></i>
+                        </a>
+                    ` : ''}
+                    ${warranty.invoice_path ? `
+                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                            <i class="fas fa-file-invoice"></i>
+                        </a>
+                    ` : ''}
+                    ${warranty.manual_path ? `
+                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                            <i class="fas fa-book"></i>
+                        </a>
+                    ` : ''}
+                </div>
+            `;
+        }
         
         // Add event listeners
         warrantiesList.appendChild(cardElement);
@@ -406,84 +700,6 @@ function filterWarranties() {
     renderWarranties(filtered);
 }
 
-function formatDate(date) {
-    return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
-}
-
-async function addWarranty(event) {
-    event.preventDefault();
-    showLoading();
-    
-    const formData = new FormData(warrantyForm);
-    
-    // Get all serial numbers and add them to formData
-    const serialNumbers = [];
-    document.querySelectorAll('input[name="serial_numbers[]"]').forEach(input => {
-        if (input.value.trim()) {
-            serialNumbers.push(input.value.trim());
-        }
-    });
-    formData.delete('serial_numbers[]'); // Remove the original array
-    if (serialNumbers.length > 0) {
-        serialNumbers.forEach(sn => formData.append('serial_numbers', sn));
-    }
-    
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to add warranty');
-        }
-        
-        const result = await response.json();
-        showToast('Warranty added successfully!', 'success');
-        
-        // Reset form
-        warrantyForm.reset();
-        fileName.textContent = '';
-        manualFileName.textContent = '';
-        
-        // Completely reset serial number inputs
-        serialNumbersContainer.innerHTML = '';
-        
-        // Create a fresh initial serial number input
-        const initialInput = document.createElement('div');
-        initialInput.className = 'serial-number-input';
-        initialInput.innerHTML = `
-            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
-            <button type="button" class="btn btn-sm btn-secondary add-serial-number">
-                <i class="fas fa-plus"></i> Add Another
-            </button>
-        `;
-        
-        // Add the event listener for the "Add Another" button
-        initialInput.querySelector('.add-serial-number').addEventListener('click', function() {
-            addSerialNumberInput();
-        });
-        
-        serialNumbersContainer.appendChild(initialInput);
-        
-        // Switch back to the first tab
-        switchToTab(0);
-        
-        // Reload warranties
-        loadWarranties();
-    } catch (error) {
-        showToast(error.message, 'error');
-        console.error('Error adding warranty:', error);
-    } finally {
-        hideLoading();
-    }
-}
-
 function openEditModal(warranty) {
     currentWarrantyId = warranty.id;
     
@@ -498,79 +714,89 @@ function openEditModal(warranty) {
     const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
     editSerialNumbersContainer.innerHTML = '';
     
-    // Make sure serial numbers array exists and is valid
-    const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
+    // Add event listener for adding new serial number inputs in edit modal
+    editSerialNumbersContainer.addEventListener('click', (e) => {
+        if (e.target.closest('.add-serial-number')) {
+            addSerialNumberInput(editSerialNumbersContainer);
+        }
+    });
+    
+    const validSerialNumbers = Array.isArray(warranty.serial_numbers)
         ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
         : [];
+    
+    if (validSerialNumbers.length === 0) {
+        // Add a single empty input if there are no serial numbers
+        addSerialNumberInput(editSerialNumbersContainer);
+    } else {
+        // Add the first serial number with an "Add Another" button
+        const firstInput = document.createElement('div');
+        firstInput.className = 'serial-number-input';
+        firstInput.innerHTML = `
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[0]}">
+            <button type="button" class="btn btn-sm btn-primary add-serial-number">
+                <i class="fas fa-plus"></i> Add Another
+            </button>
+        `;
         
-    // Add initial serial number input
-    const initialInput = document.createElement('div');
-    initialInput.className = 'serial-number-input';
-    initialInput.innerHTML = `
-        <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number">
-        <button type="button" class="btn btn-sm btn-secondary add-serial-number">
-            <i class="fas fa-plus"></i> Add Another
-        </button>
-    `;
-    editSerialNumbersContainer.appendChild(initialInput);
-    
-    // Add existing serial numbers
-    if (validSerialNumbers.length > 0) {
-        validSerialNumbers.forEach((serialNumber, index) => {
-            if (index === 0) {
-                // Use the first input we already created
-                editSerialNumbersContainer.querySelector('input').value = serialNumber;
-            } else {
-                const newInput = document.createElement('div');
-                newInput.className = 'serial-number-input';
-                newInput.innerHTML = `
-                    <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${serialNumber}">
-                    <button type="button" class="btn btn-sm btn-danger remove-serial-number">
-                        <i class="fas fa-minus"></i> Remove
-                    </button>
-                `;
-                editSerialNumbersContainer.appendChild(newInput);
-            }
+        // Add event listener for the Add button
+        firstInput.querySelector('.add-serial-number').addEventListener('click', function(e) {
+            e.stopPropagation(); // Stop event from bubbling up
+            addSerialNumberInput(editSerialNumbersContainer);
         });
+        
+        editSerialNumbersContainer.appendChild(firstInput);
+        
+        // Add the rest of the serial numbers with "Remove" buttons
+        for (let i = 1; i < validSerialNumbers.length; i++) {
+            const newInput = document.createElement('div');
+            newInput.className = 'serial-number-input';
+            newInput.innerHTML = `
+                <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[i]}">
+                <button type="button" class="btn btn-sm btn-danger remove-serial-number">
+                    <i class="fas fa-minus"></i> Remove
+                </button>
+            `;
+            
+            // Add remove button functionality
+            newInput.querySelector('.remove-serial-number').addEventListener('click', function() {
+                this.parentElement.remove();
+            });
+            
+            editSerialNumbersContainer.appendChild(newInput);
+        }
     }
-    
-    // Add event listeners for the serial number buttons
-    editSerialNumbersContainer.querySelectorAll('.add-serial-number').forEach(btn => {
-        btn.addEventListener('click', () => addSerialNumberInput(editSerialNumbersContainer));
-    });
-    
-    editSerialNumbersContainer.querySelectorAll('.remove-serial-number').forEach(btn => {
-        btn.addEventListener('click', function() {
-            this.parentElement.remove();
-        });
-    });
     
     // Show current invoice if exists
     const currentInvoiceElement = document.getElementById('currentInvoice');
-    if (warranty.invoice_path) {
-        currentInvoiceElement.innerHTML = `
-            <span class="text-success">
-                <i class="fas fa-check-circle"></i> Current invoice: 
-                <a href="${warranty.invoice_path}" target="_blank">View</a>
-                (Upload a new file to replace)
-            </span>
-        `;
-    } else {
-        currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+    if (currentInvoiceElement) {
+        if (warranty.invoice_path) {
+            currentInvoiceElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current invoice: 
+                    <a href="${warranty.invoice_path}" target="_blank">View</a>
+                    (Upload a new file to replace)
+                </span>
+            `;
+        } else {
+            currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+        }
     }
     
     // Show current manual if exists
     const currentManualElement = document.getElementById('currentManual');
-    if (warranty.manual_path) {
-        currentManualElement.innerHTML = `
-            <span class="text-success">
-                <i class="fas fa-check-circle"></i> Current manual: 
-                <a href="${warranty.manual_path}" target="_blank">View</a>
-                (Upload a new file to replace)
-            </span>
-        `;
-    } else {
-        currentManualElement.innerHTML = '<span>No manual uploaded</span>';
+    if (currentManualElement) {
+        if (warranty.manual_path) {
+            currentManualElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current manual: 
+                    <a href="${warranty.manual_path}" target="_blank">View</a>
+                    (Upload a new file to replace)
+                </span>
+            `;
+        } else {
+            currentManualElement.innerHTML = '<span>No manual uploaded</span>';
+        }
     }
     
     // Reset file input display
@@ -592,13 +818,25 @@ function closeModals() {
 }
 
 async function updateWarranty() {
-    if (!currentWarrantyId) return;
+    // Check if user is authenticated
+    if (window.auth && !window.auth.isAuthenticated()) {
+        showToast('Please login to update warranties', 'warning');
+        closeModals();
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+        return;
+    }
     
-    showLoading();
+    if (!currentWarrantyId) {
+        showToast('No warranty selected for update', 'error');
+        return;
+    }
     
+    // Create FormData object
     const formData = new FormData(editWarrantyForm);
     
-    // Get all serial numbers and add them to formData
+    // Get all serial numbers
     const serialNumbers = [];
     document.querySelectorAll('#editSerialNumbersContainer input[name="serial_numbers[]"]').forEach(input => {
         if (input.value.trim()) {
@@ -606,55 +844,122 @@ async function updateWarranty() {
         }
     });
     
-    // Remove the original array and add clean values
+    // Remove default serial numbers entry and add the collected ones
     formData.delete('serial_numbers[]');
-    if (serialNumbers.length > 0) {
-        serialNumbers.forEach(sn => formData.append('serial_numbers', sn));
-    }
+    serialNumbers.forEach(sn => {
+        formData.append('serial_numbers', sn);
+    });
     
     try {
-        const response = await fetch(`${API_URL}/${currentWarrantyId}`, {
-            method: 'PUT',
-            body: formData
-        });
+        showLoading();
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update warranty');
+        // Get the auth token
+        const token = window.auth.getToken();
+        if (!token) {
+            showToast('Authentication error. Please log in again.', 'error');
+            hideLoading();
+            closeModals();
+            return;
         }
         
-        showToast('Warranty updated successfully!', 'success');
+        // Create request with auth header
+        const options = {
+            method: 'PUT',
+            body: formData,
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        };
+        
+        // Use the full URL to avoid path issues
+        const apiUrl = `${window.location.origin}/api/warranties/${currentWarrantyId}`;
+        
+        console.log('Updating warranty with ID:', currentWarrantyId);
+        const response = await fetch(apiUrl, options);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Error updating warranty: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Received update warranty result:', result);
+        
+        // Reload all warranties to get the complete data
+        await loadWarranties();
+        
+        // Close modal
         closeModals();
-        loadWarranties();
+        
+        // Show success message
+        showToast('Warranty updated successfully!', 'success');
     } catch (error) {
-        showToast(error.message, 'error');
         console.error('Error updating warranty:', error);
+        showToast(error.message || 'Error updating warranty. Please try again.', 'error');
     } finally {
         hideLoading();
     }
 }
 
 async function deleteWarranty() {
-    if (!currentWarrantyId) return;
+    // Check if user is authenticated
+    if (window.auth && !window.auth.isAuthenticated()) {
+        showToast('Please login to delete warranties', 'warning');
+        closeModals();
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 1500);
+        return;
+    }
     
-    showLoading();
+    if (!currentWarrantyId) {
+        showToast('No warranty selected for deletion', 'error');
+        return;
+    }
     
     try {
-        const response = await fetch(`${API_URL}/${currentWarrantyId}`, {
-            method: 'DELETE'
-        });
+        showLoading();
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to delete warranty');
+        // Get the auth token
+        const token = window.auth.getToken();
+        if (!token) {
+            showToast('Authentication error. Please log in again.', 'error');
+            hideLoading();
+            closeModals();
+            return;
         }
         
-        showToast('Warranty deleted successfully!', 'success');
+        // Create request with auth header
+        const options = {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        // Use the full URL to avoid path issues
+        const apiUrl = `${window.location.origin}/api/warranties/${currentWarrantyId}`;
+        
+        console.log('Deleting warranty with ID:', currentWarrantyId);
+        const response = await fetch(apiUrl, options);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Error deleting warranty: ${response.status}`);
+        }
+        
+        // Reload all warranties to get the updated list
+        await loadWarranties();
+        
+        // Close the modal
         closeModals();
-        loadWarranties();
+        
+        // Show success message
+        showToast('Warranty deleted successfully!', 'success');
     } catch (error) {
-        showToast(error.message, 'error');
         console.error('Error deleting warranty:', error);
+        showToast(error.message || 'Error deleting warranty. Please try again.', 'error');
     } finally {
         hideLoading();
     }
@@ -877,42 +1182,130 @@ document.addEventListener('input', (e) => {
     }
 });
 
-function applyFilters() {
-    let filteredWarranties = [...warranties];
+// Function to reset the form and initialize serial number inputs
+function resetForm() {
+    // Reset the form
+    warrantyForm.reset();
     
-    // Apply search filter
-    if (currentFilters.search) {
-        filteredWarranties = filteredWarranties.filter(warranty => 
-            warranty.product_name.toLowerCase().includes(currentFilters.search)
-        );
-    }
+    // Reset serial numbers container
+    serialNumbersContainer.innerHTML = '';
     
-    // Apply status filter
-    if (currentFilters.status !== 'all') {
-        filteredWarranties = filteredWarranties.filter(warranty => {
-            // We need to calculate the status if it's not already set
-            if (!warranty.status) {
-                const today = new Date();
-                const expirationDate = new Date(warranty.expiration_date);
-                const daysRemaining = Math.floor((expirationDate - today) / (1000 * 60 * 60 * 24));
-                
-                if (daysRemaining < 0) {
-                    warranty.status = 'expired';
-                } else if (daysRemaining < 30) {
-                    warranty.status = 'expiring';
-                } else {
-                    warranty.status = 'active';
-                }
-            }
-            
-            return warranty.status === currentFilters.status;
-        });
-    }
+    // Add the first serial number input
+    addSerialNumberInput();
     
-    renderWarranties(filteredWarranties);
+    // Reset form tabs
+    currentTabIndex = 0;
+    switchToTab(0);
+    
+    // Clear any file input displays
+    fileName.textContent = '';
+    manualFileName.textContent = '';
 }
 
-function exportWarranties() {
+async function addWarranty(event) {
+    event.preventDefault();
+    
+    // Check authentication first
+    if (!window.auth || !window.auth.isAuthenticated()) {
+        showToast('Please log in to add warranties', 'error');
+        return;
+    }
+    
+    // Validate the current tab
+    if (!validateTab(currentTabIndex)) {
+        return;
+    }
+    
+    try {
+        showLoading();
+        
+        // Create FormData object
+        const formData = new FormData(warrantyForm);
+        
+        // Add serial numbers
+        const serialNumberInputs = document.querySelectorAll('input[name="serial_numbers[]"]');
+        formData.delete('serial_numbers[]'); // Remove the default entries
+        serialNumberInputs.forEach(input => {
+            if (input.value.trim()) {
+                formData.append('serial_numbers', input.value.trim());
+            }
+        });
+        
+        // Get the auth token
+        const token = window.auth.getToken();
+        if (!token) {
+            showToast('Authentication error. Please log in again.', 'error');
+            hideLoading();
+            return;
+        }
+        
+        // Create request with auth header
+        const options = {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        };
+        
+        // Use the full URL to avoid path issues
+        const apiUrl = window.location.origin + '/api/warranties';
+        
+        console.log('Sending warranty data to server...');
+        const response = await fetch(apiUrl, options);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Error adding warranty: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Received add warranty result:', result);
+        
+        // The server only returns the ID, so we need to fetch the complete warranty data
+        if (result.id) {
+            console.log('Fetching complete warranty data for ID:', result.id);
+            
+            // Reload all warranties to get the complete data
+            await loadWarranties();
+            
+            // Reset the form and initialize serial number inputs
+            resetForm();
+            
+            // Show success message
+            showToast('Warranty added successfully!', 'success');
+        } else {
+            throw new Error('Failed to get warranty ID from server response');
+        }
+    } catch (error) {
+        console.error('Error adding warranty:', error);
+        showToast(error.message || 'Error adding warranty. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function applyFilters() {
+    console.log('applyFilters called with warranties:', warranties);
+    const filtered = warranties.filter(warranty => {
+        // Status filter
+        if (currentFilters.status !== 'all' && warranty.status !== currentFilters.status) {
+            return false;
+        }
+        
+        // Search filter
+        if (currentFilters.search && !warranty.product_name.toLowerCase().includes(currentFilters.search.toLowerCase())) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    console.log('Filtered warranties:', filtered);
+    renderWarranties(filtered);
+}
+
+async function exportWarranties() {
     // Get filtered warranties
     let warrantiesToExport = [...warranties];
     
@@ -984,6 +1377,11 @@ function exportWarranties() {
 
 // Function to switch between views
 function switchView(viewType) {
+    console.log('Switching view to:', viewType);
+    
+    // Process all warranties to ensure consistency
+    processAllWarranties();
+    
     // Update current view
     currentView = viewType;
     
@@ -1001,7 +1399,8 @@ function switchView(viewType) {
     }
     
     // Re-render warranties with the new view
-    renderWarranties();
+    console.log('Applying filters after switching view...');
+    applyFilters();
     
     // Save view preference to localStorage
     localStorage.setItem('warrantyView', viewType);
@@ -1009,8 +1408,15 @@ function switchView(viewType) {
 
 // Load saved view preference
 function loadViewPreference() {
+    // First check for warrantyView (direct view selection)
     const savedView = localStorage.getItem('warrantyView');
-    if (savedView) {
-        switchView(savedView);
+    // If not found, check for defaultView (from settings)
+    const defaultView = localStorage.getItem('defaultView');
+    
+    // Use warrantyView if available, otherwise use defaultView, or fall back to grid
+    const viewToUse = savedView || defaultView || 'grid';
+    
+    if (viewToUse) {
+        switchView(viewToUse);
     }
 }
