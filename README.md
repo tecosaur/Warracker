@@ -29,11 +29,14 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 Warracker is a web-based application that provides a centralized system for managing all your product warranties. Key features include:
 
-*   Tracking product warranties in one central location.
-*   Adding warranty details, including purchase dates and duration.
-*   Uploading and storing warranty documentation and receipts.
-*   Providing visual indicators for active, expiring soon (less than 30 days), and expired warranties.
-*   Searching through your warranty collection.
+* **Centralized Warranty Management:** Track all product warranties in one place.
+* **Detailed Records:** Store key warranty information like purchase date and duration.
+* **Document Storage:** Upload and securely store warranty documentation and receipts.
+* **Proactive Alerts:** Visual indicators for active, soon-to-expire (within 30 days), and expired warranties.
+* **Quick Search:** Easily find specific warranties within your collection.
+* **Secure Access:**  User authentication and support for multiple users.
+* **System Status:** Real-time system status page.
+* **Data Export:** Export warranty data to CSV format.
 
 ## 📸 Screenshots
 
@@ -146,10 +149,14 @@ warracker/
 
 ## 🗺️ Roadmap
 
-*   User authentication. ✅
-*   Email reminders for expiring warranties.
-*   Settings page. ✅
-*   Status page.  ✅
+*   User Authentication - **Completed ✅**
+*   Settings Page - **Completed ✅**
+*   Status Page - **Completed ✅**
+*   Email Reminders for Expiring Warranties - **Planned**
+*   Warranty Data Import (CSV) - **Planned**
+*   Advanced Search Filters - **Planned**
+*   Customizing Reminders to any day needed - **Planned**
+
 
 ## 🛠️ Troubleshooting
 
