@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.7.5] - 2025-03-14
+- **Fixes**
+  - Removed remember me
+  - Fixed admin settings, admins can now remove users
+  - Admins can now disable registrations
+
+
 ## [0.9.7] - 2025-03-13
 
 - **Authentication Enhancements**
