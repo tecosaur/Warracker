@@ -489,11 +489,7 @@ def login():
             
             conn.commit()
             
-            # Check if remember_me is set
-            remember_me = data.get('remember_me', False)
-            
-            # Create response
-            response_data = {
+            return jsonify({
                 'message': 'Login successful!',
                 'token': token,
                 'user': {
@@ -501,36 +497,7 @@ def login():
                     'username': user[1],
                     'email': user[2]
                 }
-            }
-            
-            if remember_me:
-                # Set longer expiration for persistent session
-                persistent_expires = datetime.utcnow() + timedelta(days=30)
-                
-                # Update session expiration in database
-                cur.execute(
-                    'UPDATE user_sessions SET expires_at = %s WHERE session_token = %s',
-                    (persistent_expires, session_token)
-                )
-                conn.commit()
-                
-                # Create response with cookie
-                response = jsonify(response_data)
-                
-                # Set secure cookie with 30-day expiration
-                response.set_cookie(
-                    'session_token',
-                    session_token,
-                    expires=persistent_expires,
-                    httponly=True,
-                    secure=request.is_secure,
-                    samesite='Strict'
-                )
-                
-                return response, 200
-            else:
-                # Return regular response without cookie
-                return jsonify(response_data), 200
+            }), 200
     except Exception as e:
         logger.error(f"Login error: {e}")
         if conn:
@@ -545,102 +512,26 @@ def login():
 def logout():
     conn = None
     try:
-        # Get user ID from token
-        token = request.headers.get('Authorization').split(' ')[1]
-        user_id = decode_token(token)
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+        else:
+            return jsonify({'message': 'No token provided!'}), 400
         
-        # Invalidate session
+        user_id = request.user['id']
+        
         conn = get_db_connection()
         with conn.cursor() as cur:
+            # Invalidate all sessions for this user
             cur.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
             conn.commit()
-        
-        return jsonify({'message': 'Logout successful!'}), 200
+            
+            return jsonify({'message': 'Logout successful!'}), 200
     except Exception as e:
         logger.error(f"Logout error: {e}")
         if conn:
             conn.rollback()
         return jsonify({'message': 'Logout failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/auto-login', methods=['POST'])
-def auto_login():
-    conn = None
-    try:
-        # Get IP address and user agent
-        ip_address = request.remote_addr
-        user_agent = request.headers.get('User-Agent', '')
-        
-        # Check for session cookie
-        session_cookie = request.cookies.get('session_token')
-        
-        if not session_cookie:
-            return jsonify({'message': 'No session found'}), 401
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Find valid session
-            cur.execute(
-                'SELECT user_id FROM user_sessions WHERE session_token = %s AND expires_at > %s AND ip_address = %s',
-                (session_cookie, datetime.utcnow(), ip_address)
-            )
-            session = cur.fetchone()
-            
-            if not session:
-                return jsonify({'message': 'Invalid or expired session'}), 401
-            
-            user_id = session[0]
-            
-            # Get user info
-            cur.execute('SELECT id, username, email, is_active FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
-            
-            if not user or not user[3]:  # Check if user exists and is active
-                return jsonify({'message': 'User not found or inactive'}), 401
-            
-            # Generate new token
-            token = generate_token(user_id)
-            
-            # Update session expiration
-            new_expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
-            cur.execute(
-                'UPDATE user_sessions SET expires_at = %s WHERE session_token = %s',
-                (new_expires_at, session_cookie)
-            )
-            
-            # Update last login
-            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
-            conn.commit()
-            
-            # Set session cookie in response
-            response = jsonify({
-                'message': 'Auto-login successful!',
-                'token': token,
-                'user': {
-                    'id': user[0],
-                    'username': user[1],
-                    'email': user[2]
-                }
-            })
-            
-            # Set secure cookie with same expiration as token
-            response.set_cookie(
-                'session_token',
-                session_cookie,
-                expires=new_expires_at,
-                httponly=True,
-                secure=request.is_secure,
-                samesite='Strict'
-            )
-            
-            return response, 200
-    except Exception as e:
-        logger.error(f"Auto-login error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Auto-login failed!'}), 500
     finally:
         if conn:
             release_db_connection(conn)

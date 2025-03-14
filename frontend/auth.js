@@ -67,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function checkAuthState() {
     authToken = localStorage.getItem('auth_token');
     const userInfo = localStorage.getItem('user_info');
-    const rememberMe = localStorage.getItem('remember_me') === 'true';
     
     if (authToken && userInfo) {
         try {
@@ -80,20 +79,7 @@ function checkAuthState() {
             updateUIForUnauthenticatedUser();
         }
     } else {
-        // If "Remember Me" is set but no token, try to auto-login
-        if (rememberMe) {
-            // Check if we're on a page that should auto-redirect
-            const currentPage = window.location.pathname.split('/').pop();
-            if (currentPage === 'login.html' || currentPage === 'register.html' || currentPage === '') {
-                // Don't auto-login on login or register pages
-                updateUIForUnauthenticatedUser();
-            } else {
-                // Try to auto-login using a refresh token or other mechanism
-                tryAutoLogin();
-            }
-        } else {
-            updateUIForUnauthenticatedUser();
-        }
+        updateUIForUnauthenticatedUser();
     }
 }
 
@@ -248,7 +234,6 @@ async function logout() {
 function clearAuthData() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
-    localStorage.removeItem('remember_me');
     authToken = null;
     currentUser = null;
 }
@@ -334,72 +319,15 @@ function getToken() {
     return localStorage.getItem('auth_token');
 }
 
-/**
- * Try to automatically log in the user using a refresh token or session cookie
- */
-async function tryAutoLogin() {
-    try {
-        console.log('Attempting auto-login...');
-        
-        // Show loading indicator if available
-        if (typeof showLoading === 'function') {
-            showLoading();
-        }
-        
-        // Call the auto-login endpoint
-        const response = await fetch('/api/auth/auto-login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            // The server will use cookies or other mechanisms to identify the user
-            credentials: 'include'
-        });
-        
-        if (!response.ok) {
-            // If auto-login fails, clear remember_me flag and update UI
-            console.log('Auto-login failed');
-            localStorage.removeItem('remember_me');
-            updateUIForUnauthenticatedUser();
-            return;
-        }
-        
-        // Process successful auto-login
-        const data = await response.json();
-        
-        // Store new token and user info
-        localStorage.setItem('auth_token', data.token);
-        localStorage.setItem('user_info', JSON.stringify(data.user));
-        
-        // Update auth state
-        authToken = data.token;
-        currentUser = data.user;
-        
-        console.log('Auto-login successful');
-        updateUIForAuthenticatedUser();
-        
-        // Show success message if toast function is available
-        if (typeof showToast === 'function') {
-            showToast('Welcome back!', 'success');
-        }
-    } catch (error) {
-        console.error('Auto-login error:', error);
-        localStorage.removeItem('remember_me');
-        updateUIForUnauthenticatedUser();
-    } finally {
-        // Hide loading indicator if available
-        if (typeof hideLoading === 'function') {
-            hideLoading();
-        }
-    }
-}
-
 // Export authentication functions for use in other scripts
 window.auth = {
+    isAuthenticated: () => !!localStorage.getItem('auth_token'),
+    getCurrentUser: () => {
+        const userInfo = localStorage.getItem('user_info');
+        return userInfo ? JSON.parse(userInfo) : null;
+    },
+    getToken: getToken,
+    addAuthHeader,
     checkAuthState,
-    isAuthenticated: () => !!authToken,
-    getToken,
-    logout,
-    tryAutoLogin,
-    validateToken
+    logout
 };

@@ -88,70 +88,6 @@
             color: var(--text-muted);
             cursor: pointer;
         }
-        
-        /* Remember Me checkbox styling */
-        .remember-me-container {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .checkbox-container {
-            display: flex;
-            align-items: center;
-            position: relative;
-            padding-left: 30px;
-            cursor: pointer;
-            user-select: none;
-            color: var(--text-color);
-        }
-        
-        .checkbox-container input {
-            position: absolute;
-            opacity: 0;
-            cursor: pointer;
-            height: 0;
-            width: 0;
-        }
-        
-        .checkmark {
-            position: absolute;
-            left: 0;
-            height: 20px;
-            width: 20px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-        }
-        
-        .checkbox-container:hover input ~ .checkmark {
-            background-color: var(--hover-bg);
-        }
-        
-        .checkbox-container input:checked ~ .checkmark {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        
-        .checkmark:after {
-            content: "";
-            position: absolute;
-            display: none;
-        }
-        
-        .checkbox-container input:checked ~ .checkmark:after {
-            display: block;
-        }
-        
-        .checkbox-container .checkmark:after {
-            left: 7px;
-            top: 3px;
-            width: 5px;
-            height: 10px;
-            border: solid white;
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg);
-        }
     </style>
     
     <!-- Registration status check script -->
@@ -189,14 +125,6 @@
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
-                </div>
-                
-                <div class="form-group remember-me-container">
-                    <label class="checkbox-container">
-                        <input type="checkbox" id="rememberMe" name="rememberMe">
-                        <span class="checkmark"></span>
-                        Remember Me
-                    </label>
                 </div>
                 
                 <button type="submit" class="btn btn-primary btn-block">
@@ -252,16 +180,13 @@
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
                     submitBtn.disabled = true;
                     
-                    // Check if "Remember Me" is checked
-                    const rememberMe = document.getElementById('rememberMe').checked;
-                    
                     // Make API request
                     const response = await fetch('/api/auth/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify({ username, password, remember_me: rememberMe })
+                        body: JSON.stringify({ username, password })
                     });
                     
                     const data = await response.json();
@@ -273,13 +198,6 @@
                     // Store token in localStorage
                     localStorage.setItem('auth_token', data.token);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
-                    
-                    // If "Remember Me" is checked, store a flag
-                    if (rememberMe) {
-                        localStorage.setItem('remember_me', 'true');
-                    } else {
-                        localStorage.removeItem('remember_me');
-                    }
                     
                     // Show success message
                     showMessage('Login successful! Redirecting...', 'success');
