@@ -146,10 +146,10 @@ warracker/
 
 ## 🗺️ Roadmap
 
-*   User authentication.
+*   User authentication. ✅
 *   Email reminders for expiring warranties.
-*   Settings page.
-*   Status page. ✅
+*   Settings page. ✅
+*   Status page.  ✅
 
 ## 🛠️ Troubleshooting
 

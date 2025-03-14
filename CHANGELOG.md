@@ -51,7 +51,6 @@
   - When putting in the wrong password, you will need to refresh the page and try again manually.
   - Email notification still doesn't work
   - Users can't delete their own account, but admins can
-  - Users can't delete their own account, but admins can
 
 
 ## [0.5.2] - 2025-03-09
