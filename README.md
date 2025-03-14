@@ -154,8 +154,11 @@ warracker/
 *   Status Page - **Completed ✅**
 *   Email Reminders for Expiring Warranties - **Planned**
 *   Warranty Data Import (CSV) - **Planned**
-*   Advanced Search Filters - **Planned**
+*   Improved Search and Filtering - **Planned**
 *   Customizing Reminders to any day needed - **Planned**
+*   Warranty claim tracking - **Planned**
+*   Warranty Categories/Grouping - **Planned**
+*   Calendar Integration - **Planned**
 
 
 ## 🛠️ Troubleshooting
