@@ -1500,6 +1500,14 @@ function showUsersList() {
         
         console.log('Fetched users list:', users);
         
+        // Check if dark mode is enabled
+        const isDarkMode = document.body.classList.contains('dark-mode');
+        
+        // Set colors based on theme
+        const backgroundColor = isDarkMode ? '#333' : 'white';
+        const textColor = isDarkMode ? '#fff' : '#000';
+        const borderColor = isDarkMode ? '#555' : '#ddd';
+        
         // Create a modal to display the users
         const modal = document.createElement('div');
         modal.style.position = 'fixed';
@@ -1515,7 +1523,8 @@ function showUsersList() {
         
         // Create the modal content
         const modalContent = document.createElement('div');
-        modalContent.style.backgroundColor = 'white';
+        modalContent.style.backgroundColor = backgroundColor;
+        modalContent.style.color = textColor;
         modalContent.style.padding = '20px';
         modalContent.style.borderRadius = '5px';
         modalContent.style.maxWidth = '80%';
@@ -1532,6 +1541,7 @@ function showUsersList() {
         // Create the modal title
         const modalTitle = document.createElement('h3');
         modalTitle.textContent = 'Users List';
+        modalTitle.style.color = textColor;
         
         // Create the close button
         const closeButton = document.createElement('button');
@@ -1540,6 +1550,7 @@ function showUsersList() {
         closeButton.style.border = 'none';
         closeButton.style.fontSize = '24px';
         closeButton.style.cursor = 'pointer';
+        closeButton.style.color = textColor;
         closeButton.addEventListener('click', function() {
             document.body.removeChild(modal);
         });
@@ -1564,7 +1575,8 @@ function showUsersList() {
             th.textContent = headerText;
             th.style.padding = '10px';
             th.style.textAlign = 'left';
-            th.style.borderBottom = '1px solid #ddd';
+            th.style.borderBottom = `1px solid ${borderColor}`;
+            th.style.color = textColor;
             headerRow.appendChild(th);
         });
         
@@ -1582,36 +1594,42 @@ function showUsersList() {
             const idCell = document.createElement('td');
             idCell.textContent = user.id;
             idCell.style.padding = '10px';
-            idCell.style.borderBottom = '1px solid #ddd';
+            idCell.style.borderBottom = `1px solid ${borderColor}`;
+            idCell.style.color = textColor;
             
             const usernameCell = document.createElement('td');
             usernameCell.textContent = user.username;
             usernameCell.style.padding = '10px';
-            usernameCell.style.borderBottom = '1px solid #ddd';
+            usernameCell.style.borderBottom = `1px solid ${borderColor}`;
+            usernameCell.style.color = textColor;
             
             const emailCell = document.createElement('td');
             emailCell.textContent = user.email;
             emailCell.style.padding = '10px';
-            emailCell.style.borderBottom = '1px solid #ddd';
+            emailCell.style.borderBottom = `1px solid ${borderColor}`;
+            emailCell.style.color = textColor;
             
             const nameCell = document.createElement('td');
             nameCell.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || '-';
             nameCell.style.padding = '10px';
-            nameCell.style.borderBottom = '1px solid #ddd';
+            nameCell.style.borderBottom = `1px solid ${borderColor}`;
+            nameCell.style.color = textColor;
             
             const adminCell = document.createElement('td');
             adminCell.textContent = user.is_admin ? 'Yes' : 'No';
             adminCell.style.padding = '10px';
-            adminCell.style.borderBottom = '1px solid #ddd';
+            adminCell.style.borderBottom = `1px solid ${borderColor}`;
+            adminCell.style.color = textColor;
             
             const activeCell = document.createElement('td');
             activeCell.textContent = user.is_active ? 'Yes' : 'No';
             activeCell.style.padding = '10px';
-            activeCell.style.borderBottom = '1px solid #ddd';
+            activeCell.style.borderBottom = `1px solid ${borderColor}`;
+            activeCell.style.color = textColor;
             
             const actionsCell = document.createElement('td');
             actionsCell.style.padding = '10px';
-            actionsCell.style.borderBottom = '1px solid #ddd';
+            actionsCell.style.borderBottom = `1px solid ${borderColor}`;
             
             // Create a delete button
             const deleteButton = document.createElement('button');
