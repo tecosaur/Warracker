@@ -2092,9 +2092,10 @@ input.invalid {
   }
   
   .table-view .warranty-status-row {
-    text-align: left;
-    border-top: 1px solid var(--border-color);
-    font-weight: bold;
+    text-align: center;
+    justify-content: center;
+    padding-left: 20px;
+    padding-right: 20px;
   }
   
   .table-view .document-links-row {
@@ -2399,9 +2400,10 @@ input.invalid {
 
 /* List view status row styling */
 .list-view .warranty-status-row {
-  text-align: left;
-  justify-content: flex-start;
+  text-align: center;
+  justify-content: center;
   padding-left: 20px;
+  padding-right: 20px;
 }
 
 .table-view .product-name-header .warranty-title {
