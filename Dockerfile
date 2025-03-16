@@ -29,7 +29,6 @@ RUN mkdir -p /data/uploads && chmod 777 /data/uploads
 COPY frontend/*.html /var/www/html/
 COPY frontend/*.js /var/www/html/
 COPY frontend/*.css /var/www/html/
-COPY test.html /var/www/html/
 
 # Configure nginx
 RUN rm /etc/nginx/sites-enabled/default
