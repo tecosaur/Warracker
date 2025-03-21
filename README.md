@@ -32,7 +32,7 @@ Warracker is a web-based application that provides a centralized system for mana
 * **Centralized Warranty Management:** Track all product warranties in one place.
 * **Detailed Records:** Store key warranty information like purchase date and duration.
 * **Document Storage:** Upload and securely store warranty documentation and receipts.
-* **Proactive Alerts:** Visual indicators for active, soon-to-expire (add the number of days in settings), and expired warranties.
+* **Proactive Alerts:** Visual indicators for active, soon-to-expire (add the number of days between 1-365 in settings), and expired warranties.
 * **Quick Search:** Easily find specific warranties within your collection.
 * **Secure Access:**  User authentication and support for multiple users.
 * **System Status:** Real-time system status page.
