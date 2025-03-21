@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.9.7.6] - 2025-03-21
+## [0.9.7.8] - 2025-03-21
 - **Security Enhancements**
   - **Secure File Access System**
     - Implemented comprehensive security controls for uploaded files (invoices, manuals)
@@ -14,6 +14,10 @@
     - Created new file-utils.js with secureFilePath and openSecureFile functions
     - Updated all file links to use secure handling methods
     - Added proper authentication token handling for file downloads
+   
+## [0.9.7.7] - 2025-03-15
+- **Fixes**
+  - Status of warranties are now centred in list view
 
 ## [0.9.7.5] - 2025-03-14
 - **Fixes**
