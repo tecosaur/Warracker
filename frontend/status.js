@@ -613,7 +613,7 @@ function filterAndSortWarranties() {
                 <a href="index.html?edit=${warranty.id}" class="action-btn edit-btn" title="Edit">
                     <i class="fas fa-edit"></i>
                 </a>
-                <a href="${warranty.invoice_path}" target="_blank" class="action-btn view-btn" title="View Invoice" ${!warranty.invoice_path ? 'style="display: none;"' : ''}>
+                <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="action-btn view-btn" title="View Invoice" ${!warranty.invoice_path ? 'style="display: none;"' : ''}>
                     <i class="fas fa-file-alt"></i>
                 </a>
             </td>

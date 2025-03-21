@@ -93,16 +93,7 @@ RUN echo 'server {\n\
     \n\
     # Direct access to uploads directory\n\
     location /uploads/ {\n\
-        alias /data/uploads/;\n\
-        autoindex on;\n\
-        \n\
-        # Set appropriate MIME types\n\
-        types {\n\
-            image/png png PNG;\n\
-            image/jpeg jpg jpeg JPG JPEG;\n\
-            application/pdf pdf PDF;\n\
-            text/plain txt TXT;\n\
-        }\n\
+        return 403 "Access forbidden";\n\
     }\n\
 }' > /etc/nginx/conf.d/default.conf
 

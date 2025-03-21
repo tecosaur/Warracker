@@ -565,15 +565,13 @@ async function renderWarranties(warrantiesToRender) {
                         </a>
                     ` : ''}
                     ${warranty.invoice_path ? `
-                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i> Invoice
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                     ${warranty.manual_path ? `
-                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i> Manual
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                 </div>
             `;
         } else if (currentView === 'list') {
@@ -616,15 +614,13 @@ async function renderWarranties(warrantiesToRender) {
                         </a>
                     ` : ''}
                     ${warranty.invoice_path ? `
-                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i> Invoice
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                     ${warranty.manual_path ? `
-                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i> Manual
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                 </div>
             `;
         } else if (currentView === 'table') {
@@ -657,15 +653,13 @@ async function renderWarranties(warrantiesToRender) {
                         </a>
                     ` : ''}
                     ${warranty.invoice_path ? `
-                        <a href="${warranty.invoice_path}" class="invoice-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i>
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                     ${warranty.manual_path ? `
-                        <a href="${warranty.manual_path}" class="manual-link" target="_blank">
+                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i>
-                        </a>
-                    ` : ''}
+                        </a>` : ''}
                 </div>
             `;
         }
@@ -774,7 +768,7 @@ function openEditModal(warranty) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current invoice: 
-                    <a href="${warranty.invoice_path}" target="_blank">View</a>
+                    <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
                     (Upload a new file to replace)
                 </span>
             `;
@@ -790,7 +784,7 @@ function openEditModal(warranty) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current manual: 
-                    <a href="${warranty.manual_path}" target="_blank">View</a>
+                    <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
                     (Upload a new file to replace)
                 </span>
             `;

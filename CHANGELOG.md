@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.7.6] - 2025-03-21
+- **Security Enhancements**
+  - **Secure File Access System**
+    - Implemented comprehensive security controls for uploaded files (invoices, manuals)
+    - Added two secure file serving endpoints with authentication and authorization
+    - Created client-side utility functions for secure file handling
+    - Blocked direct access to the uploads directory via nginx configuration
+    - Added ownership verification to ensure users can only access their own files
+    - Implemented protection against path traversal attacks
+    - Enhanced logging for all file access attempts
+  - **Frontend Security Integration**
+    - Created new file-utils.js with secureFilePath and openSecureFile functions
+    - Updated all file links to use secure handling methods
+    - Added proper authentication token handling for file downloads
+
 ## [0.9.7.5] - 2025-03-14
 - **Fixes**
   - Removed remember me

@@ -260,13 +260,19 @@ def token_required(f):
         if auth_header and auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
         
+        # If no token in header, check form data for POST requests
+        if not token and request.method == 'POST':
+            token = request.form.get('auth_token')  # Check form data
+            
         # If no token is provided
         if not token:
+            logger.warning(f"Authentication attempt without token: {request.path}")
             return jsonify({'message': 'Authentication token is missing!'}), 401
         
         # Decode the token
         user_id = decode_token(token)
         if not user_id:
+            logger.warning(f"Invalid token used for: {request.path}")
             return jsonify({'message': 'Invalid or expired token!'}), 401
         
         # Check if user exists
@@ -1802,6 +1808,75 @@ def check_registration_status():
     finally:
         if conn:
             release_db_connection(conn)
+
+# File serving endpoints
+@app.route('/api/files/<path:filename>', methods=['GET', 'POST'])
+@token_required
+def serve_file(filename):
+    """Basic secure file serving with authentication."""
+    try:
+        logger.info(f"File access request for {filename} by user {request.user['id']}")
+        
+        if not filename.startswith('uploads/'):
+            logger.warning(f"Attempted access to non-uploads file: {filename}")
+            return jsonify({"message": "Access denied"}), 403
+            
+        # Remove 'uploads/' prefix for send_from_directory
+        file_path = filename[8:] if filename.startswith('uploads/') else filename
+        
+        return send_from_directory('/data/uploads', file_path)
+    except Exception as e:
+        logger.error(f"Error serving file {filename}: {e}")
+        return jsonify({"message": "Error accessing file"}), 500
+
+@app.route('/api/secure-file/<path:filename>', methods=['GET', 'POST'])
+@token_required
+def secure_file_access(filename):
+    """Enhanced secure file serving with authorization checks."""
+    try:
+        logger.info(f"Secure file access request for {filename} by user {request.user['id']}")
+        
+        # Security check for path traversal
+        if '..' in filename or filename.startswith('/'):
+            logger.warning(f"Potential path traversal attempt detected: {filename} by user {request.user['id']}")
+            return jsonify({"message": "Invalid file path"}), 400
+        
+        # Check if user is authorized to access this file
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                # Find warranties that reference this file
+                query = """
+                    SELECT w.id, w.user_id 
+                    FROM warranties w 
+                    WHERE w.invoice_path = %s OR w.manual_path = %s
+                """
+                cur.execute(query, (f"uploads/{filename}", f"uploads/{filename}"))
+                results = cur.fetchall()
+                
+                # Check if user owns any of these warranties or is admin
+                user_id = request.user['id']
+                is_admin = request.user.get('is_admin', False)
+                
+                authorized = is_admin  # Admins can access all files
+                
+                if not authorized and results:
+                    for warranty_id, warranty_user_id in results:
+                        if warranty_user_id == user_id:
+                            authorized = True
+                            break
+                
+                if not authorized:
+                    logger.warning(f"Unauthorized file access attempt: {filename} by user {user_id}")
+                    return jsonify({"message": "You are not authorized to access this file"}), 403
+                
+                # Serve the file securely
+                return send_from_directory('/data/uploads', filename)
+        finally:
+            release_db_connection(conn)
+    except Exception as e:
+        logger.error(f"Error in secure file access for {filename}: {e}")
+        return jsonify({"message": "Error accessing file"}), 500
 
 # Initialize the database when the application starts
 try:
