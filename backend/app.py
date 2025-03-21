@@ -28,7 +28,7 @@ app.config['JWT_EXPIRATION_DELTA'] = timedelta(days=7)  # Token expiration time
 
 UPLOAD_FOLDER = '/data/uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload
+MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max upload
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH

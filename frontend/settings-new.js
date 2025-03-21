@@ -19,6 +19,7 @@ const loadingContainer = document.getElementById('loadingContainer');
 const toastContainer = document.getElementById('toastContainer');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsMenu = document.getElementById('settingsMenu');
+const usersTableBody = document.getElementById('usersTableBody');
 
 // Form fields
 const firstNameInput = document.getElementById('firstName');
@@ -149,11 +150,20 @@ function initPage() {
         return;
     }
     
-    // Load user data and preferences
-    loadUserData();
-    loadPreferences();
+    // Load user data and preferences with error handling
+    try {
+        loadUserData().catch(err => {
+            console.error('Error loading user data:', err);
+            // Continue with page initialization even if user data fails
+        });
+        
+        loadPreferences();
+    } catch (err) {
+        console.error('Error during page initialization:', err);
+        // Continue despite errors to allow basic functionality
+    }
     
-    // Fix for settings button
+    // Fix for settings button - not needed anymore as we've removed it
     if (settingsBtn) {
         console.log('Settings button found, adding event listener');
         settingsBtn.addEventListener('click', function(e) {
@@ -171,7 +181,7 @@ function initPage() {
             }
         });
     } else {
-        console.error('Settings button not found');
+        console.log('Settings button not found - this is expected after UI update');
     }
     
     console.log('Settings page initialization complete');
@@ -294,11 +304,23 @@ async function loadUserData() {
                 lastNameInput.value = userData.last_name || '';
                 emailInput.value = userData.email || '';
                 
-                // Check if user is admin and show admin section
+                // Show admin section if user is admin
                 if (userData.is_admin) {
-                    adminSection.style.display = 'block';
-                    loadUsers();
-                    loadSiteSettings();
+                    if (adminSection) {
+                        adminSection.style.display = 'block';
+                    }
+                    
+                    // Only try to load admin data if the elements exist
+                    // This prevents errors when the admin elements don't exist in the DOM
+                    if (usersTableBody) {
+                        loadUsers();
+                    } else {
+                        console.log('Admin UI elements not found, skipping admin data loading');
+                    }
+                    
+                    if (registrationEnabled) {
+                        loadSiteSettings();
+                    }
                 }
                 
                 // Update localStorage
@@ -325,19 +347,32 @@ async function loadUserData() {
 function loadPreferences() {
     // Load dark mode preference
     const darkMode = localStorage.getItem('darkMode') === 'true';
-    darkModeToggle.checked = darkMode;
-    darkModeToggleSetting.checked = darkMode;
+    
+    // Check if elements exist before setting properties
+    if (darkModeToggleSetting) {
+        darkModeToggleSetting.checked = darkMode;
+    }
+    
+    // The darkModeToggle element doesn't exist in the page anymore
+    // so we need to check before accessing it
+    if (darkModeToggle) {
+        darkModeToggle.checked = darkMode;
+    }
     
     // Apply the theme immediately
     setTheme(darkMode);
     
     // Load default view preference
     const defaultView = localStorage.getItem('defaultView') || 'grid';
-    defaultViewSelect.value = defaultView;
+    if (defaultViewSelect) {
+        defaultViewSelect.value = defaultView;
+    }
     
     // Load email notifications preference (default to true if not set)
     const emailNotifications = localStorage.getItem('emailNotifications') !== 'false';
-    emailNotificationsToggle.checked = emailNotifications;
+    if (emailNotificationsToggle) {
+        emailNotificationsToggle.checked = emailNotifications;
+    }
     
     // Load expiring soon days from API
     fetch('/api/auth/preferences', {
@@ -362,7 +397,7 @@ function loadPreferences() {
 function setupEventListeners() {
     console.log('Setting up event listeners');
     
-    // Dark mode toggle
+    // Dark mode toggle in header (no longer exists)
     if (darkModeToggle) {
         darkModeToggle.addEventListener('change', function() {
             setTheme(this.checked);
@@ -379,7 +414,7 @@ function setupEventListeners() {
         darkModeToggleSetting.addEventListener('change', function() {
             setTheme(this.checked);
             
-            // Also update the header toggle
+            // Also update the header toggle if it exists
             if (darkModeToggle) {
                 darkModeToggle.checked = this.checked;
             }
@@ -556,6 +591,12 @@ function resetPasswordForm() {
  * @param {boolean} isDark - Whether to use dark mode
  */
 function setTheme(isDark) {
+    // Default to current theme if isDark is undefined
+    if (isDark === undefined) {
+        isDark = localStorage.getItem('darkMode') === 'true';
+    }
+    
+    // Apply theme to document
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     
     // Also add/remove the dark-mode class on the body for additional styling
@@ -565,7 +606,10 @@ function setTheme(isDark) {
         document.body.classList.remove('dark-mode');
     }
     
+    // Save to localStorage
     localStorage.setItem('darkMode', isDark);
+    
+    console.log('Theme set to:', isDark ? 'dark' : 'light');
 }
 
 /**
@@ -655,22 +699,29 @@ async function saveProfile() {
  * Save user preferences
  */
 function savePreferences() {
-    // Save dark mode preference
-    const isDark = darkModeToggleSetting.checked;
-    setTheme(isDark);
-    darkModeToggle.checked = isDark;
+    // Get preferences with null checks
+    const isDark = darkModeToggleSetting && darkModeToggleSetting.checked;
     
-    // Save default view preference
-    const defaultView = defaultViewSelect.value;
+    // Apply theme
+    setTheme(isDark);
+    
+    // Update darkModeToggle if it exists
+    if (darkModeToggle) {
+        darkModeToggle.checked = isDark;
+    }
+    
+    // Save default view preference with null check
+    const defaultView = defaultViewSelect ? defaultViewSelect.value : 'grid';
     localStorage.setItem('defaultView', defaultView);
     localStorage.setItem('warrantyView', defaultView);
     
-    // Save email notifications preference
-    const emailNotifications = emailNotificationsToggle.checked;
+    // Save email notifications preference with null check
+    const emailNotifications = emailNotificationsToggle ? emailNotificationsToggle.checked : true;
     localStorage.setItem('emailNotifications', emailNotifications);
     
-    // Get expiring soon days value
-    let expiringSoonDays = parseInt(expiringSoonDaysInput.value);
+    // Get expiring soon days value with null check
+    const expiringSoonDaysValue = expiringSoonDaysInput ? expiringSoonDaysInput.value : '30';
+    let expiringSoonDays = parseInt(expiringSoonDaysValue);
     
     // Validate expiring soon days
     if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
@@ -899,7 +950,11 @@ function showToast(message, type = 'info', duration = 5000) {
  * Load users for admin
  */
 async function loadUsers() {
-    if (!usersTableBody) return;
+    // Exit if usersTableBody doesn't exist
+    if (!usersTableBody) {
+        console.log('usersTableBody element not found, skipping loadUsers');
+        return;
+    }
     
     showLoading();
     

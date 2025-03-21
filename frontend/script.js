@@ -49,160 +49,400 @@ function initializeTheme() {
 // Initialize theme when page loads
 initializeTheme();
 
-// Initialize page
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded, initializing app...');
+// Variables
+let warranties = [];
+let currentWarrantyId = null;
+let currentFilters = {
+    search: '',
+    status: 'all',
+    sort: 'expiration'
+};
+let currentView = 'grid'; // Default view
+let expiringSoonDays = 30; // Default value, will be updated from user preferences
+
+// API URL
+const API_URL = '/api/warranties';
+
+// Form tab navigation variables
+const formTabs = Array.from(document.querySelectorAll('.form-tab'));
+const tabContents = Array.from(document.querySelectorAll('.tab-content'));
+let currentTabIndex = 0;
+
+// Initialize form tabs
+function initFormTabs() {
+    console.log('Initializing form tabs...');
     
-    // Ensure auth state is checked
-    if (window.auth && window.auth.checkAuthState) {
-        window.auth.checkAuthState();
+    // Hide the submit button initially
+    const submitButton = document.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.style.display = 'none';
     }
     
-    // Initialize settings button
-    if (settingsBtn && settingsMenu) {
-        settingsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            settingsMenu.classList.toggle('active');
-        });
+    // Show/hide navigation buttons based on current tab
+    updateNavigationButtons();
+    
+    // Remove any existing event listeners before adding new ones
+    const nextTabButton = document.querySelector('.next-tab');
+    const prevTabButton = document.querySelector('.prev-tab');
+    
+    // Clone and replace the buttons to remove any existing event listeners
+    if (nextTabButton && prevTabButton) {
+        const nextTabClone = nextTabButton.cloneNode(true);
+        const prevTabClone = prevTabButton.cloneNode(true);
         
-        // Close settings menu when clicking outside
-        document.addEventListener('click', (e) => {
-            if (settingsMenu.classList.contains('active') && 
-                !settingsMenu.contains(e.target) && 
-                !settingsBtn.contains(e.target)) {
-                settingsMenu.classList.remove('active');
+        nextTabButton.parentNode.replaceChild(nextTabClone, nextTabButton);
+        prevTabButton.parentNode.replaceChild(prevTabClone, prevTabButton);
+        
+        // Add event listeners for tab navigation
+        document.querySelector('.next-tab').addEventListener('click', () => {
+            console.log('Next button clicked, current tab:', currentTabIndex);
+            if (validateTab(currentTabIndex)) {
+                switchToTab(currentTabIndex + 1);
+            } else {
+                showValidationErrors(currentTabIndex);
             }
         });
+        
+        document.querySelector('.prev-tab').addEventListener('click', () => {
+            console.log('Previous button clicked, current tab:', currentTabIndex);
+            switchToTab(currentTabIndex - 1);
+        });
     }
     
-    // Initialize the app
-    initializeTheme();
-    
-    // Initialize form tabs
-    initFormTabs();
-    
-    // Initialize the form
-    resetForm();
-    
-    // Close modals when clicking outside or on close button
-    document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
-        element.addEventListener('click', (e) => {
-            if (e.target === element) {
-                closeModals();
+    // Add click event for tab headers
+    formTabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => {
+            // Only allow clicking on previous tabs or current tab
+            if (index <= currentTabIndex) {
+                switchToTab(index);
             }
         });
     });
+}
+
+// Switch to a specific tab
+function switchToTab(index) {
+    console.log(`Switching to tab ${index} from tab ${currentTabIndex}`);
     
-    // Prevent modal content clicks from closing the modal
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    });
-    
-    // Filter event listeners
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            currentFilters.search = searchInput.value.toLowerCase();
-            applyFilters();
-        });
+    // Ensure index is within bounds
+    if (index < 0 || index >= formTabs.length) {
+        console.log(`Invalid tab index: ${index}, not switching`);
+        return;
     }
     
-    if (statusFilter) {
-        statusFilter.addEventListener('change', () => {
-            currentFilters.status = statusFilter.value;
-            applyFilters();
-        });
+    // Update active tab
+    formTabs.forEach(tab => tab.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
+    
+    formTabs[index].classList.add('active');
+    tabContents[index].classList.add('active');
+    
+    // Update current tab index
+    currentTabIndex = index;
+    
+    // Update progress indicator
+    document.querySelector('.form-tabs').setAttribute('data-step', currentTabIndex);
+    
+    // Update completed tabs
+    updateCompletedTabs();
+    
+    // Update navigation buttons
+    updateNavigationButtons();
+    
+    // Update summary if on summary tab
+    if (index === formTabs.length - 1) {
+        updateSummary();
     }
+}
+
+// Update navigation buttons based on current tab
+function updateNavigationButtons() {
+    const prevButton = document.querySelector('.prev-tab');
+    const nextButton = document.querySelector('.next-tab');
+    const submitButton = document.querySelector('button[type="submit"]');
     
-    if (sortBySelect) {
-        sortBySelect.addEventListener('change', () => {
-            currentFilters.sort = sortBySelect.value;
-            applyFilters();
-        });
-    }
+    // Hide/show previous button
+    prevButton.style.display = currentTabIndex === 0 ? 'none' : 'block';
     
-    // View switcher event listeners
-    if (gridViewBtn) gridViewBtn.addEventListener('click', () => switchView('grid'));
-    if (listViewBtn) listViewBtn.addEventListener('click', () => switchView('list'));
-    if (tableViewBtn) tableViewBtn.addEventListener('click', () => switchView('table'));
-    
-    // Export button event listener
-    if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
-    
-    // File input change event
-    if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
-    if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
-    
-    const editInvoice = document.getElementById('editInvoice');
-    if (editInvoice) {
-        editInvoice.addEventListener('change', () => {
-            updateFileName(null, 'editInvoice', 'editFileName');
-        });
-    }
-    
-    const editManual = document.getElementById('editManual');
-    if (editManual) {
-        editManual.addEventListener('change', () => {
-            updateFileName(null, 'editManual', 'editManualFileName');
-        });
-    }
-    
-    // Form submission
-    if (warrantyForm) warrantyForm.addEventListener('submit', addWarranty);
-    
-    // Refresh button
-    if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
-    
-    // Save warranty changes
-    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', updateWarranty);
-    
-    // Confirm delete button
-    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
-    
-    // Load saved view preference
-    loadViewPreference();
-    
-    // Load preferences first to ensure we have the correct expiringSoonDays value
-    // before loading warranties
-    if (window.auth && window.auth.isAuthenticated()) {
-        console.log('User is authenticated, loading preferences...');
-        const token = window.auth.getToken();
-        
-        if (token) {
-            fetch('/api/auth/preferences', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-            .then(response => {
-                if (response.ok) return response.json();
-                throw new Error('Failed to load preferences');
-            })
-            .then(data => {
-                if (data && data.expiring_soon_days) {
-                    expiringSoonDays = data.expiring_soon_days;
-                    console.log('Updated expiring soon days from preferences during initialization:', expiringSoonDays);
-                }
-                // Now load warranties with the updated preference
-                loadWarranties();
-            })
-            .catch(error => {
-                console.error('Error loading preferences during initialization:', error);
-                // Still load warranties even if preferences couldn't be loaded
-                loadWarranties();
-            });
-        } else {
-            // No token available, load warranties with default preference
-            loadWarranties();
-        }
+    // Hide/show next button and submit button
+    if (currentTabIndex === formTabs.length - 1) {
+        nextButton.style.display = 'none';
+        submitButton.style.display = 'block';
     } else {
-        // User not authenticated, load warranties (this will show login prompt)
-        loadWarranties();
+        nextButton.style.display = 'block';
+        submitButton.style.display = 'none';
+    }
+}
+
+// Update completed tabs
+function updateCompletedTabs() {
+    formTabs.forEach((tab, index) => {
+        if (index < currentTabIndex) {
+            tab.classList.add('completed');
+        } else {
+            tab.classList.remove('completed');
+        }
+    });
+}
+
+// Validate a specific tab
+function validateTab(tabIndex) {
+    const tabContent = tabContents[tabIndex];
+    const requiredInputs = tabContent.querySelectorAll('input[required]');
+    
+    // If there are no required inputs in this tab, it's automatically valid
+    if (requiredInputs.length === 0) {
+        return true;
     }
     
-    console.log('App initialization complete');
+    let isValid = true;
+    
+    requiredInputs.forEach(input => {
+        if (!input.value.trim()) {
+            isValid = false;
+            input.classList.add('invalid');
+        } else {
+            input.classList.remove('invalid');
+        }
+    });
+    
+    return isValid;
+}
+
+// Show validation errors for a specific tab
+function showValidationErrors(tabIndex) {
+    const tabContent = tabContents[tabIndex];
+    const requiredInputs = tabContent.querySelectorAll('input[required]');
+    
+    requiredInputs.forEach(input => {
+        if (!input.value.trim()) {
+            input.classList.add('invalid');
+            
+            // Add validation message if not already present
+            let validationMessage = input.nextElementSibling;
+            if (!validationMessage || !validationMessage.classList.contains('validation-message')) {
+                validationMessage = document.createElement('div');
+                validationMessage.className = 'validation-message';
+                validationMessage.textContent = 'This field is required';
+                input.parentNode.insertBefore(validationMessage, input.nextSibling);
+            }
+        }
+    });
+    
+    // Show toast message
+    showToast('Please fill in all required fields', 'error');
+}
+
+// Update summary tab with current form values
+function updateSummary() {
+    // Product information
+    document.getElementById('summary-product-name').textContent = 
+        document.getElementById('productName').value || '-';
+    
+    document.getElementById('summary-product-url').textContent = 
+        document.getElementById('productUrl').value || '-';
+    
+    // Serial numbers
+    const serialNumbers = [];
+    document.querySelectorAll('input[name="serial_numbers[]"]').forEach(input => {
+        if (input.value.trim()) {
+            serialNumbers.push(input.value.trim());
+        }
+    });
+    
+    const serialNumbersContainer = document.getElementById('summary-serial-numbers');
+    if (serialNumbers.length > 0) {
+        serialNumbersContainer.innerHTML = '<ul>' + 
+            serialNumbers.map(sn => `<li>${sn}</li>`).join('') + 
+            '</ul>';
+    } else {
+        serialNumbersContainer.textContent = 'None';
+    }
+    
+    // Warranty details
+    const purchaseDate = document.getElementById('purchaseDate').value;
+    document.getElementById('summary-purchase-date').textContent = purchaseDate ? 
+        new Date(purchaseDate).toLocaleDateString() : '-';
+    
+    const warrantyYears = document.getElementById('warrantyYears').value;
+    document.getElementById('summary-warranty-years').textContent = warrantyYears ? 
+        `${warrantyYears} ${warrantyYears > 1 ? 'years' : 'year'}` : '-';
+    
+    // Calculate and display expiration date
+    if (purchaseDate && warrantyYears) {
+        const expirationDate = new Date(purchaseDate);
+        expirationDate.setFullYear(expirationDate.getFullYear() + parseInt(warrantyYears));
+        document.getElementById('summary-expiration-date').textContent = 
+            expirationDate.toLocaleDateString();
+    } else {
+        document.getElementById('summary-expiration-date').textContent = '-';
+    }
+    
+    // Purchase price
+    const purchasePrice = document.getElementById('purchasePrice').value;
+    document.getElementById('summary-purchase-price').textContent = purchasePrice ? 
+        `$${parseFloat(purchasePrice).toFixed(2)}` : 'Not specified';
+    
+    // Documents
+    const invoiceFile = document.getElementById('invoice').files[0];
+    document.getElementById('summary-invoice').textContent = invoiceFile ? 
+        invoiceFile.name : 'No file selected';
+    
+    const manualFile = document.getElementById('manual').files[0];
+    document.getElementById('summary-manual').textContent = manualFile ? 
+        manualFile.name : 'No file selected';
+}
+
+// Add input event listeners to remove validation errors when user types
+document.addEventListener('input', (e) => {
+    if (e.target.hasAttribute('required') && e.target.classList.contains('invalid')) {
+        if (e.target.value.trim()) {
+            e.target.classList.remove('invalid');
+            
+            // Remove validation message if exists
+            const validationMessage = e.target.nextElementSibling;
+            if (validationMessage && validationMessage.classList.contains('validation-message')) {
+                validationMessage.remove();
+            }
+        }
+    }
 });
+
+// Function to reset the form and initialize serial number inputs
+function resetForm() {
+    // Reset the form
+    warrantyForm.reset();
+    
+    // Reset serial numbers container
+    serialNumbersContainer.innerHTML = '';
+    
+    // Add the first serial number input
+    addSerialNumberInput();
+    
+    // Reset form tabs
+    currentTabIndex = 0;
+    switchToTab(0);
+    
+    // Clear any file input displays
+    fileName.textContent = '';
+    manualFileName.textContent = '';
+}
+
+async function exportWarranties() {
+    // Get filtered warranties
+    let warrantiesToExport = [...warranties];
+    
+    // Apply current filters
+    if (currentFilters.search) {
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            warranty.product_name.toLowerCase().includes(currentFilters.search)
+        );
+    }
+    
+    if (currentFilters.status !== 'all') {
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            warranty.status === currentFilters.status
+        );
+    }
+    
+    // Create CSV content
+    let csvContent = "data:text/csv;charset=utf-8,";
+    
+    // Add headers
+    csvContent += "Product Name,Purchase Date,Warranty Period,Expiration Date,Status,Serial Numbers\n";
+    
+    // Add data rows
+    warrantiesToExport.forEach(warranty => {
+        const purchaseDate = new Date(warranty.purchase_date).toLocaleDateString();
+        const expirationDate = new Date(warranty.expiration_date).toLocaleDateString();
+        const serialNumbers = Array.isArray(warranty.serial_numbers) 
+            ? warranty.serial_numbers.join('; ')
+            : '';
+        
+        // Calculate status if not already set
+        if (!warranty.status) {
+            const today = new Date();
+            const expDate = new Date(warranty.expiration_date);
+            const daysRemaining = Math.floor((expDate - today) / (1000 * 60 * 60 * 24));
+            
+            if (daysRemaining < 0) {
+                warranty.status = 'Expired';
+            } else if (daysRemaining < expiringSoonDays) {
+                warranty.status = 'Expiring Soon';
+            } else {
+                warranty.status = 'Active';
+            }
+        }
+        
+        // Format status for CSV
+        let statusText = warranty.status.charAt(0).toUpperCase() + warranty.status.slice(1);
+        if (statusText === 'Expiring') statusText = 'Expiring Soon';
+        
+        // Create CSV row
+        csvContent += `"${warranty.product_name}",${purchaseDate},${warranty.warranty_years} years,${expirationDate},${statusText},"${serialNumbers}"\n`;
+    });
+    
+    // Create download link
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "warranties.csv");
+    document.body.appendChild(link);
+    
+    // Trigger download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    
+    showToast('Warranties exported successfully', 'success');
+}
+
+// Function to switch between views
+function switchView(viewType) {
+    console.log('Switching view to:', viewType);
+    
+    // Process all warranties to ensure consistency
+    processAllWarranties();
+    
+    // Update current view
+    currentView = viewType;
+    
+    // Update view buttons
+    gridViewBtn.classList.toggle('active', viewType === 'grid');
+    listViewBtn.classList.toggle('active', viewType === 'list');
+    tableViewBtn.classList.toggle('active', viewType === 'table');
+    
+    // Update warranties list class
+    warrantiesList.className = `warranties-list ${viewType}-view`;
+    
+    // Show/hide table header for table view
+    if (tableViewHeader) {
+        tableViewHeader.classList.toggle('visible', viewType === 'table');
+    }
+    
+    // Re-render warranties with the new view
+    console.log('Applying filters after switching view...');
+    applyFilters();
+    
+    // Save view preference to localStorage
+    localStorage.setItem('warrantyView', viewType);
+}
+
+// Load saved view preference
+function loadViewPreference() {
+    // First check for warrantyView (direct view selection)
+    const savedView = localStorage.getItem('warrantyView');
+    // If not found, check for defaultView (from settings)
+    const defaultView = localStorage.getItem('defaultView');
+    
+    // Use warrantyView if available, otherwise use defaultView, or fall back to grid
+    const viewToUse = savedView || defaultView || 'grid';
+    
+    if (viewToUse) {
+        switchView(viewToUse);
+    }
+}
 
 // Dark mode toggle
 darkModeToggle.addEventListener('change', (e) => {
@@ -256,118 +496,6 @@ function addSerialNumberInput(container = serialNumbersContainer) {
     
     container.appendChild(newInput);
 }
-
-// Variables
-let warranties = [];
-let currentWarrantyId = null;
-let currentFilters = {
-    search: '',
-    status: 'all',
-    sort: 'expiration'
-};
-let currentView = 'grid'; // Default view
-let expiringSoonDays = 30; // Default value, will be updated from user preferences
-
-// API URL
-const API_URL = '/api/warranties';
-
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded, initializing app...');
-    
-    // Initialize the app
-    initializeTheme();
-    
-    // Load warranties - now handled by the preferences loading logic
-    // loadWarranties();
-    
-    // Initialize form tabs
-    initFormTabs();
-    
-    // Initialize the form
-    resetForm();
-    
-    // Close modals when clicking outside or on close button
-    document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
-        element.addEventListener('click', (e) => {
-            if (e.target === element) {
-                closeModals();
-            }
-        });
-    });
-    
-    // Prevent modal content clicks from closing the modal
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    });
-    
-    // Filter event listeners
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            currentFilters.search = searchInput.value.toLowerCase();
-            applyFilters();
-        });
-    }
-    
-    if (statusFilter) {
-        statusFilter.addEventListener('change', () => {
-            currentFilters.status = statusFilter.value;
-            applyFilters();
-        });
-    }
-    
-    if (sortBySelect) {
-        sortBySelect.addEventListener('change', () => {
-            currentFilters.sort = sortBySelect.value;
-            applyFilters();
-        });
-    }
-    
-    // View switcher event listeners
-    if (gridViewBtn) gridViewBtn.addEventListener('click', () => switchView('grid'));
-    if (listViewBtn) listViewBtn.addEventListener('click', () => switchView('list'));
-    if (tableViewBtn) tableViewBtn.addEventListener('click', () => switchView('table'));
-    
-    // Export button event listener
-    if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
-    
-    // File input change event
-    if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
-    if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
-    
-    const editInvoice = document.getElementById('editInvoice');
-    if (editInvoice) {
-        editInvoice.addEventListener('change', () => {
-            updateFileName(null, 'editInvoice', 'editFileName');
-        });
-    }
-    
-    const editManual = document.getElementById('editManual');
-    if (editManual) {
-        editManual.addEventListener('change', () => {
-            updateFileName(null, 'editManual', 'editManualFileName');
-        });
-    }
-    
-    // Form submission
-    if (warrantyForm) warrantyForm.addEventListener('submit', addWarranty);
-    
-    // Refresh button
-    if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
-    
-    // Save warranty changes
-    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', updateWarranty);
-    
-    // Confirm delete button
-    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
-    
-    // Load saved view preference
-    loadViewPreference();
-    
-    console.log('App initialization complete');
-});
 
 // Functions
 function showLoading() {
@@ -851,6 +979,30 @@ function filterWarranties() {
     renderWarranties(filtered);
 }
 
+function applyFilters() {
+    console.log('Applying filters with:', currentFilters);
+    
+    // Filter warranties based on currentFilters
+    const filtered = warranties.filter(warranty => {
+        // Status filter
+        if (currentFilters.status !== 'all' && warranty.status !== currentFilters.status) {
+            return false;
+        }
+        
+        // Search filter
+        if (currentFilters.search && !warranty.product_name.toLowerCase().includes(currentFilters.search.toLowerCase())) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    console.log('Filtered warranties:', filtered);
+    
+    // Render the filtered warranties
+    renderWarranties(filtered);
+}
+
 function openEditModal(warranty) {
     currentWarrantyId = warranty.id;
     
@@ -968,6 +1120,140 @@ function closeModals() {
     currentWarrantyId = null;
 }
 
+// Validate file size before upload
+function validateFileSize(formData, maxSizeMB = 32) {
+    let totalSize = 0;
+    
+    // Check file sizes
+    if (formData.has('invoice') && formData.get('invoice').size > 0) {
+        totalSize += formData.get('invoice').size;
+    }
+    
+    if (formData.has('manual') && formData.get('manual').size > 0) {
+        totalSize += formData.get('manual').size;
+    }
+    
+    // Convert bytes to MB for comparison and display
+    const totalSizeMB = totalSize / (1024 * 1024);
+    console.log(`Total upload size: ${totalSizeMB.toFixed(2)} MB`);
+    
+    // Check if total size exceeds limit
+    if (totalSizeMB > maxSizeMB) {
+        return {
+            valid: false,
+            message: `Total file size (${totalSizeMB.toFixed(2)} MB) exceeds the maximum allowed size of ${maxSizeMB} MB. Please reduce file sizes.`
+        };
+    }
+    
+    return {
+        valid: true
+    };
+}
+
+// Modify the beginning of the addWarranty function to check file sizes before uploading
+async function addWarranty(event) {
+    event.preventDefault();
+    
+    // Check authentication first
+    if (!window.auth || !window.auth.isAuthenticated()) {
+        showToast('Please log in to add warranties', 'error');
+        return;
+    }
+    
+    // Validate the current tab
+    if (!validateTab(currentTabIndex)) {
+        return;
+    }
+    
+    try {
+        showLoading();
+        
+        // Create FormData object
+        const formData = new FormData(warrantyForm);
+        
+        // Validate file sizes before trying to upload
+        const fileSizeValidation = validateFileSize(formData);
+        if (!fileSizeValidation.valid) {
+            showToast(fileSizeValidation.message, 'error');
+            hideLoading();
+            return;
+        }
+        
+        // Get all serial numbers
+        const serialNumbers = [];
+        document.querySelectorAll('input[name="serial_numbers[]"]').forEach(input => {
+            if (input.value.trim()) {
+                serialNumbers.push(input.value.trim());
+            }
+        });
+        
+        // Remove default serial numbers entry and add the collected ones
+        formData.delete('serial_numbers[]');
+        serialNumbers.forEach(sn => {
+            formData.append('serial_numbers', sn);
+        });
+        
+        // Get the auth token
+        const token = window.auth.getToken();
+        if (!token) {
+            showToast('Authentication error. Please log in again.', 'error');
+            hideLoading();
+            closeModals();
+            return;
+        }
+        
+        // Create request with auth header
+        const options = {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        };
+        
+        // Use the full URL to avoid path issues
+        const apiUrl = window.location.origin + '/api/warranties';
+        
+        console.log('Sending warranty data to server...');
+        const response = await fetch(apiUrl, options);
+        
+        if (!response.ok) {
+            // Specifically handle 413 Request Entity Too Large error
+            if (response.status === 413) {
+                throw new Error('File size too large. Please reduce the file size of your uploads (maximum 32MB total) or split into multiple warranties.');
+            }
+            
+            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+            throw new Error(errorData.message || `Error adding warranty: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Received add warranty result:', result);
+        
+        // The server only returns the ID, so we need to fetch the complete warranty data
+        if (result.id) {
+            console.log('Fetching complete warranty data for ID:', result.id);
+            
+            // Reload all warranties to get the complete data
+            await loadWarranties();
+            
+            // Reset the form and initialize serial number inputs
+            resetForm();
+            
+            // Show success message
+            showToast('Warranty added successfully!', 'success');
+        } else {
+            throw new Error('Failed to get warranty ID from server response');
+        }
+    } catch (error) {
+        console.error('Error adding warranty:', error);
+        showToast(error.message || 'Error adding warranty. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Modify the beginning of the updateWarranty function to check file sizes before uploading
 async function updateWarranty() {
     // Check if user is authenticated
     if (window.auth && !window.auth.isAuthenticated()) {
@@ -986,6 +1272,13 @@ async function updateWarranty() {
     
     // Create FormData object
     const formData = new FormData(editWarrantyForm);
+    
+    // Validate file sizes before trying to upload
+    const fileSizeValidation = validateFileSize(formData);
+    if (!fileSizeValidation.valid) {
+        showToast(fileSizeValidation.message, 'error');
+        return;
+    }
     
     // Get all serial numbers
     const serialNumbers = [];
@@ -1029,6 +1322,11 @@ async function updateWarranty() {
         const response = await fetch(apiUrl, options);
         
         if (!response.ok) {
+            // Specifically handle 413 Request Entity Too Large error
+            if (response.status === 413) {
+                throw new Error('File size too large. Please reduce the file size of your uploads (maximum 32MB total) or split into multiple warranties.');
+            }
+            
             const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
             throw new Error(errorData.message || `Error updating warranty: ${response.status}`);
         }
@@ -1116,458 +1414,157 @@ async function deleteWarranty() {
     }
 }
 
-// Form tab navigation variables
-const formTabs = Array.from(document.querySelectorAll('.form-tab'));
-const tabContents = Array.from(document.querySelectorAll('.tab-content'));
-let currentTabIndex = 0;
-
-// Initialize form tabs
-function initFormTabs() {
-    // Hide the submit button initially
-    const submitButton = document.querySelector('button[type="submit"]');
-    if (submitButton) {
-        submitButton.style.display = 'none';
+// Initialize page
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM fully loaded, initializing app...');
+    
+    // Ensure auth state is checked
+    if (window.auth && window.auth.checkAuthState) {
+        window.auth.checkAuthState();
     }
     
-    // Show/hide navigation buttons based on current tab
-    updateNavigationButtons();
+    // Initialize settings button
+    if (settingsBtn && settingsMenu) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsMenu.classList.toggle('active');
+        });
+        
+        // Close settings menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (settingsMenu.classList.contains('active') && 
+                !settingsMenu.contains(e.target) && 
+                !settingsBtn.contains(e.target)) {
+                settingsMenu.classList.remove('active');
+            }
+        });
+    }
     
-    // Add event listeners for tab navigation
-    document.querySelector('.next-tab').addEventListener('click', () => {
-        if (validateTab(currentTabIndex)) {
-            switchToTab(currentTabIndex + 1);
-        } else {
-            showValidationErrors(currentTabIndex);
-        }
-    });
+    // Initialize the app
+    initializeTheme();
     
-    document.querySelector('.prev-tab').addEventListener('click', () => {
-        switchToTab(currentTabIndex - 1);
-    });
+    // Initialize form tabs
+    initFormTabs();
     
-    // Add click event for tab headers
-    formTabs.forEach((tab, index) => {
-        tab.addEventListener('click', () => {
-            // Only allow clicking on previous tabs or current tab
-            if (index <= currentTabIndex) {
-                switchToTab(index);
+    // Initialize the form
+    resetForm();
+    
+    // Close modals when clicking outside or on close button
+    document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
+        element.addEventListener('click', (e) => {
+            if (e.target === element) {
+                closeModals();
             }
         });
     });
-}
-
-// Switch to a specific tab
-function switchToTab(index) {
-    // Ensure index is within bounds
-    if (index < 0 || index >= formTabs.length) return;
     
-    // Update active tab
-    formTabs.forEach(tab => tab.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    
-    formTabs[index].classList.add('active');
-    tabContents[index].classList.add('active');
-    
-    // Update current tab index
-    currentTabIndex = index;
-    
-    // Update progress indicator
-    document.querySelector('.form-tabs').setAttribute('data-step', currentTabIndex);
-    
-    // Update completed tabs
-    updateCompletedTabs();
-    
-    // Update navigation buttons
-    updateNavigationButtons();
-    
-    // Update summary if on summary tab
-    if (index === formTabs.length - 1) {
-        updateSummary();
-    }
-}
-
-// Update navigation buttons based on current tab
-function updateNavigationButtons() {
-    const prevButton = document.querySelector('.prev-tab');
-    const nextButton = document.querySelector('.next-tab');
-    const submitButton = document.querySelector('button[type="submit"]');
-    
-    // Hide/show previous button
-    prevButton.style.display = currentTabIndex === 0 ? 'none' : 'block';
-    
-    // Hide/show next button and submit button
-    if (currentTabIndex === formTabs.length - 1) {
-        nextButton.style.display = 'none';
-        submitButton.style.display = 'block';
-    } else {
-        nextButton.style.display = 'block';
-        submitButton.style.display = 'none';
-    }
-}
-
-// Update completed tabs
-function updateCompletedTabs() {
-    formTabs.forEach((tab, index) => {
-        if (index < currentTabIndex) {
-            tab.classList.add('completed');
-        } else {
-            tab.classList.remove('completed');
-        }
-    });
-}
-
-// Validate a specific tab
-function validateTab(tabIndex) {
-    const tabContent = tabContents[tabIndex];
-    const requiredInputs = tabContent.querySelectorAll('input[required]');
-    let isValid = true;
-    
-    requiredInputs.forEach(input => {
-        if (!input.value.trim()) {
-            isValid = false;
-            input.classList.add('invalid');
-        } else {
-            input.classList.remove('invalid');
-        }
-    });
-    
-    return isValid;
-}
-
-// Show validation errors for a specific tab
-function showValidationErrors(tabIndex) {
-    const tabContent = tabContents[tabIndex];
-    const requiredInputs = tabContent.querySelectorAll('input[required]');
-    
-    requiredInputs.forEach(input => {
-        if (!input.value.trim()) {
-            input.classList.add('invalid');
-            
-            // Add validation message if not already present
-            let validationMessage = input.nextElementSibling;
-            if (!validationMessage || !validationMessage.classList.contains('validation-message')) {
-                validationMessage = document.createElement('div');
-                validationMessage.className = 'validation-message';
-                validationMessage.textContent = 'This field is required';
-                input.parentNode.insertBefore(validationMessage, input.nextSibling);
-            }
-        }
-    });
-    
-    // Show toast message
-    showToast('Please fill in all required fields', 'error');
-}
-
-// Update summary tab with current form values
-function updateSummary() {
-    // Product information
-    document.getElementById('summary-product-name').textContent = 
-        document.getElementById('productName').value || '-';
-    
-    document.getElementById('summary-product-url').textContent = 
-        document.getElementById('productUrl').value || '-';
-    
-    // Serial numbers
-    const serialNumbers = [];
-    document.querySelectorAll('input[name="serial_numbers[]"]').forEach(input => {
-        if (input.value.trim()) {
-            serialNumbers.push(input.value.trim());
-        }
-    });
-    
-    const serialNumbersContainer = document.getElementById('summary-serial-numbers');
-    if (serialNumbers.length > 0) {
-        serialNumbersContainer.innerHTML = '<ul>' + 
-            serialNumbers.map(sn => `<li>${sn}</li>`).join('') + 
-            '</ul>';
-    } else {
-        serialNumbersContainer.textContent = 'None';
-    }
-    
-    // Warranty details
-    const purchaseDate = document.getElementById('purchaseDate').value;
-    document.getElementById('summary-purchase-date').textContent = purchaseDate ? 
-        new Date(purchaseDate).toLocaleDateString() : '-';
-    
-    const warrantyYears = document.getElementById('warrantyYears').value;
-    document.getElementById('summary-warranty-years').textContent = warrantyYears ? 
-        `${warrantyYears} ${warrantyYears > 1 ? 'years' : 'year'}` : '-';
-    
-    // Calculate and display expiration date
-    if (purchaseDate && warrantyYears) {
-        const expirationDate = new Date(purchaseDate);
-        expirationDate.setFullYear(expirationDate.getFullYear() + parseInt(warrantyYears));
-        document.getElementById('summary-expiration-date').textContent = 
-            expirationDate.toLocaleDateString();
-    } else {
-        document.getElementById('summary-expiration-date').textContent = '-';
-    }
-    
-    // Purchase price
-    const purchasePrice = document.getElementById('purchasePrice').value;
-    document.getElementById('summary-purchase-price').textContent = purchasePrice ? 
-        `$${parseFloat(purchasePrice).toFixed(2)}` : 'Not specified';
-    
-    // Documents
-    const invoiceFile = document.getElementById('invoice').files[0];
-    document.getElementById('summary-invoice').textContent = invoiceFile ? 
-        invoiceFile.name : 'No file selected';
-    
-    const manualFile = document.getElementById('manual').files[0];
-    document.getElementById('summary-manual').textContent = manualFile ? 
-        manualFile.name : 'No file selected';
-}
-
-// Add input event listeners to remove validation errors when user types
-document.addEventListener('input', (e) => {
-    if (e.target.hasAttribute('required') && e.target.classList.contains('invalid')) {
-        if (e.target.value.trim()) {
-            e.target.classList.remove('invalid');
-            
-            // Remove validation message if exists
-            const validationMessage = e.target.nextElementSibling;
-            if (validationMessage && validationMessage.classList.contains('validation-message')) {
-                validationMessage.remove();
-            }
-        }
-    }
-});
-
-// Function to reset the form and initialize serial number inputs
-function resetForm() {
-    // Reset the form
-    warrantyForm.reset();
-    
-    // Reset serial numbers container
-    serialNumbersContainer.innerHTML = '';
-    
-    // Add the first serial number input
-    addSerialNumberInput();
-    
-    // Reset form tabs
-    currentTabIndex = 0;
-    switchToTab(0);
-    
-    // Clear any file input displays
-    fileName.textContent = '';
-    manualFileName.textContent = '';
-}
-
-async function addWarranty(event) {
-    event.preventDefault();
-    
-    // Check authentication first
-    if (!window.auth || !window.auth.isAuthenticated()) {
-        showToast('Please log in to add warranties', 'error');
-        return;
-    }
-    
-    // Validate the current tab
-    if (!validateTab(currentTabIndex)) {
-        return;
-    }
-    
-    try {
-        showLoading();
-        
-        // Create FormData object
-        const formData = new FormData(warrantyForm);
-        
-        // Add serial numbers
-        const serialNumberInputs = document.querySelectorAll('input[name="serial_numbers[]"]');
-        formData.delete('serial_numbers[]'); // Remove the default entries
-        serialNumberInputs.forEach(input => {
-            if (input.value.trim()) {
-                formData.append('serial_numbers', input.value.trim());
-            }
+    // Prevent modal content clicks from closing the modal
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            e.stopPropagation();
         });
-        
-        // Get the auth token
+    });
+    
+    // Filter event listeners
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            currentFilters.search = searchInput.value.toLowerCase();
+            applyFilters();
+        });
+    }
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', () => {
+            currentFilters.status = statusFilter.value;
+            applyFilters();
+        });
+    }
+    
+    if (sortBySelect) {
+        sortBySelect.addEventListener('change', () => {
+            currentFilters.sort = sortBySelect.value;
+            applyFilters();
+        });
+    }
+    
+    // View switcher event listeners
+    if (gridViewBtn) gridViewBtn.addEventListener('click', () => switchView('grid'));
+    if (listViewBtn) listViewBtn.addEventListener('click', () => switchView('list'));
+    if (tableViewBtn) tableViewBtn.addEventListener('click', () => switchView('table'));
+    
+    // Export button event listener
+    if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
+    
+    // File input change event
+    if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
+    if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
+    
+    const editInvoice = document.getElementById('editInvoice');
+    if (editInvoice) {
+        editInvoice.addEventListener('change', () => {
+            updateFileName(null, 'editInvoice', 'editFileName');
+        });
+    }
+    
+    const editManual = document.getElementById('editManual');
+    if (editManual) {
+        editManual.addEventListener('change', () => {
+            updateFileName(null, 'editManual', 'editManualFileName');
+        });
+    }
+    
+    // Form submission
+    if (warrantyForm) warrantyForm.addEventListener('submit', addWarranty);
+    
+    // Refresh button
+    if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
+    
+    // Save warranty changes
+    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', updateWarranty);
+    
+    // Confirm delete button
+    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
+    
+    // Load saved view preference
+    loadViewPreference();
+    
+    // Load preferences first to ensure we have the correct expiringSoonDays value
+    // before loading warranties
+    if (window.auth && window.auth.isAuthenticated()) {
+        console.log('User is authenticated, loading preferences...');
         const token = window.auth.getToken();
-        if (!token) {
-            showToast('Authentication error. Please log in again.', 'error');
-            hideLoading();
-            return;
-        }
         
-        // Create request with auth header
-        const options = {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        };
-        
-        // Use the full URL to avoid path issues
-        const apiUrl = window.location.origin + '/api/warranties';
-        
-        console.log('Sending warranty data to server...');
-        const response = await fetch(apiUrl, options);
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
-            throw new Error(errorData.message || `Error adding warranty: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('Received add warranty result:', result);
-        
-        // The server only returns the ID, so we need to fetch the complete warranty data
-        if (result.id) {
-            console.log('Fetching complete warranty data for ID:', result.id);
-            
-            // Reload all warranties to get the complete data
-            await loadWarranties();
-            
-            // Reset the form and initialize serial number inputs
-            resetForm();
-            
-            // Show success message
-            showToast('Warranty added successfully!', 'success');
+        if (token) {
+            fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error('Failed to load preferences');
+            })
+            .then(data => {
+                if (data && data.expiring_soon_days) {
+                    expiringSoonDays = data.expiring_soon_days;
+                    console.log('Updated expiring soon days from preferences during initialization:', expiringSoonDays);
+                }
+                // Now load warranties with the updated preference
+                loadWarranties();
+            })
+            .catch(error => {
+                console.error('Error loading preferences during initialization:', error);
+                // Still load warranties even if preferences couldn't be loaded
+                loadWarranties();
+            });
         } else {
-            throw new Error('Failed to get warranty ID from server response');
+            // No token available, load warranties with default preference
+            loadWarranties();
         }
-    } catch (error) {
-        console.error('Error adding warranty:', error);
-        showToast(error.message || 'Error adding warranty. Please try again.', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-function applyFilters() {
-    console.log('applyFilters called with warranties:', warranties);
-    const filtered = warranties.filter(warranty => {
-        // Status filter
-        if (currentFilters.status !== 'all' && warranty.status !== currentFilters.status) {
-            return false;
-        }
-        
-        // Search filter
-        if (currentFilters.search && !warranty.product_name.toLowerCase().includes(currentFilters.search.toLowerCase())) {
-            return false;
-        }
-        
-        return true;
-    });
-    
-    console.log('Filtered warranties:', filtered);
-    renderWarranties(filtered);
-}
-
-async function exportWarranties() {
-    // Get filtered warranties
-    let warrantiesToExport = [...warranties];
-    
-    // Apply current filters
-    if (currentFilters.search) {
-        warrantiesToExport = warrantiesToExport.filter(warranty => 
-            warranty.product_name.toLowerCase().includes(currentFilters.search)
-        );
+    } else {
+        // User not authenticated, load warranties (this will show login prompt)
+        loadWarranties();
     }
     
-    if (currentFilters.status !== 'all') {
-        warrantiesToExport = warrantiesToExport.filter(warranty => 
-            warranty.status === currentFilters.status
-        );
-    }
-    
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Add headers
-    csvContent += "Product Name,Purchase Date,Warranty Period,Expiration Date,Status,Serial Numbers\n";
-    
-    // Add data rows
-    warrantiesToExport.forEach(warranty => {
-        const purchaseDate = new Date(warranty.purchase_date).toLocaleDateString();
-        const expirationDate = new Date(warranty.expiration_date).toLocaleDateString();
-        const serialNumbers = Array.isArray(warranty.serial_numbers) 
-            ? warranty.serial_numbers.join('; ')
-            : '';
-        
-        // Calculate status if not already set
-        if (!warranty.status) {
-            const today = new Date();
-            const expDate = new Date(warranty.expiration_date);
-            const daysRemaining = Math.floor((expDate - today) / (1000 * 60 * 60 * 24));
-            
-            if (daysRemaining < 0) {
-                warranty.status = 'Expired';
-            } else if (daysRemaining < expiringSoonDays) {
-                warranty.status = 'Expiring Soon';
-            } else {
-                warranty.status = 'Active';
-            }
-        }
-        
-        // Format status for CSV
-        let statusText = warranty.status.charAt(0).toUpperCase() + warranty.status.slice(1);
-        if (statusText === 'Expiring') statusText = 'Expiring Soon';
-        
-        // Create CSV row
-        csvContent += `"${warranty.product_name}",${purchaseDate},${warranty.warranty_years} years,${expirationDate},${statusText},"${serialNumbers}"\n`;
-    });
-    
-    // Create download link
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "warranties.csv");
-    document.body.appendChild(link);
-    
-    // Trigger download
-    link.click();
-    
-    // Clean up
-    document.body.removeChild(link);
-    
-    showToast('Warranties exported successfully', 'success');
-}
-
-// Function to switch between views
-function switchView(viewType) {
-    console.log('Switching view to:', viewType);
-    
-    // Process all warranties to ensure consistency
-    processAllWarranties();
-    
-    // Update current view
-    currentView = viewType;
-    
-    // Update view buttons
-    gridViewBtn.classList.toggle('active', viewType === 'grid');
-    listViewBtn.classList.toggle('active', viewType === 'list');
-    tableViewBtn.classList.toggle('active', viewType === 'table');
-    
-    // Update warranties list class
-    warrantiesList.className = `warranties-list ${viewType}-view`;
-    
-    // Show/hide table header for table view
-    if (tableViewHeader) {
-        tableViewHeader.classList.toggle('visible', viewType === 'table');
-    }
-    
-    // Re-render warranties with the new view
-    console.log('Applying filters after switching view...');
-    applyFilters();
-    
-    // Save view preference to localStorage
-    localStorage.setItem('warrantyView', viewType);
-}
-
-// Load saved view preference
-function loadViewPreference() {
-    // First check for warrantyView (direct view selection)
-    const savedView = localStorage.getItem('warrantyView');
-    // If not found, check for defaultView (from settings)
-    const defaultView = localStorage.getItem('defaultView');
-    
-    // Use warrantyView if available, otherwise use defaultView, or fall back to grid
-    const viewToUse = savedView || defaultView || 'grid';
-    
-    if (viewToUse) {
-        switchView(viewToUse);
-    }
-}
+    console.log('App initialization complete');
+});

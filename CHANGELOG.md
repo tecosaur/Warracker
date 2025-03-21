@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.9.8.1] - 2025-03-21
+
+
+- **UI Improvements**
+  - **User Menu Refinement**
+    - Removed the Profile button from the username dropdown menu
+    - Simplified the user menu interface by removing unimplemented functionality
+    - Improved user interface clarity by removing the "Profile page coming soon" placeholder
+    - Updated all HTML templates (index.html, status.html, settings-new.html) for consistency
+
+- **Bug Fixes**
+  - **Add Warranty Form Wizard**
+    - Fixed issue where clicking the "Next" button sometimes skipped the "Documents" tab
+    - Removed duplicate DOMContentLoaded event listeners in script.js to prevent multiple form initializations
+    - Implemented clone-and-replace technique to ensure clean event listener attachment
+    - Added comprehensive logging for tab navigation to assist future debugging
+    - Enhanced form validation to ensure a smoother user experience
+    - Improved error handling when navigating between form tabs
+
+  - **Warranty Filtering**
+    - Fixed "ReferenceError: applyFilters is not defined" error in script.js
+    - Added missing applyFilters function that was referenced but not implemented
+    - Restored filter functionality for the warranty list on the main page
+    - Enhanced console logging to provide better debugging information
+
+- **Upload Size Increase**
+  - Increased maximum file upload size from 16MB to 32MB for invoices and manuals
+  - Updated `MAX_CONTENT_LENGTH` in Flask configuration from 16MB to 32MB
+  - Added `client_max_body_size 32M` directive to Nginx configuration
+  - Updated documentation in memory bank to reflect new file size limits
+  - Enhanced fallback Nginx configuration in Dockerfile with upload size limits
+  - Added frontend validation to prevent oversized file uploads
+  - Improved error handling for 413 Request Entity Too Large errors
+  - Added detailed error messages with file size information
+
+- **UI Consistency Improvements**
+  - **Settings Page Header**
+    - Fixed settings page header to match the structure and appearance of the home page
+    - Standardized navigation menu appearance across all application pages
+    - Removed duplicate settings container from the header for cleaner UI
+    - Added proper "active" class to the current page in the navigation menu
+  - **JavaScript Enhancements**
+    - Improved error handling in settings-new.js with proper null checking
+    - Enhanced preferences saving functionality with graceful fallbacks
+    - Fixed dark mode toggle to work without the header settings container
+    - Prevented console errors when UI elements were changed or removed
+
 ## [0.9.8.0] - 2025-03-21
 
 - **Feature Added**
