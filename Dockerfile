@@ -102,7 +102,7 @@ EXPOSE 80
 
 # Define health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/api/warranties || exit 1
+  CMD curl -f http://localhost/ || exit 1
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

@@ -1,6 +1,16 @@
 # Changelog
 
-## [0.9.7.8] - 2025-03-21
+## [0.9.7.9] - 2025-03-21
+
+  - **API Security Improvements**
+    - Fixed "Authentication attempt without token" warnings in logs
+    - Updated Dockerfile health check to use root URL instead of protected API endpoint
+    - Modified test-api.js to include authentication tokens with requests
+    - Updated API test documentation to show proper authentication examples
+    - Added troubleshooting information in memory bank for authentication issues
+
+## [0.9.7.8] - 2025-03-20
+
 - **Security Enhancements**
   - **Secure File Access System**
     - Implemented comprehensive security controls for uploaded files (invoices, manuals)

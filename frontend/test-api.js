@@ -6,8 +6,22 @@ document.addEventListener('DOMContentLoaded', function() {
     if (resultElement) {
         resultElement.innerHTML = '<p>Checking API connection...</p>';
         
+        // Check for authentication token
+        const token = localStorage.getItem('auth_token');
+        const options = {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        // Add auth token if available
+        if (token) {
+            options.headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         // Test API connection
-        fetch('/api/warranties')
+        fetch('/api/warranties', options)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('API responded with status: ' + response.status);
@@ -34,6 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <ul>
                             <li>Browser URL: ${window.location.href}</li>
                             <li>Target API: /api/warranties</li>
+                            <li>Authentication: ${token ? 'Token provided' : 'No token available'}</li>
                             <li>Make sure the backend is running and accessible</li>
                             <li>Check that nginx is properly configured to proxy API requests</li>
                         </ul>
