@@ -1093,36 +1093,69 @@ def update_warranty(warranty_id):
 @app.route('/api/statistics', methods=['GET'])
 @token_required
 def get_statistics():
+    user_id = request.user['id']
     conn = None
+
     try:
-        user_id = request.user['id']
-        is_admin = request.user['is_admin']
-        
         conn = get_db_connection()
+        
+        # Get the user's expiring_soon_days preference
+        expiring_soon_days = 30  # Default value
+        
+        try:
+            # Check if user_preferences table exists before trying to query it
+            with conn.cursor() as check_cur:
+                check_cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'user_preferences'
+                    )
+                """)
+                
+                table_exists = check_cur.fetchone()[0]
+                
+                if table_exists:
+                    with conn.cursor() as pref_cur:
+                        pref_cur.execute(
+                            """
+                            SELECT expiring_soon_days FROM user_preferences 
+                            WHERE user_id = %s
+                            """, 
+                            (user_id,)
+                        )
+                        
+                        preference = pref_cur.fetchone()
+                        if preference:
+                            expiring_soon_days = preference[0]
+        except Exception as e:
+            logger.error(f"Error getting user preferences: {e}")
+            # Continue with default value
+        
+        # Current date
+        today = date.today()
+        thirty_days_later = today + timedelta(days=expiring_soon_days)
+        ninety_days_later = today + timedelta(days=90)
+        
+        # Build the SQL query based on user role
+        from_clause = "FROM warranties"
+        where_clause = ""
+        active_where = "AND"
+        params = []
+        
+        # For non-admin users, filter by user_id
+        if not request.user.get('is_admin', False):
+            # For non-admin users, add join to warranty_users table
+            from_clause = "FROM warranties w JOIN warranty_users wu ON w.id = wu.warranty_id"
+            where_clause = "WHERE wu.user_id = %s"
+            params = [user_id]
+        
         with conn.cursor() as cur:
-            # Base query parts
-            from_clause = 'FROM warranties'
-            where_clause = ''
-            params = []
-            
-            # Add user filtering if not admin
-            if not is_admin:
-                where_clause = 'WHERE user_id = %s'
-                params.append(user_id)
-            
-            # Calculate expiration ranges
-            today = date.today()
-            logger.info(f"Current date: {today}")
-            thirty_days_later = today + timedelta(days=30)
-            ninety_days_later = today + timedelta(days=90)
-            
             # Get total count
             cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause}", params)
             total_count = cur.fetchone()[0]
             logger.info(f"Total warranties: {total_count}")
             
             # Get active count
-            active_where = "WHERE" if not where_clause else "AND"
             cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} expiration_date > %s", params + [today])
             active_count = cur.fetchone()[0]
             logger.info(f"Active warranties: {active_count}")
@@ -1132,7 +1165,7 @@ def get_statistics():
             expired_count = cur.fetchone()[0]
             logger.info(f"Expired warranties: {expired_count}")
             
-            # Get expiring soon count (30 days)
+            # Get expiring soon count (using user preference)
             cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} expiration_date > %s AND expiration_date <= %s", 
                       params + [today, thirty_days_later])
             expiring_soon_count = cur.fetchone()[0]
@@ -1348,10 +1381,44 @@ def get_preferences():
         cursor = conn.cursor()
         
         try:
+            # Check if user_preferences table exists
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'user_preferences'
+                )
+            """)
+            
+            table_exists = cursor.fetchone()[0]
+            
+            if not table_exists:
+                # Create the user_preferences table
+                cursor.execute("""
+                    CREATE TABLE user_preferences (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+                        default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
+                        theme VARCHAR(10) NOT NULL DEFAULT 'light',
+                        expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        UNIQUE(user_id)
+                    )
+                """)
+                
+                # Add index for faster lookups
+                cursor.execute("""
+                    CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
+                """)
+                
+                conn.commit()
+                logger.info(f"Created user_preferences table")
+            
             # Get user preferences
             cursor.execute(
                 """
-                SELECT email_notifications, default_view, theme
+                SELECT email_notifications, default_view, theme, expiring_soon_days
                 FROM user_preferences
                 WHERE user_id = %s
                 """,
@@ -1364,9 +1431,9 @@ def get_preferences():
                 # Create default preferences if not exists
                 cursor.execute(
                     """
-                    INSERT INTO user_preferences (user_id, email_notifications, default_view, theme)
-                    VALUES (%s, TRUE, 'grid', 'light')
-                    RETURNING email_notifications, default_view, theme
+                    INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days)
+                    VALUES (%s, TRUE, 'grid', 'light', 30)
+                    RETURNING email_notifications, default_view, theme, expiring_soon_days
                     """,
                     (user_id,)
                 )
@@ -1378,7 +1445,8 @@ def get_preferences():
             preferences = {
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
-                'theme': preferences_data[2]
+                'theme': preferences_data[2],
+                'expiring_soon_days': preferences_data[3]
             }
             
             return jsonify(preferences), 200
@@ -1386,14 +1454,32 @@ def get_preferences():
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error in get_preferences: {str(e)}")
-            return jsonify({'message': 'Database error occurred'}), 500
+            
+            # Return default preferences as fallback
+            default_preferences = {
+                'email_notifications': True,
+                'default_view': 'grid',
+                'theme': 'light',
+                'expiring_soon_days': 30
+            }
+            
+            return jsonify(default_preferences), 200
         finally:
             cursor.close()
             release_db_connection(conn)
             
     except Exception as e:
         logger.error(f"Error in get_preferences: {str(e)}")
-        return jsonify({'message': 'An error occurred while getting preferences'}), 500
+        
+        # Return default preferences as fallback
+        default_preferences = {
+            'email_notifications': True,
+            'default_view': 'grid',
+            'theme': 'light',
+            'expiring_soon_days': 30
+        }
+        
+        return jsonify(default_preferences), 200
 
 @app.route('/api/auth/preferences', methods=['PUT'])
 @token_required
@@ -1411,6 +1497,7 @@ def update_preferences():
         email_notifications = data.get('email_notifications')
         default_view = data.get('default_view')
         theme = data.get('theme')
+        expiring_soon_days = data.get('expiring_soon_days')
         
         # Validate input
         if default_view and default_view not in ['grid', 'list', 'table']:
@@ -1419,18 +1506,62 @@ def update_preferences():
         if theme and theme not in ['light', 'dark']:
             return jsonify({'message': 'Invalid theme'}), 400
             
+        if expiring_soon_days is not None:
+            try:
+                expiring_soon_days = int(expiring_soon_days)
+                if expiring_soon_days < 1 or expiring_soon_days > 365:
+                    return jsonify({'message': 'Expiring soon days must be between 1 and 365'}), 400
+            except ValueError:
+                return jsonify({'message': 'Expiring soon days must be a valid number'}), 400
+            
         # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
         
         try:
-            # Check if preferences exist
-            cursor.execute(
-                "SELECT 1 FROM user_preferences WHERE user_id = %s",
-                (user_id,)
-            )
+            # Check if user_preferences table exists
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'user_preferences'
+                )
+            """)
             
-            preferences_exist = cursor.fetchone() is not None
+            table_exists = cursor.fetchone()[0]
+            
+            if not table_exists:
+                # Create the user_preferences table
+                cursor.execute("""
+                    CREATE TABLE user_preferences (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+                        default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
+                        theme VARCHAR(10) NOT NULL DEFAULT 'light',
+                        expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        UNIQUE(user_id)
+                    )
+                """)
+                
+                # Add index for faster lookups
+                cursor.execute("""
+                    CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
+                """)
+                
+                # Set preferences_exist to false to create new preferences
+                preferences_exist = False
+                conn.commit()
+                logger.info(f"Created user_preferences table")
+            else:
+                # Check if preferences exist
+                cursor.execute(
+                    "SELECT 1 FROM user_preferences WHERE user_id = %s",
+                    (user_id,)
+                )
+                
+                preferences_exist = cursor.fetchone() is not None
             
             if preferences_exist:
                 # Update existing preferences
@@ -1449,12 +1580,16 @@ def update_preferences():
                     update_fields.append("theme = %s")
                     update_values.append(theme)
                 
+                if expiring_soon_days is not None:
+                    update_fields.append("expiring_soon_days = %s")
+                    update_values.append(expiring_soon_days)
+                
                 if update_fields:
                     update_query = f"""
                         UPDATE user_preferences 
                         SET {', '.join(update_fields)}, updated_at = NOW() 
                         WHERE user_id = %s
-                        RETURNING email_notifications, default_view, theme
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days
                     """
                     
                     cursor.execute(update_query, update_values + [user_id])
@@ -1463,7 +1598,7 @@ def update_preferences():
                     # No fields to update
                     cursor.execute(
                         """
-                        SELECT email_notifications, default_view, theme
+                        SELECT email_notifications, default_view, theme, expiring_soon_days
                         FROM user_preferences
                         WHERE user_id = %s
                         """,
@@ -1478,44 +1613,63 @@ def update_preferences():
                         user_id, 
                         email_notifications, 
                         default_view, 
-                        theme
+                        theme,
+                        expiring_soon_days
                     )
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING email_notifications, default_view, theme
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING email_notifications, default_view, theme, expiring_soon_days
                     """,
                     (
-                        user_id, 
-                        email_notifications if email_notifications is not None else True, 
-                        default_view or 'grid', 
-                        theme or 'light'
+                        user_id,
+                        email_notifications if email_notifications is not None else True,
+                        default_view or 'grid',
+                        theme or 'light',
+                        expiring_soon_days if expiring_soon_days is not None else 30
                     )
                 )
-                
                 preferences_data = cursor.fetchone()
-            
-            # Commit changes
-            conn.commit()
             
             # Format preferences data
             preferences = {
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
-                'theme': preferences_data[2]
+                'theme': preferences_data[2],
+                'expiring_soon_days': preferences_data[3]
             }
+            
+            conn.commit()
             
             return jsonify(preferences), 200
             
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error in update_preferences: {str(e)}")
-            return jsonify({'message': 'Database error occurred'}), 500
+            
+            # Return original data as fallback
+            fallback_preferences = {
+                'email_notifications': email_notifications if email_notifications is not None else True,
+                'default_view': default_view or 'grid',
+                'theme': theme or 'light',
+                'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30
+            }
+            
+            return jsonify(fallback_preferences), 200
         finally:
             cursor.close()
             release_db_connection(conn)
             
     except Exception as e:
         logger.error(f"Error in update_preferences: {str(e)}")
-        return jsonify({'message': 'An error occurred while updating preferences'}), 500
+        
+        # Return default preferences as fallback
+        default_preferences = {
+            'email_notifications': True,
+            'default_view': 'grid',
+            'theme': 'light',
+            'expiring_soon_days': 30
+        }
+        
+        return jsonify(default_preferences), 200
 
 # Admin User Management Endpoints
 

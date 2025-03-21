@@ -3,6 +3,7 @@ const darkModeToggle = document.getElementById('darkModeToggle');
 const darkModeToggleSetting = document.getElementById('darkModeToggleSetting');
 const defaultViewSelect = document.getElementById('defaultView');
 const emailNotificationsToggle = document.getElementById('emailNotifications');
+const expiringSoonDaysInput = document.getElementById('expiringSoonDays');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const savePreferencesBtn = document.getElementById('savePreferencesBtn');
 const changePasswordBtn = document.getElementById('changePasswordBtn');
@@ -319,7 +320,7 @@ async function loadUserData() {
 }
 
 /**
- * Load user preferences from localStorage
+ * Load user preferences from localStorage and API
  */
 function loadPreferences() {
     // Load dark mode preference
@@ -337,6 +338,22 @@ function loadPreferences() {
     // Load email notifications preference (default to true if not set)
     const emailNotifications = localStorage.getItem('emailNotifications') !== 'false';
     emailNotificationsToggle.checked = emailNotifications;
+    
+    // Load expiring soon days from API
+    fetch('/api/auth/preferences', {
+        headers: {
+            'Authorization': `Bearer ${window.auth.getToken()}`
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.expiring_soon_days) {
+            expiringSoonDaysInput.value = data.expiring_soon_days;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading preferences from API:', error);
+    });
 }
 
 /**
@@ -652,7 +669,40 @@ function savePreferences() {
     const emailNotifications = emailNotificationsToggle.checked;
     localStorage.setItem('emailNotifications', emailNotifications);
     
-    showToast('Preferences saved successfully', 'success');
+    // Get expiring soon days value
+    let expiringSoonDays = parseInt(expiringSoonDaysInput.value);
+    
+    // Validate expiring soon days
+    if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
+        showToast('Expiring soon days must be between 1 and 365', 'error');
+        return;
+    }
+    
+    // Save preferences to API
+    fetch('/api/auth/preferences', {
+        method: 'PUT',
+        headers: {
+            'Authorization': `Bearer ${window.auth.getToken()}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            default_view: defaultView,
+            email_notifications: emailNotifications,
+            theme: isDark ? 'dark' : 'light',
+            expiring_soon_days: expiringSoonDays
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            showToast('Preferences saved successfully', 'success');
+        } else {
+            throw new Error('Failed to save preferences to API');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving preferences:', error);
+        showToast('Preferences saved locally, but failed to sync with server', 'warning');
+    });
 }
 
 /**
@@ -1722,20 +1772,17 @@ function showUsersList() {
     console.log('=== SHOW USERS LIST COMPLETED ===');
 }
 
-// Add the test API buttons when the page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Add the test API buttons after a short delay to ensure the page is fully loaded
-    setTimeout(addTestApiButtons, 1000);
-});
-
 /**
  * Promise-based version of findUserIdByUsername
  * @param {string} username - The username to look up
  * @returns {Promise<number|null>} - Promise that resolves to the user ID or null if not found
  */
 function findUserIdByUsernameAsync(username) {
-    return new Promise((resolve) => {
-        findUserIdByUsername(username, resolve);
+    return new Promise((resolve, reject) => {
+        findUserIdByUsername(username, (err, userId) => {
+            if (err) reject(err);
+            else resolve(userId);
+        });
     });
 }
 
@@ -2015,104 +2062,6 @@ async function saveSiteSettings() {
 }
 
 /**
- * Add test API buttons to the page
- */
-function addTestApiButtons() {
-    console.log('Test API buttons function called but disabled');
-    // Function disabled to prevent floating buttons from appearing
-    // The functionality is now available through the admin action buttons in the Admin Settings section
-    return;
-    
-    // Original code below is kept for reference but will not execute due to the return above
-    console.log('Adding test API buttons to the page');
-    
-    // Create a container for the buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.position = 'fixed';
-    buttonContainer.style.bottom = '20px';
-    buttonContainer.style.right = '20px';
-    buttonContainer.style.zIndex = '9999';
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.flexDirection = 'column';
-    buttonContainer.style.gap = '10px';
-    
-    // Create a button to check API endpoint
-    const apiCheckBtn = document.createElement('button');
-    apiCheckBtn.className = 'btn btn-info';
-    apiCheckBtn.textContent = 'Check API Endpoint';
-    apiCheckBtn.addEventListener('click', checkApiEndpoint);
-    
-    // Create a button to test user deletion
-    const testDeleteBtn = document.createElement('button');
-    testDeleteBtn.className = 'btn btn-danger';
-    testDeleteBtn.textContent = 'Test User Deletion';
-    testDeleteBtn.addEventListener('click', function() {
-        const userId = prompt('Enter user ID to delete:');
-        if (userId) {
-            if (confirm(`Are you sure you want to delete user ID ${userId}?`)) {
-                testUserDeletion(userId);
-            }
-        }
-    });
-    
-    // Create a button to check permissions
-    const checkPermissionsBtn = document.createElement('button');
-    checkPermissionsBtn.className = 'btn btn-warning';
-    checkPermissionsBtn.textContent = 'Check Admin Permissions';
-    checkPermissionsBtn.addEventListener('click', checkAdminPermissions);
-    
-    // Create a button to show users
-    const showUsersBtn = document.createElement('button');
-    showUsersBtn.className = 'btn btn-primary';
-    showUsersBtn.textContent = 'Show Users';
-    showUsersBtn.addEventListener('click', showUsersList);
-    
-    // Add buttons to the container
-    buttonContainer.appendChild(apiCheckBtn);
-    buttonContainer.appendChild(testDeleteBtn);
-    buttonContainer.appendChild(checkPermissionsBtn);
-    buttonContainer.appendChild(showUsersBtn);
-    
-    // Add the container to the body
-    document.body.appendChild(buttonContainer);
-    
-    console.log('Test API buttons added to the page');
-}
-
-/**
- * Check if the API endpoint is accessible
- */
-function checkApiEndpoint() {
-    console.log('Checking API endpoint accessibility...');
-    
-    // Try to access a simple API endpoint
-    fetch('/api/auth/validate-token', {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${window.auth.getToken()}`
-        }
-    })
-    .then(response => {
-        console.log('API endpoint check response status:', response.status);
-        if (response.ok) {
-            console.log('API endpoint is accessible');
-            showToast('API endpoint is accessible', 'success');
-        } else {
-            console.error('API endpoint is not accessible');
-            showToast('API endpoint is not accessible. Status: ' + response.status, 'error');
-        }
-        return response.json().catch(() => ({}));
-    })
-    .then(data => {
-        console.log('API endpoint check response data:', data);
-    })
-    .catch(error => {
-        console.error('Error checking API endpoint:', error);
-        showToast('Error checking API endpoint: ' + error.message, 'error');
-    });
-}
-
-/**
  * Set up the delete button for user deletion
  */
 function setupDeleteButton() {
@@ -2308,5 +2257,38 @@ function directDeleteUserAPI(userId) {
             console.error('Direct API call error details:', error.message, error.stack);
             reject(error);
         });
+    });
+}
+
+/**
+ * Check if the API endpoint is accessible
+ */
+function checkApiEndpoint() {
+    console.log('Checking API endpoint accessibility...');
+    
+    // Try to access a simple API endpoint
+    fetch('/api/auth/validate-token', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${window.auth.getToken()}`
+        }
+    })
+    .then(response => {
+        console.log('API endpoint check response status:', response.status);
+        if (response.ok) {
+            console.log('API endpoint is accessible');
+            showToast('API endpoint is accessible', 'success');
+        } else {
+            console.error('API endpoint is not accessible');
+            showToast('API endpoint is not accessible. Status: ' + response.status, 'error');
+        }
+        return response.json().catch(() => ({}));
+    })
+    .then(data => {
+        console.log('API endpoint check response data:', data);
+    })
+    .catch(error => {
+        console.error('Error checking API endpoint:', error);
+        showToast('Error checking API endpoint: ' + error.message, 'error');
     });
 } 

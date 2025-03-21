@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * Check if user is authenticated and update UI accordingly
  */
 function checkAuthState() {
+    // Get latest token from localStorage
     authToken = localStorage.getItem('auth_token');
     const userInfo = localStorage.getItem('user_info');
     
@@ -232,6 +233,7 @@ async function logout() {
  * Clear authentication data from localStorage
  */
 function clearAuthData() {
+    // Clear both localStorage and global variables
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
     authToken = null;
@@ -315,8 +317,9 @@ function addAuthHeader(options = {}) {
  * @returns {string} - The authentication token
  */
 function getToken() {
-    // Always get the latest token from localStorage
-    return localStorage.getItem('auth_token');
+    // Always get the latest token from localStorage and update global variable
+    authToken = localStorage.getItem('auth_token');
+    return authToken;
 }
 
 // Export authentication functions for use in other scripts

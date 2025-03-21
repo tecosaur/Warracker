@@ -51,6 +51,8 @@ initializeTheme();
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM fully loaded, initializing app...');
+    
     // Ensure auth state is checked
     if (window.auth && window.auth.checkAuthState) {
         window.auth.checkAuthState();
@@ -73,8 +75,133 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Initialize other event listeners and functionality
-    // ... existing initialization code ...
+    // Initialize the app
+    initializeTheme();
+    
+    // Initialize form tabs
+    initFormTabs();
+    
+    // Initialize the form
+    resetForm();
+    
+    // Close modals when clicking outside or on close button
+    document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
+        element.addEventListener('click', (e) => {
+            if (e.target === element) {
+                closeModals();
+            }
+        });
+    });
+    
+    // Prevent modal content clicks from closing the modal
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    });
+    
+    // Filter event listeners
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            currentFilters.search = searchInput.value.toLowerCase();
+            applyFilters();
+        });
+    }
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', () => {
+            currentFilters.status = statusFilter.value;
+            applyFilters();
+        });
+    }
+    
+    if (sortBySelect) {
+        sortBySelect.addEventListener('change', () => {
+            currentFilters.sort = sortBySelect.value;
+            applyFilters();
+        });
+    }
+    
+    // View switcher event listeners
+    if (gridViewBtn) gridViewBtn.addEventListener('click', () => switchView('grid'));
+    if (listViewBtn) listViewBtn.addEventListener('click', () => switchView('list'));
+    if (tableViewBtn) tableViewBtn.addEventListener('click', () => switchView('table'));
+    
+    // Export button event listener
+    if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
+    
+    // File input change event
+    if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
+    if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
+    
+    const editInvoice = document.getElementById('editInvoice');
+    if (editInvoice) {
+        editInvoice.addEventListener('change', () => {
+            updateFileName(null, 'editInvoice', 'editFileName');
+        });
+    }
+    
+    const editManual = document.getElementById('editManual');
+    if (editManual) {
+        editManual.addEventListener('change', () => {
+            updateFileName(null, 'editManual', 'editManualFileName');
+        });
+    }
+    
+    // Form submission
+    if (warrantyForm) warrantyForm.addEventListener('submit', addWarranty);
+    
+    // Refresh button
+    if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
+    
+    // Save warranty changes
+    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', updateWarranty);
+    
+    // Confirm delete button
+    if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
+    
+    // Load saved view preference
+    loadViewPreference();
+    
+    // Load preferences first to ensure we have the correct expiringSoonDays value
+    // before loading warranties
+    if (window.auth && window.auth.isAuthenticated()) {
+        console.log('User is authenticated, loading preferences...');
+        const token = window.auth.getToken();
+        
+        if (token) {
+            fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error('Failed to load preferences');
+            })
+            .then(data => {
+                if (data && data.expiring_soon_days) {
+                    expiringSoonDays = data.expiring_soon_days;
+                    console.log('Updated expiring soon days from preferences during initialization:', expiringSoonDays);
+                }
+                // Now load warranties with the updated preference
+                loadWarranties();
+            })
+            .catch(error => {
+                console.error('Error loading preferences during initialization:', error);
+                // Still load warranties even if preferences couldn't be loaded
+                loadWarranties();
+            });
+        } else {
+            // No token available, load warranties with default preference
+            loadWarranties();
+        }
+    } else {
+        // User not authenticated, load warranties (this will show login prompt)
+        loadWarranties();
+    }
+    
+    console.log('App initialization complete');
 });
 
 // Dark mode toggle
@@ -139,6 +266,7 @@ let currentFilters = {
     sort: 'expiration'
 };
 let currentView = 'grid'; // Default view
+let expiringSoonDays = 30; // Default value, will be updated from user preferences
 
 // API URL
 const API_URL = '/api/warranties';
@@ -150,8 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize the app
     initializeTheme();
     
-    // Load warranties
-    loadWarranties();
+    // Load warranties - now handled by the preferences loading logic
+    // loadWarranties();
     
     // Initialize form tabs
     initFormTabs();
@@ -335,7 +463,8 @@ function processWarrantyData(warranty) {
     } else if (daysRemaining < 0) {
         statusClass = 'expired';
         statusText = 'Expired';
-    } else if (daysRemaining < 30) {
+    } else if (daysRemaining < expiringSoonDays) {
+        console.log(`Using expiringSoonDays: ${expiringSoonDays} for warranty: ${processedWarranty.product_name}`);
         statusClass = 'expiring';
         statusText = `Expiring Soon (${daysRemaining} days)`;
     } else {
@@ -364,6 +493,34 @@ async function loadWarranties() {
     try {
         console.log('Loading warranties...');
         showLoading();
+        
+        // Get expiring soon days from user preferences if available
+        try {
+            const prefsResponse = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                }
+            });
+            
+            if (prefsResponse.ok) {
+                const data = await prefsResponse.json();
+                if (data && data.expiring_soon_days) {
+                    const oldValue = expiringSoonDays;
+                    expiringSoonDays = data.expiring_soon_days;
+                    console.log('Updated expiring soon days from preferences:', expiringSoonDays);
+                    
+                    // If we already have warranties loaded and the value changed, reprocess them
+                    if (warranties && warranties.length > 0 && oldValue !== expiringSoonDays) {
+                        console.log('Reprocessing warranties with new expiringSoonDays value');
+                        warranties = warranties.map(warranty => processWarrantyData(warranty));
+                        renderWarrantiesTable(warranties);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading preferences:', error);
+            // Continue with default value
+        }
         
         // Use the full URL to avoid path issues
         const apiUrl = window.location.origin + '/api/warranties';
@@ -1338,7 +1495,7 @@ async function exportWarranties() {
             
             if (daysRemaining < 0) {
                 warranty.status = 'Expired';
-            } else if (daysRemaining < 30) {
+            } else if (daysRemaining < expiringSoonDays) {
                 warranty.status = 'Expiring Soon';
             } else {
                 warranty.status = 'Active';

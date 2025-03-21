@@ -16,7 +16,7 @@ const exportBtn = document.getElementById('exportBtn');
 // Configuration
 const API_BASE_URL = '/api/statistics'; // Base URL for statistics endpoint
 const API_URL = window.location.origin + API_BASE_URL; // Full URL for statistics endpoint
-const EXPIRING_SOON_DAYS = 30; // Number of days to consider "expiring soon"
+let EXPIRING_SOON_DAYS = 30; // Default value, will be updated from user preferences
 
 // Global variables for sorting and filtering
 let currentSort = { column: 'expiration', direction: 'asc' };
@@ -468,8 +468,11 @@ function filterAndSortWarranties() {
     
     // Filter warranties
     let filteredWarranties = allWarranties.filter(warranty => {
+        // Skip warranties without proper dates
+        if (!warranty.expiration_date) return false;
+        
         // Apply search filter
-        const productName = warranty.product_name.toLowerCase();
+        const productName = (warranty.product_name || '').toLowerCase();
         const matchesSearch = searchTerm === '' || productName.includes(searchTerm);
         
         // Apply status filter
@@ -500,16 +503,16 @@ function filterAndSortWarranties() {
         
         switch (currentSort.column) {
             case 'product':
-                valueA = a.product_name;
-                valueB = b.product_name;
+                valueA = a.product_name || '';
+                valueB = b.product_name || '';
                 break;
             case 'purchase':
-                valueA = new Date(a.purchase_date);
-                valueB = new Date(b.purchase_date);
+                valueA = new Date(a.purchase_date || 0);
+                valueB = new Date(b.purchase_date || 0);
                 break;
             case 'expiration':
-                valueA = new Date(a.expiration_date);
-                valueB = new Date(b.expiration_date);
+                valueA = new Date(a.expiration_date || 0);
+                valueB = new Date(b.expiration_date || 0);
                 break;
             case 'status':
                 // Sort by status priority: active, expiring, expired
@@ -519,8 +522,8 @@ function filterAndSortWarranties() {
                 valueB = statusB;
                 break;
             default:
-                valueA = new Date(a.expiration_date);
-                valueB = new Date(b.expiration_date);
+                valueA = new Date(a.expiration_date || 0);
+                valueB = new Date(b.expiration_date || 0);
         }
         
         // Compare values based on sort direction
@@ -578,6 +581,9 @@ function filterAndSortWarranties() {
     filteredWarranties.forEach(warranty => {
         const row = document.createElement('tr');
         
+        // Make sure we have valid data to work with
+        if (!warranty.expiration_date) return;
+        
         // Determine status
         const expirationDate = new Date(warranty.expiration_date);
         let status = 'active';
@@ -596,7 +602,7 @@ function filterAndSortWarranties() {
         row.className = `status-${status}`;
         
         // Format dates
-        const purchaseDate = new Date(warranty.purchase_date).toLocaleDateString();
+        const purchaseDate = warranty.purchase_date ? new Date(warranty.purchase_date).toLocaleDateString() : 'N/A';
         const formattedExpirationDate = expirationDate.toLocaleDateString();
         
         // Status display
@@ -605,7 +611,7 @@ function filterAndSortWarranties() {
         
         // Create table cells with proper structure
         row.innerHTML = `
-            <td>${warranty.product_name}</td>
+            <td>${warranty.product_name || 'Unknown Product'}</td>
             <td>${purchaseDate}</td>
             <td>${formattedExpirationDate}</td>
             <td><span class="${statusClass}">${statusText}</span></td>
@@ -613,7 +619,7 @@ function filterAndSortWarranties() {
                 <a href="index.html?edit=${warranty.id}" class="action-btn edit-btn" title="Edit">
                     <i class="fas fa-edit"></i>
                 </a>
-                <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="action-btn view-btn" title="View Invoice" ${!warranty.invoice_path ? 'style="display: none;"' : ''}>
+                <a href="#" onclick="window.openSecureFile ? openSecureFile('${warranty.invoice_path || ''}') : alert('File viewer not available'); return false;" class="action-btn view-btn" title="View Invoice" ${!warranty.invoice_path ? 'style="display: none;"' : ''}>
                     <i class="fas fa-file-alt"></i>
                 </a>
             </td>
@@ -655,10 +661,22 @@ function refreshDashboard() {
 
 // Initialize the dashboard
 async function initDashboard() {
-    showLoading();
-    hideError();
+    console.log('Initializing dashboard');
     
     try {
+        // Show loading indicator
+        showLoading();
+        
+        // Load user preferences
+        await loadUserPreferences();
+        
+        // Check authentication
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         const data = await fetchStatistics();
         console.log('API Response:', data); // Log the actual response for debugging
         
@@ -699,11 +717,33 @@ async function initDashboard() {
         createStatusChart(summary);
         createTimelineChart(timeline);
         
-        // Update recent expirations table
+        // Update recent expirations table with the initial data
         updateRecentExpirations(recentWarranties);
         
-        // Store all warranties for filtering
-        allWarranties = recentWarranties;
+        // Fetch all warranties for better filtering
+        try {
+            const allWarrantiesResponse = await fetch('/api/warranties', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (allWarrantiesResponse.ok) {
+                const allWarrantiesData = await allWarrantiesResponse.json();
+                // Store all warranties for filtering
+                allWarranties = allWarrantiesData;
+                console.log('Fetched all warranties for filtering:', allWarranties.length);
+            } else {
+                // If we can't get all warranties, fall back to the recent ones
+                allWarranties = recentWarranties;
+                console.warn('Could not fetch all warranties, falling back to recent warranties');
+            }
+        } catch (error) {
+            console.error('Error fetching all warranties:', error);
+            // Fall back to recent warranties on error
+            allWarranties = recentWarranties;
+        }
         
         // Set up event listeners for filtering and sorting
         setupEventListeners();
@@ -884,7 +924,7 @@ function setupEventListeners() {
     if (sortableHeaders) {
         sortableHeaders.forEach(header => {
             header.addEventListener('click', () => {
-                const column = header.getAttribute('data-column');
+                const column = header.getAttribute('data-sort');
                 
                 // Toggle direction if same column, otherwise default to ascending
                 if (currentSort.column === column) {
@@ -969,4 +1009,30 @@ function extractTimelineData(warranties) {
     });
     
     return timeline;
+}
+
+// Function to load user preferences
+async function loadUserPreferences() {
+    try {
+        // Get the auth token
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        // Get preferences from API
+        const response = await fetch('/api/auth/preferences', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.expiring_soon_days) {
+                EXPIRING_SOON_DAYS = data.expiring_soon_days;
+                console.log('Loaded expiring soon days from preferences:', EXPIRING_SOON_DAYS);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading user preferences:', error);
+    }
 } 
