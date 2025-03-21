@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.9.8.0] - 2025-03-21
+
+- **Feature Added**
+  - **Expiring Soon Preferences:** Number of days before warranty expiration to mark as "Expiring Soon" now added to the settings page.
+
+- **UI Improvements**
+  - **Cleanup**
+    - Removed test-related buttons from the settings gear menu in index.html and status.html
+    - Kept only the Test API button in the Admin section of settings page
+    - Removed redundant "Old Settings" link from settings page gear menu
+  - **General Refinements**
+    - Streamlined user interface by removing development/testing elements
+    - Improved overall UI professionalism and user experience
+
+- **Bug Fixes**
+  - **Expiring Soon Preferences**
+    - Fixed issue where "expiring soon" preference set in settings didn't affect warranty status on the main dashboard
+    - Resolved inconsistency between token key names (`authToken` vs `auth_token`) causing authorization failures
+    - Improved preferences loading in `script.js` to properly await API responses
+    - Enhanced initialization sequence to ensure preferences are loaded before processing warranties
+    - Implemented real-time reprocessing of warranties when preferences change
+    - Added detailed logging to track preference values during warranty processing
+    - Updated DOM initialization to avoid duplicate warranty loading
+  - **Status Filter in Dashboard**
+    - Fixed issue where status dropdown filter on status page showed "No warranties match your search criteria" when selecting specific statuses
+    - Modified dashboard to fetch complete warranty data for comprehensive filtering instead of only using pre-filtered recent warranties
+    - Added null checks and fallback values to prevent errors with incomplete warranty data
+    - Enhanced filtering logic to properly handle all warranty status types
+    - Fixed sort header click handler to use the correct data attribute
+    - Improved error handling and feedback messages when no warranties match filter criteria
+
 ## [0.9.7.9] - 2025-03-21
 
   - **API Security Improvements**
