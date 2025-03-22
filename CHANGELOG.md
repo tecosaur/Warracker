@@ -29,7 +29,6 @@
   - Increased maximum file upload size from 16MB to 32MB for invoices and manuals
   - Updated `MAX_CONTENT_LENGTH` in Flask configuration from 16MB to 32MB
   - Added `client_max_body_size 32M` directive to Nginx configuration
-  - Updated documentation in memory bank to reflect new file size limits
   - Enhanced fallback Nginx configuration in Dockerfile with upload size limits
   - Added frontend validation to prevent oversized file uploads
   - Improved error handling for 413 Request Entity Too Large errors
