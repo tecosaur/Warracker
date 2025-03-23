@@ -46,6 +46,9 @@
   --medium-gray: #404040;
   --dark-gray: #909090;
   --white: #2d2d2d;
+  --modal-background: #2d2d2d;
+  --text-muted: #909090;
+  --input-background: #1a1a1a;
 }
 
 body {
@@ -613,73 +616,85 @@ input.invalid {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: var(--modal-backdrop);
-  display: flex;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: none;
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  opacity: 0;
-  visibility: hidden;
-  transition: var(--transition);
 }
 
 .modal-backdrop.active {
-  opacity: 1;
-  visibility: visible;
+  display: flex;
 }
 
 .modal {
-  background-color: var(--card-bg);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow);
+  background-color: var(--modal-background, #ffffff);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   width: 90%;
-  max-width: 500px;
-  transform: translateY(-20px);
-  transition: var(--transition);
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.modal-backdrop.active .modal {
-  transform: translateY(0);
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .modal-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--medium-gray);
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: var(--modal-background, #ffffff);
 }
 
 .modal-title {
-  font-size: 1.2rem;
-  color: var(--text-color);
   margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-color);
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 1.5rem;
-  line-height: 1;
+  color: var(--text-muted);
   cursor: pointer;
-  color: var(--dark-gray);
-  transition: var(--transition);
+  padding: 0;
+  line-height: 1;
 }
 
 .close-btn:hover {
-  color: var(--danger-color);
+  color: var(--text-color);
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+  background-color: var(--modal-background, #ffffff);
 }
 
 .modal-footer {
-  padding: 15px 20px;
-  border-top: 1px solid var(--medium-gray);
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 0.5rem;
+  background-color: var(--modal-background, #ffffff);
 }
 
 .modal-footer .btn {
@@ -2473,4 +2488,207 @@ input.invalid {
 #recentExpirationsTable .empty-row td {
     vertical-align: middle;
     text-align: center;
+}
+
+/* Edit Warranty Tabs */
+.edit-tabs-nav {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    padding-bottom: 1px;
+}
+
+.edit-tab-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+    position: relative;
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: color 0.2s ease;
+}
+
+.edit-tab-btn:hover {
+    color: var(--text-color);
+}
+
+.edit-tab-btn.active {
+    color: var(--primary-color);
+}
+
+.edit-tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary-color);
+}
+
+.edit-tab-btn i {
+    margin-right: 0.5rem;
+}
+
+.edit-tab-content {
+    display: none;
+}
+
+.edit-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Completed Tab Indicator for Edit Form - simplified */
+.edit-tab-btn.completed {
+    color: var(--primary-color);
+}
+
+/* Make the edit modal wider to accommodate the tabs better */
+#editModal .modal {
+    max-width: 700px;
+    background-color: var(--modal-background, #ffffff);
+}
+
+@media (max-width: 768px) {
+    .edit-tabs-nav {
+        justify-content: space-between;
+    }
+    
+    .edit-tab-btn {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .edit-tab-btn i {
+        margin-right: 0.25rem;
+    }
+}
+
+#editModal .modal-body {
+    background-color: var(--modal-background, #ffffff);
+    padding: 1.5rem;
+    padding-top: 0.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.edit-tab-content {
+    padding: 1rem 0;
+}
+
+.edit-tabs-nav {
+    position: sticky;
+    top: 0;
+    background-color: var(--modal-background, #ffffff);
+    z-index: 5;
+    padding-top: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Style for validation errors in the edit form */
+#editWarrantyForm input.invalid {
+    border-color: var(--danger-color);
+    background-color: rgba(255, 0, 0, 0.03);
+}
+
+#editWarrantyForm input.invalid:focus {
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* Add animation for tab switching */
+@keyframes editTabFade {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.edit-tab-content.active {
+    animation: editTabFade 0.3s ease;
+}
+
+/* Edit modal dark mode styles */
+:root[data-theme="dark"] #editModal .modal {
+    background-color: var(--modal-background);
+}
+
+:root[data-theme="dark"] #editModal .modal-header,
+:root[data-theme="dark"] #editModal .modal-body,
+:root[data-theme="dark"] #editModal .modal-footer,
+:root[data-theme="dark"] .edit-tabs-nav {
+    background-color: var(--modal-background);
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] #editModal .form-control {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] #editModal .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25);
+}
+
+:root[data-theme="dark"] #editModal label {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .edit-tab-btn {
+    color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .edit-tab-btn:hover {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .edit-tab-btn.active {
+    color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .currency-symbol {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .file-input-label {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+:root[data-theme="dark"] .file-input-label:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .file-name {
+    color: var(--text-muted);
+}
+
+:root[data-theme="dark"] #currentInvoice,
+:root[data-theme="dark"] #currentManual {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] #currentInvoice a,
+:root[data-theme="dark"] #currentManual a {
+    color: var(--primary-color);
+}
+
+:root[data-theme="dark"] .serial-number-input {
+    margin-bottom: 10px;
+}
+
+:root[data-theme="dark"] .serial-number-input .form-control {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.7);
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.8.2] - 2025-03-22
+
+- **Edit Warranty Modal Improvements**
+  - Added tabbed interface for the edit warranty modal with three sections:
+  - Product Info: Product name, URL, and serial numbers
+  - Warranty Details: Purchase date, warranty period, and price
+  - Documents: Invoice and manual uploads
+- Visual indicators for active tabs
+- Improved dark mode support for the edit modal
+- Better form organization and user experience
+
+
 ## [0.9.8.1] - 2025-03-21
 
 

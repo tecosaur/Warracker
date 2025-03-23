@@ -1102,11 +1102,40 @@ function openEditModal(warranty) {
         }
     }
     
-    // Reset file input display
+    // Reset file inputs
+    document.getElementById('editInvoice').value = '';
+    document.getElementById('editManual').value = '';
     document.getElementById('editFileName').textContent = '';
+    document.getElementById('editManualFileName').textContent = '';
     
-    // Show modal
-    editModal.classList.add('active');
+    // Show edit modal
+    const modal = document.getElementById('editModal');
+    modal.classList.add('active'); // Add active class instead of setting display style
+    
+    // Reset tabs to first tab
+    const editTabBtns = document.querySelectorAll('.edit-tab-btn');
+    editTabBtns.forEach(btn => btn.classList.remove('active'));
+    document.querySelector('.edit-tab-btn[data-tab="edit-product-info"]').classList.add('active');
+    
+    // Reset tab content
+    document.querySelectorAll('.edit-tab-content').forEach(content => content.classList.remove('active'));
+    document.getElementById('edit-product-info').classList.add('active');
+    
+    // Validate all tabs to update completion indicators
+    validateEditTab('edit-product-info');
+    validateEditTab('edit-warranty-details');
+    validateEditTab('edit-documents');
+    
+    // Add input event listeners to update validation status
+    document.querySelectorAll('#editWarrantyForm input').forEach(input => {
+        input.addEventListener('input', function() {
+            // Find the tab this input belongs to
+            const tabContent = this.closest('.edit-tab-content');
+            if (tabContent) {
+                validateEditTab(tabContent.id);
+            }
+        });
+    });
 }
 
 function openDeleteModal(warrantyId) {
@@ -1499,16 +1528,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fileInput) fileInput.addEventListener('change', (e) => updateFileName(e, 'invoice', 'fileName'));
     if (manualInput) manualInput.addEventListener('change', (e) => updateFileName(e, 'manual', 'manualFileName'));
     
-    const editInvoice = document.getElementById('editInvoice');
-    if (editInvoice) {
-        editInvoice.addEventListener('change', () => {
+    const editInvoiceInput = document.getElementById('editInvoice');
+    if (editInvoiceInput) {
+        editInvoiceInput.addEventListener('change', () => {
             updateFileName(null, 'editInvoice', 'editFileName');
         });
     }
     
-    const editManual = document.getElementById('editManual');
-    if (editManual) {
-        editManual.addEventListener('change', () => {
+    const editManualInput = document.getElementById('editManual');
+    if (editManualInput) {
+        editManualInput.addEventListener('change', () => {
             updateFileName(null, 'editManual', 'editManualFileName');
         });
     }
@@ -1566,5 +1595,61 @@ document.addEventListener('DOMContentLoaded', () => {
         loadWarranties();
     }
     
+    // Initialize edit tabs
+    initEditTabs();
+    
     console.log('App initialization complete');
 });
+
+// Add this function to handle edit tab functionality
+function initEditTabs() {
+    const editTabBtns = document.querySelectorAll('.edit-tab-btn');
+    
+    editTabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all tabs
+            editTabBtns.forEach(b => b.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            btn.classList.add('active');
+            
+            // Hide all tab content
+            document.querySelectorAll('.edit-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Show the selected tab content
+            const tabId = btn.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+}
+
+// Update validateEditTabs function
+function validateEditTab(tabId) {
+    const tab = document.getElementById(tabId);
+    let isValid = true;
+    
+    // Get all required inputs in this tab
+    const requiredInputs = tab.querySelectorAll('input[required]');
+    
+    // Check if all required fields are filled
+    requiredInputs.forEach(input => {
+        if (!input.value) {
+            isValid = false;
+            input.classList.add('invalid');
+        } else {
+            input.classList.remove('invalid');
+        }
+    });
+    
+    // Update the tab button to show completion status
+    const tabBtn = document.querySelector(`.edit-tab-btn[data-tab="${tabId}"]`);
+    if (isValid) {
+        tabBtn.classList.add('completed');
+    } else {
+        tabBtn.classList.remove('completed');
+    }
+    
+    return isValid;
+}
