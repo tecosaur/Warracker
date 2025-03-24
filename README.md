@@ -152,10 +152,10 @@ warracker/
 *   User Authentication - **Completed ✅**
 *   Settings Page - **Completed ✅**
 *   Status Page - **Completed ✅**
+*   Customizing Reminders to any day needed - **Completed ✅**
 *   Email Reminders for Expiring Warranties - **Planned**
 *   Warranty Data Import (CSV) - **Planned**
 *   Improved Search and Filtering - **Planned**
-*   Customizing Reminders to any day needed - **Completed ✅**
 *   Warranty claim tracking - **Planned**
 *   Warranty Categories/Grouping - **Planned**
 *   Calendar Integration - **Planned**
