@@ -33,11 +33,11 @@ Warracker is a web-based application that provides a centralized system for mana
 * **Detailed Records:** Store key warranty information like purchase date and duration.
 * **Document Storage:** Upload and securely store warranty documentation and receipts.
 * **Proactive Alerts:** Get visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
-* **Email notifications:** Stay informed about expiring warranties with new email reminders, delivered daily, weekly, or monthly based on your preference.
 * **Quick Search:** Easily find specific warranties within your collection.
 * **Secure Access:**  User authentication and support for multiple users.
 * **System Status:** Real-time system status page.
 * **Data Export:** Export warranty data to CSV format.
+* **Email notifications:** Stay informed about expiring warranties with email reminders, based on your preference delivered daily, weekly, or monthly.
 
 ## 📸 Screenshots
 
