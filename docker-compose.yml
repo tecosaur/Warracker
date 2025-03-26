@@ -9,6 +9,7 @@ services:
       - ./data:/data
       - ./uploads:/data/uploads
       - ./migrations:/app/migrations
+      - ./backend/migrations:/app/backend_migrations
     environment:
       - DB_HOST=warrackerdb
       - DB_NAME=warranty_db
@@ -20,6 +21,7 @@ services:
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_USERNAME=${SMTP_USERNAME:-notifications@warracker.com}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - PYTHONUNBUFFERED=1
     depends_on:
       warrackerdb:
         condition: service_healthy
@@ -27,7 +29,8 @@ services:
     command: >
       bash -c "
         chmod -R 777 /data/uploads &&
-        cd /app/migrations && python apply_migrations.py &&
+        cd /app && ls -la /app/backend_migrations &&
+        python /app/backend_migrations/apply_migrations.py &&
         python /app/fix_permissions.py &&
         exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
       "

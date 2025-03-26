@@ -3,6 +3,19 @@
 -- Grant superuser privileges to warranty_user
 ALTER ROLE warranty_user WITH SUPERUSER;
 
+-- Create migrations tracking table
+CREATE TABLE IF NOT EXISTS migrations (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL UNIQUE,
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert records for migrations applied in this script
+INSERT INTO migrations (filename) VALUES ('001_add_serial_numbers.sql')
+ON CONFLICT (filename) DO NOTHING;
+INSERT INTO migrations (filename) VALUES ('002_add_purchase_price.sql')
+ON CONFLICT (filename) DO NOTHING;
+
 CREATE TABLE warranties (
     id SERIAL PRIMARY KEY,
     product_name VARCHAR(255) NOT NULL,
