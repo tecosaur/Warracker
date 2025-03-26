@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.8.4] - 2025-03-26
+
+
+- Fixed database migration system issues
+  - Resolved issue with missing user_preferences table causing notification preference errors
+  - Enhanced migration system to support both SQL and Python-based migrations
+  - Added idempotent execution of SQL migrations with existence checks
+  - Created improved migration tracking to prevent duplicate migration attempts
+  - Updated Docker configuration for proper migration script execution
+  - Fixed missing columns by adding timezone and expiring_soon_days columns
+
 
 ## [0.9.8.3] - 2025-03-26
 
