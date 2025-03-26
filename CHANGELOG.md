@@ -1,5 +1,29 @@
 # Changelog
 
+
+## [0.9.8.3] - 2025-03-26
+
+### Added
+
+*   **Authentication:** Users are now automatically logged in after successful registration, removing an extra step in the onboarding process.
+*   **Notifications:** Introduced email notifications for warranty expiration alerts.
+*   **Notifications:** Added user preferences to customize notification frequency (daily, weekly, monthly), preferred delivery time, and timezone.
+*   **Admin:** Added controls for administrators to manually trigger notifications, useful for testing.
+
+### Changed
+
+*   **Notifications:** Improved the reliability and processing efficiency of the backend notification system.
+*   **UI:** Standardized the header's appearance and layout across all pages (home, status, settings) for a consistent look and feel.
+
+### Fixed
+
+*   **Charts:** Resolved an issue where the status page timeline chart initially displayed incomplete data, requiring a theme toggle to show all months correctly. The chart now loads with complete data.
+*   **Preferences:** Corrected an issue where preference changes made by an admin could unintentionally affect regular users' settings. Preferences are now stored separately based on user type.
+*   **Preferences:** Fixed synchronization issues ensuring that view preferences set in the settings page are consistently applied throughout the application.
+*   **File Access:** Resolved authentication errors ("Authentication token is missing!") that occurred when attempting to open attached invoice or manual files. Secure file access now correctly uses authentication tokens.
+*   **File Uploads:** Corrected a critical bug where uploading only one document type (e.g., just an invoice) could inadvertently delete the existing document of the other type (e.g., the manual). Both documents are now preserved correctly during updates.
+
+
 ## [0.9.8.2] - 2025-03-22
 
 - **Edit Warranty Modal Improvements**

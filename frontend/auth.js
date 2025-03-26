@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Close user menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (userMenuDropdown && !userMenuDropdown.contains(e.target) && !userBtn.contains(e.target)) {
+        if (userMenuDropdown && userBtn && !userMenuDropdown.contains(e.target) && !userBtn.contains(e.target)) {
             userMenuDropdown.classList.remove('active');
         }
     });

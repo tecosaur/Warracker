@@ -20,6 +20,21 @@
     <link rel="stylesheet" href="header-fix.css">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
+    <!-- Initialize theme immediately to prevent flash of wrong theme -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize theme based on darkMode localStorage setting
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            
+            if (darkMode) {
+                document.body.classList.add('dark-mode');
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        });
+    </script>
     <style>
         /* User menu styles - copied from index.html to ensure consistency */
         .user-menu {
@@ -292,6 +307,23 @@
     </script>
 </head>
 <body>
+    <!-- Immediate theme initialization before anything else loads -->
+    <script>
+        // Apply theme immediately to prevent flash of wrong theme
+        (function() {
+            // Check localStorage darkMode setting directly
+            const darkMode = localStorage.getItem('darkMode') === 'true';
+            
+            if (darkMode) {
+                document.body.classList.add('dark-mode');
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+
     <!-- Header -->
     <header>
         <div class="container">
@@ -310,33 +342,27 @@
                     <i class="fas fa-cog"></i> Settings
                 </a>
             </div>
-            <div id="authContainer" class="auth-buttons">
-                <a href="login.html" class="auth-btn login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </a>
-                <a href="register.html" class="auth-btn register-btn">
-                    <i class="fas fa-user-plus"></i> Register
-                </a>
-            </div>
             <div id="userMenu" class="user-menu" style="display: none;">
-                <button id="userBtn" class="user-btn">
+                <button class="user-btn" id="userMenuBtn">
                     <i class="fas fa-user-circle"></i>
                     <span id="userDisplayName">User</span>
                 </button>
-                <div id="userMenuDropdown" class="user-menu-dropdown">
+                <div class="user-menu-dropdown" id="userMenuDropdown">
                     <div class="user-info">
-                        <div id="userName" class="user-name">User Name</div>
-                        <div id="userEmail" class="user-email">user@example.com</div>
+                        <div class="user-name" id="userName">User</div>
+                        <div class="user-email" id="userEmail">user@example.com</div>
                     </div>
-                    <div class="user-menu-item">
-                        <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                            <i class="fas fa-cog"></i> Settings
-                        </a>
+                    <div class="user-menu-item" onclick="window.location.href='settings-new.html'">
+                        <i class="fas fa-cog"></i> Settings
                     </div>
                     <div class="user-menu-item" id="logoutMenuItem">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </div>
                 </div>
+            </div>
+            <div id="authContainer" class="auth-buttons" style="display: none;">
+                <a href="login.html" class="auth-btn login-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
+                <a href="register.html" class="auth-btn register-btn"><i class="fas fa-user-plus"></i> Register</a>
             </div>
         </div>
     </header>
@@ -430,6 +456,42 @@
                             </div>
                         </div>
                         
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
+                                    <label>Notification Frequency</label>
+                                    <p class="text-muted">How often to receive email notifications</p>
+                                </div>
+                                <select id="notificationFrequency" class="form-control">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
+                                    <label>Notification Time</label>
+                                    <p class="text-muted">Time of day to receive notifications (in 24-hour format)</p>
+                                </div>
+                                <input type="time" id="notificationTime" class="form-control" value="09:00">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
+                                    <label>Timezone</label>
+                                    <p class="text-muted">Your local timezone for notifications</p>
+                                </div>
+                                <select id="timezone" class="form-control">
+                                    <option value="">Loading timezones...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <button type="button" id="savePreferencesBtn" class="btn btn-primary">Save Preferences</button>
                     </form>
                 </div>
@@ -515,6 +577,10 @@
                             <button id="testApiBtn" class="admin-action-btn">
                                 <i class="fas fa-vial"></i>
                                 <span>Test API</span>
+                            </button>
+                            <button id="triggerNotificationsBtn" class="admin-action-btn">
+                                <i class="fas fa-envelope"></i>
+                                <span>Send Warranty Notifications</span>
                             </button>
                         </div>
                     </div>

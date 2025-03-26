@@ -13,6 +13,14 @@ from flask_bcrypt import Bcrypt
 import re
 from functools import wraps
 import uuid
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+from pytz import timezone as pytz_timezone
+import pytz
+import threading
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # Enable CORS with credentials
@@ -110,124 +118,114 @@ def allowed_file(filename):
 
 # Initialize database
 def init_db():
-    conn = None
+    """Initialize the database with required tables"""
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Create warranties table if it doesn't exist
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS warranties (
-                    id SERIAL PRIMARY KEY,
-                    product_name TEXT NOT NULL,
-                    purchase_date DATE NOT NULL,
-                    warranty_years INTEGER NOT NULL,
-                    expiration_date DATE,
-                    invoice_path TEXT,
-                    manual_path TEXT,
-                    product_url TEXT,
-                    purchase_price DECIMAL(10, 2),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Add user_id column if it doesn't exist - use DO block to avoid errors
-            cur.execute('''
-            DO $$
+        cur = conn.cursor()
+        
+        # Create users table if it doesn't exist
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            first_name VARCHAR(50),
+            last_name VARCHAR(50),
+            is_active BOOLEAN DEFAULT TRUE,
+            is_admin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+        """)
+        
+        # Create user_preferences table if it doesn't exist
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_preferences (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+            default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
+            theme VARCHAR(10) NOT NULL DEFAULT 'light',
+            expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+            notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
+            notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(user_id)
+        )
+        """)
+        
+        # Check if timezone column exists and add if it doesn't
+        cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'user_preferences' AND column_name = 'timezone'
+            ) THEN
+                ALTER TABLE user_preferences 
+                ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
+                RAISE NOTICE 'Added timezone column to user_preferences table';
+            END IF;
+        END $$;
+        """)
+        
+        # Create warranties table if it doesn't exist
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS warranties (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                item_name VARCHAR(100) NOT NULL,
+                purchase_date DATE NOT NULL,
+                expiration_date DATE NOT NULL,
+                purchase_price DECIMAL(10,2),
+                serial_number VARCHAR(100),
+                category VARCHAR(50),
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """)
+        
+        # Create warranty_documents table if it doesn't exist
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS warranty_documents (
+                id INTEGER PRIMARY KEY,
+                warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
+                file_name VARCHAR(255) NOT NULL,
+                file_path VARCHAR(255) NOT NULL,
+                file_type VARCHAR(50),
+                file_size INTEGER,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+        """)
+        
+        # Create sequence if it doesn't exist
+        cur.execute("""
+            DO $$ 
             BEGIN
-                IF NOT EXISTS (
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name='warranties' AND column_name='user_id'
-                ) THEN
-                    ALTER TABLE warranties ADD COLUMN user_id INTEGER;
+                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'warranty_documents_id_seq') THEN
+                    CREATE SEQUENCE warranty_documents_id_seq;
                 END IF;
             END $$;
-            ''')
-            
-            # Add indexes for faster queries
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_expiration_date ON warranties(expiration_date)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_product_name ON warranties(product_name)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_user_id ON warranties(user_id)')
-            
-            # Create serial numbers table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS serial_numbers (
-                    id SERIAL PRIMARY KEY,
-                    warranty_id INTEGER NOT NULL,
-                    serial_number VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (warranty_id) REFERENCES warranties(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            # Add indexes for serial numbers
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_warranty_id ON serial_numbers(warranty_id)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_serial_number ON serial_numbers(serial_number)')
-            
-            # Create users table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(255) NOT NULL UNIQUE,
-                    email VARCHAR(255) NOT NULL UNIQUE,
-                    password_hash VARCHAR(255) NOT NULL,
-                    first_name VARCHAR(255),
-                    last_name VARCHAR(255),
-                    is_active BOOLEAN DEFAULT TRUE,
-                    is_admin BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP
-                )
-            ''')
-            
-            # Add indexes for users
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_username ON users(username)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_email ON users(email)')
-            
-            # Create password reset tokens table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
-                    token VARCHAR(255) NOT NULL,
-                    expires_at TIMESTAMP NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            # Add indexes for password reset tokens
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_token ON password_reset_tokens(token)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_user_id_token ON password_reset_tokens(user_id)')
-            
-            # Create user sessions table
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS user_sessions (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL,
-                    session_token VARCHAR(255) NOT NULL,
-                    expires_at TIMESTAMP NOT NULL,
-                    ip_address VARCHAR(45),
-                    user_agent TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-            ''')
-            
-            # Add indexes for user sessions
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_session_token ON user_sessions(session_token)')
-            cur.execute('CREATE INDEX IF NOT EXISTS idx_user_id_session ON user_sessions(user_id)')
-            
+        """)
+        
+        # Alter table to use the sequence
+        cur.execute("""
+            ALTER TABLE warranty_documents 
+            ALTER COLUMN id SET DEFAULT nextval('warranty_documents_id_seq');
+        """)
+        
         conn.commit()
+        cur.close()
+        conn.close()
         logger.info("Database initialized successfully")
+        
     except Exception as e:
-        logger.error(f"Database initialization error: {e}")
-        if conn:
-            conn.rollback()
+        logger.error(f"Database initialization error: {str(e)}")
         raise
-    finally:
-        if conn:
-            release_db_connection(conn)
 
 # Authentication helper functions
 def generate_token(user_id):
@@ -263,6 +261,10 @@ def token_required(f):
         # If no token in header, check form data for POST requests
         if not token and request.method == 'POST':
             token = request.form.get('auth_token')  # Check form data
+        
+        # If still no token, check URL query parameters
+        if not token:
+            token = request.args.get('token')  # Check query parameters
             
         # If no token is provided
         if not token:
@@ -342,6 +344,14 @@ def is_valid_password(password):
     if not re.search(r'[0-9]', password):
         return False
     return True
+
+def is_valid_timezone(tz):
+    """Validate if a timezone string is valid"""
+    try:
+        pytz.timezone(tz)
+        return True
+    except pytz.exceptions.UnknownTimeZoneError:
+        return False
 
 # Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
@@ -427,6 +437,17 @@ def register():
             
             # Update last login
             cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
+            
+            # Store session info
+            ip_address = request.remote_addr
+            user_agent = request.headers.get('User-Agent', '')
+            session_token = str(uuid.uuid4())
+            expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
+            
+            cur.execute(
+                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (%s, %s, %s, %s, %s)',
+                (user_id, session_token, expires_at, ip_address, user_agent)
+            )
             
             conn.commit()
             
@@ -831,15 +852,12 @@ def add_warranty():
                     return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
                     
                 filename = secure_filename(invoice.filename)
-                # Make filename unique by adding timestamp
                 filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                 invoice_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 
-                # Ensure directory exists
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                
                 invoice.save(invoice_path)
                 db_invoice_path = os.path.join('uploads', filename)
+                logger.info(f"New invoice uploaded: {db_invoice_path}")
         
         # Handle manual file upload
         db_manual_path = None
@@ -850,15 +868,12 @@ def add_warranty():
                     return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
                     
                 filename = secure_filename(manual.filename)
-                # Make filename unique by adding timestamp
                 filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
                 manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 
-                # Ensure directory exists
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                
                 manual.save(manual_path)
                 db_manual_path = os.path.join('uploads', filename)
+                logger.info(f"New manual uploaded: {db_manual_path}")
         
         # Save to database
         conn = get_db_connection()
@@ -1024,6 +1039,7 @@ def update_warranty(warranty_id):
                     
                     invoice.save(invoice_path)
                     db_invoice_path = os.path.join('uploads', filename)
+                    logger.info(f"New invoice uploaded: {db_invoice_path}")
                     
                     # Remove old invoice file if exists and different from new one
                     cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
@@ -1032,6 +1048,12 @@ def update_warranty(warranty_id):
                         old_full_path = os.path.join('/data', old_invoice_path)
                         if os.path.exists(old_full_path):
                             os.remove(old_full_path)
+                            logger.info(f"Removed old invoice: {old_invoice_path}")
+            else:
+                # If no new invoice file is uploaded, preserve the existing one
+                cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+                db_invoice_path = cur.fetchone()[0]
+                logger.info(f"Preserving existing invoice: {db_invoice_path}")
             
             # Handle manual file upload if new file is provided
             db_manual_path = None
@@ -1047,6 +1069,7 @@ def update_warranty(warranty_id):
                     
                     manual.save(manual_path)
                     db_manual_path = os.path.join('uploads', filename)
+                    logger.info(f"New manual uploaded: {db_manual_path}")
                     
                     # Remove old manual file if exists and different from new one
                     cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
@@ -1055,15 +1078,50 @@ def update_warranty(warranty_id):
                         old_full_path = os.path.join('/data', old_manual_path)
                         if os.path.exists(old_full_path):
                             os.remove(old_full_path)
+                            logger.info(f"Removed old manual: {old_manual_path}")
+            else:
+                # If no new manual file is uploaded, preserve the existing one
+                cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
+                db_manual_path = cur.fetchone()[0]
+                logger.info(f"Preserving existing manual: {db_manual_path or 'None'}")
+                
+            # Update the warranty in database - IMPORTANT: The database set operation needs to be updated
+            # Create a list of parameters for the UPDATE query
+            update_params = {
+                'product_name': product_name,
+                'purchase_date': purchase_date,
+                'warranty_years': warranty_years,
+                'expiration_date': expiration_date,
+                'product_url': product_url,
+                'purchase_price': purchase_price
+            }
             
-            # Update the warranty in database
-            cur.execute('''
-                UPDATE warranties
-                SET product_name = %s, purchase_date = %s, warranty_years = %s, 
-                    expiration_date = %s, invoice_path = %s, manual_path = %s, product_url = %s, purchase_price = %s
-                WHERE id = %s
-            ''', (product_name, purchase_date, warranty_years, expiration_date, 
-                  db_invoice_path, db_manual_path, product_url, purchase_price, warranty_id))
+            # Build dynamic SQL query based on which files have been uploaded or preserved
+            sql_fields = []
+            sql_values = []
+            
+            for key, value in update_params.items():
+                sql_fields.append(f"{key} = %s")
+                sql_values.append(value)
+            
+            # Only include invoice_path in the update if it's not None
+            if db_invoice_path is not None:
+                sql_fields.append("invoice_path = %s")
+                sql_values.append(db_invoice_path)
+                
+            # Only include manual_path in the update if it's not None
+            if db_manual_path is not None:
+                sql_fields.append("manual_path = %s")
+                sql_values.append(db_manual_path)
+                
+            # Add the warranty_id at the end
+            sql_values.append(warranty_id)
+            
+            # Execute the dynamic SQL update
+            update_sql = f"UPDATE warranties SET {', '.join(sql_fields)} WHERE id = %s"
+            cur.execute(update_sql, sql_values)
+            logger.info(f"Updated warranty with SQL: {update_sql}")
+            logger.info(f"Parameters: {sql_values}")
             
             # Update serial numbers
             # First, delete existing serial numbers for this warranty
@@ -1079,6 +1137,7 @@ def update_warranty(warranty_id):
                         ''', (warranty_id, serial_number.strip()))
             
             conn.commit()
+            
             return jsonify({"message": "Warranty updated successfully"}), 200
             
     except Exception as e:
@@ -1401,6 +1460,9 @@ def get_preferences():
                         default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
                         theme VARCHAR(10) NOT NULL DEFAULT 'light',
                         expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+                        notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
+                        notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+                        timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         UNIQUE(user_id)
@@ -1418,7 +1480,7 @@ def get_preferences():
             # Get user preferences
             cursor.execute(
                 """
-                SELECT email_notifications, default_view, theme, expiring_soon_days
+                SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
                 FROM user_preferences
                 WHERE user_id = %s
                 """,
@@ -1431,9 +1493,9 @@ def get_preferences():
                 # Create default preferences if not exists
                 cursor.execute(
                     """
-                    INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days)
-                    VALUES (%s, TRUE, 'grid', 'light', 30)
-                    RETURNING email_notifications, default_view, theme, expiring_soon_days
+                    INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone)
+                    VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC')
+                    RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
                     """,
                     (user_id,)
                 )
@@ -1446,7 +1508,10 @@ def get_preferences():
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
                 'theme': preferences_data[2],
-                'expiring_soon_days': preferences_data[3]
+                'expiring_soon_days': preferences_data[3],
+                'notification_frequency': preferences_data[4],
+                'notification_time': preferences_data[5],
+                'timezone': preferences_data[6]
             }
             
             return jsonify(preferences), 200
@@ -1460,7 +1525,10 @@ def get_preferences():
                 'email_notifications': True,
                 'default_view': 'grid',
                 'theme': 'light',
-                'expiring_soon_days': 30
+                'expiring_soon_days': 30,
+                'notification_frequency': 'daily',
+                'notification_time': '09:00',
+                'timezone': 'UTC'
             }
             
             return jsonify(default_preferences), 200
@@ -1476,7 +1544,10 @@ def get_preferences():
             'email_notifications': True,
             'default_view': 'grid',
             'theme': 'light',
-            'expiring_soon_days': 30
+            'expiring_soon_days': 30,
+            'notification_frequency': 'daily',
+            'notification_time': '09:00',
+            'timezone': 'UTC'
         }
         
         return jsonify(default_preferences), 200
@@ -1498,6 +1569,9 @@ def update_preferences():
         default_view = data.get('default_view')
         theme = data.get('theme')
         expiring_soon_days = data.get('expiring_soon_days')
+        notification_frequency = data.get('notification_frequency')
+        notification_time = data.get('notification_time')
+        timezone = data.get('timezone')
         
         # Validate input
         if default_view and default_view not in ['grid', 'list', 'table']:
@@ -1514,11 +1588,29 @@ def update_preferences():
             except ValueError:
                 return jsonify({'message': 'Expiring soon days must be a valid number'}), 400
             
+        if notification_frequency and notification_frequency not in ['daily', 'weekly', 'monthly']:
+            return jsonify({'message': 'Invalid notification frequency'}), 400
+            
+        if notification_time and not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', notification_time):
+            return jsonify({'message': 'Invalid notification time format'}), 400
+            
+        if timezone and not is_valid_timezone(timezone):
+            return jsonify({'message': 'Invalid timezone'}), 400
+
         # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
         
         try:
+            # Check if timezone column exists in user_preferences
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'user_preferences' AND column_name = 'timezone'
+            """)
+            
+            has_timezone_column = cursor.fetchone() is not None
+            
             # Check if user_preferences table exists
             cursor.execute("""
                 SELECT EXISTS (
@@ -1539,6 +1631,9 @@ def update_preferences():
                         default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
                         theme VARCHAR(10) NOT NULL DEFAULT 'light',
                         expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+                        notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
+                        notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+                        timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         UNIQUE(user_id)
@@ -1584,21 +1679,43 @@ def update_preferences():
                     update_fields.append("expiring_soon_days = %s")
                     update_values.append(expiring_soon_days)
                 
+                if notification_frequency:
+                    update_fields.append("notification_frequency = %s")
+                    update_values.append(notification_frequency)
+                
+                if notification_time:
+                    update_fields.append("notification_time = %s")
+                    update_values.append(notification_time)
+                
+                if timezone and has_timezone_column:
+                    update_fields.append("timezone = %s")
+                    update_values.append(timezone)
+                
                 if update_fields:
+                    # Construct return fields based on whether timezone column exists
+                    return_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time"
+                    if has_timezone_column:
+                        return_fields += ", timezone"
+                    
                     update_query = f"""
                         UPDATE user_preferences 
                         SET {', '.join(update_fields)}, updated_at = NOW() 
                         WHERE user_id = %s
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days
+                        RETURNING {return_fields}
                     """
                     
                     cursor.execute(update_query, update_values + [user_id])
                     preferences_data = cursor.fetchone()
                 else:
                     # No fields to update
+                    # Construct select fields based on whether timezone column exists
+                    select_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time"
+                    if has_timezone_column:
+                        select_fields += ", timezone"
+                    
                     cursor.execute(
-                        """
-                        SELECT email_notifications, default_view, theme, expiring_soon_days
+                        f"""
+                        SELECT {select_fields}
                         FROM user_preferences
                         WHERE user_id = %s
                         """,
@@ -1607,26 +1724,59 @@ def update_preferences():
                     preferences_data = cursor.fetchone()
             else:
                 # Create new preferences
-                cursor.execute(
-                    """
-                    INSERT INTO user_preferences (
-                        user_id, 
-                        email_notifications, 
-                        default_view, 
-                        theme,
-                        expiring_soon_days
+                # Check for timezone column to adjust INSERT statement
+                if has_timezone_column:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_preferences (
+                            user_id, 
+                            email_notifications, 
+                            default_view, 
+                            theme,
+                            expiring_soon_days,
+                            notification_frequency,
+                            notification_time,
+                            timezone
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
+                        """,
+                        (
+                            user_id,
+                            email_notifications if email_notifications is not None else True,
+                            default_view or 'grid',
+                            theme or 'light',
+                            expiring_soon_days if expiring_soon_days is not None else 30,
+                            notification_frequency or 'daily',
+                            notification_time or '09:00',
+                            timezone or 'UTC'
+                        )
                     )
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING email_notifications, default_view, theme, expiring_soon_days
-                    """,
-                    (
-                        user_id,
-                        email_notifications if email_notifications is not None else True,
-                        default_view or 'grid',
-                        theme or 'light',
-                        expiring_soon_days if expiring_soon_days is not None else 30
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_preferences (
+                            user_id, 
+                            email_notifications, 
+                            default_view, 
+                            theme,
+                            expiring_soon_days,
+                            notification_frequency,
+                            notification_time
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time
+                        """,
+                        (
+                            user_id,
+                            email_notifications if email_notifications is not None else True,
+                            default_view or 'grid',
+                            theme or 'light',
+                            expiring_soon_days if expiring_soon_days is not None else 30,
+                            notification_frequency or 'daily',
+                            notification_time or '09:00'
+                        )
                     )
-                )
                 preferences_data = cursor.fetchone()
             
             # Format preferences data
@@ -1634,8 +1784,16 @@ def update_preferences():
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
                 'theme': preferences_data[2],
-                'expiring_soon_days': preferences_data[3]
+                'expiring_soon_days': preferences_data[3],
+                'notification_frequency': preferences_data[4],
+                'notification_time': preferences_data[5]
             }
+            
+            # Add timezone if column exists
+            if has_timezone_column and len(preferences_data) > 6:
+                preferences['timezone'] = preferences_data[6]
+            else:
+                preferences['timezone'] = timezone or 'UTC'
             
             conn.commit()
             
@@ -1650,7 +1808,10 @@ def update_preferences():
                 'email_notifications': email_notifications if email_notifications is not None else True,
                 'default_view': default_view or 'grid',
                 'theme': theme or 'light',
-                'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30
+                'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30,
+                'notification_frequency': notification_frequency or 'daily',
+                'notification_time': notification_time or '09:00',
+                'timezone': timezone or 'UTC'
             }
             
             return jsonify(fallback_preferences), 200
@@ -1666,7 +1827,10 @@ def update_preferences():
             'email_notifications': True,
             'default_view': 'grid',
             'theme': 'light',
-            'expiring_soon_days': 30
+            'expiring_soon_days': 30,
+            'notification_frequency': 'daily',
+            'notification_time': '09:00',
+            'timezone': 'UTC'
         }
         
         return jsonify(default_preferences), 200
@@ -2032,15 +2196,530 @@ def secure_file_access(filename):
         logger.error(f"Error in secure file access for {filename}: {e}")
         return jsonify({"message": "Error accessing file"}), 500
 
+def get_expiring_warranties():
+    """
+    Query the database to find warranties that are expiring soon based on user preferences.
+    Returns a list of dictionaries containing the necessary information for email notifications.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get today's date
+            today = date.today()
+
+            cur.execute("""
+                SELECT
+                    u.email,
+                    u.first_name,
+                    w.product_name,
+                    w.expiration_date,
+                    COALESCE(up.expiring_soon_days, 30) AS expiring_soon_days
+                FROM
+                    warranties w
+                JOIN
+                    users u ON w.user_id = u.id
+                LEFT JOIN
+                    user_preferences up ON u.id = up.user_id
+                WHERE
+                    w.expiration_date > %s
+                    AND w.expiration_date <= %s + (COALESCE(up.expiring_soon_days, 30) || ' days')::interval
+                    AND u.is_active = TRUE
+                    AND COALESCE(up.email_notifications, TRUE) = TRUE;
+            """, (today, today))
+
+            expiring_warranties = []
+            for row in cur.fetchall():
+                email, first_name, product_name, expiration_date, expiring_soon_days = row
+                expiration_date_str = expiration_date.strftime('%Y-%m-%d')
+                expiring_warranties.append({
+                    'email': email,
+                    'first_name': first_name or 'User',  # Default if first_name is NULL
+                    'product_name': product_name,
+                    'expiration_date': expiration_date_str,
+                })
+
+            return expiring_warranties
+
+    except Exception as e:
+        logger.error(f"Error retrieving expiring warranties: {e}")
+        return []  # Return an empty list on error
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+def format_expiration_email(user, warranties):
+    """
+    Format an email notification for expiring warranties.
+    Returns a MIMEMultipart email object with both text and HTML versions.
+    """
+    subject = "Warracker: Upcoming Warranty Expirations"
+    
+    # Create both plain text and HTML versions of the email body
+    text_body = f"Hello {user['first_name']},\n\n"
+    text_body += "The following warranties are expiring soon:\n\n"
+    
+    html_body = f"""\
+    <html>
+      <head></head>
+      <body>
+        <p>Hello {user['first_name']},</p>
+        <p>The following warranties are expiring soon:</p>
+        <table border="1" style="border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 8px; text-align: left;">Product Name</th>
+              <th style="padding: 8px; text-align: left;">Expiration Date</th>
+            </tr>
+          </thead>
+          <tbody>
+    """
+
+    for warranty in warranties:
+        text_body += f"- {warranty['product_name']} (expires on {warranty['expiration_date']})\n"
+        html_body += f"""\
+            <tr>
+              <td style="padding: 8px;">{warranty['product_name']}</td>
+              <td style="padding: 8px;">{warranty['expiration_date']}</td>
+            </tr>
+        """
+
+    text_body += "\nLog in to Warracker to view details:\n"
+    text_body += "http://localhost:8080\n\n"
+    text_body += "Manage your notification settings:\n"
+    text_body += "http://localhost:8080/settings.html\n"
+
+    html_body += f"""\
+          </tbody>
+        </table>
+        <p>Log in to <a href="http://localhost:8080">Warracker</a> to view details.</p>
+        <p>Manage your notification settings <a href="http://localhost:8080/settings.html">here</a>.</p>
+      </body>
+    </html>
+    """
+
+    # Create a MIMEMultipart object for both text and HTML
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
+    msg['To'] = user['email']
+
+    part1 = MIMEText(text_body, 'plain')
+    part2 = MIMEText(html_body, 'html')
+
+    msg.attach(part1)
+    msg.attach(part2)
+
+    return msg
+
+# Create a lock for the notification function
+notification_lock = threading.Lock()
+# Track when notifications were last sent to each user
+last_notification_sent = {}
+
+def send_expiration_notifications(manual_trigger=False):
+    """
+    Main function to send warranty expiration notifications.
+    Retrieves expiring warranties, groups them by user, and sends emails.
+    
+    Args:
+        manual_trigger (bool): Whether this function was triggered manually (vs scheduled)
+                               If True, it ignores notification frequency/time preferences
+    """
+    # Use a lock to prevent concurrent executions
+    if not notification_lock.acquire(blocking=False):
+        logger.info("Notification job already running, skipping this execution")
+        return
+        
+    try:
+        logger.info("Starting expiration notification process")
+        
+        # If not manually triggered, check if notifications should be sent today based on preferences
+        if not manual_trigger:
+            conn = None
+            try:
+                conn = get_db_connection()
+                with conn.cursor() as cur:
+                    # Get today's date and current time in UTC
+                    utc_now = datetime.utcnow()
+                    
+                    # Get user IDs that should receive notifications today
+                    eligible_users_query = """
+                        SELECT 
+                            u.id, 
+                            u.email, 
+                            u.first_name, 
+                            up.notification_time,
+                            up.timezone,
+                            up.notification_frequency
+                        FROM users u
+                        JOIN user_preferences up ON u.id = up.user_id
+                        WHERE u.is_active = TRUE 
+                        AND up.email_notifications = TRUE
+                    """
+                    cur.execute(eligible_users_query)
+                    eligible_users = cur.fetchall()
+                    
+                    if not eligible_users:
+                        logger.info("No users are eligible for notifications")
+                        return
+                    
+                    # Check if we should send notifications based on time and timezone
+                    users_for_current_time = []
+                    for user in eligible_users:
+                        user_id, email, first_name, notification_time, timezone, frequency = user
+                        
+                        try:
+                            # Convert UTC time to user's timezone
+                            user_tz = pytz_timezone(timezone or 'UTC')
+                            user_local_time = utc_now.replace(tzinfo=pytz.UTC).astimezone(user_tz)
+                            
+                            # Check if notification should be sent based on frequency
+                            should_send = False
+                            
+                            if frequency == 'daily':
+                                should_send = True
+                            elif frequency == 'weekly' and user_local_time.weekday() == 0:  # Monday
+                                should_send = True
+                            elif frequency == 'monthly' and user_local_time.day == 1:
+                                should_send = True
+                                
+                            if should_send:
+                                # Parse notification time
+                                time_hour, time_minute = map(int, notification_time.split(':'))
+                                
+                                # Get current hour and minute in user's timezone
+                                current_hour = user_local_time.hour
+                                current_minute = user_local_time.minute
+                                
+                                # Calculate minutes difference
+                                user_minutes = time_hour * 60 + time_minute
+                                current_minutes = current_hour * 60 + current_minute
+                                
+                                # Calculate exact time difference (can be negative if current time is before notification time)
+                                time_diff = current_minutes - user_minutes
+                                
+                                # For notifications, we want to send:
+                                # 1. If current time is 0-2 minutes after scheduled time (11:27 → send between 11:27-11:29)
+                                # 2. Or, if the next scheduler run would miss the time (scheduler runs every 5 min)
+                                #    For example, if it's 11:24 and notification is set for 11:27, next run is 11:29 so we should send now
+                                send_window = time_diff >= 0 and time_diff <= 2  # 0-2 minutes after scheduled time
+                                next_miss_window = time_diff < 0 and time_diff >= -3  # 1-3 minutes before scheduled time
+                                
+                                logger.info(f"Time check for {email}: scheduled={time_hour}:{time_minute:02d}, " +
+                                            f"current={current_hour}:{current_minute:02d}, diff={time_diff} min, " +
+                                            f"send_window={send_window}, next_miss_window={next_miss_window}")
+                                
+                                if send_window or next_miss_window:
+                                    # Check if we've already sent a notification to this user recently
+                                    now_timestamp = int(utc_now.timestamp())
+                                    if email in last_notification_sent:
+                                        last_sent = last_notification_sent[email]
+                                        # Only send if it's been more than 10 minutes since the last notification
+                                        # (longer than the 5-minute scheduler interval)
+                                        if now_timestamp - last_sent > 600:
+                                            users_for_current_time.append(user_id)
+                                            logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
+                                        else:
+                                            logger.info(f"Skipping notification for {email} - already sent within the last 10 minutes (last sent: {datetime.fromtimestamp(last_sent).strftime('%Y-%m-%d %H:%M:%S')})")
+                                    else:
+                                        users_for_current_time.append(user_id)
+                                        logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
+                        
+                        except Exception as e:
+                            logger.error(f"Error processing timezone for user {email}: {e}")
+                            continue
+                    
+                    if not users_for_current_time:
+                        logger.info("No users are scheduled for notifications at their local time")
+                        return
+                    
+                    logger.info(f"Found {len(users_for_current_time)} users eligible for notifications now")
+            except Exception as e:
+                logger.error(f"Error determining notification eligibility: {e}")
+                return
+            finally:
+                if conn:
+                    release_db_connection(conn)
+        
+        expiring_warranties = get_expiring_warranties()
+        if not expiring_warranties:
+            logger.info("No expiring warranties found.")
+            return
+
+        # Group warranties by user
+        users_warranties = {}
+        for warranty in expiring_warranties:
+            email = warranty['email']
+            if email not in users_warranties:
+                users_warranties[email] = {
+                    'first_name': warranty['first_name'],
+                    'warranties': []
+                }
+            users_warranties[email]['warranties'].append(warranty)
+        
+        # Get SMTP settings from environment variables with fallbacks
+        smtp_host = os.environ.get('SMTP_HOST', 'localhost')
+        smtp_port = int(os.environ.get('SMTP_PORT', '1025'))
+        smtp_username = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
+        smtp_password = os.environ.get('SMTP_PASSWORD', '')
+        
+        # Connect to SMTP server
+        try:
+            # Use SMTP_SSL for port 465, regular SMTP for other ports
+            if smtp_port == 465:
+                import smtplib
+                logger.info(f"Using SMTP_SSL connection for port 465")
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port)
+                # Start TLS for security if not local debug server and not using SSL
+                if smtp_host != 'localhost':
+                    server.starttls()
+            
+            # Login if credentials are provided
+            if smtp_username and smtp_password:
+                logger.info(f"Logging in with username: {smtp_username}")
+                server.login(smtp_username, smtp_password)
+
+            # Send emails to each user
+            utc_now = datetime.utcnow()
+            timestamp = int(utc_now.timestamp())
+            
+            emails_sent = 0
+            for email, user_data in users_warranties.items():
+                # For manual triggers, check if we've sent recently
+                if manual_trigger and email in last_notification_sent:
+                    last_sent = last_notification_sent[email]
+                    # Only allow manual trigger to bypass the time limit if it's been more than 2 minutes
+                    # This prevents accidental double-clicks by admins
+                    if timestamp - last_sent < 120:
+                        logger.info(f"Manual trigger: Skipping notification for {email} - already sent within the last 2 minutes")
+                        continue
+                
+                msg = format_expiration_email(
+                    {'first_name': user_data['first_name'], 'email': email},
+                    user_data['warranties']
+                )
+                try:
+                    server.sendmail(smtp_username, email, msg.as_string())
+                    # Record timestamp when we sent the notification
+                    last_notification_sent[email] = timestamp
+                    emails_sent += 1
+                    logger.info(f"Expiration notification email sent to {email} for {len(user_data['warranties'])} warranties at {datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
+                except Exception as e:
+                    logger.error(f"Error sending email to {email}: {e}")
+            
+            logger.info(f"Email notification process completed. Sent {emails_sent} emails out of {len(users_warranties)} eligible users.")
+            # Close the server connection
+            server.quit()
+            
+        except Exception as e:
+            logger.error(f"Error connecting to SMTP server: {e}")
+            logger.error(f"SMTP details - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}")
+
+    except Exception as e:
+        logger.error(f"Error in send_expiration_notifications: {e}")
+    finally:
+        notification_lock.release()
+
+# Initialize scheduler
+scheduler = BackgroundScheduler(
+    job_defaults={
+        'coalesce': True,       # Combine multiple executions into one
+        'max_instances': 1,     # Only allow one instance of the job to run at a time
+        'misfire_grace_time': 300 # Allow 5 minutes for a misfired job (increased from 60 seconds)
+    }
+)
+
+# Helper to check if this is the main process that should run the scheduler
+def should_run_scheduler():
+    # For gunicorn
+    if os.environ.get('GUNICORN_WORKER_PROCESS_NAME') == 'worker-0' or \
+       (os.environ.get('GUNICORN_WORKER_CLASS') and int(os.environ.get('GUNICORN_WORKER_ID', '0')) == 0):
+        logger.info("Starting scheduler in Gunicorn worker 0")
+        return True
+    # For development server
+    elif __name__ == '__main__':
+        logger.info("Starting scheduler in development server")
+        return True
+    # Default case - don't start scheduler
+    return False
+
+# Only start the scheduler in the main process, not in workers
+if should_run_scheduler():
+    # Check for scheduled notifications every 2 minutes for more precise timing
+    scheduler.add_job(func=send_expiration_notifications, trigger="interval", minutes=2, id='notification_job')
+    scheduler.start()
+    logger.info("Email notification scheduler started - checking every 2 minutes")
+    
+    # Add a shutdown hook
+    atexit.register(lambda: scheduler.shutdown())
+
 # Initialize the database when the application starts
-try:
-    init_db()
-    logger.info("Database initialized during application startup")
-except Exception as e:
-    logger.error(f"Database initialization error during startup: {e}")
+if __name__ != '__main__':  # Only for production
+    try:
+        init_db()
+        logger.info("Database initialized during application startup")
+    except Exception as e:
+        logger.error(f"Database initialization error during startup: {e}")
 
 if __name__ == '__main__':
     try:
         app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1', host='0.0.0.0')
     except Exception as e:
         logger.error(f"Application startup error: {e}")
+
+# Move this code before the if __name__ == '__main__' block
+@app.route('/api/admin/send-notifications', methods=['POST'])
+@admin_required
+def trigger_notifications():
+    """
+    Admin-only endpoint to manually trigger warranty expiration notifications.
+    Useful for testing and for sending notifications outside the scheduled time.
+    """
+    try:
+        logger.info(f"Manual notification trigger requested by admin user {request.user['id']}")
+        send_expiration_notifications(manual_trigger=True)
+        return jsonify({'message': 'Notifications triggered successfully'}), 200
+    except Exception as e:
+        error_msg = f"Error triggering notifications: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({'message': 'Failed to trigger notifications', 'error': error_msg}), 500
+
+@app.route('/api/timezones', methods=['GET'])
+def get_timezones():
+    """Get list of all available timezones"""
+    try:
+        # Get all timezones from pytz
+        all_timezones = pytz.all_timezones
+        
+        # Group timezones by region
+        timezone_groups = {}
+        for tz in all_timezones:
+            # Split timezone into parts (e.g., 'America/New_York' -> ['America', 'New_York'])
+            parts = tz.split('/')
+            
+            if len(parts) > 1:
+                region = parts[0]
+                city = '/'.join(parts[1:]).replace('_', ' ')
+                
+                if region not in timezone_groups:
+                    timezone_groups[region] = []
+                    
+                timezone_groups[region].append({
+                    'value': tz,
+                    'label': f"{city} ({tz})"
+                })
+            else:
+                # Handle special cases like 'UTC'
+                if 'Other' not in timezone_groups:
+                    timezone_groups['Other'] = []
+                timezone_groups['Other'].append({
+                    'value': tz,
+                    'label': tz
+                })
+        
+        # Convert to list of groups
+        timezone_list = [
+            {
+                'region': region,
+                'timezones': sorted(timezones, key=lambda x: x['label'])
+            }
+            for region, timezones in sorted(timezone_groups.items())
+        ]
+        
+        return jsonify(timezone_list), 200
+    except Exception as e:
+        logger.error(f"Error getting timezones: {e}")
+        return jsonify({'message': 'Failed to get timezones'}), 500
+
+@app.route('/api/debug/warranty/<int:warranty_id>', methods=['GET'])
+@token_required
+def debug_warranty(warranty_id):
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user['is_admin']
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # If admin, can see any warranty, otherwise only user's warranties
+            if is_admin:
+                cur.execute('SELECT * FROM warranties WHERE id = %s', (warranty_id,))
+            else:
+                cur.execute('SELECT * FROM warranties WHERE id = %s AND user_id = %s', 
+                          (warranty_id, user_id))
+                
+            warranty = cur.fetchone()
+            if not warranty:
+                return jsonify({"error": "Warranty not found or you don't have permission to view it"}), 404
+                
+            columns = [desc[0] for desc in cur.description]
+            warranty_dict = dict(zip(columns, warranty))
+            
+            # Convert date objects to ISO format strings for JSON serialization
+            for key, value in warranty_dict.items():
+                if isinstance(value, (datetime, date)):
+                    warranty_dict[key] = value.isoformat()
+                # Convert Decimal objects to float for JSON serialization
+                elif isinstance(value, Decimal):
+                    warranty_dict[key] = float(value)
+            
+            # Get serial numbers for this warranty
+            cur.execute('SELECT id, serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+            serial_numbers = [{
+                'id': row[0],
+                'serial_number': row[1]
+            } for row in cur.fetchall()]
+            warranty_dict['serial_numbers'] = serial_numbers
+            
+            return jsonify({
+                'warranty': warranty_dict,
+                'columns': columns
+            })
+    except Exception as e:
+        logger.error(f"Error retrieving warranty debug info: {e}")
+        return jsonify({"error": f"Failed to retrieve warranty debug info: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/debug/file-check', methods=['GET'])
+@token_required
+def debug_file_check():
+    if not request.user.get('is_admin', False):
+        return jsonify({"error": "Admin access required"}), 403
+        
+    filepath = request.args.get('path')
+    if not filepath:
+        return jsonify({"error": "No file path provided"}), 400
+        
+    # Check if this is just a filename or a path
+    if '/' not in filepath:
+        filepath = os.path.join('uploads', filepath)
+        
+    # Prepend /data if it doesn't start with it
+    if not filepath.startswith('/data'):
+        full_path = os.path.join('/data', filepath)
+    else:
+        full_path = filepath
+        
+    result = {
+        'requested_path': filepath,
+        'full_path': full_path,
+        'exists': os.path.exists(full_path),
+        'is_file': os.path.isfile(full_path) if os.path.exists(full_path) else False,
+        'size_bytes': os.path.getsize(full_path) if os.path.exists(full_path) and os.path.isfile(full_path) else None,
+        'last_modified': None
+    }
+    
+    if result['exists'] and result['is_file']:
+        try:
+            stat_info = os.stat(full_path)
+            result['last_modified'] = datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+            result['size_human'] = f"{result['size_bytes'] / 1024:.2f} KB" if result['size_bytes'] else None
+        except Exception as e:
+            result['error'] = str(e)
+    
+    return jsonify(result)

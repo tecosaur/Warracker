@@ -713,9 +713,8 @@ async function initDashboard() {
         // Update summary counts
         updateSummaryCounts(summary);
         
-        // Create charts
+        // Create status chart
         createStatusChart(summary);
-        createTimelineChart(timeline);
         
         // Update recent expirations table with the initial data
         updateRecentExpirations(recentWarranties);
@@ -734,15 +733,29 @@ async function initDashboard() {
                 // Store all warranties for filtering
                 allWarranties = allWarrantiesData;
                 console.log('Fetched all warranties for filtering:', allWarranties.length);
+                
+                // Generate a more comprehensive timeline using all warranty data
+                if (allWarranties && allWarranties.length > 0) {
+                    const timelineData = extractTimelineData(allWarranties);
+                    console.log('Created comprehensive timeline data:', timelineData);
+                    createTimelineChart(timelineData);
+                } else {
+                    // Fallback to API timeline if no warranties found
+                    createTimelineChart(timeline);
+                }
             } else {
                 // If we can't get all warranties, fall back to the recent ones
                 allWarranties = recentWarranties;
                 console.warn('Could not fetch all warranties, falling back to recent warranties');
+                // Use API timeline for the chart
+                createTimelineChart(timeline);
             }
         } catch (error) {
             console.error('Error fetching all warranties:', error);
             // Fall back to recent warranties on error
             allWarranties = recentWarranties;
+            // Use API timeline for the chart
+            createTimelineChart(timeline);
         }
         
         // Set up event listeners for filtering and sorting

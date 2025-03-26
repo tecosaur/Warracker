@@ -25,25 +25,92 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 const loadingContainer = document.getElementById('loadingContainer');
 const toastContainer = document.getElementById('toastContainer');
 
+/**
+ * Get current user type (admin or user)
+ * @returns {string} 'admin' or 'user'
+ */
+function getUserType() {
+    try {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        return userInfo.is_admin === true ? 'admin' : 'user';
+    } catch (e) {
+        console.error('Error determining user type:', e);
+        return 'user'; // Default to user if we can't determine
+    }
+}
+
+/**
+ * Get the appropriate localStorage key prefix based on user type
+ * @returns {string} The prefix to use for localStorage keys
+ */
+function getPreferenceKeyPrefix() {
+    return getUserType() === 'admin' ? 'admin_' : 'user_';
+}
+
 // Theme Management
 function setTheme(isDark) {
+    // Get the appropriate key prefix based on user type
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`Setting theme with prefix: ${prefix}`);
+    
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    localStorage.setItem('darkMode', isDark);
-    darkModeToggle.checked = isDark;
+    
+    // Update darkMode settings
+    localStorage.setItem(`${prefix}darkMode`, isDark);
+    localStorage.setItem('darkMode', isDark); // Keep for backward compatibility
+    
+    // Update DOM
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
+    }
+    
+    // Set toggle state
+    if (darkModeToggle) {
+        darkModeToggle.checked = isDark;
+    }
+    
+    // Also update preferences in localStorage for consistency
+    try {
+        let userPrefs = {};
+        const storedPrefs = localStorage.getItem(`${prefix}preferences`);
+        if (storedPrefs) {
+            userPrefs = JSON.parse(storedPrefs);
+        }
+        userPrefs.theme = isDark ? 'dark' : 'light';
+        localStorage.setItem(`${prefix}preferences`, JSON.stringify(userPrefs));
+    } catch (e) {
+        console.error(`Error updating theme in ${prefix}preferences:`, e);
+    }
 }
 
 // Initialize theme based on user preference or system preference
 function initializeTheme() {
-    const savedTheme = localStorage.getItem('darkMode');
+    // Get the appropriate key prefix based on user type
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`Initializing theme with prefix: ${prefix}`);
     
-    if (savedTheme !== null) {
-        // Use saved preference
-        setTheme(savedTheme === 'true');
-    } else {
-        // Check for system preference
-        const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setTheme(prefersDarkMode);
+    // First check user-specific setting
+    const userDarkMode = localStorage.getItem(`${prefix}darkMode`);
+    if (userDarkMode !== null) {
+        console.log(`Found user-specific dark mode setting: ${userDarkMode}`);
+        setTheme(userDarkMode === 'true');
+        return;
     }
+    
+    // Then check global setting for backward compatibility
+    const globalDarkMode = localStorage.getItem('darkMode');
+    if (globalDarkMode !== null) {
+        console.log(`Found global dark mode setting: ${globalDarkMode}`);
+        setTheme(globalDarkMode === 'true');
+        return;
+    }
+    
+    // Check for system preference if no stored preference
+    const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    console.log(`No saved preference, using system preference: ${prefersDarkMode}`);
+    setTheme(prefersDarkMode);
 }
 
 // Initialize theme when page loads
@@ -398,50 +465,87 @@ async function exportWarranties() {
     showToast('Warranties exported successfully', 'success');
 }
 
-// Function to switch between views
+// Switch view of warranties list
 function switchView(viewType) {
-    console.log('Switching view to:', viewType);
+    console.log(`Switching to ${viewType} view...`);
     
-    // Process all warranties to ensure consistency
-    processAllWarranties();
-    
-    // Update current view
+    // Update currentView
     currentView = viewType;
     
-    // Update view buttons
-    gridViewBtn.classList.toggle('active', viewType === 'grid');
-    listViewBtn.classList.toggle('active', viewType === 'list');
-    tableViewBtn.classList.toggle('active', viewType === 'table');
+    // Remove active class from all view buttons
+    gridViewBtn.classList.remove('active');
+    listViewBtn.classList.remove('active');
+    tableViewBtn.classList.remove('active');
     
-    // Update warranties list class
+    // Update the view
     warrantiesList.className = `warranties-list ${viewType}-view`;
     
-    // Show/hide table header for table view
+    // Hide table header if not in table view
     if (tableViewHeader) {
-        tableViewHeader.classList.toggle('visible', viewType === 'table');
+        tableViewHeader.style.display = viewType === 'table' ? 'flex' : 'none';
+    }
+    
+    // Add active class to the selected view button
+    if (viewType === 'grid') {
+        gridViewBtn.classList.add('active');
+    } else if (viewType === 'list') {
+        listViewBtn.classList.add('active');
+    } else if (viewType === 'table') {
+        tableViewBtn.classList.add('active');
     }
     
     // Re-render warranties with the new view
     console.log('Applying filters after switching view...');
     applyFilters();
     
-    // Save view preference to localStorage
-    localStorage.setItem('warrantyView', viewType);
+    // Get prefix for user-specific preferences
+    const prefix = getPreferenceKeyPrefix();
+    
+    // Save view preference to localStorage with the appropriate prefix
+    localStorage.setItem(`${prefix}warrantyView`, viewType);
+    localStorage.setItem('warrantyView', viewType); // Keep global setting for backward compatibility
 }
 
 // Load saved view preference
 function loadViewPreference() {
-    // First check for warrantyView (direct view selection)
-    const savedView = localStorage.getItem('warrantyView');
-    // If not found, check for defaultView (from settings)
-    const defaultView = localStorage.getItem('defaultView');
+    // Get prefix for user-specific preferences
+    const prefix = getPreferenceKeyPrefix();
     
-    // Use warrantyView if available, otherwise use defaultView, or fall back to grid
-    const viewToUse = savedView || defaultView || 'grid';
+    // First check for user-specific warrantyView
+    const userSavedView = localStorage.getItem(`${prefix}warrantyView`);
     
-    if (viewToUse) {
-        switchView(viewToUse);
+    if (userSavedView) {
+        console.log(`Found user-specific view preference: ${userSavedView}`);
+        switchView(userSavedView);
+        return;
     }
+    
+    // If not found, check for user-specific defaultView
+    const userDefaultView = localStorage.getItem(`${prefix}defaultView`);
+    if (userDefaultView) {
+        console.log(`Found user-specific default view: ${userDefaultView}`);
+        switchView(userDefaultView);
+        return;
+    }
+    
+    // If no user-specific preferences found, check global preferences for backward compatibility
+    const globalSavedView = localStorage.getItem('warrantyView');
+    if (globalSavedView) {
+        console.log(`Found global view preference: ${globalSavedView}`);
+        switchView(globalSavedView);
+        return;
+    }
+    
+    const globalDefaultView = localStorage.getItem('defaultView');
+    if (globalDefaultView) {
+        console.log(`Found global default view: ${globalDefaultView}`);
+        switchView(globalDefaultView);
+        return;
+    }
+    
+    // Default to grid view if no preferences found
+    console.log('No view preference found, defaulting to grid view');
+    switchView('grid');
 }
 
 // Dark mode toggle
@@ -801,6 +905,11 @@ async function renderWarranties(warrantiesToRender) {
         const statusClass = warranty.status || 'unknown';
         const statusText = warranty.statusText || 'Unknown status';
         
+        // Debug file paths
+        console.log(`Warranty ID ${warranty.id} - Product: ${warranty.product_name}`);
+        console.log(`- Invoice path: ${warranty.invoice_path}`);
+        console.log(`- Manual path: ${warranty.manual_path}`);
+        
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
             ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
@@ -849,11 +958,11 @@ async function renderWarranties(warrantiesToRender) {
                             <i class="fas fa-globe"></i> Product Website
                         </a>
                     ` : ''}
-                    ${warranty.invoice_path ? `
+                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i> Invoice
                         </a>` : ''}
-                    ${warranty.manual_path ? `
+                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i> Manual
                         </a>` : ''}
@@ -898,11 +1007,11 @@ async function renderWarranties(warrantiesToRender) {
                             <i class="fas fa-globe"></i> Product Website
                         </a>
                     ` : ''}
-                    ${warranty.invoice_path ? `
+                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i> Invoice
                         </a>` : ''}
-                    ${warranty.manual_path ? `
+                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i> Manual
                         </a>` : ''}
@@ -937,11 +1046,11 @@ async function renderWarranties(warrantiesToRender) {
                             <i class="fas fa-globe"></i>
                         </a>
                     ` : ''}
-                    ${warranty.invoice_path ? `
+                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
                             <i class="fas fa-file-invoice"></i>
                         </a>` : ''}
-                    ${warranty.manual_path ? `
+                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                             <i class="fas fa-book"></i>
                         </a>` : ''}
@@ -1073,7 +1182,7 @@ function openEditModal(warranty) {
     // Show current invoice if exists
     const currentInvoiceElement = document.getElementById('currentInvoice');
     if (currentInvoiceElement) {
-        if (warranty.invoice_path) {
+        if (warranty.invoice_path && warranty.invoice_path !== 'null') {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current invoice: 
@@ -1089,7 +1198,7 @@ function openEditModal(warranty) {
     // Show current manual if exists
     const currentManualElement = document.getElementById('currentManual');
     if (currentManualElement) {
-        if (warranty.manual_path) {
+        if (warranty.manual_path && warranty.manual_path !== 'null') {
             currentManualElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current manual: 
@@ -1652,4 +1761,52 @@ function validateEditTab(tabId) {
     }
     
     return isValid;
+}
+
+// Add this function for secure file access
+function openSecureFile(filePath) {
+    if (!filePath || filePath === 'null') {
+        console.error('Invalid file path:', filePath);
+        showToast('Invalid file path', 'error');
+        return false;
+    }
+    
+    console.log('Opening secure file:', filePath);
+    
+    // Get the file name from the path
+    const fileName = filePath.split('/').pop();
+    
+    // Get auth token
+    const token = window.auth.getToken();
+    if (!token) {
+        showToast('Authentication error. Please log in again.', 'error');
+        return false;
+    }
+    
+    // Use fetch with proper authorization header
+    fetch(`/api/secure-file/${fileName}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        // Create a URL for the blob
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Open in new tab
+        window.open(blobUrl, '_blank');
+    })
+    .catch(error => {
+        console.error('Error fetching file:', error);
+        showToast('Error opening file: ' + error.message, 'error');
+    });
+    
+    return false;
 }

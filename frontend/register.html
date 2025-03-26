@@ -542,12 +542,16 @@
                     const data = await response.json();
                     
                     if (response.ok) {
-                        showMessage('Registration successful! Redirecting to login...', 'success');
+                        // Store token and user info in localStorage
+                        localStorage.setItem('auth_token', data.token);
+                        localStorage.setItem('user_info', JSON.stringify(data.user));
+                        
+                        showMessage('Registration successful! Redirecting to dashboard...', 'success');
                         setTimeout(() => {
-                            window.location.href = 'login.html';
+                            window.location.href = 'index.html';
                         }, 2000);
                     } else {
-                        showMessage(data.error || 'Registration failed. Please try again.', 'error');
+                        showMessage(data.error || data.message || 'Registration failed. Please try again.', 'error');
                     }
                 } catch (error) {
                     showMessage('Network error. Please check your connection and try again.', 'error');

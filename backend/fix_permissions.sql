@@ -40,7 +40,7 @@ DO $$
 DECLARE
     rec RECORD;
 BEGIN
-    FOR rec IN SELECT proname, oid FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public'
+    FOR rec IN SELECT proname, p.oid FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public'
     LOOP
         BEGIN
             EXECUTE 'ALTER FUNCTION public.' || quote_ident(rec.proname) || '(' || pg_get_function_arguments(rec.oid) || ') OWNER TO warranty_user';

@@ -153,7 +153,7 @@ warracker/
 *   Settings Page - **Completed ✅**
 *   Status Page - **Completed ✅**
 *   Customizing Reminders to any day needed - **Completed ✅**
-*   Email Reminders for Expiring Warranties - **Planned**
+*   Email Reminders for Expiring Warranties - **Completed ✅**
 *   Warranty Data Import (CSV) - **Planned**
 *   Improved Search and Filtering - **Planned**
 *   Warranty claim tracking - **Planned**

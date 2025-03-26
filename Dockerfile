@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY backend/app.py .
+COPY backend/gunicorn_config.py .
 COPY backend/run_migrations.py .
 COPY backend/fix_permissions.py .
 COPY backend/fix_permissions.sql .
@@ -61,8 +62,8 @@ done\n\
 echo "Running fix permissions script..."\n\
 python /app/fix_permissions.py\n\
 echo "Starting services..."\n\
-nginx\n\
-gunicorn --bind 0.0.0.0:5000 --workers 4 app:app\n\
+# Remove direct nginx call that conflicts with supervisor\n\
+gunicorn --bind 0.0.0.0:5000 --workers 4 --worker-class=sync --env GUNICORN_WORKER_CLASS=sync --env GUNICORN_WORKER_ID=0 app:app\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # This is just a fallback, the copied nginx.conf will be used
@@ -118,25 +119,45 @@ COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
 nodaemon=true
 user=root
+logfile=/dev/stdout
+logfile_maxbytes=0
+pidfile=/var/run/supervisord.pid
 
 [program:nginx]
 command=nginx -g "daemon off;"
 autostart=true
 autorestart=true
+startretries=5
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
+priority=10
 
 [program:gunicorn]
-command=/app/start.sh
+command=gunicorn --config /app/gunicorn_config.py app:app
 directory=/app
 autostart=true
 autorestart=true
+startretries=5
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
+priority=20
+
+[program:migrations]
+command=bash -c "cd /app/migrations && python apply_migrations.py"
+directory=/app
+autostart=true
+autorestart=false
+startsecs=0
+startretries=3
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=5
 EOF
 
 # Make sure the uploads directory is writable

@@ -4,6 +4,9 @@ const darkModeToggleSetting = document.getElementById('darkModeToggleSetting');
 const defaultViewSelect = document.getElementById('defaultView');
 const emailNotificationsToggle = document.getElementById('emailNotifications');
 const expiringSoonDaysInput = document.getElementById('expiringSoonDays');
+const notificationFrequencySelect = document.getElementById('notificationFrequency');
+const notificationTimeInput = document.getElementById('notificationTime');
+const timezoneSelect = document.getElementById('timezone');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const savePreferencesBtn = document.getElementById('savePreferencesBtn');
 const changePasswordBtn = document.getElementById('changePasswordBtn');
@@ -35,8 +38,73 @@ const refreshUsersBtn = document.getElementById('refreshUsersBtn');
 const checkAdminBtn = document.getElementById('checkAdminBtn');
 const showUsersBtn = document.getElementById('showUsersBtn');
 const testApiBtn = document.getElementById('testApiBtn');
+const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn');
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
+
+/**
+ * Initialize dark mode toggle
+ */
+function initDarkModeToggle() {
+    // Get current dark mode state from body class
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    console.log('Current dark mode state (from body class):', isDarkMode);
+    
+    // Set the toggle states based on the current visual theme
+    if (darkModeToggle) {
+        darkModeToggle.checked = isDarkMode;
+    }
+    
+    if (darkModeToggleSetting) {
+        darkModeToggleSetting.checked = isDarkMode;
+    }
+    
+    // Header toggle handler
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('change', function() {
+            const isDark = this.checked;
+            setTheme(isDark);
+            
+            if (darkModeToggleSetting) {
+                darkModeToggleSetting.checked = isDark;
+            }
+        });
+    }
+    
+    // Settings toggle handler
+    if (darkModeToggleSetting) {
+        darkModeToggleSetting.addEventListener('change', function() {
+            const isDark = this.checked;
+            setTheme(isDark);
+            
+            if (darkModeToggle) {
+                darkModeToggle.checked = isDark;
+            }
+        });
+    }
+    
+    // Also update the localStorage to match the visual state
+    localStorage.setItem('darkMode', isDarkMode);
+}
+
+/**
+ * Initialize settings gear menu in the header
+ */
+function initSettingsMenu() {
+    if (settingsBtn && settingsMenu) {
+        // Toggle settings menu when settings button is clicked
+        settingsBtn.addEventListener('click', function() {
+            settingsMenu.classList.toggle('active');
+        });
+        
+        // Close settings menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!settingsBtn.contains(event.target) && !settingsMenu.contains(event.target)) {
+                settingsMenu.classList.remove('active');
+            }
+        });
+    }
+}
 
 // Initialize settings page
 document.addEventListener('DOMContentLoaded', function() {
@@ -125,6 +193,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         });
     }
+    
+    // Initialize theme
+    applyInitialTheme();
+    
+    // Initialize dark mode toggle
+    initDarkModeToggle();
+    
+    // Initialize settings menu
+    initSettingsMenu();
 });
 
 /**
@@ -152,12 +229,20 @@ function initPage() {
     
     // Load user data and preferences with error handling
     try {
+        // First load timezones, then load preferences to ensure correct order
+        loadTimezones().then(() => {
+            console.log('Timezones loaded, now loading preferences');
+            loadPreferences();
+        }).catch(err => {
+            console.error('Error loading timezones:', err);
+            // Still try to load preferences even if timezones fail
+            loadPreferences();
+        });
+        
         loadUserData().catch(err => {
             console.error('Error loading user data:', err);
             // Continue with page initialization even if user data fails
         });
-        
-        loadPreferences();
     } catch (err) {
         console.error('Error during page initialization:', err);
         // Continue despite errors to allow basic functionality
@@ -185,6 +270,57 @@ function initPage() {
     }
     
     console.log('Settings page initialization complete');
+}
+
+/**
+ * Apply the initial theme based on the user's preference
+ */
+function applyInitialTheme() {
+    // Get the appropriate key prefix based on user type
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`Checking initial theme with prefix: ${prefix}`);
+    
+    // First check user/admin specific setting
+    const userSpecificDarkMode = localStorage.getItem(`${prefix}darkMode`);
+    if (userSpecificDarkMode !== null) {
+        const isDarkMode = userSpecificDarkMode === 'true';
+        console.log(`Found user-specific dark mode setting: ${isDarkMode}`);
+        
+        if (isDarkMode) {
+            document.body.classList.add('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+        return;
+    }
+    
+    // If no user-specific setting, check global setting (for backward compatibility)
+    const globalDarkMode = localStorage.getItem('darkMode');
+    if (globalDarkMode !== null) {
+        const isDarkMode = globalDarkMode === 'true';
+        console.log(`Found global dark mode setting: ${isDarkMode}`);
+        
+        if (isDarkMode) {
+            document.body.classList.add('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+        return;
+    }
+    
+    // If no setting in localStorage, check system preference as final fallback
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark-mode');
+        document.documentElement.setAttribute('data-theme', 'dark');
+        console.log('Applied dark theme from system preference');
+        return;
+    }
+    
+    console.log('No dark theme preference found, using light theme');
 }
 
 /**
@@ -342,52 +478,150 @@ async function loadUserData() {
 }
 
 /**
- * Load user preferences from localStorage and API
+ * Get current user type (admin or user)
+ * @returns {string} 'admin' or 'user'
+ */
+function getUserType() {
+    try {
+        const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+        return userInfo.is_admin === true ? 'admin' : 'user';
+    } catch (e) {
+        console.error('Error determining user type:', e);
+        return 'user'; // Default to user if we can't determine
+    }
+}
+
+/**
+ * Get the appropriate localStorage key prefix based on user type
+ * @returns {string} The prefix to use for localStorage keys
+ */
+function getPreferenceKeyPrefix() {
+    return getUserType() === 'admin' ? 'admin_' : 'user_';
+}
+
+/**
+ * Load user preferences
  */
 function loadPreferences() {
-    // Load dark mode preference
-    const darkMode = localStorage.getItem('darkMode') === 'true';
+    console.log('Loading preferences...');
+    showLoading();
     
-    // Check if elements exist before setting properties
-    if (darkModeToggleSetting) {
-        darkModeToggleSetting.checked = darkMode;
-    }
+    // Get the appropriate key prefix based on user type
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`Loading preferences with prefix: ${prefix}`);
     
-    // The darkModeToggle element doesn't exist in the page anymore
-    // so we need to check before accessing it
+    // First check if we're in dark mode by checking the body class
+    const isDarkMode = document.body.classList.contains('dark-mode');
+    
+    // Set the toggle state based on the current theme
     if (darkModeToggle) {
-        darkModeToggle.checked = darkMode;
+        darkModeToggle.checked = isDarkMode;
     }
     
-    // Apply the theme immediately
-    setTheme(darkMode);
-    
-    // Load default view preference
-    const defaultView = localStorage.getItem('defaultView') || 'grid';
-    if (defaultViewSelect) {
-        defaultViewSelect.value = defaultView;
+    if (darkModeToggleSetting) {
+        darkModeToggleSetting.checked = isDarkMode;
     }
     
-    // Load email notifications preference (default to true if not set)
-    const emailNotifications = localStorage.getItem('emailNotifications') !== 'false';
-    if (emailNotificationsToggle) {
-        emailNotificationsToggle.checked = emailNotifications;
+    // Load other preferences from localStorage using the appropriate prefix
+    try {
+        const userPrefs = localStorage.getItem(`${prefix}preferences`);
+        if (userPrefs) {
+            const preferences = JSON.parse(userPrefs);
+            
+            // Default view preference
+            if (defaultViewSelect && preferences.default_view) {
+                defaultViewSelect.value = preferences.default_view;
+            }
+            
+            // Email notifications preference
+            if (emailNotificationsToggle && preferences.email_notifications) {
+                emailNotificationsToggle.checked = preferences.email_notifications;
+            }
+            
+            // Expiring soon days preference
+            if (expiringSoonDaysInput && preferences.expiring_soon_days) {
+                expiringSoonDaysInput.value = preferences.expiring_soon_days;
+            }
+            
+            // Notification frequency preference
+            if (notificationFrequencySelect && preferences.notification_frequency) {
+                notificationFrequencySelect.value = preferences.notification_frequency;
+            }
+            
+            // Notification time preference
+            if (notificationTimeInput && preferences.notification_time) {
+                notificationTimeInput.value = preferences.notification_time;
+            }
+            
+            // Timezone preference
+            if (timezoneSelect && preferences.timezone) {
+                timezoneSelect.value = preferences.timezone;
+            }
+        }
+    } catch (e) {
+        console.error('Error loading preferences from localStorage:', e);
     }
     
-    // Load expiring soon days from API
+    // Load preferences from API
     fetch('/api/auth/preferences', {
+        method: 'GET',
         headers: {
-            'Authorization': `Bearer ${window.auth.getToken()}`
+            'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+            'Content-Type': 'application/json'
         }
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data && data.expiring_soon_days) {
-            expiringSoonDaysInput.value = data.expiring_soon_days;
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to load preferences from API');
         }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Preferences loaded from API:', data);
+        
+        // API returns preferences directly, not nested under a 'preferences' key
+        const apiPrefs = data;
+        
+        // Update UI with API preferences
+        if (defaultViewSelect && apiPrefs.default_view) {
+            defaultViewSelect.value = apiPrefs.default_view;
+        }
+        
+        if (emailNotificationsToggle && apiPrefs.email_notifications) {
+            emailNotificationsToggle.checked = apiPrefs.email_notifications;
+        }
+        
+        if (expiringSoonDaysInput && apiPrefs.expiring_soon_days) {
+            expiringSoonDaysInput.value = apiPrefs.expiring_soon_days;
+        }
+        
+        if (notificationFrequencySelect && apiPrefs.notification_frequency) {
+            notificationFrequencySelect.value = apiPrefs.notification_frequency;
+        }
+        
+        if (notificationTimeInput && apiPrefs.notification_time) {
+            notificationTimeInput.value = apiPrefs.notification_time;
+        }
+        
+        if (timezoneSelect && apiPrefs.timezone) {
+            console.log('API provided timezone:', apiPrefs.timezone);
+            // Will be populated once timezones are loaded
+            setTimeout(() => {
+                if (timezoneSelect.options.length > 1) {
+                    timezoneSelect.value = apiPrefs.timezone;
+                    console.log('Applied timezone from API:', apiPrefs.timezone, 'Current select value:', timezoneSelect.value);
+                }
+            }, 500);
+        }
+        
+        // Store in localStorage with the appropriate prefix
+        localStorage.setItem(`${prefix}preferences`, JSON.stringify(apiPrefs));
     })
     .catch(error => {
         console.error('Error loading preferences from API:', error);
+    })
+    .finally(() => {
+        hideLoading();
     });
 }
 
@@ -396,6 +630,29 @@ function loadPreferences() {
  */
 function setupEventListeners() {
     console.log('Setting up event listeners');
+    
+    // Set up user menu button click handler
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userMenuDropdown = document.getElementById('userMenuDropdown');
+    
+    if (userMenuBtn && userMenuDropdown) {
+        console.log('Setting up user menu button click handler');
+        
+        // Toggle dropdown when user button is clicked
+        userMenuBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            userMenuDropdown.classList.toggle('active');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (userMenuDropdown.classList.contains('active') && 
+                !userMenuDropdown.contains(e.target) && 
+                !userMenuBtn.contains(e.target)) {
+                userMenuDropdown.classList.remove('active');
+            }
+        });
+    }
     
     // Dark mode toggle in header (no longer exists)
     if (darkModeToggle) {
@@ -472,26 +729,52 @@ function setupEventListeners() {
         confirmDeleteAccountBtn.addEventListener('click', deleteAccount);
     }
     
+    // Add event listener for logout menu item
+    const logoutMenuItem = document.getElementById('logoutMenuItem');
+    if (logoutMenuItem) {
+        logoutMenuItem.addEventListener('click', function() {
+            if (window.auth && window.auth.logout) {
+                window.auth.logout();
+            }
+        });
+    }
+    
     // Admin section buttons
     if (refreshUsersBtn) {
-        refreshUsersBtn.addEventListener('click', loadUsers);
+        refreshUsersBtn.addEventListener('click', function() {
+            loadUsers();
+        });
     }
     
     if (checkAdminBtn) {
-        checkAdminBtn.addEventListener('click', checkAdminPermissions);
+        checkAdminBtn.addEventListener('click', function() {
+            checkAdminPermissions();
+        });
     }
     
     if (showUsersBtn) {
-        showUsersBtn.addEventListener('click', showUsersList);
+        showUsersBtn.addEventListener('click', function() {
+            showUsersList();
+        });
     }
     
     if (testApiBtn) {
-        testApiBtn.addEventListener('click', checkApiEndpoint);
+        testApiBtn.addEventListener('click', function() {
+            checkApiEndpoint();
+        });
+    }
+    
+    if (triggerNotificationsBtn) {
+        triggerNotificationsBtn.addEventListener('click', function() {
+            triggerWarrantyNotifications();
+        });
     }
     
     // Site settings save button
     if (saveSiteSettingsBtn) {
-        saveSiteSettingsBtn.addEventListener('click', saveSiteSettings);
+        saveSiteSettingsBtn.addEventListener('click', function() {
+            saveSiteSettings();
+        });
     }
     
     console.log('Event listeners setup complete');
@@ -591,10 +874,11 @@ function resetPasswordForm() {
  * @param {boolean} isDark - Whether to use dark mode
  */
 function setTheme(isDark) {
-    // Default to current theme if isDark is undefined
-    if (isDark === undefined) {
-        isDark = localStorage.getItem('darkMode') === 'true';
-    }
+    console.log('Setting theme to:', isDark ? 'dark' : 'light');
+    
+    // Get the appropriate key prefix based on user type
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`Setting theme with prefix: ${prefix}`);
     
     // Apply theme to document
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
@@ -606,10 +890,31 @@ function setTheme(isDark) {
         document.body.classList.remove('dark-mode');
     }
     
-    // Save to localStorage
-    localStorage.setItem('darkMode', isDark);
+    // Save to localStorage with the appropriate prefix
+    localStorage.setItem(`${prefix}darkMode`, isDark);
+    localStorage.setItem('darkMode', isDark); // Keep this for backward compatibility
     
-    console.log('Theme set to:', isDark ? 'dark' : 'light');
+    // Also update preferences in localStorage for consistency
+    try {
+        let userPrefs = {};
+        const storedPrefs = localStorage.getItem(`${prefix}preferences`);
+        if (storedPrefs) {
+            userPrefs = JSON.parse(storedPrefs);
+        }
+        userPrefs.theme = isDark ? 'dark' : 'light';
+        localStorage.setItem(`${prefix}preferences`, JSON.stringify(userPrefs));
+    } catch (e) {
+        console.error(`Error updating theme in ${prefix}preferences:`, e);
+    }
+    
+    // Update toggle states
+    if (darkModeToggle) {
+        darkModeToggle.checked = isDark;
+    }
+    
+    if (darkModeToggleSetting) {
+        darkModeToggleSetting.checked = isDark;
+    }
 }
 
 /**
@@ -699,61 +1004,100 @@ async function saveProfile() {
  * Save user preferences
  */
 function savePreferences() {
-    // Get preferences with null checks
-    const isDark = darkModeToggleSetting && darkModeToggleSetting.checked;
+    showLoading();
     
-    // Apply theme
-    setTheme(isDark);
-    
-    // Update darkModeToggle if it exists
-    if (darkModeToggle) {
-        darkModeToggle.checked = isDark;
-    }
-    
-    // Save default view preference with null check
-    const defaultView = defaultViewSelect ? defaultViewSelect.value : 'grid';
-    localStorage.setItem('defaultView', defaultView);
-    localStorage.setItem('warrantyView', defaultView);
-    
-    // Save email notifications preference with null check
-    const emailNotifications = emailNotificationsToggle ? emailNotificationsToggle.checked : true;
-    localStorage.setItem('emailNotifications', emailNotifications);
-    
-    // Get expiring soon days value with null check
-    const expiringSoonDaysValue = expiringSoonDaysInput ? expiringSoonDaysInput.value : '30';
-    let expiringSoonDays = parseInt(expiringSoonDaysValue);
-    
-    // Validate expiring soon days
-    if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
-        showToast('Expiring soon days must be between 1 and 365', 'error');
-        return;
-    }
-    
-    // Save preferences to API
-    fetch('/api/auth/preferences', {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${window.auth.getToken()}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+    try {
+        // Get the appropriate key prefix based on user type
+        const prefix = getPreferenceKeyPrefix();
+        console.log(`Saving preferences with prefix: ${prefix}`);
+        
+        // Get values
+        const isDarkMode = darkModeToggleSetting.checked;
+        const defaultView = defaultViewSelect.value;
+        const emailNotifications = emailNotificationsToggle.checked;
+        const expiringSoonDays = parseInt(expiringSoonDaysInput.value);
+        const notificationFrequency = notificationFrequencySelect.value;
+        const notificationTime = notificationTimeInput.value;
+        const timezone = timezoneSelect.value;
+        
+        // Validate inputs
+        if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
+            showToast('Expiring soon days must be between 1 and 365', 'error');
+            hideLoading();
+            return;
+        }
+        
+        if (!timezone) {
+            showToast('Please select a timezone', 'error');
+            hideLoading();
+            return;
+        }
+        
+        // Create preferences object
+        const preferences = {
+            theme: isDarkMode ? 'dark' : 'light',
             default_view: defaultView,
             email_notifications: emailNotifications,
-            theme: isDark ? 'dark' : 'light',
-            expiring_soon_days: expiringSoonDays
+            expiring_soon_days: expiringSoonDays,
+            notification_frequency: notificationFrequency,
+            notification_time: notificationTime,
+            timezone: timezone
+        };
+        
+        // Save to API
+        fetch('/api/auth/preferences', {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(preferences)
         })
-    })
-    .then(response => {
-        if (response.ok) {
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to save preferences');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Save to localStorage with the appropriate prefix
+            localStorage.setItem(`${prefix}preferences`, JSON.stringify(data));
+            
+            // Also save individual preferences for backward compatibility
+            localStorage.setItem(`${prefix}defaultView`, defaultView);
+            localStorage.setItem(`${prefix}warrantyView`, defaultView);
+            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
+            
+            // Save the dark mode setting for the current user type
+            localStorage.setItem(`${prefix}darkMode`, isDarkMode);
+            
+            // Apply theme immediately
+            document.body.classList.toggle('dark-mode', isDarkMode);
+            
             showToast('Preferences saved successfully', 'success');
-        } else {
-            throw new Error('Failed to save preferences to API');
-        }
-    })
-    .catch(error => {
-        console.error('Error saving preferences:', error);
-        showToast('Preferences saved locally, but failed to sync with server', 'warning');
-    });
+        })
+        .catch(error => {
+            console.error('Error saving preferences:', error);
+            showToast('Error saving preferences', 'error');
+            
+            // Save to localStorage as fallback with the appropriate prefix
+            localStorage.setItem(`${prefix}theme`, isDarkMode ? 'dark' : 'light');
+            localStorage.setItem(`${prefix}defaultView`, defaultView);
+            localStorage.setItem(`${prefix}warrantyView`, defaultView);
+            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
+            localStorage.setItem(`${prefix}darkMode`, isDarkMode);
+            
+            // Apply theme even if API save fails
+            document.body.classList.toggle('dark-mode', isDarkMode);
+        })
+        .finally(() => {
+            hideLoading();
+        });
+    } catch (error) {
+        console.error('Error in savePreferences:', error);
+        showToast('Error saving preferences', 'error');
+        hideLoading();
+    }
 }
 
 /**
@@ -2345,5 +2689,152 @@ function checkApiEndpoint() {
     .catch(error => {
         console.error('Error checking API endpoint:', error);
         showToast('Error checking API endpoint: ' + error.message, 'error');
+    });
+}
+
+/**
+ * Trigger warranty expiration notifications (admin only)
+ */
+async function triggerWarrantyNotifications() {
+    console.log('Trigger warranty notifications requested');
+    
+    // Check if admin
+    try {
+        const response = await fetch('/api/auth/user', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to check user status');
+        }
+        
+        const userData = await response.json();
+        
+        if (!userData.is_admin) {
+            showToast('Only administrators can send warranty notifications', 'error');
+            return;
+        }
+        
+        // Show confirmation dialog
+        if (!confirm('Are you sure you want to send warranty expiration notifications to all eligible users? This will immediately email users with warranties expiring soon.')) {
+            return;
+        }
+        
+        showLoading();
+        
+        // Call the API endpoint to trigger notifications
+        const notificationResponse = await fetch('/api/admin/send-notifications', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!notificationResponse.ok) {
+            const errorData = await notificationResponse.json();
+            throw new Error(errorData.message || 'Failed to send notifications');
+        }
+        
+        const result = await notificationResponse.json();
+        showToast(result.message || 'Notifications triggered successfully', 'success');
+        
+    } catch (error) {
+        console.error('Error triggering notifications:', error);
+        showToast('Error: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Load available timezones from the API
+ * @returns {Promise} A promise that resolves when timezones are loaded
+ */
+function loadTimezones() {
+    console.log('Loading timezones...');
+    return new Promise((resolve, reject) => {
+        fetch('/api/timezones', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load timezones');
+            }
+            return response.json();
+        })
+        .then(timezoneGroups => {
+            // Clear loading option
+            timezoneSelect.innerHTML = '';
+            
+            // Add timezone groups and their options
+            timezoneGroups.forEach(group => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.region;
+                
+                group.timezones.forEach(timezone => {
+                    const option = document.createElement('option');
+                    option.value = timezone.value;
+                    option.textContent = timezone.label;
+                    optgroup.appendChild(option);
+                });
+                
+                timezoneSelect.appendChild(optgroup);
+            });
+            
+            // Set the current timezone from preferences
+            // Get the appropriate key prefix based on user type
+            const prefix = getPreferenceKeyPrefix();
+            const savedPreferences = JSON.parse(localStorage.getItem(`${prefix}preferences`) || '{}');
+            
+            console.log('Loading timezone preference from localStorage', {
+                prefix: prefix,
+                preferenceKey: `${prefix}preferences`,
+                savedTimezone: savedPreferences.timezone
+            });
+            
+            if (savedPreferences.timezone) {
+                timezoneSelect.value = savedPreferences.timezone;
+                console.log('Set timezone select to:', savedPreferences.timezone, 'Current value:', timezoneSelect.value);
+                resolve();
+            } else {
+                // If no timezone preference found in localStorage, load from API as backup
+                console.log('No timezone found in localStorage, fetching from API');
+                fetch('/api/auth/preferences', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // API returns preferences directly, not nested
+                    if (data && data.timezone) {
+                        console.log('Received timezone from API:', data.timezone);
+                        timezoneSelect.value = data.timezone;
+                        console.log('Set timezone select to:', data.timezone, 'Current value:', timezoneSelect.value);
+                    }
+                    resolve();
+                })
+                .catch(error => {
+                    console.error('Error loading preferences from API:', error);
+                    resolve(); // Still resolve to continue the chain
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error loading timezones:', error);
+            timezoneSelect.innerHTML = '<option value="UTC">UTC (Coordinated Universal Time)</option>';
+            reject(error);
+        });
     });
 } 
