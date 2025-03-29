@@ -436,6 +436,28 @@
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
+                                    <label>Expiring Soon Days</label>
+                                    <p class="text-muted">Number of days before warranty expiration to mark as "Expiring Soon"</p>
+                                </div>
+                                <input type="number" id="expiringSoonDays" class="form-control" min="1" max="365" value="30">
+                            </div>
+                        </div>
+                                                
+                        <button type="button" id="savePreferencesBtn" class="btn btn-primary">Save Preferences</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Email Settings -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Email Settings</h3>
+                </div>
+                <div class="card-body">
+                    <form id="emailPreferencesForm"> <!-- Consider if a separate form/save button is needed, or if settings.js handles this -->
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
                                     <label>Email Notifications</label>
                                     <p class="text-muted">Receive email alerts for warranty expirations</p>
                                 </div>
@@ -445,17 +467,7 @@
                                 </label>
                             </div>
                         </div>
-                        
-                        <div class="form-group">
-                            <div class="preference-item">
-                                <div>
-                                    <label>Expiring Soon Days</label>
-                                    <p class="text-muted">Number of days before warranty expiration to mark as "Expiring Soon"</p>
-                                </div>
-                                <input type="number" id="expiringSoonDays" class="form-control" min="1" max="365" value="30">
-                            </div>
-                        </div>
-                        
+
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
@@ -469,7 +481,7 @@
                                 </select>
                             </div>
                         </div>
-                        
+
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
@@ -479,7 +491,7 @@
                                 <input type="time" id="notificationTime" class="form-control" value="09:00">
                             </div>
                         </div>
-                        
+
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
@@ -491,8 +503,7 @@
                                 </select>
                             </div>
                         </div>
-                        
-                        <button type="button" id="savePreferencesBtn" class="btn btn-primary">Save Preferences</button>
+                        <button type="button" id="saveEmailSettingsBtn" class="btn btn-primary">Save Email Settings</button>
                     </form>
                 </div>
             </div>
@@ -785,4 +796,4 @@
     <script src="auth.js"></script>
     <script src="settings-new.js"></script>
 </body>
-</html> 
+</html>

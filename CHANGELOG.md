@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.8.5] - 2025-03-29
+
+### Changed
+- **Settings Page Improvements**
+  - Separated email settings into their own section with a dedicated save button
+  - Added independent saving functionality for email preferences
+  - Improved user experience by making email settings management more intuitive
+  - Enhanced feedback when saving email preferences
+
 ## [0.9.8.4] - 2025-03-26
 
 

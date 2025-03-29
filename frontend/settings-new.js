@@ -9,6 +9,7 @@ const notificationTimeInput = document.getElementById('notificationTime');
 const timezoneSelect = document.getElementById('timezone');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const savePreferencesBtn = document.getElementById('savePreferencesBtn');
+const saveEmailSettingsBtn = document.getElementById('saveEmailSettingsBtn');
 const changePasswordBtn = document.getElementById('changePasswordBtn');
 const passwordChangeForm = document.getElementById('passwordChangeForm');
 const savePasswordBtn = document.getElementById('savePasswordBtn');
@@ -775,6 +776,11 @@ function setupEventListeners() {
         saveSiteSettingsBtn.addEventListener('click', function() {
             saveSiteSettings();
         });
+    }
+    
+    // Save email settings button
+    if (saveEmailSettingsBtn) {
+        saveEmailSettingsBtn.addEventListener('click', saveEmailSettings);
     }
     
     console.log('Event listeners setup complete');
@@ -2837,4 +2843,78 @@ function loadTimezones() {
             reject(error);
         });
     });
+}
+
+/**
+ * Save email settings
+ */
+function saveEmailSettings() {
+    showLoading();
+    
+    try {
+        // Get values
+        const emailNotifications = emailNotificationsToggle.checked;
+        const notificationFrequency = notificationFrequencySelect.value;
+        const notificationTime = notificationTimeInput.value;
+        const timezone = timezoneSelect.value;
+        
+        // Validate inputs
+        if (!timezone) {
+            showToast('Please select a timezone', 'error');
+            hideLoading();
+            return;
+        }
+        
+        // Create preferences object
+        const preferences = {
+            email_notifications: emailNotifications,
+            notification_frequency: notificationFrequency,
+            notification_time: notificationTime,
+            timezone: timezone
+        };
+        
+        // Save to API
+        fetch('/api/auth/preferences', {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(preferences)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to save email settings');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Save to localStorage
+            const prefix = getPreferenceKeyPrefix();
+            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
+            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
+            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
+            localStorage.setItem(`${prefix}timezone`, timezone);
+            
+            showToast('Email settings saved successfully', 'success');
+        })
+        .catch(error => {
+            console.error('Error saving email settings:', error);
+            showToast('Error saving email settings', 'error');
+            
+            // Save to localStorage as fallback
+            const prefix = getPreferenceKeyPrefix();
+            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
+            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
+            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
+            localStorage.setItem(`${prefix}timezone`, timezone);
+        })
+        .finally(() => {
+            hideLoading();
+        });
+    } catch (error) {
+        console.error('Error in saveEmailSettings:', error);
+        showToast('Error saving email settings', 'error');
+        hideLoading();
+    }
 } 
