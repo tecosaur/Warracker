@@ -43,13 +43,13 @@ Warracker is a web-based application that provides a centralized system for mana
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/883908de-df49-438d-8587-eaecb445421c)
+![image](https://github.com/user-attachments/assets/a89d1c86-a70c-488f-920a-d0c5ff2a5009)
 
-![image](https://github.com/user-attachments/assets/f502d46d-fa81-4fb0-92d9-3a100ebbc1a4)
+![image](https://github.com/user-attachments/assets/af34a7e4-5475-486c-acaa-2cbc65a14600)
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/b3ed5b18-b668-4dc6-bba7-f3dfbde631e7)
+![image](https://github.com/user-attachments/assets/42bcf2b1-46fa-4136-abfa-bed747fa08e9)
 
 
 ## ✨ Features
@@ -160,10 +160,10 @@ warracker/
 *   Status Page - **Completed ✅**
 *   Customizing Reminders to any day needed - **Completed ✅**
 *   Email Reminders for Expiring Warranties - **Completed ✅**
+*   Warranty Categories/Grouping through tags - **Completed ✅**
 *   Warranty Data Import (CSV) - **Planned**
 *   Improved Search and Filtering - **Planned**
 *   Warranty claim tracking - **Planned**
-*   Warranty Categories/Grouping - **Planned**
 *   Calendar Integration - **Planned**
 
 
