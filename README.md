@@ -38,6 +38,8 @@ Warracker is a web-based application that provides a centralized system for mana
 * **System Status:** Real-time system status page.
 * **Data Export:** Export warranty data to CSV format.
 * **Email notifications:** Stay informed about expiring warranties with email reminders, based on your preference delivered daily, weekly, or monthly.
+* **Tagging:** Add tags to help categorize and group warranties.
+
 
 ## 📸 Screenshots
 
@@ -57,7 +59,8 @@ Warracker is a web-based application that provides a centralized system for mana
 *   **Warranty Management**: Add, edit, and delete warranty information.
 *   **Document Storage**: Upload and securely store receipts and warranty documentation.
 *   **Status Tracking**: Visual indicators for warranty status (active, expiring soon, expired).
-*   **Search**: Easily find warranties by product name.
+*   **Search**: Easily find warranties by product name or tags.
+*   **Tag**: Group your warranties by using multiple tags.
 *   **Responsive Design**: A seamless experience on both desktop and mobile devices.
 
 ## 🛠️ Technology Stack
