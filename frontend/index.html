@@ -283,6 +283,9 @@
                     <div class="form-tab" data-tab="documents">
                         <i class="fas fa-file-alt"></i> Documents
                     </div>
+                    <div class="form-tab" data-tab="tags">
+                        <i class="fas fa-tags"></i> Tags
+                    </div>
                     <div class="form-tab" data-tab="summary">
                         <i class="fas fa-check-circle"></i> Summary
                     </div>
@@ -354,9 +357,35 @@
                         </div>
                     </div>
                     
+                    <!-- Tags Tab -->
+                    <div class="tab-content" id="tags">
+                        <div class="form-group">
+                            <label>Add Tags</label>
+                            <p class="text-muted">Tags help you organize and filter your warranties</p>
+                            
+                            <div class="tags-container">
+                                <div class="selected-tags" id="selectedTags">
+                                    <!-- Selected tags will be displayed here -->
+                                </div>
+                                
+                                <div class="tags-dropdown">
+                                    <input type="text" id="tagSearch" class="form-control" placeholder="Search or add new tag...">
+                                    <div class="tags-list" id="tagsList">
+                                        <!-- Tag options will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-10">
+                                    <button type="button" id="manageTagsBtn" class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-cog"></i> Manage Tags
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Summary Tab -->
                     <div class="tab-content" id="summary">
-                        <h3>Review Your Warranty Information</h3>
                         <div class="summary-container">
                             <div class="summary-section">
                                 <h4><i class="fas fa-box"></i> Product Information</h4>
@@ -370,7 +399,7 @@
                                 </div>
                                 <div class="summary-item">
                                     <span class="summary-label">Serial Numbers:</span>
-                                    <div id="summary-serial-numbers" class="summary-value">-</div>
+                                    <span id="summary-serial-numbers" class="summary-value">-</span>
                                 </div>
                             </div>
                             
@@ -383,10 +412,6 @@
                                 <div class="summary-item">
                                     <span class="summary-label">Warranty Period:</span>
                                     <span id="summary-warranty-years" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Expiration Date:</span>
-                                    <span id="summary-expiration-date" class="summary-value">-</span>
                                 </div>
                                 <div class="summary-item">
                                     <span class="summary-label">Purchase Price:</span>
@@ -403,6 +428,14 @@
                                 <div class="summary-item">
                                     <span class="summary-label">Product Manual:</span>
                                     <span id="summary-manual" class="summary-value">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="summary-section">
+                                <h4><i class="fas fa-tags"></i> Tags</h4>
+                                <div class="summary-item">
+                                    <span class="summary-label">Selected Tags:</span>
+                                    <div id="summary-tags" class="summary-value">-</div>
                                 </div>
                             </div>
                         </div>
@@ -434,9 +467,17 @@
                 </h2>
                 
                 <div class="filter-controls">
-                    <div class="search-box">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="searchWarranties" placeholder="Search warranties...">
+                    <div class="search-container">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchWarranties" placeholder="Find products by name or tag...">
+                            <button id="clearSearch" class="clear-search-btn" title="Clear search" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <button id="exportBtn" class="export-btn" title="Export warranties">
+                            <i class="fas fa-file-export"></i> Export
+                        </button>
                     </div>
                     
                     <div class="filter-options">
@@ -447,6 +488,14 @@
                                 <option value="active">Active</option>
                                 <option value="expiring">Expiring Soon</option>
                                 <option value="expired">Expired</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label class="filter-label">Tag</label>
+                            <select id="tagFilter" class="filter-select">
+                                <option value="all">All Tags</option>
+                                <!-- Tag options will be populated by JavaScript -->
                             </select>
                         </div>
                         
@@ -473,10 +522,6 @@
                                 </button>
                             </div>
                         </div>
-                        
-                        <button id="exportBtn" class="export-btn" title="Export warranties">
-                            <i class="fas fa-file-export"></i> Export
-                        </button>
                     </div>
                 </div>
                 
@@ -521,6 +566,9 @@
                     </button>
                     <button type="button" class="edit-tab-btn" data-tab="edit-documents">
                         <i class="fas fa-file-alt"></i> Documents
+                    </button>
+                    <button type="button" class="edit-tab-btn" data-tab="edit-tags">
+                        <i class="fas fa-tags"></i> Tags
                     </button>
                 </div>
                 
@@ -594,6 +642,33 @@
                             <div id="currentManual" class="mt-10"></div>
                         </div>
                     </div>
+                    
+                    <!-- Tags Tab -->
+                    <div class="edit-tab-content" id="edit-tags">
+                        <div class="form-group">
+                            <label>Add Tags</label>
+                            <p class="text-muted">Tags help you organize and filter your warranties</p>
+                            
+                            <div class="tags-container">
+                                <div class="selected-tags" id="editSelectedTags">
+                                    <!-- Selected tags will be displayed here -->
+                                </div>
+                                
+                                <div class="tags-dropdown">
+                                    <input type="text" id="editTagSearch" class="form-control" placeholder="Search or add new tag...">
+                                    <div class="tags-list" id="editTagsList">
+                                        <!-- Tag options will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-10">
+                                    <button type="button" id="editManageTagsBtn" class="btn btn-secondary btn-sm">
+                                        <i class="fas fa-cog"></i> Manage Tags
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -611,8 +686,8 @@
                 <button class="close-btn" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this warranty?</p>
-                <p class="text-danger"><strong>This action cannot be undone.</strong></p>
+                <p>Are you sure you want to delete this warranty? This action cannot be undone.</p>
+                <p><strong>Product:</strong> <span id="deleteProductName"></span></p>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
@@ -621,8 +696,33 @@
         </div>
     </div>
     
-    <!-- Toast Notifications -->
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- Tag Management Modal -->
+    <div id="tagManagementModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage Tags</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="newTagForm" class="tag-form">
+                    <input type="text" id="newTagName" class="form-control" placeholder="New tag name" required>
+                    <input type="color" id="newTagColor" value="#808080">
+                    <button type="submit" class="btn btn-primary">Add Tag</button>
+                </form>
+                
+                <h4 class="mt-20">Existing Tags</h4>
+                <div id="existingTags" class="existing-tags">
+                    <!-- Tags will be populated here by JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
     
     <!-- Loading Spinner -->
     <div class="loading-container" id="loadingContainer">

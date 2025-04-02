@@ -6,7 +6,6 @@ services:
     ports:
       - "8005:80"
     volumes:
-      - ./data:/data
       - ./uploads:/data/uploads
       - ./migrations:/app/migrations
       - ./backend/migrations:/app/backend_migrations
@@ -28,7 +27,6 @@ services:
     restart: unless-stopped
     command: >
       bash -c "
-        chmod -R 777 /data/uploads &&
         cd /app && ls -la /app/backend_migrations &&
         python /app/backend_migrations/apply_migrations.py &&
         python /app/fix_permissions.py &&

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.9.8.6] - 2025-04-01
+
+### Added
+  - Added tags to warranties, you can create and manage them
+  - Choose different colours to tags
+  - Search by tags
+  - Added tags to the warranty cards
+  - You can also edit current warranties to add tags
+
+### Changed
+  - Removed docker and docker compose from making data/uploads
+
+### Current bugs with this release
+
+  - Status page recently expired or expiring soon section will only work when a warranty is expiring.  
+  - Currently tags are for all users, if an admin creates a tag, it will show up for the users as well. 
+
+
 ## [0.9.8.5] - 2025-03-29
 
 ### Changed

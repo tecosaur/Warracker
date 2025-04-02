@@ -1,12 +1,18 @@
 # Start with Python base image
 FROM python:3.9-slim-buster
 
-# Install nginx and dependencies
-RUN apt-get update && apt-get install -y \
-    nginx \
-    curl \
+# Install nginx, postgresql-client, supervisor and dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        nginx \
+        curl \
+        postgresql-client \
+        supervisor \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Ensure nginx runs in the foreground for Supervisor
+RUN sed -i '1i daemon off;' /etc/nginx/nginx.conf
 
 # Set working directory
 WORKDIR /app
@@ -23,25 +29,18 @@ COPY backend/fix_permissions.py .
 COPY backend/fix_permissions.sql .
 COPY backend/migrations/ ./migrations/
 
-# Create directory for uploads with proper permissions
-RUN mkdir -p /data/uploads && chmod 777 /data/uploads
-
 # Copy frontend files
 COPY frontend/*.html /var/www/html/
 COPY frontend/*.js /var/www/html/
 COPY frontend/*.css /var/www/html/
 
-# Configure nginx
+# Configure nginx site
 RUN rm /etc/nginx/sites-enabled/default
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Create startup script with directory permission check and database initialization
+# Create startup script with database initialization
 RUN echo '#!/bin/bash\n\
-echo "Checking /data/uploads directory:"\n\
-ls -la /data/uploads\n\
-echo "Setting permissions:"\n\
-chmod -R 777 /data/uploads\n\
-ls -la /data/uploads\n\
+set -e # Exit immediately if a command exits with a non-zero status.\n\
 echo "Running database migrations..."\n\
 python /app/run_migrations.py\n\
 echo "Ensuring admin role has proper permissions..."\n\
@@ -50,23 +49,35 @@ max_attempts=5\n\
 attempt=0\n\
 while [ $attempt -lt $max_attempts ]; do\n\
   echo "Attempt $((attempt+1)) to grant superuser privileges..."\n\
-  if PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE warranty_user WITH SUPERUSER;" 2>/dev/null; then\n\
+  # Ensure DB variables are set (you might pass these at runtime)\n\
+  if [ -z "$DB_PASSWORD" ] || [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then\n\
+    echo "Error: Database connection variables (DB_PASSWORD, DB_HOST, DB_USER, DB_NAME) are not set."\n\
+    exit 1\n\
+  fi\n\
+  # Use timeout to prevent indefinite hanging if DB is not ready\n\
+  if PGPASSWORD=$DB_PASSWORD psql -w -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE warranty_user WITH SUPERUSER;" 2>/dev/null; then\n\
     echo "Successfully granted superuser privileges to warranty_user"\n\
     break\n\
   else\n\
-    echo "Failed to grant privileges, retrying in 5 seconds..."\n\
+    echo "Failed to grant privileges (attempt $((attempt+1))), retrying in 5 seconds..."\n\
     sleep 5\n\
     attempt=$((attempt+1))\n\
   fi\n\
 done\n\
+if [ $attempt -eq $max_attempts ]; then\n\
+  echo "Error: Failed to grant superuser privileges after $max_attempts attempts."\n\
+  exit 1 # Exit if granting fails after retries\n\
+fi\n\
 echo "Running fix permissions script..."\n\
 python /app/fix_permissions.py\n\
-echo "Starting services..."\n\
-# Remove direct nginx call that conflicts with supervisor\n\
-gunicorn --bind 0.0.0.0:5000 --workers 4 --worker-class=sync --env GUNICORN_WORKER_CLASS=sync --env GUNICORN_WORKER_ID=0 app:app\n\
+echo "Setup script finished successfully."\n\
+# The actual services (gunicorn, nginx) will be started by Supervisor below\n\
+exit 0 # Exit successfully, Supervisor takes over\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# This is just a fallback, the copied nginx.conf will be used
+# This is just a fallback Nginx config echo, the copied nginx.conf is primary
+# Note: Removed the /uploads/ location block from here.
+# Ensure your actual nginx.conf doesn't reference it if not needed.
 RUN echo 'server {\n\
     listen 80;\n\
     server_name localhost;\n\
@@ -94,74 +105,76 @@ RUN echo 'server {\n\
         client_max_body_size 32M;\n\
     }\n\
     \n\
-    # Direct access to uploads directory\n\
-    location /uploads/ {\n\
-        return 403 "Access forbidden";\n\
-    }\n\
 }' > /etc/nginx/conf.d/default.conf
 
 # Expose port
 EXPOSE 80
 
 # Define health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD curl -f http://localhost/ || exit 1
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Install supervisor to manage multiple processes
-RUN apt-get update && apt-get install -y supervisor && apt-get clean
+# Create supervisor log directory
 RUN mkdir -p /var/log/supervisor
 
 # Create supervisor configuration
+# Using Heredoc for cleaner multiline config
 COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
-nodaemon=true
-user=root
-logfile=/dev/stdout
-logfile_maxbytes=0
+nodaemon=true                 ; Run Supervisor in the foreground
+user=root                     ; Run Supervisor as root
+logfile=/dev/stdout           ; Log Supervisor messages to stdout
+logfile_maxbytes=0            ; Disable log rotation for stdout
 pidfile=/var/run/supervisord.pid
 
-[program:nginx]
-command=nginx -g "daemon off;"
+; Program for initial setup (migrations, permissions)
+; Runs once at the start
+[program:setup]
+command=/app/start.sh         ; Execute the setup script
+directory=/app
 autostart=true
-autorestart=true
-startretries=5
-stdout_logfile=/dev/stdout
+autorestart=false             ; Do not restart if it finishes
+startsecs=0                   ; Start immediately
+startretries=1                ; Only retry once if it fails immediately
+exitcodes=0                   ; Expected exit code is 0
+stdout_logfile=/dev/stdout    ; Log stdout to container stdout
 stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
+stderr_logfile=/dev/stderr    ; Log stderr to container stderr
 stderr_logfile_maxbytes=0
-priority=10
+priority=5                    ; Run before nginx and gunicorn
+
+[program:nginx]
+command=/usr/sbin/nginx       ; Run nginx reading default config (with 'daemon off;' added)
+autostart=true
+autorestart=true              ; Restart nginx if it crashes
+startsecs=5                   ; Give setup some time before starting nginx
+startretries=5
+stdout_logfile=/dev/stdout    ; Log stdout to container stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr    ; Log stderr to container stderr
+stderr_logfile_maxbytes=0
+priority=10                   ; Start after setup
 
 [program:gunicorn]
-command=gunicorn --config /app/gunicorn_config.py app:app
+command=gunicorn --config /app/gunicorn_config.py app:app ; Start Gunicorn
 directory=/app
 autostart=true
-autorestart=true
+autorestart=true              ; Restart Gunicorn if it crashes
+startsecs=5                   ; Give setup some time before starting gunicorn
 startretries=5
-stdout_logfile=/dev/stdout
+stdout_logfile=/dev/stdout    ; Log stdout to container stdout
 stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
+stderr_logfile=/dev/stderr    ; Log stderr to container stderr
 stderr_logfile_maxbytes=0
-priority=20
-
-[program:migrations]
-command=bash -c "cd /app/migrations && python apply_migrations.py"
-directory=/app
-autostart=true
-autorestart=false
-startsecs=0
-startretries=3
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-priority=5
+priority=20                   ; Start after setup
+stopsignal=QUIT               ; Graceful shutdown signal for Gunicorn
+stopwaitsecs=10               ; Wait up to 10 seconds for graceful shutdown
+killasgroup=true              ; Ensure all gunicorn processes are killed
+stopasgroup=true              ; Ensure all gunicorn processes receive the stop signal
 EOF
 
-# Make sure the uploads directory is writable
-RUN chmod -R 777 /data/uploads
-
-# Start supervisor
+# Start supervisor which will manage the setup, nginx, and gunicorn processes
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

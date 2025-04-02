@@ -21,6 +21,7 @@ import atexit
 from pytz import timezone as pytz_timezone
 import pytz
 import threading
+import json
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # Enable CORS with credentials
@@ -790,6 +791,17 @@ def get_warranties():
                 serial_numbers = [row[0] for row in cur.fetchall()]
                 warranty_dict['serial_numbers'] = serial_numbers
                 
+                # Get tags for this warranty
+                cur.execute('''
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN warranty_tags wt ON t.id = wt.tag_id
+                    WHERE wt.warranty_id = %s
+                    ORDER BY t.name
+                ''', (warranty_id,))
+                tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+                warranty_dict['tags'] = tags
+                
                 warranties_list.append(warranty_dict)
                 
             return jsonify(warranties_list)
@@ -825,6 +837,16 @@ def add_warranty():
         serial_numbers = request.form.getlist('serial_numbers')
         product_url = request.form.get('product_url', '')
         user_id = request.user['id']
+        
+        # Get tag IDs if provided
+        tag_ids = []
+        if request.form.get('tag_ids'):
+            try:
+                tag_ids = json.loads(request.form.get('tag_ids'))
+                if not isinstance(tag_ids, list):
+                    return jsonify({"error": "tag_ids must be a JSON array"}), 400
+            except json.JSONDecodeError:
+                return jsonify({"error": "tag_ids must be a valid JSON array"}), 400
         
         # Handle purchase price (optional)
         purchase_price = None
@@ -894,6 +916,19 @@ def add_warranty():
                             INSERT INTO serial_numbers (warranty_id, serial_number)
                             VALUES (%s, %s)
                         ''', (warranty_id, serial_number.strip()))
+            
+            # Insert tags if provided
+            if tag_ids:
+                for tag_id in tag_ids:
+                    # Verify tag exists
+                    cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+                    if cur.fetchone():
+                        cur.execute('''
+                            INSERT INTO warranty_tags (warranty_id, tag_id)
+                            VALUES (%s, %s)
+                        ''', (warranty_id, tag_id))
+                    else:
+                        logger.warning(f"Skipping non-existent tag ID: {tag_id}")
             
             conn.commit()
             
@@ -1008,6 +1043,16 @@ def update_warranty(warranty_id):
             serial_numbers = request.form.getlist('serial_numbers')
             product_url = request.form.get('product_url', '')
             
+            # Get tag IDs if provided
+            tag_ids = []
+            if request.form.get('tag_ids'):
+                try:
+                    tag_ids = json.loads(request.form.get('tag_ids'))
+                    if not isinstance(tag_ids, list):
+                        return jsonify({"error": "tag_ids must be a JSON array"}), 400
+                except json.JSONDecodeError:
+                    return jsonify({"error": "tag_ids must be a valid JSON array"}), 400
+            
             # Handle purchase price (optional)
             purchase_price = None
             if request.form.get('purchase_price'):
@@ -1033,6 +1078,20 @@ def update_warranty(warranty_id):
                     if not allowed_file(invoice.filename):
                         return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
                         
+                    # First check if there's an existing invoice to delete
+                    cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+                    old_invoice_path = cur.fetchone()[0]
+                    
+                    if old_invoice_path:
+                        full_path = os.path.join('/data', old_invoice_path)
+                        if os.path.exists(full_path):
+                            try:
+                                os.remove(full_path)
+                                logger.info(f"Deleted old invoice: {full_path}")
+                            except Exception as e:
+                                logger.error(f"Error deleting old invoice: {e}")
+                    
+                    # Save new invoice
                     filename = secure_filename(invoice.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                     invoice_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1040,20 +1099,6 @@ def update_warranty(warranty_id):
                     invoice.save(invoice_path)
                     db_invoice_path = os.path.join('uploads', filename)
                     logger.info(f"New invoice uploaded: {db_invoice_path}")
-                    
-                    # Remove old invoice file if exists and different from new one
-                    cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
-                    old_invoice_path = cur.fetchone()[0]
-                    if old_invoice_path and old_invoice_path != db_invoice_path:
-                        old_full_path = os.path.join('/data', old_invoice_path)
-                        if os.path.exists(old_full_path):
-                            os.remove(old_full_path)
-                            logger.info(f"Removed old invoice: {old_invoice_path}")
-            else:
-                # If no new invoice file is uploaded, preserve the existing one
-                cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
-                db_invoice_path = cur.fetchone()[0]
-                logger.info(f"Preserving existing invoice: {db_invoice_path}")
             
             # Handle manual file upload if new file is provided
             db_manual_path = None
@@ -1063,6 +1108,20 @@ def update_warranty(warranty_id):
                     if not allowed_file(manual.filename):
                         return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
                         
+                    # First check if there's an existing manual to delete
+                    cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
+                    old_manual_path = cur.fetchone()[0]
+                    
+                    if old_manual_path:
+                        full_path = os.path.join('/data', old_manual_path)
+                        if os.path.exists(full_path):
+                            try:
+                                os.remove(full_path)
+                                logger.info(f"Deleted old manual: {full_path}")
+                            except Exception as e:
+                                logger.error(f"Error deleting old manual: {e}")
+                    
+                    # Save new manual
                     filename = secure_filename(manual.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
                     manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1070,20 +1129,6 @@ def update_warranty(warranty_id):
                     manual.save(manual_path)
                     db_manual_path = os.path.join('uploads', filename)
                     logger.info(f"New manual uploaded: {db_manual_path}")
-                    
-                    # Remove old manual file if exists and different from new one
-                    cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
-                    old_manual_path = cur.fetchone()[0]
-                    if old_manual_path and old_manual_path != db_manual_path:
-                        old_full_path = os.path.join('/data', old_manual_path)
-                        if os.path.exists(old_full_path):
-                            os.remove(old_full_path)
-                            logger.info(f"Removed old manual: {old_manual_path}")
-            else:
-                # If no new manual file is uploaded, preserve the existing one
-                cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
-                db_manual_path = cur.fetchone()[0]
-                logger.info(f"Preserving existing manual: {db_manual_path or 'None'}")
                 
             # Update the warranty in database - IMPORTANT: The database set operation needs to be updated
             # Create a list of parameters for the UPDATE query
@@ -1135,6 +1180,23 @@ def update_warranty(warranty_id):
                             INSERT INTO serial_numbers (warranty_id, serial_number)
                             VALUES (%s, %s)
                         ''', (warranty_id, serial_number.strip()))
+            
+            # Update tags if provided
+            if tag_ids is not None:
+                # Remove existing tags
+                cur.execute('DELETE FROM warranty_tags WHERE warranty_id = %s', (warranty_id,))
+                
+                # Add new tags
+                for tag_id in tag_ids:
+                    # Verify tag exists
+                    cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+                    if cur.fetchone():
+                        cur.execute('''
+                            INSERT INTO warranty_tags (warranty_id, tag_id)
+                            VALUES (%s, %s)
+                        ''', (warranty_id, tag_id))
+                    else:
+                        logger.warning(f"Skipping non-existent tag ID: {tag_id}")
             
             conn.commit()
             
@@ -2723,3 +2785,253 @@ def debug_file_check():
             result['error'] = str(e)
     
     return jsonify(result)
+
+@app.route('/api/tags', methods=['GET'])
+@token_required
+def get_tags():
+    """Get all tags"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, name, color, created_at FROM tags ORDER BY name')
+            tags = cur.fetchall()
+            
+            result = []
+            for tag in tags:
+                result.append({
+                    'id': tag[0],
+                    'name': tag[1],
+                    'color': tag[2],
+                    'created_at': tag[3].isoformat() if tag[3] else None
+                })
+            
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error fetching tags: {e}")
+        return jsonify({"error": "Failed to fetch tags"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/tags', methods=['POST'])
+@token_required
+def create_tag():
+    """Create a new tag"""
+    conn = None
+    try:
+        data = request.json
+        
+        if not data or 'name' not in data:
+            return jsonify({"error": "Tag name is required"}), 400
+        
+        name = data['name'].strip()
+        color = data.get('color', '#808080')
+        
+        if not name:
+            return jsonify({"error": "Tag name cannot be empty"}), 400
+            
+        # Validate color format (should be a hex color)
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            return jsonify({"error": "Invalid color format. Use hex format (e.g., #FF5733)"}), 400
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if tag with this name already exists
+            cur.execute('SELECT id FROM tags WHERE name = %s', (name,))
+            existing_tag = cur.fetchone()
+            
+            if existing_tag:
+                return jsonify({"error": "A tag with this name already exists"}), 409
+            
+            # Create new tag
+            cur.execute(
+                'INSERT INTO tags (name, color) VALUES (%s, %s) RETURNING id',
+                (name, color)
+            )
+            tag_id = cur.fetchone()[0]
+            conn.commit()
+            
+            return jsonify({
+                "id": tag_id,
+                "name": name,
+                "color": color,
+                "message": "Tag created successfully"
+            }), 201
+    except Exception as e:
+        logger.error(f"Error creating tag: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to create tag"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/tags/<int:tag_id>', methods=['PUT'])
+@token_required
+def update_tag(tag_id):
+    """Update an existing tag"""
+    conn = None
+    try:
+        data = request.json
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        name = data.get('name')
+        color = data.get('color')
+        
+        if not name and not color:
+            return jsonify({"error": "At least one field (name or color) is required"}), 400
+        
+        # Validate color format if provided
+        if color and not re.match(r'^#[0-9A-Fa-f]{6}$', color):
+            return jsonify({"error": "Invalid color format. Use hex format (e.g., #FF5733)"}), 400
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if tag exists
+            cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": "Tag not found"}), 404
+            
+            # Check if new name already exists (if name is being updated)
+            if name:
+                cur.execute('SELECT id FROM tags WHERE name = %s AND id != %s', (name, tag_id))
+                if cur.fetchone():
+                    return jsonify({"error": "A tag with this name already exists"}), 409
+            
+            # Build update query
+            update_fields = []
+            values = []
+            
+            if name:
+                update_fields.append("name = %s")
+                values.append(name)
+            
+            if color:
+                update_fields.append("color = %s")
+                values.append(color)
+            
+            values.append(tag_id)
+            
+            # Update tag
+            query = f"UPDATE tags SET {', '.join(update_fields)} WHERE id = %s"
+            cur.execute(query, values)
+            conn.commit()
+            
+            return jsonify({"message": "Tag updated successfully"}), 200
+    except Exception as e:
+        logger.error(f"Error updating tag {tag_id}: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to update tag"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/warranties/<int:warranty_id>/tags', methods=['GET'])
+@token_required
+def get_warranty_tags(warranty_id):
+    """Get all tags for a specific warranty"""
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user['is_admin']
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # First check if the warranty exists and user has access to it
+            if is_admin:
+                cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
+            else:
+                cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
+                          (warranty_id, user_id))
+            
+            if cur.fetchone() is None:
+                return jsonify({"error": "Warranty not found or you don't have permission to access it"}), 404
+            
+            # Get tags for this warranty
+            cur.execute('''
+                SELECT t.id, t.name, t.color, t.created_at
+                FROM tags t
+                JOIN warranty_tags wt ON t.id = wt.tag_id
+                WHERE wt.warranty_id = %s
+                ORDER BY t.name
+            ''', (warranty_id,))
+            
+            tags = cur.fetchall()
+            
+            result = []
+            for tag in tags:
+                result.append({
+                    'id': tag[0],
+                    'name': tag[1],
+                    'color': tag[2],
+                    'created_at': tag[3].isoformat() if tag[3] else None
+                })
+            
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error fetching tags for warranty {warranty_id}: {e}")
+        return jsonify({"error": "Failed to fetch tags for this warranty"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/warranties/<int:warranty_id>/tags', methods=['POST'])
+@token_required
+def add_tags_to_warranty(warranty_id):
+    """Add tags to a warranty"""
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user['is_admin']
+        
+        data = request.json
+        if not data or 'tag_ids' not in data:
+            return jsonify({"error": "tag_ids array is required"}), 400
+        
+        tag_ids = data['tag_ids']
+        if not isinstance(tag_ids, list):
+            return jsonify({"error": "tag_ids must be an array of tag IDs"}), 400
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # First check if the warranty exists and user has access to it
+            if is_admin:
+                cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
+            else:
+                cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
+                          (warranty_id, user_id))
+            
+            if cur.fetchone() is None:
+                return jsonify({"error": "Warranty not found or you don't have permission to modify it"}), 404
+            
+            # Remove existing tags
+            cur.execute('DELETE FROM warranty_tags WHERE warranty_id = %s', (warranty_id,))
+            
+            # Add new tags
+            for tag_id in tag_ids:
+                # Verify tag exists
+                cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+                if cur.fetchone() is None:
+                    conn.rollback()
+                    return jsonify({"error": f"Tag with ID {tag_id} not found"}), 404
+                
+                # Add tag to warranty
+                cur.execute(
+                    'INSERT INTO warranty_tags (warranty_id, tag_id) VALUES (%s, %s)',
+                    (warranty_id, tag_id)
+                )
+            
+            conn.commit()
+            return jsonify({"message": "Tags updated successfully"}), 200
+    except Exception as e:
+        logger.error(f"Error updating tags for warranty {warranty_id}: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to update tags"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)

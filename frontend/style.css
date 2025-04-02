@@ -9,6 +9,7 @@
   --shadow-color: rgba(0, 0, 0, 0.1);
 
   --primary-color: #3498db;
+  --primary-rgb: 52, 152, 219;
   --primary-dark: #2980b9;
   --secondary-color: #2ecc71;
   --danger-color: #e74c3c;
@@ -38,6 +39,7 @@
   --loading-backdrop: rgba(0, 0, 0, 0.8);
   --shadow-color: rgba(0, 0, 0, 0.3);
   --primary-color: #4dabf7;
+  --primary-rgb: 77, 171, 247;
   --primary-dark: #339af0;
   --secondary-color: #40c057;
   --danger-color: #fa5252;
@@ -427,34 +429,92 @@ input.invalid {
 }
 
 .search-box {
-  position: relative;
-  margin-bottom: 0;
-}
-
-.search-box input {
-  width: 100%;
-  padding: 8px 10px 8px 35px;
+  display: flex;
+  align-items: center;
+  background-color: var(--search-bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  font-size: 0.95rem;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  transition: var(--transition);
+  padding: 8px 15px;
+  width: 100%;
+  border-radius: 25px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
 }
 
-.search-box input:focus {
-  outline: none;
+.search-box:focus-within {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  width: 100%;
+}
+
+.search-box.active-search {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-color);
+  background-color: rgba(var(--primary-rgb), 0.05);
+  width: 100%;
 }
 
 .search-box i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--dark-gray);
+  color: var(--text-muted);
   font-size: 1rem;
+  margin-right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  position: static; /* Override any absolute positioning */
+  transform: none; /* Reset any transform */
+  left: auto; /* Reset any left positioning */
+  top: auto; /* Reset any top positioning */
+}
+
+.search-box.active-search i {
+  color: var(--primary-color);
+  animation: search-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes search-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  background: none;
+  width: 100%;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  padding: 2px 0;
+}
+
+.search-box input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.clear-search-btn {
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+  padding: 0;
+  margin-left: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.clear-search-btn:hover {
+  opacity: 1;
+  color: var(--primary-color);
 }
 
 .warranties-list {
@@ -651,6 +711,32 @@ input.invalid {
     transform: translateY(0);
   }
 }
+
+/* Serial number input styling */
+.serial-number-input {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.serial-number-input .form-control {
+  flex-grow: 1;
+}
+
+.serial-number-input .btn {
+  width: auto;
+  padding: 8px 10px;
+}
+
+.add-serial {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  margin-bottom: 15px;
+}
+
+/* End serial number input styling */
 
 .modal-header {
   padding: 1rem;
@@ -861,6 +947,13 @@ input.invalid {
   .invoice-link, .manual-link, .product-link {
     width: 100%;
     justify-content: center;
+  }
+  
+  .search-box, 
+  .search-box:focus-within,
+  .search-box.active-search {
+    width: 100%;
+    max-width: none;
   }
 }
 
@@ -1666,35 +1759,53 @@ input.invalid {
   border: 1px solid var(--border-color);
 }
 
-.search-box {
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.search-container .search-box {
+  flex: 1;
+}
+
+.search-container .export-btn {
+  margin-top: 0;
+  align-self: center;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+/* Override any conflicting search box styles */
+.filter-controls .search-box {
   position: relative;
   margin-bottom: 0;
+  display: flex;
+  align-items: center;
 }
 
-.search-box i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--dark-gray);
-  font-size: 1rem;
+.filter-controls .search-box i {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  min-width: 20px;
+  color: var(--text-muted);
 }
 
-.search-box input {
-  width: 100%;
-  padding: 8px 10px 8px 35px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
-  font-size: 0.95rem;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  transition: var(--transition);
-}
-
-.search-box input:focus {
+.filter-controls .search-box input {
+  border: none;
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  background: none;
+  width: 100%;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  padding: 2px 0;
 }
 
 .filter-options {
@@ -1783,6 +1894,37 @@ input.invalid {
   
   .filter-select, .export-btn {
     width: 100%;
+  }
+  
+  .search-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .search-container .search-box {
+    width: calc(100% - 110px);
+    min-width: 200px;
+  }
+  
+  .search-container .export-btn {
+    height: 42px;
+    width: 100px;
+  }
+  
+  @media (max-width: 480px) {
+    .search-container {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .search-container .search-box {
+      width: 100%;
+    }
+    
+    .search-container .export-btn {
+      width: 100%;
+    }
   }
   
   .export-btn {
@@ -1892,6 +2034,21 @@ input.invalid {
 .list-view .warranty-info > div {
   margin-bottom: 0;
   margin-right: 15px;
+}
+
+.list-view .warranty-card .tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 12px 15px 12px;
+  margin-top: 0;
+  border-top: 1px solid var(--border-color);
+  width: 100%;
+}
+
+/* For list view, ensure tags are clearly visible */
+.list-view .tag {
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 /* Table View */
@@ -2691,4 +2848,93 @@ input.invalid {
 
 :root[data-theme="dark"] .modal-backdrop {
     background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* Tags styling in warranty cards */
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tag .remove-tag {
+    margin-left: 6px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.tag .remove-tag:hover {
+    opacity: 1;
+    transform: scale(1.2);
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Make the remove-tag more prominent in the edit modal */
+#editSelectedTags .tag .remove-tag {
+    font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    margin-left: 8px;
+    font-size: 1.2rem;
+    opacity: 0.8;
+    /* Prevent text selection */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#editSelectedTags .tag .remove-tag:hover {
+    opacity: 1;
+    transform: scale(1.2);
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Use a more obvious pointer cursor */
+#editSelectedTags .tag .remove-tag {
+    cursor: pointer;
+}
+
+.warranty-card .tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding: 12px 15px 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Tag styling for grid view */
+.grid-view .warranty-card .tags-row {
+    padding: 12px 15px 12px;
+}
+
+/* Tag styling for list view */
+.list-view .warranty-card .tags-row {
+    padding: 12px 15px 12px;
+}
+
+/* Tag styling for table view */
+.table-view .warranty-card .tags-row {
+    display: table-cell;
+    vertical-align: middle;
+    padding: 12px 15px;
+    width: 20%;
+    border-top: none;
 }
