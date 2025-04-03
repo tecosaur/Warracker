@@ -73,11 +73,6 @@ Warracker is a web-based application that provides a centralized system for mana
 
 ## 🚀 Setup
 
-
-> [!CAUTION]
->
-> This project is under active development, and some releases might cause things to stop working. I will do my best to fix them as fast as possible.
-
 ### Prerequisites
 
 *   Docker and Docker Compose installed on your system.
@@ -113,6 +108,50 @@ Warracker is a web-based application that provides a centralized system for mana
 
 
 ## 🐋 Pull Docker
+
+
+```
+  services:
+  warracker:
+    image: ghcr.io/sassanix/warracker/main:latest
+    ports:
+      - "8005:80"
+    volumes:
+      - warracker_uploads:/data/uploads
+    environment:
+      - DB_HOST=warrackerdb
+      - DB_NAME=warranty_db
+      - DB_USER=warranty_user
+      - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
+      - SMTP_HOST=smtp.email.com
+      - SMTP_PORT=465
+      - SMTP_USERNAME=youremail@email.com
+      - SMTP_PASSWORD=password
+    depends_on:
+      warrackerdb:
+        condition: service_healthy
+    restart: unless-stopped
+  
+  warrackerdb:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=warranty_db
+      - POSTGRES_USER=warranty_user
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  warracker_uploads:
+```
 
 To get the docker compose file please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
