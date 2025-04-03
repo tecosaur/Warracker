@@ -896,4 +896,55 @@ input:checked + .toggle-slider:before {
     .admin-actions-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Style for current user info display */
+.current-user-info {
+    margin-bottom: 20px; /* Matches HTML style */
+    padding-bottom: 15px; /* Matches HTML style */
+    border-bottom: 1px solid var(--border-color); /* Matches HTML style */
+    background-color: rgba(var(--primary-rgb), 0.05); /* Subtle background highlight */
+    padding: 15px;
+    border-radius: var(--border-radius);
+}
+
+.current-user-info p {
+    margin: 0; /* Remove default paragraph margins */
+}
+
+.current-user-info p:first-child {
+    font-size: 1.1rem; /* Slightly larger font for the name line */
+    color: var(--text-color);
+}
+
+.current-user-info p:last-child {
+    font-size: 0.9rem; /* Smaller font for the email line */
+    color: var(--text-muted);
+    margin-top: 5px; /* Add a little space below the name */
+}
+
+.current-user-info strong {
+    color: var(--primary-color); /* Highlight the label */
+}
+
+.current-user-info span {
+    font-weight: normal; /* Ensure the actual name/email isn't bold */
+}
+
+/* Dark mode adjustments */
+:root[data-theme="dark"] .current-user-info {
+    background-color: rgba(var(--primary-rgb), 0.1);
+    border-bottom-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .current-user-info p:first-child {
+     color: var(--text-color);
+}
+
+:root[data-theme="dark"] .current-user-info p:last-child {
+     color: var(--text-muted);
+}
+
+:root[data-theme="dark"] .current-user-info strong {
+     color: var(--primary-color);
 } 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.8.9] - 2025-04-03
+
+### Added
+- **Settings Page:** Added a new display section within the "Account Settings" card (`settings-new.html`) to show the current user's First Name, Last Name, and Email.
+
+### Changed
+- **Settings Page:** The new user information display now updates instantly when the user saves changes to their profile (First/Last Name) without requiring a page refresh (`settings-new.js`).
+- **Backend API:** Modified the `/api/auth/user` GET endpoint (`backend/app.py`) to query the database and return the full user profile, including `first_name` and `last_name`, instead of just the basic information available from the authentication token. This ensures the settings page can display the complete, up-to-date user details.
+- **Styling:** Added optional CSS rules (`settings-styles.css`) to style the new user information display area on the settings page.
+
 ## [0.9.8.8] - 2025-04-03
 
 ### Fixed

@@ -591,17 +591,40 @@ def validate_token():
 @app.route('/api/auth/user', methods=['GET'])
 @token_required
 def get_user():
+    conn = None
     try:
-        user = request.user
-        return jsonify({
-            'id': user['id'],
-            'username': user['username'],
-            'email': user['email'],
-            'is_admin': user['is_admin']
-        }), 200
+        user_id = request.user['id'] # Get user ID from the decorator
+
+        # --- ADD DATABASE QUERY ---
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                'SELECT id, username, email, first_name, last_name, is_admin FROM users WHERE id = %s',
+                (user_id,)
+            )
+            user_data = cur.fetchone()
+        # --- END DATABASE QUERY ---
+
+        if not user_data:
+             return jsonify({'message': 'User not found!'}), 404
+
+        # Map database columns to a dictionary
+        columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin']
+        user_info = dict(zip(columns, user_data))
+
+        # Return the full user information
+        return jsonify(user_info), 200
+
     except Exception as e:
         logger.error(f"Get user error: {e}")
+        # Optionally rollback if there was an error during DB interaction
+        # if conn:
+        #     conn.rollback() # Not strictly needed for SELECT, but good practice if errors occur
         return jsonify({'message': 'Failed to retrieve user information!'}), 500
+    finally:
+        # Release the connection back to the pool
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/api/auth/password/reset-request', methods=['POST'])
 def request_password_reset():

@@ -405,25 +405,36 @@ function setupCriticalEventListeners() {
  */
 async function loadUserData() {
     showLoading();
-    
+    // Get the new display elements
+    const userNameDisplay = document.getElementById('currentUserNameDisplay');
+    const userEmailDisplay = document.getElementById('currentUserEmailDisplay');
+
     try {
         // Get user from localStorage first
         const currentUser = window.auth.getCurrentUser();
-        
+
         if (currentUser) {
             // Populate form fields
-            firstNameInput.value = currentUser.first_name || '';
-            lastNameInput.value = currentUser.last_name || '';
-            emailInput.value = currentUser.email || '';
-            
+            if (firstNameInput) firstNameInput.value = currentUser.first_name || ''; // Add null checks
+            if (lastNameInput) lastNameInput.value = currentUser.last_name || ''; // Add null checks
+            if (emailInput) emailInput.value = currentUser.email || ''; // Add null checks
+
+            // --- UPDATE DISPLAY ELEMENT (Initial Load) ---
+            const displayName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'User';
+            if (userNameDisplay) userNameDisplay.textContent = displayName;
+            if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || 'N/A';
+            // --- END UPDATE ---
+
             // Check if user is admin and show admin section
             if (currentUser.is_admin) {
-                adminSection.style.display = 'block';
-                loadUsers();
-                loadSiteSettings();
+                if (adminSection) adminSection.style.display = 'block';
+                if (adminSection && adminSection.style.display === 'block') {
+                     if (usersTableBody) loadUsers();
+                     if (registrationEnabled) loadSiteSettings();
+                }
             }
         }
-        
+
         // Fetch fresh user data from API
         try {
             const response = await fetch('/api/auth/user', {
@@ -432,47 +443,50 @@ async function loadUserData() {
                     'Authorization': `Bearer ${window.auth.getToken()}`
                 }
             });
-            
+
             if (response.ok) {
                 const userData = await response.json();
-                
+
                 // Update form fields with fresh data
-                firstNameInput.value = userData.first_name || '';
-                lastNameInput.value = userData.last_name || '';
-                emailInput.value = userData.email || '';
-                
+                if (firstNameInput) firstNameInput.value = userData.first_name || ''; // Add null checks
+                if (lastNameInput) lastNameInput.value = userData.last_name || ''; // Add null checks
+                if (emailInput) emailInput.value = userData.email || ''; // Add null checks
+
+                // --- UPDATE DISPLAY ELEMENT (After API Load) ---
+                const displayName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username || 'User';
+                 if (userNameDisplay) userNameDisplay.textContent = displayName;
+                 if (userEmailDisplay) userEmailDisplay.textContent = userData.email || 'N/A';
+                // --- END UPDATE ---
+
                 // Show admin section if user is admin
                 if (userData.is_admin) {
-                    if (adminSection) {
-                        adminSection.style.display = 'block';
-                    }
-                    
-                    // Only try to load admin data if the elements exist
-                    // This prevents errors when the admin elements don't exist in the DOM
-                    if (usersTableBody) {
-                        loadUsers();
-                    } else {
-                        console.log('Admin UI elements not found, skipping admin data loading');
-                    }
-                    
-                    if (registrationEnabled) {
-                        loadSiteSettings();
-                    }
+                     if (adminSection) adminSection.style.display = 'block';
+                     if (adminSection && adminSection.style.display === 'block') {
+                         if (usersTableBody) loadUsers();
+                         if (registrationEnabled) loadSiteSettings();
+                     }
                 }
-                
+
                 // Update localStorage
                 localStorage.setItem('user_info', JSON.stringify(userData));
             } else {
-                // Handle error
-                const errorData = await response.json();
-                console.warn('API error:', errorData.message);
+                const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+                console.warn('API error fetching user data:', errorData.message);
+                 if (!currentUser) {
+                    showToast(errorData.message || 'Failed to load fresh user data', 'warning');
+                 }
             }
         } catch (apiError) {
             console.warn('API error, using localStorage data:', apiError);
+             if (!currentUser) {
+                 showToast('Could not connect to fetch user data. Displaying cached info.', 'warning');
+             }
         }
     } catch (error) {
         console.error('Error loading user data:', error);
         showToast('Failed to load user data. Please try again.', 'error');
+        if (userNameDisplay) userNameDisplay.textContent = 'Error';
+        if (userEmailDisplay) userEmailDisplay.textContent = 'Error';
     } finally {
         hideLoading();
     }
@@ -928,79 +942,66 @@ function setTheme(isDark) {
  */
 async function saveProfile() {
     // Validate form
-    if (!firstNameInput.value.trim() || !lastNameInput.value.trim()) {
-        showToast('Please fill in all required fields', 'error');
+    if (!firstNameInput || !lastNameInput || !firstNameInput.value.trim() || !lastNameInput.value.trim()) { // Add null checks for inputs
+        showToast('Please fill in First Name and Last Name', 'error');
         return;
     }
-    
+
     showLoading();
-    
+    // Get the display element
+    const userNameDisplay = document.getElementById('currentUserNameDisplay');
+
     try {
-        // Try to update profile via API
-        try {
-            const response = await fetch('/api/auth/profile', {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${window.auth.getToken()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    first_name: firstNameInput.value.trim(),
-                    last_name: lastNameInput.value.trim()
-                })
-            });
-            
-            if (response.ok) {
-                const userData = await response.json();
-                
-                // Update localStorage
-                const currentUser = window.auth.getCurrentUser();
-                const updatedUser = {
-                    ...currentUser,
-                    first_name: userData.first_name,
-                    last_name: userData.last_name
-                };
-                
-                localStorage.setItem('user_info', JSON.stringify(updatedUser));
-                
-                // Update UI
-                if (window.auth.checkAuthState) {
-                    window.auth.checkAuthState();
-                }
-                
-                showToast('Profile updated successfully', 'success');
-            } else {
-                // Handle error from API
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to update profile');
-            }
-        } catch (apiError) {
-            console.warn('API error, falling back to localStorage:', apiError);
-            
-            // Fallback to localStorage if API is not available
+        const response = await fetch('/api/auth/profile', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                first_name: firstNameInput.value.trim(),
+                last_name: lastNameInput.value.trim()
+            })
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+
+            // Update localStorage
             const currentUser = window.auth.getCurrentUser();
-            if (currentUser) {
-                const updatedUser = {
-                    ...currentUser,
-                    first_name: firstNameInput.value.trim(),
-                    last_name: lastNameInput.value.trim()
-                };
-                
-                localStorage.setItem('user_info', JSON.stringify(updatedUser));
-                
-                // Update UI
-                if (window.auth.checkAuthState) {
-                    window.auth.checkAuthState();
-                }
-                
-                showToast('Profile updated successfully (offline mode)', 'success');
+            const updatedUser = {
+                ...(currentUser || {}), // Handle case where currentUser might be null
+                first_name: userData.first_name,
+                last_name: userData.last_name,
+                // Ensure email and username are preserved if they existed
+                email: currentUser ? currentUser.email : userData.email,
+                username: currentUser ? currentUser.username : userData.username,
+                is_admin: currentUser ? currentUser.is_admin : userData.is_admin,
+                id: currentUser ? currentUser.id : userData.id
+            };
+            localStorage.setItem('user_info', JSON.stringify(updatedUser));
+
+            // --- UPDATE DISPLAY ELEMENT IMMEDIATELY ---
+            const displayName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || updatedUser.username || 'User'; // Use updatedUser for username fallback
+            if (userNameDisplay) userNameDisplay.textContent = displayName;
+            // --- END UPDATE ---
+
+            // Update UI (Header, etc.) - Ensure auth module is loaded
+            if (window.auth && window.auth.checkAuthState) {
+                window.auth.checkAuthState(); // This should update the header menu
             } else {
-                throw new Error('User not found in localStorage');
+                 console.warn("Auth module or checkAuthState not found, header might not update immediately.");
             }
+
+            showToast('Profile updated successfully', 'success');
+        } else {
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+
+    throw new Error(errorData.message || 'Failed to update profile');
         }
     } catch (error) {
         console.error('Error updating profile:', error);
-        showToast('Failed to update profile. Please try again.', 'error');
+        showToast(`Failed to update profile: ${error.message}`, 'error');
     } finally {
         hideLoading();
     }
