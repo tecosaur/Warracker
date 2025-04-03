@@ -73,6 +73,11 @@ Warracker is a web-based application that provides a centralized system for mana
 
 ## 🚀 Setup
 
+
+> [!CAUTION]
+>
+> This project is under active development, things might randomly break. But I'll do my best to fix them as soon as possible.
+
 ### Prerequisites
 
 *   Docker and Docker Compose installed on your system.
