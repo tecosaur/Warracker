@@ -15,10 +15,10 @@ services:
       - SMTP_USERNAME=youremail@email.com
       - SMTP_PASSWORD=password
     depends_on:
-      - warrackerdb
+      warrackerdb:
+        condition: service_healthy
     restart: unless-stopped
-
-  # Using a standard PostgreSQL image with initialization
+  
   warrackerdb:
     image: postgres:15-alpine
     volumes:
@@ -27,39 +27,13 @@ services:
       - POSTGRES_DB=warranty_db
       - POSTGRES_USER=warranty_user
       - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
-      # This will create the init script directly
-      - POSTGRES_MULTIPLE_DATABASES=warranty_db
-      - PGUSER=warranty_user
     restart: unless-stopped
-    # Simple initialization approach
-    command: >
-      sh -c '
-        # Create initialization script
-        mkdir -p /docker-entrypoint-initdb.d
-        echo "CREATE TABLE IF NOT EXISTS warranties (
-          id SERIAL PRIMARY KEY,
-          product_name VARCHAR(255) NOT NULL,
-          product_url TEXT,
-          purchase_date DATE NOT NULL,
-          warranty_years INTEGER NOT NULL,
-          expiration_date DATE NOT NULL,
-          invoice_path TEXT,
-          manual_path TEXT,
-          purchase_price DECIMAL(10, 2)
-        );" > /docker-entrypoint-initdb.d/01-tables.sql
-        
-        echo "CREATE TABLE IF NOT EXISTS serial_numbers (
-          id SERIAL PRIMARY KEY,
-          warranty_id INTEGER REFERENCES warranties(id) ON DELETE CASCADE,
-          serial_number VARCHAR(255) NOT NULL
-        );" > /docker-entrypoint-initdb.d/02-serial-numbers.sql
-        
-        echo "CREATE INDEX IF NOT EXISTS idx_warranty_id ON serial_numbers(warranty_id);
-        CREATE INDEX IF NOT EXISTS idx_expiration_date ON warranties(expiration_date);" > /docker-entrypoint-initdb.d/03-indexes.sql
-        
-        # Run the standard PostgreSQL entrypoint script
-        docker-entrypoint.sh postgres
-      '
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

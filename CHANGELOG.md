@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.8.7] - 2025-04-03
+
+### Fixed
+- **Migration System Overhaul:** Refactored the database migration system for improved reliability and consistency.
+  - Standardized on `backend/migrations/apply_migrations.py` for applying migrations.
+  - Removed obsolete top-level `migrations/` directory and `backend/run_migrations.py` script.
+  - Simplified `backend/init.sql` to only handle initial role alterations, removing table creation logic.
+  - Corrected `docker-compose.yml` volume mounts and command to use the new migration path (`backend/migrations`).
+  - Cleaned up `Dockerfile` by removing redundant migration script calls and ensuring correct migration directory copying.
+  - Resolved conflicting `user_preferences` table creation by removing the SQL version and relying on the Python migration.
+  - Renamed and renumbered all migration files sequentially (000 to 010) in `backend/migrations/` for clear execution order.
+  - Added `000_create_warranties_table.sql` migration to ensure the base table exists before other migrations reference it.
+  - Verified and ensured idempotency (`CREATE/ALTER ... IF NOT EXISTS`) for all migration scripts, preventing errors on re-runs.
+  - Corrected `fix_permissions.py` execution by ensuring `fix_permissions.sql` is copied into the Docker image.
+
 ## [0.9.8.6] - 2025-04-01
 
 ### Added

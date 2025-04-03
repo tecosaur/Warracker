@@ -24,10 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/app.py .
 COPY backend/gunicorn_config.py .
-COPY backend/run_migrations.py .
 COPY backend/fix_permissions.py .
 COPY backend/fix_permissions.sql .
-COPY backend/migrations/ ./migrations/
+COPY backend/migrations/ /app/migrations/
 
 # Copy frontend files
 COPY frontend/*.html /var/www/html/
@@ -42,7 +41,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 RUN echo '#!/bin/bash\n\
 set -e # Exit immediately if a command exits with a non-zero status.\n\
 echo "Running database migrations..."\n\
-python /app/run_migrations.py\n\
+python /app/migrations/apply_migrations.py\n\
 echo "Ensuring admin role has proper permissions..."\n\
 # Retry logic for granting superuser privileges\n\
 max_attempts=5\n\

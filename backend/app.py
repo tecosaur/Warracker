@@ -124,101 +124,102 @@ def init_db():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Create users table if it doesn't exist
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(50) UNIQUE NOT NULL,
-            email VARCHAR(100) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
-            first_name VARCHAR(50),
-            last_name VARCHAR(50),
-            is_active BOOLEAN DEFAULT TRUE,
-            is_admin BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )
-        """)
+        # Create users table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        # CREATE TABLE IF NOT EXISTS users (
+        #     id SERIAL PRIMARY KEY,
+        #     username VARCHAR(50) UNIQUE NOT NULL,
+        #     email VARCHAR(100) UNIQUE NOT NULL,
+        #     password_hash VARCHAR(255) NOT NULL,
+        #     first_name VARCHAR(50),
+        #     last_name VARCHAR(50),
+        #     is_active BOOLEAN DEFAULT TRUE,
+        #     is_admin BOOLEAN DEFAULT FALSE,
+        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        # )
+        # """)
         
-        # Create user_preferences table if it doesn't exist
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS user_preferences (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-            default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
-            theme VARCHAR(10) NOT NULL DEFAULT 'light',
-            expiring_soon_days INTEGER NOT NULL DEFAULT 30,
-            notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
-            notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            UNIQUE(user_id)
-        )
-        """)
+        # Create user_preferences table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        # CREATE TABLE IF NOT EXISTS user_preferences (
+        #     id SERIAL PRIMARY KEY,
+        #     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        #     email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+        #     default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
+        #     theme VARCHAR(10) NOT NULL DEFAULT 'light',
+        #     expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+        #     notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
+        #     notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     UNIQUE(user_id)
+        # )
+        # """)
         
-        # Check if timezone column exists and add if it doesn't
-        cur.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'user_preferences' AND column_name = 'timezone'
-            ) THEN
-                ALTER TABLE user_preferences 
-                ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
-                RAISE NOTICE 'Added timezone column to user_preferences table';
-            END IF;
-        END $$;
-        """)
+        # Check if timezone column exists and add if it doesn't - Handled by migrations (e.g., 008_add_timezone_column.sql)
+        # cur.execute("""
+        # DO $$
+        # BEGIN
+        #     IF NOT EXISTS (
+        #         SELECT column_name
+        #         FROM information_schema.columns
+        #         WHERE table_name = 'user_preferences' AND column_name = 'timezone'
+        #     ) THEN
+        #         ALTER TABLE user_preferences
+        #         ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
+        #         RAISE NOTICE 'Added timezone column to user_preferences table';
+        #     END IF;
+        # END $$;
+        # """)
         
-        # Create warranties table if it doesn't exist
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS warranties (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                item_name VARCHAR(100) NOT NULL,
-                purchase_date DATE NOT NULL,
-                expiration_date DATE NOT NULL,
-                purchase_price DECIMAL(10,2),
-                serial_number VARCHAR(100),
-                category VARCHAR(50),
-                notes TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
-        """)
+        # Create warranties table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        #     CREATE TABLE IF NOT EXISTS warranties (
+        #         id SERIAL PRIMARY KEY,
+        #         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        #         item_name VARCHAR(100) NOT NULL,
+        #         purchase_date DATE NOT NULL,
+        #         expiration_date DATE NOT NULL,
+        #         purchase_price DECIMAL(10,2),
+        #         serial_number VARCHAR(100),
+        #         category VARCHAR(50),
+        #         notes TEXT,
+        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        #     )
+        # """)
         
-        # Create warranty_documents table if it doesn't exist
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS warranty_documents (
-                id INTEGER PRIMARY KEY,
-                warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
-                file_name VARCHAR(255) NOT NULL,
-                file_path VARCHAR(255) NOT NULL,
-                file_type VARCHAR(50),
-                file_size INTEGER,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            )
-        """)
+        # Create warranty_documents table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        #     CREATE TABLE IF NOT EXISTS warranty_documents (
+        #         id INTEGER PRIMARY KEY,
+        #         warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
+        #         file_name VARCHAR(255) NOT NULL,
+        #         file_path VARCHAR(255) NOT NULL,
+        #         file_type VARCHAR(50),
+        #         file_size INTEGER,
+        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        #     )
+        # """)
         
-        # Create sequence if it doesn't exist
-        cur.execute("""
-            DO $$ 
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'warranty_documents_id_seq') THEN
-                    CREATE SEQUENCE warranty_documents_id_seq;
-                END IF;
-            END $$;
-        """)
+        # Create sequence if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        #     DO $$
+        #     BEGIN
+        #         IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'warranty_documents_id_seq') THEN
+        #             CREATE SEQUENCE warranty_documents_id_seq;
+        #         END IF;
+        #     END $$;
+        # """)
         
-        # Alter table to use the sequence
-        cur.execute("""
-            ALTER TABLE warranty_documents 
-            ALTER COLUMN id SET DEFAULT nextval('warranty_documents_id_seq');
-        """)
+        # Alter table to use the sequence - Handled by migrations
+        # cur.execute("""
+        #     ALTER TABLE warranty_documents
+        #     ALTER COLUMN id SET DEFAULT nextval('warranty_documents_id_seq');
+        # """)
         
+        # We might still need to commit if other operations were performed before the commented blocks
         conn.commit()
         cur.close()
         conn.close()
