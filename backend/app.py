@@ -708,52 +708,6 @@ def reset_password():
         if conn:
             release_db_connection(conn)
 
-@app.route('/api/auth/password/change', methods=['POST'])
-@token_required
-def change_password():
-    conn = None
-    try:
-        data = request.get_json()
-        
-        if not data.get('current_password') or not data.get('new_password'):
-            return jsonify({'message': 'Current password and new password are required!'}), 400
-        
-        current_password = data['current_password']
-        new_password = data['new_password']
-        
-        # Validate password strength
-        if not is_valid_password(new_password):
-            return jsonify({'message': 'Password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
-        
-        user_id = request.user['id']
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check current password
-            cur.execute('SELECT password_hash FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
-            
-            if not user or not bcrypt.check_password_hash(user[0], current_password):
-                return jsonify({'message': 'Current password is incorrect!'}), 401
-            
-            # Hash the new password
-            password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-            
-            # Update user's password
-            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
-            
-            conn.commit()
-            
-            return jsonify({'message': 'Password changed successfully!'}), 200
-    except Exception as e:
-        logger.error(f"Password change error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Password change failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
 # Update existing endpoints to use authentication
 
 @app.route('/api/warranties', methods=['GET'])
@@ -1411,9 +1365,9 @@ def update_profile():
             cursor.execute(
                 """
                 UPDATE users 
-                SET first_name = %s, last_name = %s, updated_at = NOW() 
+                SET first_name = %s, last_name = %s
                 WHERE id = %s 
-                RETURNING id, username, email, first_name, last_name, created_at, updated_at
+                RETURNING id, username, email, first_name, last_name, created_at
                 """,
                 (first_name, last_name, user_id)
             )
@@ -1434,8 +1388,7 @@ def update_profile():
                 'email': user_data[2],
                 'first_name': user_data[3],
                 'last_name': user_data[4],
-                'created_at': user_data[5].isoformat() if user_data[5] else None,
-                'updated_at': user_data[6].isoformat() if user_data[6] else None
+                'created_at': user_data[5].isoformat() if user_data[5] else None
             }
             
             return jsonify(user), 200
@@ -1762,7 +1715,7 @@ def update_preferences():
                     
                     update_query = f"""
                         UPDATE user_preferences 
-                        SET {', '.join(update_fields)}, updated_at = NOW() 
+                        SET {', '.join(update_fields)}
                         WHERE user_id = %s
                         RETURNING {return_fields}
                     """

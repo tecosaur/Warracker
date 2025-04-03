@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.8.8] - 2025-04-03
+
+### Fixed
+- Resolved database error ("column updated_at does not exist") occurring when updating user profile (first/last name) or user preferences.
+  - Modified SQL UPDATE statements in `backend/app.py` (within `update_profile` function and `/api/auth/preferences` endpoint) to remove references to the non-existent `updated_at` column in `users` and `user_preferences` tables.
+
 ## [0.9.8.7] - 2025-04-03
 
 ### Fixed
