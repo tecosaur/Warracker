@@ -76,7 +76,7 @@ Warracker is a web-based application that provides a centralized system for mana
 
 > [!CAUTION]
 >
-> This project is under active development, things might randomly break. But I'll do my best to fix them as soon as possible.
+> This project is under active development, and some releases might cause things to stop working. I will do my best to fix them as fast as possible.
 
 ### Prerequisites
 
