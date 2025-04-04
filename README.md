@@ -3,9 +3,6 @@
     
 ![420682616-b65106d3-2c3c-4f6c-a4b7-4ec6e010e5b8](https://github.com/user-attachments/assets/cb373fe8-b4d2-47ac-bf7b-060289e6e17c)
 
-![warracker logo](https://github.com/user-attachments/assets/2e0e24d7-cf60-4076-a880-8d9b23f2bc2f)
-
-
 </div>
 
 <div align="center">
