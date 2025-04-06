@@ -2848,56 +2848,42 @@ def create_tag():
 @token_required
 def update_tag(tag_id):
     """Update an existing tag"""
+    data = request.get_json()
+    new_name = data.get('name')
+    new_color = data.get('color')
+    
+    if not new_name:
+        return jsonify({"error": "Tag name cannot be empty"}), 400
+        
+    # Validate color format (basic check)
+    if new_color and not re.match(r'^#[0-9a-fA-F]{6}$', new_color):
+        return jsonify({"error": "Invalid color format. Use hex (e.g., #RRGGBB)"}), 400
+        
     conn = None
     try:
-        data = request.json
-        
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-        
-        name = data.get('name')
-        color = data.get('color')
-        
-        if not name and not color:
-            return jsonify({"error": "At least one field (name or color) is required"}), 400
-        
-        # Validate color format if provided
-        if color and not re.match(r'^#[0-9A-Fa-f]{6}$', color):
-            return jsonify({"error": "Invalid color format. Use hex format (e.g., #FF5733)"}), 400
-        
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if tag exists
             cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
-            if cur.fetchone() is None:
+            tag = cur.fetchone()
+            if not tag:
                 return jsonify({"error": "Tag not found"}), 404
+                
+            # Check if new name conflicts with another tag
+            cur.execute('SELECT id FROM tags WHERE name = %s AND id != %s', (new_name, tag_id))
+            existing = cur.fetchone()
+            if existing:
+                return jsonify({"error": "A tag with this name already exists"}), 409
+                
+            # Update the tag
+            cur.execute('UPDATE tags SET name = %s, color = %s, updated_at = NOW() WHERE id = %s RETURNING id, name, color', 
+                        (new_name, new_color, tag_id))
+            updated_tag = cur.fetchone()
             
-            # Check if new name already exists (if name is being updated)
-            if name:
-                cur.execute('SELECT id FROM tags WHERE name = %s AND id != %s', (name, tag_id))
-                if cur.fetchone():
-                    return jsonify({"error": "A tag with this name already exists"}), 409
-            
-            # Build update query
-            update_fields = []
-            values = []
-            
-            if name:
-                update_fields.append("name = %s")
-                values.append(name)
-            
-            if color:
-                update_fields.append("color = %s")
-                values.append(color)
-            
-            values.append(tag_id)
-            
-            # Update tag
-            query = f"UPDATE tags SET {', '.join(update_fields)} WHERE id = %s"
-            cur.execute(query, values)
             conn.commit()
             
-            return jsonify({"message": "Tag updated successfully"}), 200
+            return jsonify({"id": updated_tag[0], "name": updated_tag[1], "color": updated_tag[2]}), 200
+            
     except Exception as e:
         logger.error(f"Error updating tag {tag_id}: {e}")
         if conn:
@@ -2907,10 +2893,46 @@ def update_tag(tag_id):
         if conn:
             release_db_connection(conn)
 
+@app.route('/api/tags/<int:tag_id>', methods=['DELETE'])
+@token_required # Or @admin_required if only admins should delete tags
+def delete_tag_endpoint(tag_id):
+    """Delete a tag and its associations"""
+    conn = None
+    try:
+        # Check if the user has permission (you might want admin_required here)
+        # For now, just check if logged in using token_required
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if tag exists
+            cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+            tag = cur.fetchone()
+            if not tag:
+                return jsonify({"error": "Tag not found"}), 404
+
+            # Delete associations from warranty_tags first
+            cur.execute('DELETE FROM warranty_tags WHERE tag_id = %s', (tag_id,))
+            
+            # Delete the tag itself
+            cur.execute('DELETE FROM tags WHERE id = %s', (tag_id,))
+            
+            conn.commit()
+            
+            return jsonify({"message": "Tag deleted successfully"}), 200
+            
+    except Exception as e:
+        logger.error(f"Error deleting tag {tag_id}: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to delete tag"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 @app.route('/api/warranties/<int:warranty_id>/tags', methods=['GET'])
 @token_required
 def get_warranty_tags(warranty_id):
-    """Get all tags for a specific warranty"""
+    """Get all tags associated with a specific warranty"""
     conn = None
     try:
         user_id = request.user['id']

@@ -2183,18 +2183,29 @@ function deleteTag(id) {
     const token = localStorage.getItem('auth_token');
     if (!token) {
         console.error('No authentication token found');
+        showToast('Authentication required', 'error'); // Added toast for better feedback
         return;
     }
     
-    fetch(`/api/tags/${id}`, {
-        method: 'DELETE',
+    showLoadingSpinner(); // Show loading indicator
+    
+    fetch(`/api/tags/${id}`, { // Use the correct URL with tag ID
+        method: 'DELETE', // Use DELETE method
         headers: {
             'Authorization': 'Bearer ' + token
         }
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error('Failed to delete tag');
+            // Log the status for debugging the 405 error
+            console.error(`Failed to delete tag. Status: ${response.status} ${response.statusText}`);
+            // Try to get error message from response body
+            return response.json().then(errData => {
+                throw new Error(errData.error || errData.message || 'Failed to delete tag');
+            }).catch(() => {
+                // If response body is not JSON or empty
+                throw new Error(`Failed to delete tag. Status: ${response.status}`);
+            });
         }
         return response.json();
     })
@@ -2202,23 +2213,25 @@ function deleteTag(id) {
         // Remove tag from allTags array
         allTags = allTags.filter(tag => tag.id !== id);
         
-        // Remove tag from selectedTags if present
+        // Remove tag from selectedTags if present (in both add and edit modes)
         selectedTags = selectedTags.filter(tag => tag.id !== id);
+        editSelectedTags = editSelectedTags.filter(tag => tag.id !== id);
         
-        // Rerender existing tags and selected tags
-        renderExistingTags();
-        renderSelectedTags();
-        
-        // Update summary if needed
-        if (document.getElementById('summary-tags')) {
-            updateSummary();
-        }
+        // --- FIX: Re-render UI elements ---
+        renderExistingTags(); // Update the list in the modal
+        renderSelectedTags(); // Update selected tags in the add form
+        renderEditSelectedTags(); // Update selected tags in the edit form
+        populateTagFilter(); // Update the filter dropdown on the main page
+        // --- END FIX ---
         
         showToast('Tag deleted successfully', 'success');
     })
     .catch(error => {
         console.error('Error deleting tag:', error);
-        showToast('Failed to delete tag', 'error');
+        showToast(error.message || 'Failed to delete tag', 'error'); // Show specific error message
+    })
+    .finally(() => {
+        hideLoadingSpinner(); // Hide loading indicator
     });
 }
 
@@ -2663,4 +2676,78 @@ function renderEditSelectedTags() {
         placeholder.textContent = 'No tags selected';
         editSelectedTagsContainer.appendChild(placeholder);
     }
+}
+
+// Create a new tag via the management modal form
+function createNewTag() {
+    const tagNameInput = document.getElementById('newTagName');
+    const tagColorInput = document.getElementById('newTagColor');
+    
+    const name = tagNameInput ? tagNameInput.value.trim() : '';
+    const color = tagColorInput ? tagColorInput.value : '#808080'; // Default color if input not found
+    
+    if (!name) {
+        showToast('Tag name cannot be empty', 'error');
+        return;
+    }
+    
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        console.error('No authentication token found');
+        showToast('Authentication required', 'error');
+        return;
+    }
+    
+    showLoadingSpinner(); // Show loading indicator
+    
+    fetch('/api/tags', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({
+            name: name,
+            color: color
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            if (response.status === 409) {
+                throw new Error('A tag with this name already exists');
+            }
+            // Try to get error message from response body
+            return response.json().then(errData => {
+                throw new Error(errData.error || errData.message || 'Failed to create tag');
+            }).catch(() => {
+                 // If response body is not JSON or empty
+                throw new Error(`Failed to create tag. Status: ${response.status}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Add new tag to allTags array
+        allTags.push({
+            id: data.id,
+            name: data.name,
+            color: data.color
+        });
+        
+        // --- FIX: Clear input fields and re-render existing tags ---
+        if (tagNameInput) tagNameInput.value = '';
+        if (tagColorInput) tagColorInput.value = '#808080'; // Reset color picker
+        renderExistingTags(); // Update the list in the modal
+        populateTagFilter(); // Update the filter dropdown on the main page
+        // --- END FIX ---
+        
+        showToast('Tag created successfully', 'success');
+    })
+    .catch(error => {
+        console.error('Error creating tag:', error);
+        showToast(error.message || 'Failed to create tag', 'error');
+    })
+    .finally(() => {
+        hideLoadingSpinner(); // Hide loading indicator
+    });
 }

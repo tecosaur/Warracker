@@ -1,5 +1,18 @@
 # Changelog
 
+# [0.9.9.0] - 2025-04-06
+
+### Fixed
+- **Tag Management:** Resolved issues with adding and deleting tags.
+  - **Backend:** Added the missing `DELETE /api/tags/<tag_id>` API endpoint (`backend/app.py`) to handle tag deletion requests, including removing associations from the `warranty_tags` table.
+  - **Frontend:** Corrected the `deleteTag` function (`frontend/script.js`) to use the `DELETE` method and the correct API endpoint.
+  - **Frontend:** Improved UI feedback for tag operations:
+    - The tag list in the "Manage Tags" modal now updates immediately after adding or deleting a tag (`renderExistingTags`).
+    - The tag input fields in the modal are cleared after successfully adding a tag.
+    - The tag filter dropdown on the main page updates after adding or deleting tags (`populateTagFilter`).
+    - Selected tags display in the add/edit warranty forms update correctly after a tag is deleted (`renderSelectedTags`, `renderEditSelectedTags`).
+    - Added loading spinners and improved toast notifications/error messages for tag creation and deletion.
+
 ## [0.9.8.9] - 2025-04-03
 
 ### Added
