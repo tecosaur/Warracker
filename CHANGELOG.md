@@ -13,7 +13,6 @@
     - Selected tags display in the add/edit warranty forms update correctly after a tag is deleted (`renderSelectedTags`, `renderEditSelectedTags`).
     - Added loading spinners and improved toast notifications/error messages for tag creation and deletion.
 
-
 ### Added
 - **Lifetime Warranty Support**
   - Added lifetime warranty option for both new and existing warranties
