@@ -13,6 +13,33 @@
     - Selected tags display in the add/edit warranty forms update correctly after a tag is deleted (`renderSelectedTags`, `renderEditSelectedTags`).
     - Added loading spinners and improved toast notifications/error messages for tag creation and deletion.
 
+
+### Added
+- **Lifetime Warranty Support**
+  - Added lifetime warranty option for both new and existing warranties
+  - Implemented database migration to add `is_lifetime` column to warranties table
+  - Added lifetime warranty checkbox in add/edit warranty forms
+  - Modified warranty display to show "Lifetime" instead of expiration date for lifetime warranties
+  - Enhanced warranty status handling to properly manage lifetime warranties
+  - Updated statistics and expiring notifications to exclude lifetime warranties
+  - Added dynamic form behavior to hide warranty years input when lifetime is selected
+
+### Changed
+- **Backend API**
+  - Modified warranty-related endpoints to handle lifetime warranty flag
+  - Updated warranty validation to make warranty years optional for lifetime warranties
+  - Enhanced warranty processing to handle lifetime warranties differently in statistics
+  - Modified expiring warranty notifications to exclude lifetime warranties
+  - Updated warranty retrieval to properly sort and display lifetime warranties
+
+### UI/UX Improvements
+- Added visual indicators for lifetime warranty status in all view modes (grid, list, table)
+- Enhanced form validation to handle lifetime warranty scenarios
+- Updated warranty summary view to clearly display lifetime warranty status
+- Improved warranty filtering to properly handle lifetime warranties
+- Corrected an issue where elements in Dark Mode had sharp corners instead of rounded ones like in Light Mode. Added the missing `--border-radius: 8px;` CSS variable to the `:root[data-theme="dark"]` definition in `frontend/style.css`.
+
+
 ## [0.9.8.9] - 2025-04-03
 
 ### Added

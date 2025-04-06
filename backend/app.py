@@ -738,16 +738,16 @@ def reset_password():
 def get_warranties():
     conn = None
     try:
-        conn = get_db_connection()
         user_id = request.user['id']
         is_admin = request.user['is_admin']
         
+        conn = get_db_connection()
         with conn.cursor() as cur:
             # If admin, can see all warranties, otherwise only user's warranties
             if is_admin:
-                cur.execute('SELECT * FROM warranties ORDER BY expiration_date')
+                cur.execute('SELECT * FROM warranties ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name')
             else:
-                cur.execute('SELECT * FROM warranties WHERE user_id = %s ORDER BY expiration_date', (user_id,))
+                cur.execute('SELECT * FROM warranties WHERE user_id = %s ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name', (user_id,))
                 
             warranties = cur.fetchall()
             columns = [desc[0] for desc in cur.description]
@@ -801,18 +801,26 @@ def add_warranty():
             
         if not request.form.get('purchase_date'):
             return jsonify({"error": "Purchase date is required"}), 400
-            
-        try:
-            warranty_years = int(request.form.get('warranty_years', '0'))
-            if warranty_years <= 0 or warranty_years > 100:  # Set reasonable limits
-                return jsonify({"error": "Warranty years must be between 1 and 100"}), 400
-        except ValueError:
-            return jsonify({"error": "Warranty years must be a valid number"}), 400
+
+        # Handle lifetime warranty
+        is_lifetime = request.form.get('is_lifetime', 'false').lower() == 'true'
+        warranty_years = None
+        expiration_date = None
+
+        if not is_lifetime:
+            if not request.form.get('warranty_years'):
+                return jsonify({"error": "Warranty period (years) is required unless it's a lifetime warranty"}), 400
+            try:
+                warranty_years = int(request.form.get('warranty_years'))
+                if warranty_years <= 0 or warranty_years > 100:
+                    return jsonify({"error": "Warranty years must be between 1 and 100"}), 400
+            except ValueError:
+                return jsonify({"error": "Warranty years must be a valid number"}), 400
             
         # Process the data
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
-        serial_numbers = request.form.getlist('serial_numbers')
+        serial_numbers = request.form.getlist('serial_numbers[]')
         product_url = request.form.get('product_url', '')
         user_id = request.user['id']
         
@@ -837,11 +845,17 @@ def add_warranty():
                 return jsonify({"error": "Purchase price must be a valid number"}), 400
         
         try:
-            purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
+            purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
         except ValueError:
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
             
-        expiration_date = purchase_date + timedelta(days=warranty_years * 365)
+        # Calculate expiration date only if not lifetime
+        if not is_lifetime and warranty_years is not None:
+            try:
+                from dateutil.relativedelta import relativedelta
+                expiration_date = purchase_date + relativedelta(years=warranty_years)
+            except ImportError:
+                expiration_date = purchase_date + timedelta(days=warranty_years * 365)  # Approximate
         
         # Handle invoice file upload
         db_invoice_path = None
@@ -880,10 +894,16 @@ def add_warranty():
         with conn.cursor() as cur:
             # Insert warranty
             cur.execute('''
-                INSERT INTO warranties (product_name, purchase_date, warranty_years, expiration_date, invoice_path, manual_path, product_url, purchase_price, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO warranties (
+                    product_name, purchase_date, warranty_years, expiration_date, 
+                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (product_name, purchase_date, warranty_years, expiration_date, db_invoice_path, db_manual_path, product_url, purchase_price, user_id))
+            ''', (
+                product_name, purchase_date, warranty_years, expiration_date,
+                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime
+            ))
             warranty_id = cur.fetchone()[0]
             
             # Insert serial numbers
@@ -1197,56 +1217,36 @@ def get_statistics():
 
     try:
         conn = get_db_connection()
-        
-        # Get the user's expiring_soon_days preference
-        expiring_soon_days = 30  # Default value
-        
-        try:
-            # Check if user_preferences table exists before trying to query it
-            with conn.cursor() as check_cur:
-                check_cur.execute("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_name = 'user_preferences'
-                    )
-                """)
-                
-                table_exists = check_cur.fetchone()[0]
-                
-                if table_exists:
-                    with conn.cursor() as pref_cur:
-                        pref_cur.execute(
-                            """
-                            SELECT expiring_soon_days FROM user_preferences 
-                            WHERE user_id = %s
-                            """, 
-                            (user_id,)
-                        )
-                        
-                        preference = pref_cur.fetchone()
-                        if preference:
-                            expiring_soon_days = preference[0]
-        except Exception as e:
-            logger.error(f"Error getting user preferences: {e}")
-            # Continue with default value
-        
-        # Current date
         today = date.today()
-        thirty_days_later = today + timedelta(days=expiring_soon_days)
-        ninety_days_later = today + timedelta(days=90)
-        
-        # Build the SQL query based on user role
-        from_clause = "FROM warranties"
+
+        # Fetch user preference for expiring soon days
+        expiring_soon_days = 30 # Default value
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT expiring_soon_days FROM user_preferences WHERE user_id = %s", (user_id,))
+                result = cur.fetchone()
+                if result and result[0] is not None:
+                    expiring_soon_days = result[0]
+                    logger.info(f"Using custom expiring soon days: {expiring_soon_days} for user {user_id}")
+                else:
+                    logger.info(f"Using default expiring soon days: {expiring_soon_days} for user {user_id}")
+        except Exception as pref_err:
+             # Log error fetching preference but continue with default
+            logger.error(f"Error fetching expiring_soon_days preference for user {user_id}: {pref_err}. Using default 30 days.")
+
+        expiring_soon_date = today + timedelta(days=expiring_soon_days)
+        ninety_days_later = today + timedelta(days=90) # Keep timeline fixed or make configurable? For now, keep at 90.
+
+        # Build base query based on role
+        from_clause = "FROM warranties w"
         where_clause = ""
-        active_where = "AND"
         params = []
-        
-        # For non-admin users, filter by user_id
+        active_where = "AND"
+
         if not request.user.get('is_admin', False):
-            # For non-admin users, add join to warranty_users table
-            from_clause = "FROM warranties w JOIN warranty_users wu ON w.id = wu.warranty_id"
-            where_clause = "WHERE wu.user_id = %s"
+            where_clause = "WHERE w.user_id = %s"
             params = [user_id]
+            active_where = "AND"
         
         with conn.cursor() as cur:
             # Get total count
@@ -1254,30 +1254,32 @@ def get_statistics():
             total_count = cur.fetchone()[0]
             logger.info(f"Total warranties: {total_count}")
             
-            # Get active count
-            cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} expiration_date > %s", params + [today])
+            # Get active count (includes lifetime)
+            cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} (w.is_lifetime = TRUE OR w.expiration_date > %s)", params + [today])
             active_count = cur.fetchone()[0]
             logger.info(f"Active warranties: {active_count}")
             
-            # Get expired count
-            cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} expiration_date <= %s", params + [today])
+            # Get expired count (excludes lifetime)
+            cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} w.is_lifetime = FALSE AND w.expiration_date <= %s", params + [today])
             expired_count = cur.fetchone()[0]
             logger.info(f"Expired warranties: {expired_count}")
             
-            # Get expiring soon count (using user preference)
-            cur.execute(f"SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'} expiration_date > %s AND expiration_date <= %s", 
-                      params + [today, thirty_days_later])
+            # Get expiring soon count (excludes lifetime) using user preference
+            cur.execute(f"""SELECT COUNT(*) {from_clause} {where_clause} {active_where if where_clause else 'WHERE'}
+                          w.is_lifetime = FALSE AND w.expiration_date > %s AND w.expiration_date <= %s""",
+                      params + [today, expiring_soon_date])
             expiring_soon_count = cur.fetchone()[0]
-            logger.info(f"Expiring soon warranties: {expiring_soon_count}")
+            logger.info(f"Expiring soon ({expiring_soon_days} days) warranties: {expiring_soon_count}")
             
-            # Get expiration timeline (next 90 days, grouped by month)
+            # Get expiration timeline (next 90 days, excluding lifetime)
             cur.execute(f"""
                 SELECT 
                     EXTRACT(YEAR FROM expiration_date) as year,
                     EXTRACT(MONTH FROM expiration_date) as month,
                     COUNT(*) as count
                 {from_clause} 
-                {where_clause} {active_where if where_clause else 'WHERE'} expiration_date > %s AND expiration_date <= %s
+                {where_clause} {active_where if where_clause else 'WHERE'} 
+                w.is_lifetime = FALSE AND w.expiration_date > %s AND w.expiration_date <= %s
                 GROUP BY EXTRACT(YEAR FROM expiration_date), EXTRACT(MONTH FROM expiration_date)
                 ORDER BY year, month
             """, params + [today, ninety_days_later])
@@ -1293,17 +1295,21 @@ def get_statistics():
                     "count": count
                 })
             
-            # Get recent expiring warranties (30 days before and after today)
-            thirty_days_ago = today - timedelta(days=30)
+            # Get recent expiring warranties (using user preference +/- 30 days for range, excluding lifetime)
+            # We'll keep the window around today somewhat fixed for 'recent', maybe +/- 30 days is still reasonable? Or should this also use expiring_soon_days?
+            # Let's adjust the recent window based on the preference for now: N days ago to N days later
+            days_ago_for_recent = today - timedelta(days=expiring_soon_days)
+            days_later_for_recent = expiring_soon_date # Same as the expiring soon cutoff
             cur.execute(f"""
-                SELECT 
-                    id, product_name, purchase_date, warranty_years, 
-                    expiration_date, invoice_path, manual_path, product_url, purchase_price
-                {from_clause} 
-                {where_clause} {active_where if where_clause else 'WHERE'} expiration_date >= %s AND expiration_date <= %s
+                SELECT
+                    id, product_name, purchase_date, warranty_years,
+                    expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
+                {from_clause}
+                {where_clause} {active_where if where_clause else 'WHERE'}
+                w.is_lifetime = FALSE AND w.expiration_date >= %s AND w.expiration_date <= %s
                 ORDER BY expiration_date
                 LIMIT 10
-            """, params + [thirty_days_ago, thirty_days_later])
+            """, params + [days_ago_for_recent, days_later_for_recent])
             
             columns = [desc[0] for desc in cur.description]
             recent_warranties = []
@@ -2236,17 +2242,13 @@ def secure_file_access(filename):
         return jsonify({"message": "Error accessing file"}), 500
 
 def get_expiring_warranties():
-    """
-    Query the database to find warranties that are expiring soon based on user preferences.
-    Returns a list of dictionaries containing the necessary information for email notifications.
-    """
+    """Get warranties that are expiring soon for notification purposes"""
     conn = None
     try:
         conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Get today's date
-            today = date.today()
+        today = date.today()
 
+        with conn.cursor() as cur:
             cur.execute("""
                 SELECT
                     u.email,
@@ -2261,8 +2263,9 @@ def get_expiring_warranties():
                 LEFT JOIN
                     user_preferences up ON u.id = up.user_id
                 WHERE
-                    w.expiration_date > %s
-                    AND w.expiration_date <= %s + (COALESCE(up.expiring_soon_days, 30) || ' days')::interval
+                    w.is_lifetime = FALSE
+                    AND w.expiration_date > %s
+                    AND w.expiration_date <= (%s::date + (COALESCE(up.expiring_soon_days, 30) || ' days')::interval)::date
                     AND u.is_active = TRUE
                     AND COALESCE(up.email_notifications, TRUE) = TRUE;
             """, (today, today))

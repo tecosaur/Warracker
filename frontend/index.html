@@ -318,7 +318,16 @@
                             <input type="date" id="purchaseDate" name="purchase_date" class="form-control" required>
                         </div>
                         
+                        <!-- Add Lifetime Checkbox -->
                         <div class="form-group">
+                            <label class="lifetime-label">
+                                <input type="checkbox" id="isLifetime" name="is_lifetime" value="true">
+                                Lifetime Warranty
+                            </label>
+                        </div>
+                        <!-- End Lifetime Checkbox -->
+                        
+                        <div class="form-group" id="warrantyYearsGroup">
                             <label for="warrantyYears">Warranty Period (Years)</label>
                             <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
                         </div>
@@ -602,7 +611,16 @@
                             <input type="date" id="editPurchaseDate" name="purchase_date" class="form-control" required>
                         </div>
                         
+                        <!-- Add Lifetime Checkbox -->
                         <div class="form-group">
+                            <label class="lifetime-label">
+                                <input type="checkbox" id="editIsLifetime" name="is_lifetime" value="true">
+                                Lifetime Warranty
+                            </label>
+                        </div>
+                        <!-- End Lifetime Checkbox -->
+                        
+                        <div class="form-group" id="editWarrantyYearsGroup">
                             <label for="editWarrantyYears">Warranty Period (Years)</label>
                             <input type="number" id="editWarrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
                         </div>
