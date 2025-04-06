@@ -21,7 +21,7 @@
   - Modified warranty display to show "Lifetime" instead of expiration date for lifetime warranties
   - Enhanced warranty status handling to properly manage lifetime warranties
   - Updated statistics and expiring notifications to exclude lifetime warranties
-  - Added dynamic form behavior to hide warranty years input when lifetime is selected
+  - Added dynamic form behaviour to hide warranty years input when lifetime is selected
 
 ### Changed
 - **Backend API**
