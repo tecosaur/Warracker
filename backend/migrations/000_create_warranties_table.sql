@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS warranties (
     product_url TEXT,
     -- purchase_price is added by migration 002
     -- user_id is added by migration 003
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes if they don't exist

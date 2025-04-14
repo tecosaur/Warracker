@@ -663,17 +663,41 @@ def request_password_reset():
             )
             
             conn.commit()
+
+            # Get email base URL from settings
+            email_base_url = 'http://localhost:8080' # Default fallback
+            try:
+                cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
+                result = cur.fetchone()
+                if result:
+                    email_base_url = result[0]
+                else:
+                    logger.warning("email_base_url setting not found for password reset, using default.")
+            except Exception as e:
+                 logger.error(f"Error fetching email_base_url from settings for password reset: {e}. Using default.")
             
-            # In a real application, you would send an email with the reset link
-            # For now, we'll just return the token in the response (for testing purposes)
-            reset_link = f"/reset-password?token={reset_token}"
+            # Ensure base URL doesn't end with a slash
+            email_base_url = email_base_url.rstrip('/')
+
+            # Construct the full reset link
+            reset_link = f"{email_base_url}/reset-password.html?token={reset_token}" # Use base URL and correct page
             
+            # TODO: Implement actual email sending logic here
             logger.info(f"Password reset requested for user {user_id}. Reset link: {reset_link}")
+            # Send email using send_email function (implement this)
+            # subject = "Password Reset Request"
+            # body = f"Click the link to reset your password: {reset_link}"
+            # try:
+            #     send_email(email, subject, body) # Placeholder for email sending
+            # except Exception as e:
+            #     logger.error(f"Failed to send password reset email to {email}: {e}")
+            #     # Still return success to the user, don't leak email failure
             
             return jsonify({
-                'message': 'If your email is registered, you will receive a password reset link.',
-                'reset_link': reset_link  # Remove this in production
+                'message': 'If your email is registered, you will receive a password reset link.'
             }), 200
+            # Remove reset_link from response in production
+            # 'reset_link': reset_link 
     except Exception as e:
         logger.error(f"Password reset request error: {e}")
         if conn:
@@ -1003,6 +1027,8 @@ def delete_warranty(warranty_id):
 @app.route('/api/warranties/<int:warranty_id>', methods=['PUT'])
 @token_required
 def update_warranty(warranty_id):
+    # --- Log function entry ---
+    logger.info(f"Entering update_warranty function for ID: {warranty_id}") 
     conn = None
     try:
         user_id = request.user['id']
@@ -1028,16 +1054,49 @@ def update_warranty(warranty_id):
             if not request.form.get('purchase_date'):
                 return jsonify({"error": "Purchase date is required"}), 400
                 
+            # --- Log received data ---
+            logger.info(f"Received update request for warranty {warranty_id}")
+            logger.info(f"Form data received: is_lifetime={request.form.get('is_lifetime')}, warranty_years={request.form.get('warranty_years')}")
+            
+            # --- Added: Get is_lifetime ---
+            is_lifetime = request.form.get('is_lifetime', 'false').lower() == 'true'
+            logger.info(f"Parsed is_lifetime as: {is_lifetime}")
+            
+            purchase_date_str = request.form['purchase_date']
             try:
-                warranty_years = int(request.form.get('warranty_years', '0'))
-                if warranty_years <= 0 or warranty_years > 100:
-                    return jsonify({"error": "Warranty years must be between 1 and 100"}), 400
+                purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date() # Use .date()
             except ValueError:
-                return jsonify({"error": "Warranty years must be a valid number"}), 400
-                
+                return jsonify({"error": "Invalid date format for purchase date. Use YYYY-MM-DD"}), 400
+
+            warranty_years = None
+            expiration_date = None
+
+            # --- Modified: Conditional validation and calculation ---
+            if not is_lifetime:
+                warranty_years_str = request.form.get('warranty_years')
+                if not warranty_years_str:
+                    return jsonify({"error": "Warranty years is required for non-lifetime warranties"}), 400
+                try:
+                    warranty_years = int(warranty_years_str)
+                    if warranty_years <= 0 or warranty_years > 100:
+                        # Allow 0 years if is_lifetime is true? Let's keep validation strict for now.
+                        return jsonify({"error": "Warranty years must be between 1 and 100 for non-lifetime warranties"}), 400
+
+                    # Calculate expiration date precisely if possible, otherwise approximate
+                    try:
+                        from dateutil.relativedelta import relativedelta
+                        expiration_date = purchase_date + relativedelta(years=warranty_years)
+                    except ImportError:
+                        # Fallback to approximation if dateutil is not available
+                        expiration_date = purchase_date + timedelta(days=warranty_years * 365)
+
+                except ValueError:
+                    return jsonify({"error": "Warranty years must be a valid number"}), 400
+            # else: warranty_years and expiration_date remain None for lifetime
+
             # Process the data
             product_name = request.form['product_name']
-            purchase_date_str = request.form['purchase_date']
+            # purchase_date_str = request.form['purchase_date'] # Moved up
             serial_numbers = request.form.getlist('serial_numbers')
             product_url = request.form.get('product_url', '')
             
@@ -1060,13 +1119,6 @@ def update_warranty(warranty_id):
                         return jsonify({"error": "Purchase price cannot be negative"}), 400
                 except ValueError:
                     return jsonify({"error": "Purchase price must be a valid number"}), 400
-            
-            try:
-                purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d')
-            except ValueError:
-                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
-                
-            expiration_date = purchase_date + timedelta(days=warranty_years * 365)
             
             # Handle invoice file upload if new file is provided
             db_invoice_path = None
@@ -1130,11 +1182,13 @@ def update_warranty(warranty_id):
                 
             # Update the warranty in database - IMPORTANT: The database set operation needs to be updated
             # Create a list of parameters for the UPDATE query
+            # --- Modified: Add is_lifetime, use potentially None values ---
             update_params = {
                 'product_name': product_name,
                 'purchase_date': purchase_date,
-                'warranty_years': warranty_years,
-                'expiration_date': expiration_date,
+                'is_lifetime': is_lifetime,
+                'warranty_years': warranty_years, # Will be None if lifetime
+                'expiration_date': expiration_date, # Will be None if lifetime
                 'product_url': product_url,
                 'purchase_price': purchase_price
             }
@@ -1156,6 +1210,9 @@ def update_warranty(warranty_id):
             if db_manual_path is not None:
                 sql_fields.append("manual_path = %s")
                 sql_values.append(db_manual_path)
+                
+            # --- Add updated_at to the SET clause --- 
+            sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
                 
             # Add the warranty_id at the end
             sql_values.append(warranty_id)
@@ -2070,6 +2127,16 @@ def get_site_settings():
                     ('registration_enabled', 'true')
                 )
                 conn.commit()
+
+            # Default email base URL if not set
+            if 'email_base_url' not in settings:
+                default_base_url = 'http://localhost:8080' # Default value
+                settings['email_base_url'] = default_base_url
+                cur.execute(
+                    'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
+                    ('email_base_url', default_base_url)
+                )
+                conn.commit()
             
             return jsonify(settings), 200
     except Exception as e:
@@ -2297,9 +2364,30 @@ def format_expiration_email(user, warranties):
     """
     subject = "Warracker: Upcoming Warranty Expirations"
     
+    # Get email base URL from settings
+    conn = None
+    email_base_url = 'http://localhost:8080' # Default fallback
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
+            result = cur.fetchone()
+            if result:
+                email_base_url = result[0]
+            else:
+                logger.warning("email_base_url setting not found, using default.")
+    except Exception as e:
+        logger.error(f"Error fetching email_base_url from settings: {e}. Using default.")
+    finally:
+        if conn:
+            release_db_connection(conn)
+    
+    # Ensure base URL doesn't end with a slash
+    email_base_url = email_base_url.rstrip('/')
+    
     # Create both plain text and HTML versions of the email body
-    text_body = f"Hello {user['first_name']},\n\n"
-    text_body += "The following warranties are expiring soon:\n\n"
+    text_body = f"Hello {user['first_name']},\\n\\n"
+    text_body += "The following warranties are expiring soon:\\n\\n"
     
     html_body = f"""\
     <html>
@@ -2318,7 +2406,7 @@ def format_expiration_email(user, warranties):
     """
 
     for warranty in warranties:
-        text_body += f"- {warranty['product_name']} (expires on {warranty['expiration_date']})\n"
+        text_body += f"- {warranty['product_name']} (expires on {warranty['expiration_date']})\\n"
         html_body += f"""\
             <tr>
               <td style="padding: 8px;">{warranty['product_name']}</td>
@@ -2326,16 +2414,16 @@ def format_expiration_email(user, warranties):
             </tr>
         """
 
-    text_body += "\nLog in to Warracker to view details:\n"
-    text_body += "http://localhost:8080\n\n"
-    text_body += "Manage your notification settings:\n"
-    text_body += "http://localhost:8080/settings.html\n"
+    text_body += "\\nLog in to Warracker to view details:\\n"
+    text_body += f"{email_base_url}\\n\\n" # Use configurable base URL
+    text_body += "Manage your notification settings:\\n"
+    text_body += f"{email_base_url}/settings.html\\n" # Use configurable base URL
 
     html_body += f"""\
           </tbody>
         </table>
-        <p>Log in to <a href="http://localhost:8080">Warracker</a> to view details.</p>
-        <p>Manage your notification settings <a href="http://localhost:8080/settings.html">here</a>.</p>
+        <p>Log in to <a href="{email_base_url}">Warracker</a> to view details.</p> # Use configurable base URL
+        <p>Manage your notification settings <a href="{email_base_url}/settings.html">here</a>.</p> # Use configurable base URL
       </body>
     </html>
     """

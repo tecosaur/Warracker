@@ -63,6 +63,10 @@ const editIsLifetimeCheckbox = document.getElementById('editIsLifetime');
 const editWarrantyYearsGroup = document.getElementById('editWarrantyYearsGroup');
 const editWarrantyYearsInput = document.getElementById('editWarrantyYears');
 
+// Add near other DOM Element declarations
+const showAddWarrantyBtn = document.getElementById('showAddWarrantyBtn');
+const addWarrantyModal = document.getElementById('addWarrantyModal');
+
 /**
  * Get current user type (admin or user)
  * @returns {string} 'admin' or 'user'
@@ -162,11 +166,16 @@ let expiringSoonDays = 30; // Default value, will be updated from user preferenc
 const API_URL = '/api/warranties';
 
 // Form tab navigation variables
-const formTabs = Array.from(document.querySelectorAll('.form-tab'));
-const tabContentsArray = document.querySelectorAll('.tab-content');
-tabContents = Array.from(tabContentsArray);  // Convert NodeList to Array
+// Ensure these elements exist before trying to select them
+const formTabsElements = document.querySelectorAll('.form-tab');
+const formTabs = formTabsElements ? Array.from(formTabsElements) : [];
+const tabContentsElements = document.querySelectorAll('.tab-content');
+tabContents = tabContentsElements ? Array.from(tabContentsElements) : [];
 const nextButton = document.querySelector('.next-tab');
 const prevButton = document.querySelector('.prev-tab');
+
+// --- Add near other DOM Element declarations ---
+const serialNumbersContainer = document.getElementById('serialNumbersContainer'); // Keep this line
 
 // Initialize form tabs
 function initFormTabs() {
@@ -562,108 +571,91 @@ async function exportWarranties() {
 
 // Switch view of warranties list
 function switchView(viewType) {
-    console.log(`Switching to ${viewType} view...`);
-    
-    // Update currentView
+    console.log(`Switching to view: ${viewType}`);
     currentView = viewType;
-    
-    // Remove active class from all view buttons
-    gridViewBtn.classList.remove('active');
-    listViewBtn.classList.remove('active');
-    tableViewBtn.classList.remove('active');
-    
-    // Update the view
-    warrantiesList.className = `warranties-list ${viewType}-view`;
-    
-    // Hide table header if not in table view
-    if (tableViewHeader) {
-        tableViewHeader.style.display = viewType === 'table' ? 'flex' : 'none';
-    }
-    
-    // Add active class to the selected view button
-    if (viewType === 'grid') {
-        gridViewBtn.classList.add('active');
-    } else if (viewType === 'list') {
-        listViewBtn.classList.add('active');
-    } else if (viewType === 'table') {
-        tableViewBtn.classList.add('active');
-    }
-    
-    // Re-render warranties with the new view
-    console.log('Applying filters after switching view...');
-    applyFilters();
-    
-    // Get prefix for user-specific preferences
+
+    // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
+    localStorage.setItem(`${prefix}viewPreference`, viewType);
+    localStorage.setItem('viewPreference', viewType); // Keep for backward compatibility
+
+    // Make sure warrantiesList exists before modifying classes
+    if (warrantiesList) {
+        warrantiesList.classList.remove('grid-view', 'list-view', 'table-view');
+        warrantiesList.classList.add(`${viewType}-view`);
+    }
+
+    // Make sure view buttons exist
+    if (gridViewBtn && listViewBtn && tableViewBtn) {
+        gridViewBtn.classList.remove('active');
+        listViewBtn.classList.remove('active');
+        tableViewBtn.classList.remove('active');
+    }
     
-    // Save view preference to localStorage with the appropriate prefix
-    localStorage.setItem(`${prefix}warrantyView`, viewType);
-    localStorage.setItem('warrantyView', viewType); // Keep global setting for backward compatibility
+    // Make sure the specific button exists
+    if (viewType === 'grid' && gridViewBtn) gridViewBtn.classList.add('active');
+    if (viewType === 'list' && listViewBtn) listViewBtn.classList.add('active');
+    if (viewType === 'table' && tableViewBtn) tableViewBtn.classList.add('active');
+
+    // Show/hide table header only if it exists
+    if (tableViewHeader) {
+        tableViewHeader.classList.toggle('visible', viewType === 'table');
+    }
+
+    // Re-render warranties only if warrantiesList exists
+    if (warrantiesList) {
+        renderWarranties(filterWarranties());
+    }
 }
 
-// Load saved view preference
+// Load view preference from localStorage
 function loadViewPreference() {
-    // Get prefix for user-specific preferences
+    // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
+    let savedView = localStorage.getItem(`${prefix}viewPreference`);
     
-    // First check for user-specific warrantyView
-    const userSavedView = localStorage.getItem(`${prefix}warrantyView`);
-    
-    if (userSavedView) {
-        console.log(`Found user-specific view preference: ${userSavedView}`);
-        switchView(userSavedView);
-        return;
+    // Fallback to global preference if user-specific one isn't found
+    if (!savedView) {
+        savedView = localStorage.getItem('viewPreference');
     }
     
-    // If not found, check for user-specific defaultView
-    const userDefaultView = localStorage.getItem(`${prefix}defaultView`);
-    if (userDefaultView) {
-        console.log(`Found user-specific default view: ${userDefaultView}`);
-        switchView(userDefaultView);
-        return;
-    }
+    // Default to grid view if no preference is saved
+    savedView = savedView || 'grid';
     
-    // If no user-specific preferences found, check global preferences for backward compatibility
-    const globalSavedView = localStorage.getItem('warrantyView');
-    if (globalSavedView) {
-        console.log(`Found global view preference: ${globalSavedView}`);
-        switchView(globalSavedView);
-        return;
+    console.log(`Found global view preference: ${savedView}`);
+    // Switch view only if view buttons exist (implying it's the main page)
+    if (gridViewBtn || listViewBtn || tableViewBtn) {
+        switchView(savedView);
     }
-    
-    const globalDefaultView = localStorage.getItem('defaultView');
-    if (globalDefaultView) {
-        console.log(`Found global default view: ${globalDefaultView}`);
-        switchView(globalDefaultView);
-        return;
-    }
-    
-    // Default to grid view if no preferences found
-    console.log('No view preference found, defaulting to grid view');
-    switchView('grid');
 }
 
 // Dark mode toggle
-darkModeToggle.addEventListener('change', (e) => {
-    setTheme(e.target.checked);
-});
-
-const serialNumbersContainer = document.getElementById('serialNumbersContainer');
+if (darkModeToggle) { // Add check for darkModeToggle
+    darkModeToggle.addEventListener('change', (e) => {
+        setTheme(e.target.checked);
+    });
+}
 
 // Add event listener for adding new serial number inputs
-serialNumbersContainer.addEventListener('click', (e) => {
-    if (e.target.closest('.add-serial-number')) {
-        addSerialNumberInput();
-    }
-});
+// Add check for serialNumbersContainer before adding listener
+if (serialNumbersContainer) {
+    serialNumbersContainer.addEventListener('click', (e) => {
+        if (e.target.closest('.add-serial-number')) {
+            addSerialNumberInput();
+        }
+    });
+}
 
 // Add a serial number input field
 function addSerialNumberInput(container = serialNumbersContainer) {
-    if (!container) return;
-    
-    // Create a new input group
-    const inputGroup = document.createElement('div');
-    inputGroup.className = 'serial-number-input';
+    // Check if the container exists before proceeding
+    if (!container) {
+        console.warn('Serial numbers container not found, cannot add input.');
+        return;
+    }
+
+    const div = document.createElement('div');
+    div.className = 'serial-number-input d-flex mb-2';
     
     // Create an input element
     const input = document.createElement('input');
@@ -676,7 +668,7 @@ function addSerialNumberInput(container = serialNumbersContainer) {
     const isFirstInput = container.querySelectorAll('.serial-number-input').length === 0;
     
     // Append input to the input group
-    inputGroup.appendChild(input);
+    div.appendChild(input);
     
     // Only add remove button if this is not the first input
     if (!isFirstInput) {
@@ -688,19 +680,19 @@ function addSerialNumberInput(container = serialNumbersContainer) {
         
         // Add event listener to remove button
         removeButton.addEventListener('click', function() {
-            container.removeChild(inputGroup);
+            container.removeChild(div);
         });
         
         // Append remove button to the input group
-        inputGroup.appendChild(removeButton);
+        div.appendChild(removeButton);
     }
     
     // Insert the new input group before the add button
     const addButton = container.querySelector('.add-serial');
     if (addButton) {
-        container.insertBefore(inputGroup, addButton);
+        container.insertBefore(div, addButton);
     } else {
-        container.appendChild(inputGroup);
+        container.appendChild(div);
         
         // Create and append an add button if it doesn't exist
         const addButton = document.createElement('button');
@@ -1194,36 +1186,41 @@ async function renderWarranties(warrantiesToRender) {
 }
 
 function filterWarranties() {
-    const searchTerm = searchInput.value.toLowerCase();
-    
-    // Show or hide the clear search button
-    clearSearchBtn.style.display = searchTerm ? 'flex' : 'none';
-    
-    if (!searchTerm) {
-        renderWarranties();
-        return;
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : ''; // Add null check for searchInput
+
+    // Show or hide the clear search button if it exists
+    if (clearSearchBtn) {
+        clearSearchBtn.style.display = searchTerm ? 'flex' : 'none';
     }
-    
+
+    if (!searchTerm) {
+        return warranties; // Return the full list if no search term
+        // REMOVED: renderWarranties(); 
+        // REMOVED: return;
+    }
+
     const filtered = warranties.filter(warranty => {
         // Check product name
-        if (warranty.product_name.toLowerCase().includes(searchTerm)) {
+        if (warranty.product_name && warranty.product_name.toLowerCase().includes(searchTerm)) { // Add null check
             return true;
         }
-        
+
         // Check tags
         if (warranty.tags && Array.isArray(warranty.tags)) {
-            return warranty.tags.some(tag => tag.name.toLowerCase().includes(searchTerm));
+            return warranty.tags.some(tag => tag.name && tag.name.toLowerCase().includes(searchTerm)); // Add null check
         }
-        
+
         return false;
     });
-    
-    // Add visual feedback if no results found
-    if (filtered.length === 0) {
-        renderEmptyState(`No matches found for "${searchTerm}". Try a different search term.`);
-    } else {
-        renderWarranties(filtered);
-    }
+
+    // REMOVED: Add visual feedback if no results found
+    // REMOVED: if (filtered.length === 0) {
+    // REMOVED:     renderEmptyState(`No matches found for "${searchTerm}". Try a different search term.`);
+    // REMOVED: } else {
+    // REMOVED:     renderWarranties(filtered);
+    // REMOVED: }
+
+    return filtered; // Return the filtered list
 }
 
 function applyFilters() {
@@ -1606,16 +1603,14 @@ function submitForm(event) {
         hideLoadingSpinner();
         showToast('Warranty added successfully', 'success');
         
-        // Reset form and reload warranties
-        resetForm();
-        
-        // Reset selected tags
-        selectedTags = [];
-        if (selectedTagsContainer) {
-            selectedTagsContainer.innerHTML = '';
+        // --- Close and reset the modal on success ---
+        if (addWarrantyModal) {
+            addWarrantyModal.classList.remove('active');
         }
-        
-        loadWarranties();
+        resetAddWarrantyWizard(); // Reset the wizard form
+        // --- End modification ---
+
+        loadWarranties(); // Reload the list
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -1626,17 +1621,25 @@ function submitForm(event) {
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize the warranty form
-    initWarrantyForm();
+    // Initialize the warranty form *only* if the form element exists
+    if (warrantyForm) {
+        initWarrantyForm();
+    }
     
-    // Load warranties
-    loadWarranties();
+    // Load warranties (might need checks if warrantiesList doesn't always exist)
+    if (warrantiesList) { 
+        loadWarranties();
+        loadViewPreference(); // Load user's preferred view
+        loadTags(); // Load tags for the form
+        initTagFunctionality(); // Initialize tag search/selection
+    }
     
-    // Initialize theme
+    // Initialize theme (should be safe on all pages)
     initializeTheme();
     
-    // Set up event listeners for other UI controls
+    // Set up event listeners for other UI controls (should contain checks)
     setupUIEventListeners();
+    setupModalTriggers(); // Add the new modal listeners
 });
 
 // Add this function to handle edit tab functionality
@@ -2466,9 +2469,11 @@ function saveWarranty() {
         return;
     }
     
+    // --- Get form values ---
     const productName = document.getElementById('editProductName').value.trim();
     const purchaseDate = document.getElementById('editPurchaseDate').value;
-    const warrantyYears = document.getElementById('editWarrantyYears').value;
+    const isLifetime = document.getElementById('editIsLifetime').checked;
+    const warrantyYears = document.getElementById('editWarrantyYears').value; // Declare only once
     
     // Basic validation
     if (!productName) {
@@ -2481,16 +2486,28 @@ function saveWarranty() {
         return;
     }
     
-    if (!warrantyYears || warrantyYears <= 0) {
-        showToast('Warranty period must be greater than 0', 'error');
-        return;
+    // --- Modified Validation ---
+    // Only validate warrantyYears if it's NOT a lifetime warranty
+    if (!isLifetime) {
+        // Use parseInt to ensure it's treated as a number
+        if (!warrantyYears || parseInt(warrantyYears, 10) <= 0) { 
+            showToast('Warranty period (years) must be greater than 0 for non-lifetime warranties', 'error');
+            // Optional: focus the years input again
+            const yearsInput = document.getElementById('editWarrantyYears');
+            if (yearsInput) { // Check if element exists
+                yearsInput.focus();
+                yearsInput.classList.add('invalid');
+            }
+            return;
+        }
     }
+    // --- End Modified Validation ---
     
     // Create form data
     const formData = new FormData();
     formData.append('product_name', productName);
     formData.append('purchase_date', purchaseDate);
-    formData.append('warranty_years', warrantyYears);
+    // formData.append('warranty_years', warrantyYears); // Append conditionally later
     
     // Optional fields
     const productUrl = document.getElementById('editProductUrl').value.trim();
@@ -2531,22 +2548,22 @@ function saveWarranty() {
         formData.append('manual', manualFile);
     }
     
-    // --- Add Lifetime Check ---
-    if (!editIsLifetimeCheckbox.checked && !editWarrantyYearsInput.value) {
-        showToast('Warranty period (years) is required unless it\'s a lifetime warranty', 'error');
-        // Switch to the warranty details tab in the edit modal
-        const warrantyTabBtn = document.querySelector('.edit-tab-btn[data-tab="edit-warranty-details"]');
-        if (warrantyTabBtn) warrantyTabBtn.click();
-        editWarrantyYearsInput.focus();
-        editWarrantyYearsInput.classList.add('invalid');
-        return;
-    }
+    // --- Remove redundant check (already covered by validation) ---
+    // if (!editIsLifetimeCheckbox.checked && !editWarrantyYearsInput.value) {
+    //     showToast('Warranty period (years) is required unless it\'s a lifetime warranty', 'error');
+    //     // Switch to the warranty details tab in the edit modal
+    //     const warrantyTabBtn = document.querySelector('.edit-tab-btn[data-tab="edit-warranty-details"]');
+    //     if (warrantyTabBtn) warrantyTabBtn.click();
+    //     editWarrantyYearsInput.focus();
+    //     editWarrantyYearsInput.classList.add('invalid');
+    //     return;
+    // }
 
     // --- Append is_lifetime and warranty_years ---
-    const isLifetime = editIsLifetimeCheckbox.checked;
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
-        formData.append('warranty_years', editWarrantyYearsInput.value);
+        // Use the value we already retrieved
+        formData.append('warranty_years', warrantyYears);
     }
     
     // Get auth token
@@ -2842,5 +2859,91 @@ function handleEditLifetimeChange(event) {
     } else {
         group.style.display = 'block';
         input.required = true;
+    }
+}
+
+// --- Add this function to reset the wizard ---
+function resetAddWarrantyWizard() {
+    console.log('Resetting Add Warranty Wizard...');
+    // Reset the form fields
+    if (warrantyForm) {
+        warrantyForm.reset();
+    }
+
+    // Reset serial numbers container (remove all but the first input structure)
+    if (serialNumbersContainer) {
+        serialNumbersContainer.innerHTML = ''; // Clear it
+        addSerialNumberInput(); // Add the initial input back
+    }
+
+    // Reset file input displays
+    if (fileName) fileName.textContent = '';
+    if (manualFileName) manualFileName.textContent = '';
+
+    // Reset selected tags
+    selectedTags = [];
+    renderSelectedTags(); // Update the display
+
+    // Reset tabs to the first one
+    // Use the globally defined tabContents if available
+    const tabs = addWarrantyModal?.querySelectorAll('.form-tab');
+    const contents = addWarrantyModal?.querySelectorAll('.tab-content');
+    if (tabs && contents && tabs.length > 0 && contents.length > 0) {
+      currentTabIndex = 0;
+      switchToTab(0); // Use the existing function to switch
+    } else {
+       console.warn("Could not find tabs/contents inside addWarrantyModal to reset.");
+    }
+
+    // Clear any validation states
+    addWarrantyModal?.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+    addWarrantyModal?.querySelectorAll('.validation-message').forEach(el => el.remove());
+
+    // Reset lifetime checkbox state if needed (ensure handler runs)
+    if (isLifetimeCheckbox) {
+         isLifetimeCheckbox.checked = false; // Explicitly uncheck
+         handleLifetimeChange({ target: isLifetimeCheckbox }); // Trigger handler to reset visibility/required state
+    }
+}
+
+// --- Modify setupUIEventListeners or add this within DOMContentLoaded ---
+function setupModalTriggers() {
+    // Show Add Warranty Modal
+    if (showAddWarrantyBtn && addWarrantyModal) {
+        showAddWarrantyBtn.addEventListener('click', () => {
+            resetAddWarrantyWizard(); // Reset before showing
+            addWarrantyModal.classList.add('active');
+            // Re-initialize tabs specifically for this modal if needed,
+            // but initFormTabs() in DOMContentLoaded should handle it.
+            // Ensure the first tab content is displayed correctly after reset
+            switchToTab(0); 
+        });
+    }
+
+    // Hide Add Warranty Modal (using existing close logic)
+    if (addWarrantyModal) {
+        // Close button inside modal
+        const closeBtn = addWarrantyModal.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                addWarrantyModal.classList.remove('active');
+                resetAddWarrantyWizard(); // Reset on close
+            });
+        }
+        // Backdrop click
+        addWarrantyModal.addEventListener('click', (e) => {
+            if (e.target === addWarrantyModal) {
+                addWarrantyModal.classList.remove('active');
+                resetAddWarrantyWizard(); // Reset on close
+            }
+        });
+        // Optional: Cancel button in footer if you add one
+        // const cancelBtn = addWarrantyModal.querySelector('.cancel-btn');
+        // if (cancelBtn) {
+        //     cancelBtn.addEventListener('click', () => {
+        //         addWarrantyModal.classList.remove('active');
+        //         resetAddWarrantyWizard(); // Reset on cancel
+        //     });
+        // }
     }
 }

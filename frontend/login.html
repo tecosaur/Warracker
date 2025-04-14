@@ -6,8 +6,13 @@
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Warranty Tracker</title>
+    <title>Login - Warracker</title>
+    <!-- Favicons -->
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="stylesheet" href="style.css">
+    <script src="theme-loader.js"></script>  <!-- Apply theme early -->
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
@@ -99,7 +104,7 @@
         <div class="container">
             <div class="app-title">
                 <i class="fas fa-shield-alt"></i>
-                <h1>Warranty Tracker</h1>
+                <h1>Warracker</h1>
             </div>
         </div>
     </header>
@@ -224,35 +229,7 @@
                 authMessage.classList.add(type);
                 authMessage.style.display = 'block';
             }
-            
-            // Check for dark mode preference
-            const darkModeEnabled = localStorage.getItem('darkMode') === 'enabled';
-            if (darkModeEnabled) {
-                document.body.classList.add('dark-mode');
-            }
         });
-
-        // Theme initialization
-        function setTheme(isDark) {
-            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        }
-
-        function initializeTheme() {
-            // Check for saved theme preference
-            const savedTheme = localStorage.getItem('darkMode');
-            
-            if (savedTheme !== null) {
-                // Use saved preference
-                setTheme(savedTheme === 'true');
-            } else {
-                // Use system preference as fallback
-                const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                setTheme(prefersDarkMode);
-            }
-        }
-
-        // Initialize theme when page loads
-        document.addEventListener('DOMContentLoaded', initializeTheme);
     </script>
 </body>
 </html>

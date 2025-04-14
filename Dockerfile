@@ -32,6 +32,9 @@ COPY backend/migrations/ /app/migrations/
 COPY frontend/*.html /var/www/html/
 COPY frontend/*.js /var/www/html/
 COPY frontend/*.css /var/www/html/
+# Add favicon and images
+COPY frontend/favicon.ico /var/www/html/
+COPY frontend/img/ /var/www/html/img/
 
 # Configure nginx site
 RUN rm /etc/nginx/sites-enabled/default

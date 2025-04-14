@@ -81,11 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ... existing code ...
 });
 
-// Dark mode toggle
-darkModeToggle.addEventListener('change', (e) => {
-    setTheme(e.target.checked);
-});
-
 // Refresh dashboard button
 refreshDashboardBtn.addEventListener('click', () => {
     refreshDashboard();
@@ -919,21 +914,21 @@ function exportWarrantyData() {
 // Set up event listeners for filtering and sorting
 function setupEventListeners() {
     // Refresh button
-    if (refreshDashboardBtn) {
+    if (refreshDashboardBtn) { // Check element exists before adding listener
         refreshDashboardBtn.addEventListener('click', refreshDashboard);
     }
-    
+
     // Search input
     if (searchWarranties) {
         searchWarranties.addEventListener('input', filterAndSortWarranties);
     }
-    
+
     // Status filter
-    if (statusFilter) {
+    if (statusFilter) { // Check element exists before adding listener
         statusFilter.addEventListener('change', filterAndSortWarranties);
     }
-    
-    // Sortable headers
+
+    // Sortable headers (check if collection exists)
     if (sortableHeaders) {
         sortableHeaders.forEach(header => {
             header.addEventListener('click', () => {
@@ -955,17 +950,17 @@ function setupEventListeners() {
             });
         });
     }
-    
+
     // Export button
-    if (exportBtn) {
+    if (exportBtn) { // Check element exists before adding listener
         exportBtn.addEventListener('click', exportWarrantyData);
     }
-    
-    // Dark mode toggle
+
+    // Dark mode toggle (check element exists before adding listener)
     if (darkModeToggle) {
         darkModeToggle.addEventListener('change', (e) => {
             setTheme(e.target.checked);
-            
+
             // Redraw charts with new theme colors if they exist
             if (window.statusChart) {
                 createStatusChart({

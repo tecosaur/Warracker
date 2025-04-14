@@ -61,6 +61,7 @@ body {
   background-color: var(--bg-color);
   padding: 0;
   margin: 0;
+  z-index: 1000;
 }
 
 .container {
@@ -281,8 +282,10 @@ input.invalid {
   color: var(--primary-color);
   margin-bottom: 20px;
   font-size: 1.5rem;
-  border-bottom: 2px solid var(--medium-gray);
   padding-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .form-group {
@@ -403,13 +406,13 @@ input.invalid {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   padding: 25px;
+  grid-column: 1 / -1; /* Make panel span full width */
 }
 
 .warranties-panel h2 {
   color: var(--primary-color);
   margin-bottom: 20px;
   font-size: 1.5rem;
-  border-bottom: 2px solid var(--medium-gray);
   padding-bottom: 10px;
   display: flex;
   justify-content: space-between;
@@ -685,7 +688,7 @@ input.invalid {
 }
 
 .modal-backdrop.active {
-  display: flex;
+  display: flex; /* Shown when active */
 }
 
 .modal {
@@ -699,7 +702,7 @@ input.invalid {
   flex-direction: column;
   animation: slide-in 0.3s ease;
   position: relative;
-  overflow: hidden;
+  overflow: hidden; /* Changed from auto to hidden */
 }
 
 @keyframes slide-in {
@@ -770,9 +773,9 @@ input.invalid {
 
 .modal-body {
   padding: 1rem;
-  overflow-y: auto;
-  flex: 1;
-  background-color: var(--modal-background, #ffffff);
+  overflow-y: auto; /* Enable vertical scroll */
+  flex-grow: 1; /* Allow body to take available space */
+  background-color: var(--card-bg); /* Ensure background */
 }
 
 .modal-footer {
@@ -2969,4 +2972,54 @@ input.invalid {
 .table-view .tags-row-cell {
     display: table-cell;
     vertical-align: middle;
+}
+
+/* Style the new button */
+.add-warranty-button-container {
+    /* grid-column: 1 / -1; /* REMOVED */
+    /* text-align: right; /* REMOVED */
+    /* margin-bottom: 20px; /* REMOVED */
+    /* No longer needs standalone styles here */
+}
+
+/* REMOVE this rule if button size is handled by btn-sm */
+/* #showAddWarrantyBtn {
+    width: auto; 
+    padding: 10px 20px;
+} */
+/* REMOVE this rule if icon margin is handled by btn-sm or FontAwesome defaults */
+/* #showAddWarrantyBtn i {
+    margin-right: 8px;
+} */
+
+/* Forms */
+// ... existing code ...
+/* ===== WARRANTIES LIST ===== */
+.warranties-panel {
+// ... existing code ...
+}
+
+/* ADD styles for Panel Header */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.panel-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--primary-color);
+  flex-grow: 1;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }

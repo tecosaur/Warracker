@@ -42,6 +42,7 @@ const testApiBtn = document.getElementById('testApiBtn');
 const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn');
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
+const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
 
 /**
  * Initialize dark mode toggle
@@ -2406,31 +2407,48 @@ function closeAllModals() {
  * Load site settings
  */
 async function loadSiteSettings() {
-    showLoading();
-    
-    try {
+    console.log('Loading site settings...');
+    const adminSection = document.getElementById('adminSection');
+    const registrationToggle = document.getElementById('registrationEnabled');
+    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Correct variable name
+
+    // // Check if admin section exists
+    // if (!adminSection) {
+    //     console.log('Admin section not found, skipping site settings load');
+    //     return;
+    // }
+
+    try { // Correct structure: try block starts
+        showLoading();
+        
         const response = await fetch('/api/admin/settings', {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${window.auth.getToken()}`
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
             }
         });
         
-        if (response.ok) {
-            const settings = await response.json();
-            
-            // Update form fields
-            if (registrationEnabled) {
-                registrationEnabled.checked = settings.registration_enabled === 'true';
-            }
-        } else {
-            const errorData = await response.json();
-            console.warn('API error:', errorData.message);
+        if (!response.ok) {
+            throw new Error(`Failed to load site settings: ${response.status} ${response.statusText}`);
         }
-    } catch (error) {
+        
+        const settings = await response.json();
+        
+        if (registrationToggle) {
+            registrationToggle.checked = settings.registration_enabled === 'true';
+        }
+        
+        if (emailBaseUrlField) { // Use correct variable name
+            emailBaseUrlField.value = settings.email_base_url || 'http://localhost:8080'; // Set the value
+        }
+        
+        console.log('Site settings loaded successfully', settings);
+        
+    } catch (error) { // Correct structure: catch block follows try
         console.error('Error loading site settings:', error);
         showToast('Failed to load site settings. Please try again.', 'error');
-    } finally {
+    } finally { // Correct structure: finally block follows catch
         hideLoading();
     }
 }
@@ -2439,18 +2457,45 @@ async function loadSiteSettings() {
  * Save site settings
  */
 async function saveSiteSettings() {
-    showLoading();
+    console.log('Saving site settings...');
+    const registrationToggle = document.getElementById('registrationEnabled');
+    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Get the new field
+
+    const settings = {};
+    
+    if (registrationToggle) {
+        settings.registration_enabled = registrationToggle.checked; // Boolean value will be converted to string in backend
+    }
+
+    if (emailBaseUrlField) {
+        let baseUrl = emailBaseUrlField.value.trim();
+        // Basic validation: check if it looks somewhat like a URL
+        if (baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://'))) {
+             // Remove trailing slash if present
+            if (baseUrl.endsWith('/')) {
+                baseUrl = baseUrl.slice(0, -1);
+            }
+            settings.email_base_url = baseUrl;
+        } else if (baseUrl) {
+            showToast('Invalid Email Base URL format. It should start with http:// or https://', 'error');
+            return; // Stop saving if format is invalid
+        } else {
+             settings.email_base_url = 'http://localhost:8080'; // Use default if empty
+             emailBaseUrlField.value = settings.email_base_url; // Update field with default
+        }
+    }
+
     
     try {
+        showLoading();
+
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${window.auth.getToken()}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                registration_enabled: registrationEnabled ? registrationEnabled.checked : false
-            })
+            body: JSON.stringify(settings)
         });
         
         if (response.ok) {

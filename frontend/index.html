@@ -12,8 +12,17 @@
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warranty Tracker</title>
+    <title>Warracker - Warranty Tracker</title>
+    <!-- Add standard favicon.ico link -->
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <!-- Replace the old favicon link -->
+    <!-- <link rel="icon" type="image/png" href="img/favicon.png"> -->
+    <!-- Add new favicon links -->
+    <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="stylesheet" href="style.css">
+    <script src="theme-loader.js"></script> <!-- Apply theme early -->
+
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
@@ -207,7 +216,7 @@
         <div class="container">
             <div class="app-title">
                 <i class="fas fa-shield-alt"></i>
-                <h1>Warranty Tracker</h1>
+                <h1>Warracker</h1>
             </div>
             <div class="nav-links">
                 <a href="index.html" class="nav-link active">
@@ -236,9 +245,13 @@
                         <div id="userEmail" class="user-email">user@example.com</div>
                     </div>
                     <div class="user-menu-item">
-                        <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                            <i class="fas fa-cog"></i> Settings
-                        </a>
+                         <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
+                             <i class="fas fa-cog"></i> Settings
+                         </a>
+                     </div>
+                    <div class="user-menu-item">
+                        <i class="fas fa-info-circle"></i>
+                        <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
                     </div>
                     <div class="user-menu-item" id="logoutMenuItem">
                         <i class="fas fa-sign-out-alt"></i> Logout
@@ -270,211 +283,25 @@
     <!-- Main Content -->
     <div class="container">
         <div class="main-content">
-            <!-- Form Panel -->
-            <div class="form-panel">
-                <h2>Add New Warranty</h2>
-                <div class="form-tabs" data-step="0">
-                    <div class="form-tab active" data-tab="product-info">
-                        <i class="fas fa-box"></i> Product
-                    </div>
-                    <div class="form-tab" data-tab="warranty-details">
-                        <i class="fas fa-shield-alt"></i> Warranty
-                    </div>
-                    <div class="form-tab" data-tab="documents">
-                        <i class="fas fa-file-alt"></i> Documents
-                    </div>
-                    <div class="form-tab" data-tab="tags">
-                        <i class="fas fa-tags"></i> Tags
-                    </div>
-                    <div class="form-tab" data-tab="summary">
-                        <i class="fas fa-check-circle"></i> Summary
-                    </div>
-                </div>
-                <form id="warrantyForm">
-                    <!-- Product Information Tab -->
-                    <div class="tab-content active" id="product-info">
-                        <div class="form-group">
-                            <label for="productName">Product Name</label>
-                            <input type="text" id="productName" name="product_name" class="form-control" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="productUrl">Product URL (Optional)</label>
-                            <input type="url" id="productUrl" name="product_url" class="form-control" placeholder="https://example.com/product">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Serial Numbers</label>
-                            <div id="serialNumbersContainer">
-                                <!-- Serial number inputs will be added dynamically -->
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Warranty Details Tab -->
-                    <div class="tab-content" id="warranty-details">
-                        <div class="form-group">
-                            <label for="purchaseDate">Purchase Date</label>
-                            <input type="date" id="purchaseDate" name="purchase_date" class="form-control" required>
-                        </div>
-                        
-                        <!-- Add Lifetime Checkbox -->
-                        <div class="form-group">
-                            <label class="lifetime-label">
-                                <input type="checkbox" id="isLifetime" name="is_lifetime" value="true">
-                                Lifetime Warranty
-                            </label>
-                        </div>
-                        <!-- End Lifetime Checkbox -->
-                        
-                        <div class="form-group" id="warrantyYearsGroup">
-                            <label for="warrantyYears">Warranty Period (Years)</label>
-                            <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="purchasePrice">Purchase Price (Optional)</label>
-                            <div class="price-input-wrapper">
-                                <span class="currency-symbol">$</span>
-                                <input type="number" id="purchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Documents Tab -->
-                    <div class="tab-content" id="documents">
-                        <div class="form-group">
-                            <label>Invoice/Receipt</label>
-                            <div class="file-input-wrapper">
-                                <label for="invoice" class="file-input-label">
-                                    <i class="fas fa-upload"></i> Choose File
-                                </label>
-                                <input type="file" id="invoice" name="invoice" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div id="fileName" class="file-name"></div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Product Manual (Optional)</label>
-                            <div class="file-input-wrapper">
-                                <label for="manual" class="file-input-label">
-                                    <i class="fas fa-upload"></i> Choose File
-                                </label>
-                                <input type="file" id="manual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
-                            </div>
-                            <div id="manualFileName" class="file-name"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Tags Tab -->
-                    <div class="tab-content" id="tags">
-                        <div class="form-group">
-                            <label>Add Tags</label>
-                            <p class="text-muted">Tags help you organize and filter your warranties</p>
-                            
-                            <div class="tags-container">
-                                <div class="selected-tags" id="selectedTags">
-                                    <!-- Selected tags will be displayed here -->
-                                </div>
-                                
-                                <div class="tags-dropdown">
-                                    <input type="text" id="tagSearch" class="form-control" placeholder="Search or add new tag...">
-                                    <div class="tags-list" id="tagsList">
-                                        <!-- Tag options will be populated by JavaScript -->
-                                    </div>
-                                </div>
-                                
-                                <div class="mt-10">
-                                    <button type="button" id="manageTagsBtn" class="btn btn-secondary btn-sm">
-                                        <i class="fas fa-cog"></i> Manage Tags
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Summary Tab -->
-                    <div class="tab-content" id="summary">
-                        <div class="summary-container">
-                            <div class="summary-section">
-                                <h4><i class="fas fa-box"></i> Product Information</h4>
-                                <div class="summary-item">
-                                    <span class="summary-label">Product Name:</span>
-                                    <span id="summary-product-name" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Product URL:</span>
-                                    <span id="summary-product-url" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Serial Numbers:</span>
-                                    <span id="summary-serial-numbers" class="summary-value">-</span>
-                                </div>
-                            </div>
-                            
-                            <div class="summary-section">
-                                <h4><i class="fas fa-shield-alt"></i> Warranty Details</h4>
-                                <div class="summary-item">
-                                    <span class="summary-label">Purchase Date:</span>
-                                    <span id="summary-purchase-date" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Warranty Period:</span>
-                                    <span id="summary-warranty-years" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Purchase Price:</span>
-                                    <span id="summary-purchase-price" class="summary-value">-</span>
-                                </div>
-                            </div>
-                            
-                            <div class="summary-section">
-                                <h4><i class="fas fa-file-alt"></i> Documents</h4>
-                                <div class="summary-item">
-                                    <span class="summary-label">Invoice/Receipt:</span>
-                                    <span id="summary-invoice" class="summary-value">-</span>
-                                </div>
-                                <div class="summary-item">
-                                    <span class="summary-label">Product Manual:</span>
-                                    <span id="summary-manual" class="summary-value">-</span>
-                                </div>
-                            </div>
-                            
-                            <div class="summary-section">
-                                <h4><i class="fas fa-tags"></i> Tags</h4>
-                                <div class="summary-item">
-                                    <span class="summary-label">Selected Tags:</span>
-                                    <div id="summary-tags" class="summary-value">-</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-primary">Add Warranty</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Tab Navigation -->
-                    <div class="tab-navigation">
-                        <button type="button" class="btn btn-secondary prev-tab">
-                            <i class="fas fa-arrow-left"></i> Previous
-                        </button>
-                        <button type="button" class="btn btn-primary next-tab">
-                            Next <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-            
+
             <!-- Warranties List Panel -->
             <div class="warranties-panel">
-                <h2>
-                    Your Warranties
-                    <button id="refreshBtn" class="refresh-btn" title="Refresh list">
-                        <i class="fas fa-sync-alt"></i>
-                    </button>
-                </h2>
-                
+                <!-- Panel Header -->
+                <div class="panel-header">
+                    <h2>Your Warranties</h2>
+                    <!-- ADD BUTTON CONTAINER AND REFRESH BUTTON WRAPPER HERE -->
+                    <div class="panel-header-actions">
+                        <div class="add-warranty-button-container">
+                            <button id="showAddWarrantyBtn" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus"></i> Add New Warranty
+                            </button>
+                        </div>
+                        <button id="refreshBtn" class="btn btn-secondary btn-sm" title="Refresh List">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <!-- Filters and Search -->
                 <div class="filter-controls">
                     <div class="search-container">
                         <div class="search-box">
@@ -554,8 +381,216 @@
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+
+            <!-- MOVE the Form Panel content below -->
+            <!-- Original <div class="form-panel"> should be removed from here -->
+            <div id="addWarrantyModal" class="modal-backdrop">
+                <div class="modal" style="max-width: 700px;"> <!-- Adjusted max-width for the wizard -->
+                    <div class="modal-header">
+                        <h3 class="modal-title">Add New Warranty</h3>
+                        <button class="close-btn" data-dismiss="modal">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- MOVE the entire original .form-panel content HERE -->
+                        <div class="form-panel" style="box-shadow: none; padding: 0; background: none;">
+                            <!-- Form Tabs -->
+                            <div class="form-tabs" data-step="0">
+                                 <div class="form-tab active" data-tab="product-info">
+                                    <i class="fas fa-box"></i> Product
+                                </div>
+                                <div class="form-tab" data-tab="warranty-details">
+                                    <i class="fas fa-shield-alt"></i> Warranty
+                                </div>
+                                <div class="form-tab" data-tab="documents">
+                                    <i class="fas fa-file-alt"></i> Documents
+                                </div>
+                                <div class="form-tab" data-tab="tags">
+                                    <i class="fas fa-tags"></i> Tags
+                                </div>
+                                <div class="form-tab" data-tab="summary">
+                                    <i class="fas fa-check-circle"></i> Summary
+                                </div>
+                            </div>
+                            <!-- Warranty Form -->
+                            <form id="warrantyForm">
+                                <!-- Product Information Tab -->
+                                <div class="tab-content active" id="product-info">
+                                    <div class="form-group">
+                                        <label for="productName">Product Name</label>
+                                        <input type="text" id="productName" name="product_name" class="form-control" required>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="productUrl">Product URL (Optional)</label>
+                                        <input type="url" id="productUrl" name="product_url" class="form-control" placeholder="https://example.com/product">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label>Serial Numbers</label>
+                                        <div id="serialNumbersContainer">
+                                            <!-- Serial number inputs will be added dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Warranty Details Tab -->
+                                <div class="tab-content" id="warranty-details">
+                                    <div class="form-group">
+                                        <label for="purchaseDate">Purchase Date</label>
+                                        <input type="date" id="purchaseDate" name="purchase_date" class="form-control" required>
+                                    </div>
+                                    
+                                    <!-- Add Lifetime Checkbox -->
+                                    <div class="form-group">
+                                        <label class="lifetime-label">
+                                            <input type="checkbox" id="isLifetime" name="is_lifetime" value="true">
+                                            Lifetime Warranty
+                                        </label>
+                                    </div>
+                                    <!-- End Lifetime Checkbox -->
+                                    
+                                    <div class="form-group" id="warrantyYearsGroup">
+                                        <label for="warrantyYears">Warranty Period (Years)</label>
+                                        <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="purchasePrice">Purchase Price (Optional)</label>
+                                        <div class="price-input-wrapper">
+                                            <span class="currency-symbol">$</span>
+                                            <input type="number" id="purchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Documents Tab -->
+                                <div class="tab-content" id="documents">
+                                    <div class="form-group">
+                                        <label>Invoice/Receipt</label>
+                                        <div class="file-input-wrapper">
+                                            <label for="invoice" class="file-input-label">
+                                                <i class="fas fa-upload"></i> Choose File
+                                            </label>
+                                            <input type="file" id="invoice" name="invoice" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
+                                        </div>
+                                        <div id="fileName" class="file-name"></div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label>Product Manual (Optional)</label>
+                                        <div class="file-input-wrapper">
+                                            <label for="manual" class="file-input-label">
+                                                <i class="fas fa-upload"></i> Choose File
+                                            </label>
+                                            <input type="file" id="manual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
+                                        </div>
+                                        <div id="manualFileName" class="file-name"></div>
+                                    </div>
+                                </div>
+                                <!-- Tags Tab -->
+                                <div class="tab-content" id="tags">
+                                    <div class="form-group">
+                                        <label>Add Tags</label>
+                                        <p class="text-muted">Tags help you organize and filter your warranties</p>
+                                        
+                                        <div class="tags-container">
+                                            <div class="selected-tags" id="selectedTags">
+                                                <!-- Selected tags will be displayed here -->
+                                            </div>
+                                            
+                                            <div class="tags-dropdown">
+                                                <input type="text" id="tagSearch" class="form-control" placeholder="Search or add new tag...">
+                                                <div class="tags-list" id="tagsList">
+                                                    <!-- Tag options will be populated by JavaScript -->
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mt-10">
+                                                <button type="button" id="manageTagsBtn" class="btn btn-secondary btn-sm">
+                                                    <i class="fas fa-cog"></i> Manage Tags
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Summary Tab -->
+                                <div class="tab-content" id="summary">
+                                    <div class="summary-container">
+                                        <div class="summary-section">
+                                            <h4><i class="fas fa-box"></i> Product Information</h4>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Product Name:</span>
+                                                <span id="summary-product-name" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Product URL:</span>
+                                                <span id="summary-product-url" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Serial Numbers:</span>
+                                                <span id="summary-serial-numbers" class="summary-value">-</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="summary-section">
+                                            <h4><i class="fas fa-shield-alt"></i> Warranty Details</h4>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Purchase Date:</span>
+                                                <span id="summary-purchase-date" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Warranty Period:</span>
+                                                <span id="summary-warranty-years" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Purchase Price:</span>
+                                                <span id="summary-purchase-price" class="summary-value">-</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="summary-section">
+                                            <h4><i class="fas fa-file-alt"></i> Documents</h4>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Invoice/Receipt:</span>
+                                                <span id="summary-invoice" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Product Manual:</span>
+                                                <span id="summary-manual" class="summary-value">-</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="summary-section">
+                                            <h4><i class="fas fa-tags"></i> Tags</h4>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Selected Tags:</span>
+                                                <div id="summary-tags" class="summary-value">-</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <button type="submit" class="btn btn-primary">Add Warranty</button>
+                                    </div>
+                                </div>
+                                <!-- Tab Navigation -->
+                                <div class="tab-navigation">
+                                    <button type="button" class="btn btn-secondary prev-tab">
+                                        <i class="fas fa-arrow-left"></i> Previous
+                                    </button>
+                                    <button type="button" class="btn btn-primary next-tab">
+                                        Next <i class="fas fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div> <!-- End form-panel -->
+                    </div> <!-- End modal-body -->
+                    <!-- Optional: Add a modal footer if you want separate Cancel/Submit buttons -->
+                    <!-- <div class="modal-footer">
+                        <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    </div> -->
+                </div> <!-- End modal -->
+            </div> <!-- End addWarrantyModal -->
+        </div> <!-- End main-content -->
+    </div> <!-- End container -->
     
     <!-- Edit Warranty Modal -->
     <div id="editModal" class="modal-backdrop">
@@ -749,5 +784,6 @@
     
     <script src="auth.js"></script>
     <script src="script.js"></script>
+
 </body>
 </html>
