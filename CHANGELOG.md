@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.9.9.1] - 2025-04-13
+
+### Added
+- **About Page:** Added a new "About" page accessible via `/about.html` (`frontend/about.html`).
+  - Displays application version, links to GitHub repository, releases, author profile, license (AGPL-3.0), and issue tracker.
+- **UI:** Added an "About" link to the user menu dropdown in the header, appearing after "Settings" (`frontend/index.html`, `frontend/status.html`, `frontend/settings-new.html`).
+- **UI/UX:** Refactored the "Add New Warranty" form into a modal dialog (`#addWarrantyModal`) triggered by a button click, instead of being always visible on the main page (`frontend/index.html`, `frontend/script.js`, `frontend/style.css`).
+  - The modal is initially hidden and displayed using JavaScript.
+  - Added event listeners to show/hide the modal on button click, close button click, and backdrop click.
+  - Implemented `resetAddWarrantyWizard` function to clear the form, reset tabs, tags, and file inputs when the modal is closed or submitted successfully.
+  - Modified form submission (`submitForm`) to close and reset the modal upon success.
+- **UI:** Moved the "Add New Warranty" button (`#showAddWarrantyBtn`) from the top of the main content area into the header of the "Your Warranties" panel (`.panel-header`) for better context (`frontend/index.html`).
+- **Layout:** Adjusted the `.warranties-panel` CSS to span the full width (`grid-column: 1 / -1;`) after the form was moved out of the main grid flow (`frontend/style.css`).
+- **Layout:** Updated `.panel-header` CSS to use Flexbox for aligning the title (`h2`) to the left and action buttons (`.panel-header-actions` containing Add Warranty and Refresh buttons) to the right (`frontend/style.css`).
+- **Layout:** Removed the `border-bottom` style from the `.panel-header` / `.warranties-panel h2` for a cleaner look (`frontend/style.css`).
+- **Branding:** Updated the website `<title>` to include "Warracker" (`frontend/index.html`).
+- **UI:** Added an "Add New Warranty" button (`#showAddWarrantyBtn`) to trigger the new modal (`frontend/index.html`).
+- **Branding:** Added a `<link>` tag to include a favicon (`/img/favicon.png`) in the website's `<head>` (`frontend/index.html`).
+- Site setting for configurable Email Base URL (Admin only).
+- Admins can now set the base URL used in password reset and notification emails via Settings > Admin Settings > Site Settings.
+
+### Changed
+- **UI:** Ensured header structure, styling, and interactive elements (user menu, settings/dark mode toggle) are consistent across `index.html`, `status.html`, `settings-new.html`, and the new `about.html`.
+  - Refactored `about.html` to include standard header HTML and necessary CSS/JS files (`style.css`, `header-fix.css`, `auth.js`, `script.js`, `auth-new.js`, etc.).
+  - Added inline script to `about.html` to explicitly initialize header JavaScript functions (`setupUIEventListeners`, `initializeTheme`) after DOM content loads.
+- **UI/UX:** Refactored the "Add New Warranty" form into a modal dialog (`#addWarrantyModal`) triggered by a button click, instead of being always visible on the main page (`frontend/index.html`, `frontend/script.js`, `frontend/style.css`).
+  - The modal is initially hidden and displayed using JavaScript.
+  - Added event listeners to show/hide the modal on button click, close button click, and backdrop click.
+  - Implemented `resetAddWarrantyWizard` function to clear the form, reset tabs, tags, and file inputs when the modal is closed or submitted successfully.
+  - Modified form submission (`submitForm`) to close and reset the modal upon success.
+- **UI:** Moved the "Add New Warranty" button (`#showAddWarrantyBtn`) from the top of the main content area into the header of the "Your Warranties" panel (`.panel-header`) for better context (`frontend/index.html`).
+- **Layout:** Adjusted the `.warranties-panel` CSS to span the full width (`grid-column: 1 / -1;`) after the form was moved out of the main grid flow (`frontend/style.css`).
+- **Layout:** Updated `.panel-header` CSS to use Flexbox for aligning the title (`h2`) to the left and action buttons (`.panel-header-actions` containing Add Warranty and Refresh buttons) to the right (`frontend/style.css`).
+- **Layout:** Removed the `border-bottom` style from the `.panel-header` / `.warranties-panel h2` for a cleaner look (`frontend/style.css`).
+- **Branding:** Updated the website `<title>` to include "Warracker" (`frontend/index.html`).
+- Password reset and warranty expiration emails now use the configured Email Base URL setting.
+- Changed "Registration Enabled" setting in Admin Settings to use a toggle switch for consistency.
+
+### Fixed
+- Fixed minor inconsistencies in settings page UI elements.
+- Resolved issues with file permissions for database operations.
+- Corrected CORS configuration to allow credentials.
+- Fixed notification preferences saving issue.
+- Ensured admin role permissions are correctly applied.
+- Resolved issue where editing a warranty to 'Lifetime' was failing due to validation errors and missing database columns (`updated_at`).
+
+### Added
+- Functionality to edit existing warranties to have a lifetime duration.
+
 # [0.9.9.0] - 2025-04-06
 
 ### Fixed
