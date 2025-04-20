@@ -9,7 +9,7 @@
   - Validation and expiration date calculations have been updated to handle decimal years correctly.
   - The UI now allows decimal input for warranty years and displays fractional years in summaries and warranty lists.
   _Files: `backend/app.py`, `frontend/index.html`, `frontend/script.js`_
-- **Import button added, and functional. Must use CSV file format.
+- **Import** button added, and functional. Must use CSV file format.
   - ## 📦 Product Information Entry Requirements
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
