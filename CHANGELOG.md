@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.9.9.2] - 2025-04-20
+
+### Added
+- **Warranty Years (Fractional Support):**
+  - You can now enter fractional (decimal) values for warranty periods (e.g., 1.5 years) when adding or editing warranties.
+  - The backend, frontend UI, and CSV import/export all support decimal warranty years.
+  - Validation and expiration date calculations have been updated to handle decimal years correctly.
+  - The UI now allows decimal input for warranty years and displays fractional years in summaries and warranty lists.
+  _Files: `backend/app.py`, `frontend/index.html`, `frontend/script.js`_
+- **Import button added, and functional. Must use CSV file format.
+  - ## 📦 Product Information Entry Requirements
+
+| Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
+|----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
+| **ProductName** | Text                                       | ✅ Yes                                                  | Provide the name of the product.                                     |
+| **PurchaseDate** | Date (`YYYY-MM-DD`, e.g., `2024-05-21`)   | ✅ Yes                                                  | Use ISO format only.                                                 |
+| **WarrantyYears** | Whole Number (`1`, `3`, `10`)             | ✅ Yes, unless `IsLifetime` is `TRUE`                   | Must be between `1` and `100` if provided.                           |
+| **IsLifetime**  | `TRUE` or `FALSE` (case-insensitive)       | ❌ No (Optional)                                        | If omitted, defaults to `FALSE`.                                     |
+| **PurchasePrice** | Number (`199.99`, `50`)                  | ❌ No (Optional)                                        | Cannot be negative if provided.                                      |
+| **SerialNumber** | Text (`SN123`, `SN123,SN456`)             | ❌ No (Optional)                                        | For multiple values, separate with commas.                           |
+| **ProductURL**   | Text (URL format)                         | ❌ No (Optional)                                        | Full URL to product page (optional field).                           |
+| **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
+
+
+### Changed
+- **Theme:** Unified theme persistence using a single `localStorage` key (`darkMode`) and centralized the loading logic in `theme-loader.js` to enhance consistency and eliminate theme-flashing on load.  
+  _Files: `frontend/theme-loader.js`, `frontend/script.js`, `frontend/status.js`, `frontend/settings-new.js`, `frontend/settings-new.html`_
+
+- **UI/UX:** Updated the "Add Warranty" modal behavior to only close when the internal 'X' button is clicked. Clicking the backdrop no longer closes the modal. This change is specific to this modal—others retain default backdrop behavior.  
+  _File: `frontend/script.js`_
+
+### Fixed
+- **Wizard Navigation:** 
+  - Ensured the summary tab in the "Add Warranty" wizard displays and updates correctly.  
+  - Resolved JS errors (`TypeError: Assignment to constant variable`, `ReferenceError: tabs is not defined`) that affected tab functionality.  
+  - Fixed scope issues with backdrop click handlers impacting modal behavior.  
+  _File: `frontend/script.js`_
+
+- **Header Layout (Desktop):** Standardized header layout across pages by wrapping elements in a `.header-right-group` container and applying consistent styles.  
+  _Files: `index.html`, `status.html`, `about.html`, `settings-new.html`, `frontend/header-fix.css`_
+
+- **Header Layout (Mobile):** Corrected alignment of header elements—title is now left-aligned, user/settings icons right-aligned, and navigation links centered below. Used `!important` to resolve conflicts with desktop styles.  
+  _File: `frontend/mobile-header.css`_
+
+- **Theme:** Fixed site-wide dark/light mode persistence. Changes made on one page now reflect consistently across all pages. Standardized use of `darkMode` and `${prefix}darkMode` keys in relevant scripts.  
+  _Files: `frontend/status.js`, others using `setTheme` / `initializeTheme`_
+
+- **User Menu:** Fixed dropdown not opening due to a variable typo. Centralized gear menu toggle logic into `auth.js` for consistent behavior, removing redundant initializations.  
+  _Files: `frontend/auth.js`, `frontend/script.js`, `frontend/settings-new.js`_
+
+- **JavaScript Errors:** Addressed multiple errors (`ReferenceError`, `TypeError`) related to function order, missing element checks, and incorrect variable usage—primarily impacting `status.html` and pages using `script.js`.  
+  _Files: `frontend/script.js`, `frontend/status.js`_
+
+- **API Integration:** Fixed parsing logic for `/api/statistics` response to correctly interpret the API structure.  
+  _File: `frontend/status.js`_
+
+### Removed
+- **Settings Gear Icon:** The settings gear icon button and its menu have been removed from the header in all main pages for a cleaner and less redundant UI. 
+  _Files: `frontend/index.html`, `frontend/status.html`, `frontend/about.html`_
+
+
 ## [0.9.9.1] - 2025-04-13
 
 ### Added
