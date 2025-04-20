@@ -1,0 +1,54 @@
+@media (max-width: 768px) {
+  /* Header Responsive Styles */
+  header .container {
+    flex-wrap: wrap !important; /* Allow header items to wrap */
+    justify-content: space-between !important; /* Push title left, right-group right */
+    align-items: center !important; /* Vertically align items in the top row */
+    gap: 10px 15px !important; /* Add space between wrapped items */
+    padding: 10px 15px !important; /* Adjust padding */
+  }
+
+  header .app-title {
+    /* flex-basis: 100%; Remove - allow sharing row */
+    text-align: left !important; /* Align title text left */
+    margin-bottom: 0 !important; /* Remove bottom margin */
+  }
+
+  header .app-title h1 {
+    font-size: 1.8rem !important; /* Slightly reduce title size */
+    margin: 0 auto !important; /* Center title text if needed */
+  }
+  
+  header .app-title i {
+    font-size: 1.6rem !important; /* Slightly reduce icon size */
+    margin-right: 10px !important;
+    /* display: none; /* Optionally hide icon on very small screens */
+  }
+  
+  /* Group user/settings/auth buttons together */
+  .header-right-group {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-end !important; /* Keep content aligned right within the group */
+      /* flex-basis: 100%; Remove - allow sharing row */
+      flex-wrap: nowrap !important; 
+      gap: 10px !important; 
+  }
+
+  header .nav-links {
+      order: 3 !important; /* Ensure nav links are last */
+      flex-basis: 100% !important; /* Make nav links take full width */
+      justify-content: center !important; /* Center nav links */
+      margin: 10px 0 0 0 !important; 
+      padding-bottom: 5px !important; 
+      gap: 15px !important; 
+  }
+
+  /* Override specific margins from header-fix.css */
+  header .auth-buttons,
+  header .user-menu,
+  header .settings-container {
+      margin: 0 5px !important; /* Override margin-left from header-fix.css */
+      flex-shrink: 0 !important; /* Prevent shrinking */
+  }
+} 

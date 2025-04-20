@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="styles.css"> <!-- Additional styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <!-- Font Awesome -->
     <link rel="stylesheet" href="header-fix.css"> <!-- Header specific styles -->
+    <!-- Mobile Header specific styles -->
+    <link rel="stylesheet" href="mobile-header.css">
 
     <!-- Scripts loaded in head -->
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
@@ -40,58 +42,41 @@
                 </a>
                 <!-- Consider adding an 'active' class to an 'About' link if created here -->
             </div>
-            <div id="authContainer" class="auth-buttons">
-                <a href="login.html" class="auth-btn login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </a>
-                <a href="register.html" class="auth-btn register-btn">
-                    <i class="fas fa-user-plus"></i> Register
-                </a>
-            </div>
-            <div id="userMenu" class="user-menu" style="display: none;">
-                <button id="userBtn" class="user-btn">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userDisplayName">User</span>
-                </button>
-                <div id="userMenuDropdown" class="user-menu-dropdown">
-                    <div class="user-info">
-                        <div id="userName" class="user-name">User Name</div>
-                        <div id="userEmail" class="user-email">user@example.com</div>
-                    </div>
-                    <div class="user-menu-item">
-                         <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                             <i class="fas fa-cog"></i> Settings
-                         </a>
-                     </div>
-                    <div class="user-menu-item">
-                        <i class="fas fa-info-circle"></i>
-                        <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
-                    </div>
-                    <div class="user-menu-item" id="logoutMenuItem">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+            <!-- Group for right-aligned elements -->
+            <div class="header-right-group">
+                <div id="authContainer" class="auth-buttons">
+                    <a href="login.html" class="auth-btn login-btn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </a>
+                    <a href="register.html" class="auth-btn register-btn">
+                        <i class="fas fa-user-plus"></i> Register
+                    </a>
+                </div>
+                <div id="userMenu" class="user-menu" style="display: none;">
+                    <button id="userBtn" class="user-btn">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="userDisplayName">User</span>
+                    </button>
+                    <div id="userMenuDropdown" class="user-menu-dropdown">
+                        <div class="user-info">
+                            <div id="userName" class="user-name">User Name</div>
+                            <div id="userEmail" class="user-email">user@example.com</div>
+                        </div>
+                        <div class="user-menu-item">
+                            <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
+                                <i class="fas fa-cog"></i> Settings
+                            </a>
+                        </div>
+                        <div class="user-menu-item">
+                            <i class="fas fa-info-circle"></i>
+                            <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
+                        </div>
+                        <div class="user-menu-item" id="logoutMenuItem">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </div>
                     </div>
                 </div>
-            </div>
-            <!-- Settings Toggle (Optional - Include if needed on About page) -->
-            <div class="settings-container">
-                <button id="settingsBtn" class="settings-btn" aria-label="Settings" type="button">
-                    <i class="fas fa-cog"></i>
-                </button>
-                <div id="settingsMenu" class="settings-menu">
-                    <div class="settings-item">
-                        <span>Dark Mode</span>
-                        <label class="toggle-switch" title="Toggle dark mode">
-                            <input type="checkbox" id="darkModeToggle">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-item">
-                        <a href="https://github.com/sassanix/Warracker" class="settings-link github-link" target="_blank" rel="noopener noreferrer">
-                            <i class="fab fa-github"></i> GitHub
-                        </a>
-                    </div>
-                </div>
-            </div>
+            </div> <!-- End header-right-group -->
         </div>
     </header>
 
@@ -103,7 +88,7 @@
             <div class="about-container" style="background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box;"> 
                 <h1 style="color: var(--primary-color); margin-bottom: 20px;">About Warracker</h1>
 
-                <p><strong>Version:</strong> v0.9.9.1</p>
+                <p><strong>Version:</strong> v0.9.9.2</p>
 
                 <p>
                     <strong>GitHub Repository:</strong>
@@ -165,4 +150,4 @@
     </script>
 
 </body>
-</html> 
+</html>

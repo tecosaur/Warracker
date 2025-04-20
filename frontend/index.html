@@ -29,131 +29,8 @@
     <link rel="stylesheet" href="header-fix.css">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
-    <style>
-        .user-menu {
-            position: relative;
-            margin-left: 15px;
-        }
-        
-        .user-btn {
-            background: none;
-            border: none;
-            color: var(--text-color);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            font-size: 0.9rem;
-            padding: 5px 10px;
-            border-radius: 20px;
-            transition: background-color 0.3s;
-        }
-        
-        .user-btn:hover {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-        
-        .dark-mode .user-btn:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        
-        .user-btn i {
-            margin-right: 5px;
-        }
-        
-        .user-menu-dropdown {
-            position: absolute;
-            top: 100%;
-            right: 0;
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            width: 200px;
-            z-index: 1000;
-            display: none;
-            padding: 10px 0;
-            margin-top: 5px;
-        }
-        
-        .user-menu-dropdown.active {
-            display: block;
-        }
-        
-        .user-info {
-            padding: 10px 15px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 5px;
-        }
-        
-        .user-name {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .user-email {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            word-break: break-all;
-        }
-        
-        .user-menu-item {
-            padding: 8px 15px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            display: flex;
-            align-items: center;
-        }
-        
-        .user-menu-item:hover {
-            background-color: var(--hover-bg);
-        }
-        
-        .user-menu-item i {
-            margin-right: 10px;
-            width: 16px;
-            text-align: center;
-        }
-        
-        .auth-buttons {
-            display: flex;
-            gap: 10px;
-            margin-left: 15px;
-        }
-        
-        .auth-btn {
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .auth-btn i {
-            margin-right: 5px;
-        }
-        
-        .login-btn {
-            background-color: transparent;
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
-        }
-        
-        .login-btn:hover {
-            background-color: rgba(var(--primary-rgb), 0.1);
-        }
-        
-        .register-btn {
-            background-color: var(--primary-color);
-            border: 1px solid var(--primary-color);
-            color: white;
-        }
-        
-        .register-btn:hover {
-            background-color: var(--primary-dark);
-        }
-    </style>
+    <!-- Mobile Header specific styles -->
+    <link rel="stylesheet" href="mobile-header.css">
 
     <!-- Immediate authentication check script -->
     <script>
@@ -226,57 +103,41 @@
                     <i class="fas fa-chart-pie"></i> Status
                 </a>
             </div>
-            <div id="authContainer" class="auth-buttons">
-                <a href="login.html" class="auth-btn login-btn">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </a>
-                <a href="register.html" class="auth-btn register-btn">
-                    <i class="fas fa-user-plus"></i> Register
-                </a>
-            </div>
-            <div id="userMenu" class="user-menu" style="display: none;">
-                <button id="userBtn" class="user-btn">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userDisplayName">User</span>
-                </button>
-                <div id="userMenuDropdown" class="user-menu-dropdown">
-                    <div class="user-info">
-                        <div id="userName" class="user-name">User Name</div>
-                        <div id="userEmail" class="user-email">user@example.com</div>
-                    </div>
-                    <div class="user-menu-item">
-                         <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                             <i class="fas fa-cog"></i> Settings
-                         </a>
-                     </div>
-                    <div class="user-menu-item">
-                        <i class="fas fa-info-circle"></i>
-                        <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
-                    </div>
-                    <div class="user-menu-item" id="logoutMenuItem">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+            <!-- Group for right-aligned elements -->
+            <div class="header-right-group">
+                <div id="authContainer" class="auth-buttons">
+                    <a href="login.html" class="auth-btn login-btn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </a>
+                    <a href="register.html" class="auth-btn register-btn">
+                        <i class="fas fa-user-plus"></i> Register
+                    </a>
+                </div>
+                <div id="userMenu" class="user-menu" style="display: none;">
+                    <button id="userBtn" class="user-btn">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="userDisplayName">User</span>
+                    </button>
+                    <div id="userMenuDropdown" class="user-menu-dropdown">
+                        <div class="user-info">
+                            <div id="userName" class="user-name">User Name</div>
+                            <div id="userEmail" class="user-email">user@example.com</div>
+                        </div>
+                        <div class="user-menu-item">
+                            <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
+                                <i class="fas fa-cog"></i> Settings
+                            </a>
+                        </div>
+                        <div class="user-menu-item">
+                            <i class="fas fa-info-circle"></i>
+                            <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
+                        </div>
+                        <div class="user-menu-item" id="logoutMenuItem">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="settings-container">
-                <button id="settingsBtn" class="settings-btn" aria-label="Settings" type="button">
-                    <i class="fas fa-cog"></i>
-                </button>
-                <div id="settingsMenu" class="settings-menu">
-                    <div class="settings-item">
-                        <span>Dark Mode</span>
-                        <label class="toggle-switch" title="Toggle dark mode">
-                            <input type="checkbox" id="darkModeToggle">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-item">
-                        <a href="https://github.com/sassanix/Warracker" class="settings-link github-link" target="_blank" rel="noopener noreferrer">
-                            <i class="fab fa-github"></i> GitHub
-                        </a>
-                    </div>
-                </div>
-            </div>
+            </div> <!-- End header-right-group -->
         </div>
     </header>
 
@@ -314,6 +175,10 @@
                         <button id="exportBtn" class="export-btn" title="Export warranties">
                             <i class="fas fa-file-export"></i> Export
                         </button>
+                        <button id="importBtn" class="import-btn" title="Import warranties from CSV">
+                            <i class="fas fa-file-import"></i> Import
+                        </button>
+                        <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     </div>
                     
                     <div class="filter-options">
@@ -395,19 +260,19 @@
                         <div class="form-panel" style="box-shadow: none; padding: 0; background: none;">
                             <!-- Form Tabs -->
                             <div class="form-tabs" data-step="0">
-                                 <div class="form-tab active" data-tab="product-info">
+                                 <div class="form-tab active" data-tab="product-info" id="productInfoTabBtn">
                                     <i class="fas fa-box"></i> Product
                                 </div>
-                                <div class="form-tab" data-tab="warranty-details">
+                                <div class="form-tab" data-tab="warranty-details" id="warrantyDetailsTabBtn">
                                     <i class="fas fa-shield-alt"></i> Warranty
                                 </div>
-                                <div class="form-tab" data-tab="documents">
+                                <div class="form-tab" data-tab="documents" id="documentsTabBtn">
                                     <i class="fas fa-file-alt"></i> Documents
                                 </div>
-                                <div class="form-tab" data-tab="tags">
+                                <div class="form-tab" data-tab="tags" id="tagsTabBtn">
                                     <i class="fas fa-tags"></i> Tags
                                 </div>
-                                <div class="form-tab" data-tab="summary">
+                                <div class="form-tab" data-tab="summary" id="summaryTabBtn">
                                     <i class="fas fa-check-circle"></i> Summary
                                 </div>
                             </div>
@@ -429,6 +294,7 @@
                                         <label>Serial Numbers</label>
                                         <div id="serialNumbersContainer">
                                             <!-- Serial number inputs will be added dynamically -->
+                                            <input type="text" name="serial_numbers[]" class="form-control" style="margin-bottom: 8px;" placeholder="Enter serial number">
                                         </div>
                                     </div>
                                 </div>
@@ -450,7 +316,7 @@
                                     
                                     <div class="form-group" id="warrantyYearsGroup">
                                         <label for="warrantyYears">Warranty Period (Years)</label>
-                                        <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
+                                        <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="0.1" max="100" step="any" required>
                                     </div>
                                     
                                     <div class="form-group">
@@ -529,7 +395,6 @@
                                                 <span id="summary-serial-numbers" class="summary-value">-</span>
                                             </div>
                                         </div>
-                                        
                                         <div class="summary-section">
                                             <h4><i class="fas fa-shield-alt"></i> Warranty Details</h4>
                                             <div class="summary-item">
@@ -545,7 +410,6 @@
                                                 <span id="summary-purchase-price" class="summary-value">-</span>
                                             </div>
                                         </div>
-                                        
                                         <div class="summary-section">
                                             <h4><i class="fas fa-file-alt"></i> Documents</h4>
                                             <div class="summary-item">
@@ -557,7 +421,6 @@
                                                 <span id="summary-manual" class="summary-value">-</span>
                                             </div>
                                         </div>
-                                        
                                         <div class="summary-section">
                                             <h4><i class="fas fa-tags"></i> Tags</h4>
                                             <div class="summary-item">
@@ -566,17 +429,16 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
                                     <div class="form-group">
-                                        <button type="submit" class="btn btn-primary">Add Warranty</button>
+                                        <button type="submit" class="btn btn-primary" id="submitWarrantyBtn">Add Warranty</button>
                                     </div>
                                 </div>
                                 <!-- Tab Navigation -->
                                 <div class="tab-navigation">
-                                    <button type="button" class="btn btn-secondary prev-tab">
+                                    <button type="button" class="btn btn-secondary prev-tab" id="prevTabBtn">
                                         <i class="fas fa-arrow-left"></i> Previous
                                     </button>
-                                    <button type="button" class="btn btn-primary next-tab">
+                                    <button type="button" class="btn btn-primary next-tab" id="nextTabBtn">
                                         Next <i class="fas fa-arrow-right"></i>
                                     </button>
                                 </div>
@@ -657,7 +519,7 @@
                         
                         <div class="form-group" id="editWarrantyYearsGroup">
                             <label for="editWarrantyYears">Warranty Period (Years)</label>
-                            <input type="number" id="editWarrantyYears" name="warranty_years" class="form-control" min="1" max="100" required>
+                            <input type="number" id="editWarrantyYears" name="warranty_years" class="form-control" min="0.1" max="100" step="any" required>
                         </div>
                         
                         <div class="form-group">

@@ -20,245 +20,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Then load settings-specific styles -->
     <link rel="stylesheet" href="settings-styles.css">
-    <script src="theme-loader.js"></script> <!-- Apply theme early -->
+    <!-- Apply theme immediately -->
+    <script src="theme-loader.js"></script> 
     <!-- Load header fix styles last to override any conflicting styles -->
     <link rel="stylesheet" href="header-fix.css">
+    <!-- Mobile Header specific styles -->
+    <link rel="stylesheet" href="mobile-header.css">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
-    <!-- Initialize theme immediately to prevent flash of wrong theme -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize theme based on darkMode localStorage setting
-            const darkMode = localStorage.getItem('darkMode') === 'true';
-            
-            if (darkMode) {
-                document.body.classList.add('dark-mode');
-                document.documentElement.setAttribute('data-theme', 'dark');
-            } else {
-                document.body.classList.remove('dark-mode');
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
-        });
-    </script>
-    <style>
-        /* User menu styles - copied from index.html to ensure consistency */
-        .user-menu {
-            position: relative;
-            margin-left: 15px;
-        }
-        
-        .user-btn {
-            background: none;
-            border: none;
-            color: var(--text-color);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            font-size: 0.9rem;
-            padding: 5px 10px;
-            border-radius: 20px;
-            transition: background-color 0.3s;
-        }
-        
-        .user-btn:hover {
-            background-color: rgba(0, 0, 0, 0.05);
-        }
-        
-        .dark-mode .user-btn:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        
-        .user-btn i {
-            margin-right: 5px;
-        }
-        
-        .user-menu-dropdown {
-            position: absolute;
-            top: 100%;
-            right: 0;
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            width: 200px;
-            z-index: 1000;
-            display: none;
-            padding: 10px 0;
-            margin-top: 5px;
-        }
-        
-        .user-menu-dropdown.active {
-            display: block;
-        }
-        
-        .user-info {
-            padding: 10px 15px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 5px;
-        }
-        
-        .user-name {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .user-email {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            word-break: break-all;
-        }
-        
-        .user-menu-item {
-            padding: 8px 15px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            display: flex;
-            align-items: center;
-        }
-        
-        .user-menu-item:hover {
-            background-color: var(--hover-bg);
-        }
-        
-        .user-menu-item i {
-            margin-right: 10px;
-            width: 16px;
-            text-align: center;
-        }
-        
-        .auth-buttons {
-            display: flex;
-            gap: 10px;
-            margin-left: 15px;
-        }
-        
-        .auth-btn {
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .auth-btn i {
-            margin-right: 5px;
-        }
-        
-        .login-btn {
-            background-color: transparent;
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
-        }
-        
-        .login-btn:hover {
-            background-color: rgba(var(--primary-rgb), 0.1);
-        }
-        
-        .register-btn {
-            background-color: var(--primary-color);
-            border: 1px solid var(--primary-color);
-            color: white;
-        }
-        
-        .register-btn:hover {
-            background-color: var(--primary-dark);
-        }
-        
-        /* Admin section styles */
-        .admin-section {
-            margin-top: 30px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 30px;
-        }
-        
-        .admin-section h2 {
-            color: var(--primary-color);
-            margin-bottom: 20px;
-        }
-        
-        .admin-controls {
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: flex-end;
-        }
-        
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            color: var(--text-color);
-        }
-        
-        .table th {
-            background-color: var(--card-header-bg);
-            padding: 10px;
-            text-align: left;
-            font-weight: bold;
-            border-bottom: 2px solid var(--border-color);
-        }
-        
-        .table td {
-            padding: 10px;
-            border-bottom: 1px solid var(--border-color);
-            vertical-align: middle;
-        }
-        
-        .table tr:hover {
-            background-color: var(--hover-bg);
-        }
-        
-        .table-responsive {
-            overflow-x: auto;
-            margin-bottom: 20px;
-        }
-        
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-align: center;
-            white-space: nowrap;
-        }
-        
-        .badge-success {
-            background-color: #28a745;
-            color: white;
-        }
-        
-        .badge-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        
-        .badge-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        
-        .badge-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            border-radius: 0.2rem;
-        }
-        
-        .mr-2 {
-            margin-right: 0.5rem;
-        }
-        
-        .font-weight-bold {
-            font-weight: bold;
-        }
-    </style>
+    
     <!-- Immediate authentication check script -->
     <script>
         // Check if user is logged in immediately to hide buttons
@@ -312,23 +82,6 @@
     </script>
 </head>
 <body>
-    <!-- Immediate theme initialization before anything else loads -->
-    <script>
-        // Apply theme immediately to prevent flash of wrong theme
-        (function() {
-            // Check localStorage darkMode setting directly
-            const darkMode = localStorage.getItem('darkMode') === 'true';
-            
-            if (darkMode) {
-                document.body.classList.add('dark-mode');
-                document.documentElement.setAttribute('data-theme', 'dark');
-            } else {
-                document.body.classList.remove('dark-mode');
-                document.documentElement.setAttribute('data-theme', 'light');
-            }
-        })();
-    </script>
-
     <!-- Header -->
     <header>
         <div class="container">
@@ -347,34 +100,38 @@
                     <i class="fas fa-cog"></i> Settings
                 </a>
             </div>
-            <div id="userMenu" class="user-menu" style="display: none;">
-                <button class="user-btn" id="userMenuBtn">
-                    <i class="fas fa-user-circle"></i>
-                    <span id="userDisplayName">User</span>
-                </button>
-                <div class="user-menu-dropdown" id="userMenuDropdown">
-                    <div class="user-info">
-                        <div id="userName" class="user-name">User Name</div>
-                        <div id="userEmail" class="user-email">user@example.com</div>
-                    </div>
-                    <div class="user-menu-item">
-                         <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                             <i class="fas fa-cog"></i> Settings
-                         </a>
-                     </div>
-                    <div class="user-menu-item">
-                        <i class="fas fa-info-circle"></i>
-                        <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
-                    </div>
-                    <div class="user-menu-item" id="logoutMenuItem">
-                        <i class="fas fa-sign-out-alt"></i> Logout
+            <!-- Group for right-aligned elements -->
+            <div class="header-right-group">
+                <div id="userMenu" class="user-menu" style="display: none;">
+                    <button class="user-btn" id="userMenuBtn">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="userDisplayName">User</span>
+                    </button>
+                    <div class="user-menu-dropdown" id="userMenuDropdown">
+                        <div class="user-info">
+                            <div id="userName" class="user-name">User Name</div>
+                            <div id="userEmail" class="user-email">user@example.com</div>
+                        </div>
+                        <div class="user-menu-item">
+                            <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
+                                <i class="fas fa-cog"></i> Settings
+                            </a>
+                        </div>
+                        <div class="user-menu-item">
+                            <i class="fas fa-info-circle"></i>
+                            <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
+                        </div>
+                        <div class="user-menu-item" id="logoutMenuItem">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div id="authContainer" class="auth-buttons" style="display: none;">
-                <a href="login.html" class="auth-btn login-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
-                <a href="register.html" class="auth-btn register-btn"><i class="fas fa-user-plus"></i> Register</a>
-            </div>
+                <div id="authContainer" class="auth-buttons" style="display: none;">
+                    <a href="login.html" class="auth-btn login-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
+                    <a href="register.html" class="auth-btn register-btn"><i class="fas fa-user-plus"></i> Register</a>
+                </div>
+                <!-- Note: The settings gear toggle from other pages is intentionally omitted here -->
+            </div> <!-- End header-right-group -->
         </div>
     </header>
 

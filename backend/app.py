@@ -22,6 +22,12 @@ from pytz import timezone as pytz_timezone
 import pytz
 import threading
 import json
+import csv  # Added for CSV import
+import io   # Added for CSV import
+try:  # Added for CSV import date calculation
+    from dateutil.relativedelta import relativedelta
+except ImportError:
+    relativedelta = None
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # Enable CORS with credentials
@@ -354,6 +360,17 @@ def is_valid_timezone(tz):
         return True
     except pytz.exceptions.UnknownTimeZoneError:
         return False
+
+def convert_decimals(obj):
+    """Recursively convert Decimal objects to float in dicts/lists for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals(i) for i in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    else:
+        return obj
 
 # Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
@@ -835,9 +852,9 @@ def add_warranty():
             if not request.form.get('warranty_years'):
                 return jsonify({"error": "Warranty period (years) is required unless it's a lifetime warranty"}), 400
             try:
-                warranty_years = int(request.form.get('warranty_years'))
-                if warranty_years <= 0 or warranty_years > 100:
-                    return jsonify({"error": "Warranty years must be between 1 and 100"}), 400
+                warranty_years = float(request.form.get('warranty_years'))
+                if warranty_years < 0.1 or warranty_years > 100:
+                    return jsonify({"error": "Warranty years must be between 0.1 and 100"}), 400
             except ValueError:
                 return jsonify({"error": "Warranty years must be a valid number"}), 400
             
@@ -1077,17 +1094,15 @@ def update_warranty(warranty_id):
                 if not warranty_years_str:
                     return jsonify({"error": "Warranty years is required for non-lifetime warranties"}), 400
                 try:
-                    warranty_years = int(warranty_years_str)
-                    if warranty_years <= 0 or warranty_years > 100:
-                        # Allow 0 years if is_lifetime is true? Let's keep validation strict for now.
-                        return jsonify({"error": "Warranty years must be between 1 and 100 for non-lifetime warranties"}), 400
+                    warranty_years = float(warranty_years_str)
+                    if warranty_years < 0.1 or warranty_years > 100:
+                        return jsonify({"error": "Warranty years must be between 0.1 and 100 for non-lifetime warranties"}), 400
 
                     # Calculate expiration date precisely if possible, otherwise approximate
                     try:
                         from dateutil.relativedelta import relativedelta
                         expiration_date = purchase_date + relativedelta(years=warranty_years)
                     except ImportError:
-                        # Fallback to approximation if dateutil is not available
                         expiration_date = purchase_date + timedelta(days=warranty_years * 365)
 
                 except ValueError:
@@ -1386,16 +1401,48 @@ def get_statistics():
                     
                 recent_warranties.append(warranty)
             
+            # *** ADD CODE TO FETCH ALL WARRANTIES ***
+            logger.info(f"Fetching all warranties for user {user_id}...")
+            cur.execute(f"""
+                SELECT
+                    id, product_name, purchase_date, warranty_years,
+                    expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
+                {from_clause}
+                {where_clause}
+                ORDER BY expiration_date DESC
+            """, params)
+
+            all_columns = [desc[0] for desc in cur.description]
+            all_warranties_list = []
+
+            for row in cur.fetchall():
+                warranty = dict(zip(all_columns, row))
+                
+                # Convert dates to string format
+                if warranty.get('purchase_date') and isinstance(warranty['purchase_date'], date):
+                    warranty['purchase_date'] = warranty['purchase_date'].isoformat()
+                if warranty.get('expiration_date') and isinstance(warranty['expiration_date'], date):
+                    warranty['expiration_date'] = warranty['expiration_date'].isoformat()
+                
+                # Convert Decimal objects to float for JSON serialization
+                if warranty.get('purchase_price') and isinstance(warranty['purchase_price'], Decimal):
+                    warranty['purchase_price'] = float(warranty['purchase_price'])
+                    
+                all_warranties_list.append(warranty)
+            logger.info(f"Fetched {len(all_warranties_list)} total warranties.")
+            # *** END OF ADDED CODE ***
+
             statistics = {
                 'total': total_count,
                 'active': active_count,
                 'expired': expired_count,
                 'expiring_soon': expiring_soon_count,
                 'timeline': timeline,
-                'recent_warranties': recent_warranties
+                'recent_warranties': recent_warranties,
+                'all_warranties': all_warranties_list  # <-- Add the new list here
             }
             
-            return jsonify(statistics)
+            return jsonify(convert_decimals(statistics))
     
     except Exception as e:
         logger.error(f"Error getting warranty statistics: {e}")
@@ -2417,13 +2464,13 @@ def format_expiration_email(user, warranties):
     text_body += "\\nLog in to Warracker to view details:\\n"
     text_body += f"{email_base_url}\\n\\n" # Use configurable base URL
     text_body += "Manage your notification settings:\\n"
-    text_body += f"{email_base_url}/settings.html\\n" # Use configurable base URL
+    text_body += f"{email_base_url}/settings-new.html\\n" # Use configurable base URL
 
     html_body += f"""\
           </tbody>
         </table>
-        <p>Log in to <a href="{email_base_url}">Warracker</a> to view details.</p> # Use configurable base URL
-        <p>Manage your notification settings <a href="{email_base_url}/settings.html">here</a>.</p> # Use configurable base URL
+        <p>Log in to <a href="{email_base_url}">Warracker</a> to view details.</p> 
+        <p>Manage your notification settings <a href="{email_base_url}/settings-new.html">here</a>.</p>
       </body>
     </html>
     """
@@ -3125,3 +3172,262 @@ def add_tags_to_warranty(warranty_id):
     finally:
         if conn:
             release_db_connection(conn)
+
+# --- CSV Import Endpoint ---
+EXPECTED_CSV_HEADERS = [
+    'ProductName', 'PurchaseDate', 'WarrantyYears', 'IsLifetime',
+    'PurchasePrice', 'SerialNumber', 'ProductURL'
+]
+# Add Tags as an optional header
+OPTIONAL_CSV_HEADERS = ['WarrantyYears', 'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags']
+REQUIRED_CSV_HEADERS = ['ProductName', 'PurchaseDate']
+
+@app.route('/api/warranties/import', methods=['POST'])
+@token_required
+def import_warranties():
+    if 'csv_file' not in request.files:
+        return jsonify({"error": "No CSV file provided"}), 400
+
+    file = request.files['csv_file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({"error": "Invalid file type. Please upload a .csv file"}), 400
+
+    user_id = request.user['id']
+    conn = None
+    imported_count = 0
+    failed_rows = []
+    row_number = 1 # Start from 1 for header
+
+    try:
+        # Read the file content
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+
+        # Validate headers
+        headers = csv_reader.fieldnames
+        # Check required headers first
+        missing_required = [h for h in REQUIRED_CSV_HEADERS if h not in headers]
+        if missing_required:
+            return jsonify({"error": f"Missing required CSV columns: {', '.join(missing_required)}"}), 400
+        
+        # Check for unknown headers
+        known_headers = set(REQUIRED_CSV_HEADERS + OPTIONAL_CSV_HEADERS)
+        unknown_headers = [h for h in headers if h not in known_headers]
+        if unknown_headers:
+            logger.warning(f"CSV file contains unknown headers which will be ignored: {', '.join(unknown_headers)}")
+
+        conn = get_db_connection()
+        conn.autocommit = False # Start transaction
+
+        with conn.cursor() as cur:
+            for row in csv_reader:
+                row_number += 1 # Increment for each data row (header is row 1)
+                errors = []
+                processed_row = {}
+
+                try:
+                    # --- Data Extraction and Basic Validation ---
+                    product_name = row.get('ProductName', '').strip()
+                    purchase_date_str = row.get('PurchaseDate', '').strip()
+                    is_lifetime_str = row.get('IsLifetime', 'false').strip().lower()
+                    warranty_years_str = row.get('WarrantyYears', '').strip()
+                    purchase_price_str = row.get('PurchasePrice', '').strip()
+                    serial_numbers_str = row.get('SerialNumber', '').strip()
+                    product_url = row.get('ProductURL', '').strip()
+                    tags_str = row.get('Tags', '').strip() # Get Tags string
+
+                    if not product_name:
+                        errors.append("ProductName is required.")
+                    if not purchase_date_str:
+                        errors.append("PurchaseDate is required.")
+
+                    # --- Type/Format Validation --- 
+                    try:
+                        purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        errors.append("Invalid PurchaseDate format. Use YYYY-MM-DD.")
+                        purchase_date = None # Set to None to prevent further errors
+
+                    is_lifetime = is_lifetime_str == 'true'
+                    warranty_years = None
+                    expiration_date = None
+
+                    if not is_lifetime:
+                        if not warranty_years_str:
+                            errors.append("WarrantyYears is required unless IsLifetime is TRUE.")
+                        else:
+                            try:
+                                warranty_years = float(warranty_years_str)
+                                if warranty_years < 0.1 or warranty_years > 100:
+                                    errors.append("WarrantyYears must be between 0.1 and 100.")
+                            except ValueError:
+                                errors.append("WarrantyYears must be a valid number.")
+                    
+                    purchase_price = None
+                    if purchase_price_str:
+                        try:
+                            purchase_price = float(purchase_price_str)
+                            if purchase_price < 0:
+                                errors.append("PurchasePrice cannot be negative.")
+                        except ValueError:
+                            errors.append("PurchasePrice must be a valid number.")
+
+                    # Calculate expiration date if valid
+                    if not errors and not is_lifetime and warranty_years and purchase_date:
+                         if relativedelta:
+                             expiration_date = purchase_date + relativedelta(years=warranty_years)
+                         else:
+                             expiration_date = purchase_date + timedelta(days=warranty_years * 365) # Approximate
+
+                    # Split serial numbers
+                    serial_numbers = [sn.strip() for sn in serial_numbers_str.split(',') if sn.strip()] if serial_numbers_str else []
+
+                    # --- Process Tags --- 
+                    tag_ids_to_link = []
+                    if tags_str:
+                        tag_names = [name.strip() for name in tags_str.split(',') if name.strip()]
+                        if tag_names:
+                            # Find existing tag IDs (case-insensitive)
+                            placeholders = ', '.join(['%s'] * len(tag_names))
+                            sql = f"SELECT id, LOWER(name) FROM tags WHERE LOWER(name) IN ({placeholders})"
+                            cur.execute(sql, [name.lower() for name in tag_names])
+                            existing_tags = {name_lower: tag_id for tag_id, name_lower in cur.fetchall()}
+                            
+                            processed_tag_ids = []
+                            tags_to_create = []
+                            
+                            for name in tag_names:
+                                name_lower = name.lower()
+                                if name_lower in existing_tags:
+                                    processed_tag_ids.append(existing_tags[name_lower])
+                                else:
+                                    # Avoid queuing the same new tag multiple times within the same row
+                                    if name_lower not in [t['name_lower'] for t in tags_to_create]:
+                                        tags_to_create.append({'name': name, 'name_lower': name_lower})
+                            
+                            # Create tags that don't exist
+                            if tags_to_create:
+                                default_color = '#808080' # Default color for new tags
+                                for tag_data in tags_to_create:
+                                    try:
+                                        # Insert new tag with default color, preserving original case for name
+                                        cur.execute(
+                                            "INSERT INTO tags (name, color) VALUES (%s, %s) RETURNING id",
+                                            (tag_data['name'], default_color)
+                                        )
+                                        new_tag_id = cur.fetchone()[0]
+                                        processed_tag_ids.append(new_tag_id)
+                                        logger.info(f"Created new tag '{(tag_data['name'])}' with ID {new_tag_id} during CSV import.")
+                                    except Exception as tag_insert_err:
+                                        # If tag creation fails (e.g., unique constraint conflict due to race condition), log and potentially add error
+                                        logger.error(f"Error creating tag '{(tag_data['name'])}' during import: {tag_insert_err}")
+                                        # Attempt to fetch the ID again in case it was created by another process
+                                        cur.execute("SELECT id FROM tags WHERE LOWER(name) = %s", (tag_data['name_lower'],))
+                                        existing_id_result = cur.fetchone()
+                                        if existing_id_result:
+                                            processed_tag_ids.append(existing_id_result[0])
+                                        else:
+                                             # Add error to the row if tag creation failed and wasn't found
+                                            errors.append(f"Failed to create or find tag: {(tag_data['name'])}")
+                                            
+                            # Consolidate tag IDs to link
+                            if processed_tag_ids:
+                                tag_ids_to_link = list(set(processed_tag_ids)) # Ensure unique IDs
+
+                            # Removed the skipped tags warning as we now create them
+                            # if skipped_tags:
+                            #     errors.append(f"Skipped non-existent tags: {', '.join(skipped_tags)}.")
+
+                    # --- Check for Duplicates --- 
+                    if not errors and product_name and purchase_date:
+                        cur.execute("""
+                            SELECT id FROM warranties 
+                            WHERE user_id = %s AND product_name = %s AND purchase_date = %s
+                        """, (user_id, product_name, purchase_date))
+                        if cur.fetchone():
+                            errors.append("Duplicate warranty found (same product name and purchase date).")
+                    
+                    # --- If errors, skip row --- 
+                    if errors:
+                        failed_rows.append({"row": row_number, "errors": errors})
+                        continue
+
+                    # --- Insert into Database --- 
+                    cur.execute("""
+                        INSERT INTO warranties (
+                            product_name, purchase_date, warranty_years, expiration_date, 
+                            product_url, purchase_price, user_id, is_lifetime
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        product_name, purchase_date, warranty_years, expiration_date,
+                        product_url, purchase_price, user_id, is_lifetime
+                    ))
+                    warranty_id = cur.fetchone()[0]
+
+                    # Insert serial numbers
+                    if serial_numbers:
+                        for serial_number in serial_numbers:
+                            cur.execute("""
+                                INSERT INTO serial_numbers (warranty_id, serial_number)
+                                VALUES (%s, %s)
+                            """, (warranty_id, serial_number))
+                    
+                    # Link tags
+                    if tag_ids_to_link:
+                        for tag_id in tag_ids_to_link:
+                             cur.execute("""
+                                INSERT INTO warranty_tags (warranty_id, tag_id)
+                                VALUES (%s, %s)
+                                ON CONFLICT (warranty_id, tag_id) DO NOTHING -- Avoid errors if somehow duplicated
+                            """, (warranty_id, tag_id))
+
+                    imported_count += 1
+
+                except Exception as e:
+                    logger.error(f"Error processing CSV row {row_number}: {e}")
+                    failed_rows.append({"row": row_number, "errors": [f"Internal processing error: {str(e)}"]})
+                    # Don't rollback yet, just record failure
+
+            # --- Transaction Commit/Rollback --- 
+            if failed_rows:
+                conn.rollback() # Rollback if any row failed during processing or insertion
+                # Reset imported count if we rollback
+                final_success_count = 0 
+                # Modify errors for rows that might have been initially valid but failed due to rollback
+                final_failure_count = row_number - 1 # Total data rows processed
+                # Add a general error message
+                return jsonify({
+                    "error": "Import failed due to errors in one or more rows. No warranties were imported.",
+                    "success_count": 0,
+                    "failure_count": final_failure_count,
+                    "errors": failed_rows 
+                }), 400
+            else:
+                conn.commit() # Commit transaction if all rows were processed successfully
+                final_success_count = imported_count
+                final_failure_count = len(failed_rows)
+
+        return jsonify({
+            "message": "CSV processed.",
+            "success_count": final_success_count,
+            "failure_count": final_failure_count,
+            "errors": failed_rows
+        }), 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback() # Rollback on general error
+        logger.error(f"Error importing CSV: {e}")
+        return jsonify({"error": f"Failed to import CSV: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.autocommit = True # Reset autocommit
+            release_db_connection(conn)
+
+# --- End CSV Import Endpoint ---

@@ -1,7 +1,7 @@
 // Global variables
 let warranties = [];
 let currentTabIndex = 0;
-let tabContents;
+let tabContents = []; // Initialize as empty array
 let editMode = false;
 let currentWarrantyId = null;
 let currentFilters = {
@@ -46,6 +46,14 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 const loadingContainer = document.getElementById('loadingContainer');
 const toastContainer = document.getElementById('toastContainer');
 
+// CSV Import Elements
+const importBtn = document.getElementById('importBtn');
+const csvFileInput = document.getElementById('csvFileInput');
+if (importBtn) {
+    importBtn.classList.remove('import-btn');
+    importBtn.classList.add('export-btn');
+}
+
 // Tag DOM Elements
 const selectedTagsContainer = document.getElementById('selectedTags');
 const tagSearch = document.getElementById('tagSearch');
@@ -89,43 +97,79 @@ function getPreferenceKeyPrefix() {
     return getUserType() === 'admin' ? 'admin_' : 'user_';
 }
 
-// Theme Management
+// Theme Management - Simplified
 function setTheme(isDark) {
-    // Get the appropriate key prefix based on user type
-    const prefix = getPreferenceKeyPrefix();
-    console.log(`Setting theme with prefix: ${prefix}`);
+    const theme = isDark ? 'dark' : 'light';
+    console.log('Setting theme to:', theme);
     
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    // 1. Apply theme attribute to document root
+    document.documentElement.setAttribute('data-theme', theme);
+        
+    // 2. Save the single source of truth to localStorage
+    localStorage.setItem('darkMode', isDark);
     
-    // Update darkMode settings
-    localStorage.setItem(`${prefix}darkMode`, isDark);
-    localStorage.setItem('darkMode', isDark); // Keep for backward compatibility
-    
-    // Update DOM
-    if (isDark) {
-        document.body.classList.add('dark-mode');
-    } else {
-        document.body.classList.remove('dark-mode');
-    }
-    
-    // Set toggle state
-    if (darkModeToggle) {
-        darkModeToggle.checked = isDark;
-    }
-    
-    // Also update preferences in localStorage for consistency
-    try {
-        let userPrefs = {};
-        const storedPrefs = localStorage.getItem(`${prefix}preferences`);
-        if (storedPrefs) {
-            userPrefs = JSON.parse(storedPrefs);
-        }
-        userPrefs.theme = isDark ? 'dark' : 'light';
-        localStorage.setItem(`${prefix}preferences`, JSON.stringify(userPrefs));
-    } catch (e) {
-        console.error(`Error updating theme in ${prefix}preferences:`, e);
+    // Update toggle state if the toggle exists on this page (e.g., in the header)
+    const headerToggle = document.getElementById('darkModeToggle'); 
+    if (headerToggle) {
+        headerToggle.checked = isDark;
     }
 }
+
+// Initialization logic on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    // ... other initialization ...
+
+    // REMOVE call to undefined checkLoginStatus - Handled by auth.js
+    // checkLoginStatus(); 
+    
+    // Load warranties (assuming warrantiesList exists on this page)
+    if (document.getElementById('warrantiesList')) {
+        loadWarranties();
+    }
+
+    // Setup form submission (assuming addWarrantyForm exists)
+    const form = document.getElementById('addWarrantyForm');
+    if (form) {
+        form.addEventListener('submit', handleFormSubmit);
+        // Initialize form tabs if the form exists
+        initFormTabs(); 
+    }
+
+    // REMOVED setupSettingsMenu - Handled by auth.js
+    // setupSettingsMenu();
+    
+    // Initialize theme toggle state *after* DOM is loaded
+    // ... (theme toggle init logic) ...
+    
+    // Setup view switcher (assuming view switcher elements exist)
+    if (document.getElementById('gridViewBtn')) {
+        // setupViewSwitcher(); // Removed undefined function
+        loadViewPreference();
+    }
+    
+    // Setup filter controls (assuming filter controls exist)
+    if (document.getElementById('filterControls')) {
+        // setupFilterControls(); // Removed: function not defined
+        populateTagFilter();
+    }
+        
+    // Initialize modal interactions
+    // initializeModals(); // Removed: function not defined, handled by setupModalTriggers
+    setupModalTriggers();
+    
+    // Initialize Tag functionality (assuming tag elements exist)
+    if (document.getElementById('tagSearchInput')) {
+        initTagFunctionality();
+        loadTags();
+    }
+    
+    // Initialize form-specific lifetime checkbox handler
+    const lifetimeCheckbox = document.getElementById('isLifetime');
+    if (lifetimeCheckbox) {
+        lifetimeCheckbox.addEventListener('change', handleLifetimeChange);
+        handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
+    }
+});
 
 // Initialize theme based on user preference or system preference
 function initializeTheme() {
@@ -155,9 +199,6 @@ function initializeTheme() {
     setTheme(prefersDarkMode);
 }
 
-// Initialize theme when page loads
-initializeTheme();
-
 // Variables
 let currentView = 'grid'; // Default view
 let expiringSoonDays = 30; // Default value, will be updated from user preferences
@@ -165,64 +206,136 @@ let expiringSoonDays = 30; // Default value, will be updated from user preferenc
 // API URL
 const API_URL = '/api/warranties';
 
-// Form tab navigation variables
-// Ensure these elements exist before trying to select them
-const formTabsElements = document.querySelectorAll('.form-tab');
-const formTabs = formTabsElements ? Array.from(formTabsElements) : [];
-const tabContentsElements = document.querySelectorAll('.tab-content');
-tabContents = tabContentsElements ? Array.from(tabContentsElements) : [];
-const nextButton = document.querySelector('.next-tab');
-const prevButton = document.querySelector('.prev-tab');
+// Form tab navigation variables (simplified)
+let formTabs = []; // Changed from const to let, initialized as empty
+// Removed const formTabsElements = document.querySelectorAll('.form-tab');
+// Removed const formTabs = formTabsElements ? Array.from(formTabsElements) : [];
+// Removed const tabContentsElements = document.querySelectorAll('.tab-content');
+// Removed tabContents assignment here
+
+const nextButton = document.querySelector('.next-tab'); // Keep these if needed globally, otherwise might remove
+const prevButton = document.querySelector('.prev-tab'); // Keep these if needed globally, otherwise might remove
 
 // --- Add near other DOM Element declarations ---
-const serialNumbersContainer = document.getElementById('serialNumbersContainer'); // Keep this line
+// ... existing code ...
 
 // Initialize form tabs
 function initFormTabs() {
     console.log('Initializing form tabs...');
-    
-    // Hide the submit button initially
-    const submitButton = document.querySelector('button[type="submit"]');
-    if (submitButton) {
-        submitButton.style.display = 'none';
+    // Use the modal context if available, otherwise query document
+    const modalContext = document.getElementById('addWarrantyModal'); // Assuming this is the context
+    const context = modalContext && modalContext.classList.contains('active') ? modalContext : document;
+
+    const tabsContainer = context.querySelector('.form-tabs');
+    // Re-query tabContents and formTabs within the correct context and update global variables
+    const contentsElements = context.querySelectorAll('.tab-content');
+    tabContents = contentsElements ? Array.from(contentsElements) : []; // Update global variable
+
+    const tabsElements = tabsContainer ? tabsContainer.querySelectorAll('.form-tab') : [];
+    formTabs = tabsElements ? Array.from(tabsElements) : []; // Update global variable
+
+    const nextButton = context.querySelector('#nextTabBtn'); // Use context
+    const prevButton = context.querySelector('#prevTabBtn'); // Use context
+    const submitButton = context.querySelector('#submitWarrantyBtn'); // Use context
+
+    // Use the updated global variables length for checks
+    if (!tabsContainer || !tabContents.length || !formTabs.length || !nextButton || !prevButton || !submitButton) {
+        console.warn('Form tab elements not found in the expected context. Skipping tab initialization.');
+        return; // Don't proceed if elements aren't present
     }
-    
-    // Show/hide navigation buttons based on current tab
-    updateNavigationButtons();
-    
-    // Remove any existing event listeners before adding new ones
+
+    // Remove the local 'tabs' and 'contents' variables, use global ones now
+    // let currentTabIndex = 0; // Already global
+    // const tabs = tabsContainer.querySelectorAll('.form-tab'); // Use global formTabs
+    // const contents = document.querySelectorAll('.tab-content'); // Use global tabContents
+
+    // Remove the inner switchToTab and updateNavigationButtons functions as they are defined globally
+    /*
+    function switchToTab(index) {
+        // ... removed inner function ...
+    }
+
+    function updateNavigationButtons() {
+        // ... removed inner function ...
+    }
+    */
+
+    // --- CLONE AND REPLACE NAV BUTTONS TO REMOVE OLD LISTENERS ---
+    // Ensure buttons exist before cloning
+    let nextButtonCloned = nextButton;
+    let prevButtonCloned = prevButton;
     if (nextButton && prevButton) {
-        const nextTabClone = nextButton.cloneNode(true);
-        const prevTabClone = prevButton.cloneNode(true);
-        
-        nextButton.parentNode.replaceChild(nextTabClone, nextButton);
-        prevButton.parentNode.replaceChild(prevTabClone, prevButton);
-        
-        // Add event listeners for tab navigation
-        document.querySelector('.next-tab').addEventListener('click', () => {
-            console.log('Next button clicked, current tab:', currentTabIndex);
+        nextButtonCloned = nextButton.cloneNode(true);
+        prevButtonCloned = prevButton.cloneNode(true);
+        nextButton.parentNode.replaceChild(nextButtonCloned, nextButton);
+        prevButton.parentNode.replaceChild(prevButtonCloned, prevButton);
+    } else {
+        console.warn("Next/Prev buttons not found for cloning listeners.");
+    }
+
+
+    // ... (rest of initFormTabs, including event listeners, ensure element checks)
+    // Make sure event listeners use the correct global functions and variables
+    formTabs.forEach((tab, index) => { // Use global formTabs
+        if (tab) { // Check if tab exists
+            tab.addEventListener('click', () => {
+                // Allow clicking only on previous tabs if valid, or current
+                if (index < currentTabIndex) {
+                    let canSwitch = true;
+                    for (let i = 0; i < index; i++) {
+                        // Ensure validateTab uses the correct global tabContents
+                        if (!validateTab(i)) {
+                            canSwitch = false;
+                            break;
+                        }
+                    }
+                    if (canSwitch) switchToTab(index); // Call global function
+                } else if (index === currentTabIndex) {
+                    // Clicking current tab does nothing
+                } else {
+                    // Try to navigate forward by clicking tab
+                    // Ensure validateTab uses the correct global tabContents
+                    if (validateTab(currentTabIndex)) {
+                        // Mark current as completed
+                        if(formTabs[currentTabIndex]) formTabs[currentTabIndex].classList.add('completed'); // Use global formTabs
+                        switchToTab(index); // Call global function
+                    } else {
+                         // If current tab is invalid, show errors for it
+                         showValidationErrors(currentTabIndex);
+                    }
+                }
+            });
+        }
+    });
+
+    if (nextButtonCloned) { // Check button exists
+        nextButtonCloned.addEventListener('click', () => {
+            // Ensure validateTab uses the correct global tabContents
             if (validateTab(currentTabIndex)) {
-                switchToTab(currentTabIndex + 1);
+                if (formTabs[currentTabIndex]) formTabs[currentTabIndex].classList.add('completed'); // Use global formTabs
+                // Use global formTabs length
+                if (currentTabIndex < formTabs.length - 1) { // <-- Ensure this uses formTabs.length
+                    switchToTab(currentTabIndex + 1); // Call global function
+                }
             } else {
+                // If current tab is invalid, show errors
                 showValidationErrors(currentTabIndex);
             }
         });
-        
-        document.querySelector('.prev-tab').addEventListener('click', () => {
-            console.log('Previous button clicked, current tab:', currentTabIndex);
-            switchToTab(currentTabIndex - 1);
-        });
+    } else {
+         console.warn("Cloned Next button not found, listener not added.");
     }
-    
-    // Add click event for tab headers
-    formTabs.forEach((tab, index) => {
-        tab.addEventListener('click', () => {
-            // Only allow clicking on previous tabs or current tab
-            if (index <= currentTabIndex) {
-                switchToTab(index);
+
+    if (prevButtonCloned) { // Check button exists
+        prevButtonCloned.addEventListener('click', () => {
+            if (currentTabIndex > 0) {
+                switchToTab(currentTabIndex - 1);
             }
         });
-    });
+    }
+
+    // Initialize the first tab
+    switchToTab(0);
 }
 
 // Switch to a specific tab
@@ -233,6 +346,11 @@ function switchToTab(index) {
     if (index < 0 || index >= formTabs.length) {
         console.log(`Invalid tab index: ${index}, not switching`);
         return;
+    }
+    
+    // Update summary FIRST if switching TO the summary tab
+    if (index === formTabs.length - 1) {
+        updateSummary();
     }
     
     // Update active tab
@@ -253,11 +371,6 @@ function switchToTab(index) {
     
     // Update navigation buttons
     updateNavigationButtons();
-    
-    // Update summary if on summary tab
-    if (index === formTabs.length - 1) {
-        updateSummary();
-    }
 }
 
 // Update navigation buttons based on current tab
@@ -389,7 +502,8 @@ function updateSummary() {
         if (isLifetime) {
             summaryWarrantyYears.textContent = 'Lifetime';
         } else if (warrantyYears) {
-            summaryWarrantyYears.textContent = `${warrantyYears} ${parseInt(warrantyYears) === 1 ? 'year' : 'years'}`;
+            const yearsNum = parseFloat(warrantyYears);
+            summaryWarrantyYears.textContent = `${yearsNum} ${yearsNum === 1 ? 'year' : 'years'}`;
         } else {
             summaryWarrantyYears.textContent = '-';
         }
@@ -399,8 +513,14 @@ function updateSummary() {
     const summaryExpirationDate = document.getElementById('summary-expiration-date');
     if (summaryExpirationDate && purchaseDate && warrantyYears) {
         const expirationDate = new Date(purchaseDate);
-        expirationDate.setFullYear(expirationDate.getFullYear() + parseInt(warrantyYears));
-        summaryExpirationDate.textContent = expirationDate.toLocaleDateString();
+        const yearsNum = parseFloat(warrantyYears);
+        if (!isNaN(yearsNum)) {
+            expirationDate.setFullYear(expirationDate.getFullYear() + Math.floor(yearsNum));
+            expirationDate.setMonth(expirationDate.getMonth() + Math.round((yearsNum % 1) * 12));
+            summaryExpirationDate.textContent = expirationDate.toLocaleDateString();
+        } else {
+            summaryExpirationDate.textContent = '-';
+        }
     } else if (summaryExpirationDate) {
         summaryExpirationDate.textContent = '-';
     }
@@ -576,8 +696,12 @@ function switchView(viewType) {
 
     // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
-    localStorage.setItem(`${prefix}viewPreference`, viewType);
-    localStorage.setItem('viewPreference', viewType); // Keep for backward compatibility
+    // --- BEGIN EDIT: Save to all relevant keys ---
+    localStorage.setItem(`${prefix}viewPreference`, viewType); // Keep this one
+    localStorage.setItem(`${prefix}defaultView`, viewType);    // Add for consistency with settings load priority
+    localStorage.setItem(`${prefix}warrantyView`, viewType);   // Add for consistency with settings legacy save
+    localStorage.setItem('viewPreference', viewType);         // Keep general key
+    // --- END EDIT ---
 
     // Make sure warrantiesList exists before modifying classes
     if (warrantiesList) {
@@ -612,17 +736,29 @@ function switchView(viewType) {
 function loadViewPreference() {
     // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
-    let savedView = localStorage.getItem(`${prefix}viewPreference`);
-    
-    // Fallback to global preference if user-specific one isn't found
-    if (!savedView) {
-        savedView = localStorage.getItem('viewPreference');
+    let savedView = null;
+
+    // --- BEGIN EDIT: Check keys in priority order ---
+    const userSpecificView = localStorage.getItem(`${prefix}defaultView`);
+    const generalView = localStorage.getItem('viewPreference');
+    const legacyWarrantyView = localStorage.getItem(`${prefix}warrantyView`);
+
+    if (userSpecificView) {
+        savedView = userSpecificView;
+        console.log(`Loaded view preference from ${prefix}defaultView:`, savedView);
+    } else if (generalView) {
+        savedView = generalView;
+        console.log('Loaded view preference from viewPreference:', savedView);
+    } else if (legacyWarrantyView) {
+        savedView = legacyWarrantyView;
+        console.log(`Loaded view preference from legacy ${prefix}warrantyView:`, savedView);
     }
-    
+    // --- END EDIT ---
+
     // Default to grid view if no preference is saved
     savedView = savedView || 'grid';
-    
-    console.log(`Found global view preference: ${savedView}`);
+
+    console.log(`Applying view preference: ${savedView}`);
     // Switch view only if view buttons exist (implying it's the main page)
     if (gridViewBtn || listViewBtn || tableViewBtn) {
         switchView(savedView);
@@ -1114,7 +1250,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="document-links-row">
                     ${warranty.product_url ? `
                         <a href="${warranty.product_url}" class="product-link" target="_blank">
-                            <i class="fas fa-globe"></i> Product Website
+                            <i class="fas fa-globe"></i>
                         </a>
                     ` : ''}
                     ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
@@ -1159,11 +1295,11 @@ async function renderWarranties(warrantiesToRender) {
                     ` : ''}
                     ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                            <i class="fas fa-file-invoice"></i>
+                            <i class="fas fa-file-invoice"></i> Invoice
                         </a>` : ''}
                     ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                         <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                            <i class="fas fa-book"></i>
+                            <i class="fas fa-book"></i> Manual
                         </a>` : ''}
                 </div>
                 ${tagsHtml}
@@ -1541,8 +1677,8 @@ function submitForm(event) {
     event.preventDefault();
     
     // --- Add Lifetime Check ---
-    if (!isLifetimeCheckbox.checked && !warrantyYearsInput.value) {
-        showToast('Warranty period (years) is required unless it\'s a lifetime warranty', 'error');
+    if (!isLifetimeCheckbox.checked && (!warrantyYearsInput.value || parseFloat(warrantyYearsInput.value) <= 0)) {
+        showToast('Warranty period (years) is required and must be greater than 0 unless it\'s a lifetime warranty', 'error');
         switchToTab(1); // Switch to warranty details tab
         warrantyYearsInput.focus();
         warrantyYearsInput.classList.add('invalid');
@@ -1640,6 +1776,50 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up event listeners for other UI controls (should contain checks)
     setupUIEventListeners();
     setupModalTriggers(); // Add the new modal listeners
+    
+    // Check if user is logged in and update UI
+    // checkLoginStatus(); // Removed undefined function
+    
+    // Setup form submission
+    const form = document.getElementById('addWarrantyForm');
+    if (form) {
+        form.addEventListener('submit', handleFormSubmit);
+    }
+    
+    // Setup settings menu toggle
+    // setupSettingsMenu(); // Removed: function not defined, handled by auth.js
+    
+    // Initialize theme toggle state *after* DOM is loaded
+    // Find the header toggle (assuming ID 'darkModeToggle')
+    const headerToggle = document.getElementById('darkModeToggle'); 
+    if (headerToggle) {
+        // Set initial state based on theme applied by theme-loader.js
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        headerToggle.checked = currentTheme === 'dark';
+        
+        // Add listener to update theme when toggled
+        headerToggle.addEventListener('change', function() {
+            setTheme(this.checked);
+        });
+    }
+    
+    // REMOVE any direct calls to initializeTheme() from here or globally
+    // initializeTheme(); 
+
+    // Setup view switcher
+    // setupViewSwitcher(); // Removed undefined function
+    
+    // Setup filter controls
+    // setupFilterControls(); // Removed: function not defined
+    
+    // Setup form tabs and navigation
+    // initFormTabs(); // <-- Remove this line from DOMContentLoaded
+    
+    // Initialize modal interactions
+    // initializeModals(); // Removed: function not defined, handled by setupModalTriggers
+    
+    // Load preferences (if needed for things other than theme)
+    // loadPreferences(); // Consider if needed
 });
 
 // Add this function to handle edit tab functionality
@@ -1899,7 +2079,12 @@ function renderTagsList(searchTerm = '') {
         createOption.className = 'tag-option create-tag';
         createOption.innerHTML = `<i class="fas fa-plus"></i> Create "${searchTerm}"`;
         createOption.addEventListener('click', () => {
-            createTag(searchTerm);
+            createTag(searchTerm).then(newTag => {
+                // Add the new tag to selectedTags
+                selectedTags.push(newTag);
+                renderSelectedTags();
+                renderTagsList(''); // Clear search and refresh list
+            });
             tagsList.classList.remove('show');
         });
         tagsList.appendChild(createOption);
@@ -1943,6 +2128,71 @@ function renderTagsList(searchTerm = '') {
     tagsList.classList.add('show');
 }
 
+// Update renderEditTagsList to add new tag to editSelectedTags after creation
+function renderEditTagsList(searchTerm = '') {
+    const editTagsList = document.getElementById('editTagsList');
+    if (!editTagsList) return;
+    editTagsList.innerHTML = '';
+    // Filter tags based on search term
+    const filteredTags = allTags.filter(tag => 
+        !searchTerm || tag.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    // Add option to create new tag if search term is provided and not in list
+    if (searchTerm && !filteredTags.some(tag => tag.name.toLowerCase() === searchTerm.toLowerCase())) {
+        const createOption = document.createElement('div');
+        createOption.className = 'tag-option create-tag';
+        createOption.innerHTML = `<i class="fas fa-plus"></i> Create "${searchTerm}"`;
+        createOption.addEventListener('click', () => {
+            createTag(searchTerm).then(newTag => {
+                // Add the new tag to editSelectedTags
+                editSelectedTags.push(newTag);
+                renderEditSelectedTags();
+                renderEditTagsList(''); // Clear search and refresh list
+            });
+            editTagsList.classList.remove('show');
+        });
+        editTagsList.appendChild(createOption);
+    }
+    // Add existing tags to dropdown
+    filteredTags.forEach(tag => {
+        const option = document.createElement('div');
+        option.className = 'tag-option';
+        
+        // Check if tag is already selected
+        const isSelected = editSelectedTags.some(selected => selected.id === tag.id);
+        
+        option.innerHTML = `
+            <span class="tag-color" style="background-color: ${tag.color}"></span>
+            ${tag.name}
+            <span class="tag-status">${isSelected ? '<i class="fas fa-check"></i>' : ''}</span>
+        `;
+        
+        option.addEventListener('click', () => {
+            if (isSelected) {
+                // Remove tag if already selected
+                editSelectedTags = editSelectedTags.filter(selected => selected.id !== tag.id);
+            } else {
+                // Add tag if not selected
+                editSelectedTags.push({
+                    id: tag.id,
+                    name: tag.name,
+                    color: tag.color
+                });
+            }
+            
+            // Use our helper function to render selected tags
+            renderEditSelectedTags();
+            
+            renderEditTagsList(searchTerm);
+        });
+        
+        editTagsList.appendChild(option);
+    });
+    
+    // Show the dropdown
+    editTagsList.classList.add('show');
+}
+
 // Render the selected tags
 function renderSelectedTags() {
     if (!selectedTagsContainer) return;
@@ -1984,58 +2234,104 @@ function renderSelectedTags() {
     });
 }
 
-// Create a new tag
-function createTag(name) {
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-        console.error('No authentication token found');
-        return;
+// Helper function to render the edit selected tags
+function renderEditSelectedTags() {
+    const editSelectedTagsContainer = document.getElementById('editSelectedTags');
+    if (!editSelectedTagsContainer) return;
+    
+    editSelectedTagsContainer.innerHTML = '';
+    
+    if (editSelectedTags.length > 0) {
+        editSelectedTags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag';
+            tagElement.style.backgroundColor = tag.color;
+            tagElement.style.color = getContrastColor(tag.color);
+            
+            tagElement.innerHTML = `
+                ${tag.name}
+                <span class="remove-tag" data-id="${tag.id}">&times;</span>
+            `;
+            
+            // Add event listener for removing tag
+            const removeButton = tagElement.querySelector('.remove-tag');
+            removeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault(); // Add this to prevent default action
+                
+                // Prevent the event from bubbling up to parent elements
+                if (e.cancelBubble !== undefined) {
+                    e.cancelBubble = true;
+                }
+                
+                editSelectedTags = editSelectedTags.filter(t => t.id !== tag.id);
+                
+                // Re-render just the tags
+                renderEditSelectedTags();
+                return false; // Add return false for older browsers
+            });
+            
+            editSelectedTagsContainer.appendChild(tagElement);
+        });
+    } else {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'no-tags-selected';
+        placeholder.textContent = 'No tags selected';
+        editSelectedTagsContainer.appendChild(placeholder);
     }
-    
-    // Generate a random color for the tag
-    const color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
-    
-    fetch('/api/tags', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({
-            name: name,
-            color: color
-        })
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to create tag');
+}
+
+// Update createTag to return a Promise
+function createTag(name) {
+    return new Promise((resolve, reject) => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            console.error('No authentication token found');
+            reject(new Error('No authentication token found'));
+            return;
         }
-        return response.json();
-    })
-    .then(data => {
-        // Add new tag to allTags array
-        allTags.push({
-            id: data.id,
-            name: data.name,
-            color: data.color
+        // Generate a random color for the tag
+        const color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        fetch('/api/tags', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+                name: name,
+                color: color
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 409) {
+                    reject(new Error('A tag with this name already exists'));
+                    return;
+                }
+                reject(new Error('Failed to create tag'));
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data) return;
+            const newTag = {
+                id: data.id,
+                name: data.name,
+                color: data.color
+            };
+            allTags.push(newTag);
+            renderExistingTags();
+            populateTagFilter();
+            showToast('Tag created successfully', 'success');
+            resolve(newTag);
+        })
+        .catch(error => {
+            console.error('Error creating tag:', error);
+            showToast(error.message || 'Failed to create tag', 'error');
+            reject(error);
         });
-        
-        // Select the new tag
-        selectedTags.push({
-            id: data.id,
-            name: data.name,
-            color: data.color
-        });
-        
-        // Clear search and rerender
-        if (tagSearch) tagSearch.value = '';
-        renderSelectedTags();
-        
-        showToast('Tag created successfully', 'success');
-    })
-    .catch(error => {
-        console.error('Error creating tag:', error);
-        showToast(error.message || 'Failed to create tag', 'error');
     });
 }
 
@@ -2279,38 +2575,44 @@ function deleteTag(id) {
 
 // Set up event listeners for UI controls
 function setupUIEventListeners() {
-    // Initialize settings button
-    const settingsBtn = document.querySelector('.settings-btn');
-    const settingsMenu = document.querySelector('.settings-menu');
-    
-    if (settingsBtn && settingsMenu) {
-        settingsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            settingsMenu.classList.toggle('active');
-        });
-        
-        // Close settings menu when clicking outside
-        document.addEventListener('click', (e) => {
-            if (settingsMenu.classList.contains('active') && 
-                !settingsMenu.contains(e.target) && 
-                !settingsBtn.contains(e.target)) {
-                settingsMenu.classList.remove('active');
-            }
-        });
-    }
-    
     // Initialize edit tabs
     initEditTabs();
     
     // Close modals when clicking outside or on close button
     document.querySelectorAll('.modal-backdrop, [data-dismiss="modal"]').forEach(element => {
         element.addEventListener('click', (e) => {
-            if (e.target === element) {
-                closeModals();
+            // Check if the click is on the backdrop itself OR a dismiss button
+            if (e.target === element || e.target.matches('[data-dismiss="modal"]')) {
+                // Find the closest modal backdrop to the element clicked
+                const modalToClose = e.target.closest('.modal-backdrop');
+
+                if (modalToClose) {
+                    // *** MODIFIED CHECK ***
+                    // If the click target is the backdrop itself (not a dismiss button)
+                    // AND the modal is the 'addWarrantyModal', then DO NOTHING.
+                    if (modalToClose.id === 'addWarrantyModal' && e.target === modalToClose) {
+                        return; // Ignore backdrop click for addWarrantyModal
+                    }
+                    // *** END MODIFIED CHECK ***
+
+                    // Otherwise, close the modal (handles other modals' backdrop clicks and all dismiss buttons)
+                    modalToClose.classList.remove('active');
+
+                    // Reset forms only when closing the respective modal
+                    if (modalToClose.id === 'editModal') {
+                        // Optional: Add any edit form reset logic here if needed
+                        console.log('Edit modal closed, reset logic (if any) can go here.');
+                    } else if (modalToClose.id === 'addWarrantyModal') {
+                        // This reset will now only trigger if closed via dismiss button
+                        resetAddWarrantyWizard();
+                    }
+                    // Add similar reset logic for other modals like deleteModal if needed
+                    // else if (modalToClose.id === 'deleteModal') { ... }
+                }
             }
         });
     });
-    
+
     // Prevent modal content clicks from closing the modal
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', (e) => {
@@ -2391,6 +2693,18 @@ function setupUIEventListeners() {
     // Export button event listener
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.addEventListener('click', exportWarranties);
+    
+    // Import button event listener
+    if (importBtn && csvFileInput) {
+        importBtn.addEventListener('click', () => {
+            csvFileInput.click(); // Trigger hidden file input
+        });
+        csvFileInput.addEventListener('change', (event) => {
+            if (event.target.files && event.target.files.length > 0) {
+                handleImport(event.target.files[0]);
+            }
+        });
+    }
     
     // Refresh button
     const refreshBtn = document.getElementById('refreshBtn');
@@ -2487,10 +2801,8 @@ function saveWarranty() {
     }
     
     // --- Modified Validation ---
-    // Only validate warrantyYears if it's NOT a lifetime warranty
     if (!isLifetime) {
-        // Use parseInt to ensure it's treated as a number
-        if (!warrantyYears || parseInt(warrantyYears, 10) <= 0) { 
+        if (!warrantyYears || parseFloat(warrantyYears) <= 0) {
             showToast('Warranty period (years) must be greater than 0 for non-lifetime warranties', 'error');
             // Optional: focus the years input again
             const yearsInput = document.getElementById('editWarrantyYears');
@@ -2507,7 +2819,6 @@ function saveWarranty() {
     const formData = new FormData();
     formData.append('product_name', productName);
     formData.append('purchase_date', purchaseDate);
-    // formData.append('warranty_years', warrantyYears); // Append conditionally later
     
     // Optional fields
     const productUrl = document.getElementById('editProductUrl').value.trim();
@@ -2548,21 +2859,9 @@ function saveWarranty() {
         formData.append('manual', manualFile);
     }
     
-    // --- Remove redundant check (already covered by validation) ---
-    // if (!editIsLifetimeCheckbox.checked && !editWarrantyYearsInput.value) {
-    //     showToast('Warranty period (years) is required unless it\'s a lifetime warranty', 'error');
-    //     // Switch to the warranty details tab in the edit modal
-    //     const warrantyTabBtn = document.querySelector('.edit-tab-btn[data-tab="edit-warranty-details"]');
-    //     if (warrantyTabBtn) warrantyTabBtn.click();
-    //     editWarrantyYearsInput.focus();
-    //     editWarrantyYearsInput.classList.add('invalid');
-    //     return;
-    // }
-
     // --- Append is_lifetime and warranty_years ---
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
-        // Use the value we already retrieved
         formData.append('warranty_years', warrantyYears);
     }
     
@@ -2604,70 +2903,6 @@ function saveWarranty() {
     });
 }
 
-// Render the tags dropdown list for edit mode
-function renderEditTagsList(searchTerm = '') {
-    const editTagsList = document.getElementById('editTagsList');
-    if (!editTagsList) return;
-    
-    editTagsList.innerHTML = '';
-    
-    // Filter tags based on search term
-    const filteredTags = allTags.filter(tag => 
-        !searchTerm || tag.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    
-    // Add option to create new tag if search term is provided and not in list
-    if (searchTerm && !filteredTags.some(tag => tag.name.toLowerCase() === searchTerm.toLowerCase())) {
-        const createOption = document.createElement('div');
-        createOption.className = 'tag-option create-tag';
-        createOption.innerHTML = `<i class="fas fa-plus"></i> Create "${searchTerm}"`;
-        createOption.addEventListener('click', () => {
-            createTag(searchTerm);
-            editTagsList.classList.remove('show');
-        });
-        editTagsList.appendChild(createOption);
-    }
-    
-    // Add existing tags to dropdown
-    filteredTags.forEach(tag => {
-        const option = document.createElement('div');
-        option.className = 'tag-option';
-        
-        // Check if tag is already selected
-        const isSelected = editSelectedTags.some(selected => selected.id === tag.id);
-        
-        option.innerHTML = `
-            <span class="tag-color" style="background-color: ${tag.color}"></span>
-            ${tag.name}
-            <span class="tag-status">${isSelected ? '<i class="fas fa-check"></i>' : ''}</span>
-        `;
-        
-        option.addEventListener('click', () => {
-            if (isSelected) {
-                // Remove tag if already selected
-                editSelectedTags = editSelectedTags.filter(selected => selected.id !== tag.id);
-            } else {
-                // Add tag if not selected
-                editSelectedTags.push({
-                    id: tag.id,
-                    name: tag.name,
-                    color: tag.color
-                });
-            }
-            
-            // Use our helper function to render selected tags
-            renderEditSelectedTags();
-            
-            renderEditTagsList(searchTerm);
-        });
-        
-        editTagsList.appendChild(option);
-    });
-    
-    // Show the dropdown
-    editTagsList.classList.add('show');
-}
-
 // Function to populate tag filter dropdown
 function populateTagFilter() {
     const tagFilter = document.getElementById('tagFilter');
@@ -2702,127 +2937,6 @@ function populateTagFilter() {
         option.textContent = tag.name;
         option.style.backgroundColor = tag.color;
         tagFilter.appendChild(option);
-    });
-}
-
-// Helper function to render the edit selected tags
-function renderEditSelectedTags() {
-    const editSelectedTagsContainer = document.getElementById('editSelectedTags');
-    if (!editSelectedTagsContainer) return;
-    
-    editSelectedTagsContainer.innerHTML = '';
-    
-    if (editSelectedTags.length > 0) {
-        editSelectedTags.forEach(tag => {
-            const tagElement = document.createElement('span');
-            tagElement.className = 'tag';
-            tagElement.style.backgroundColor = tag.color;
-            tagElement.style.color = getContrastColor(tag.color);
-            
-            tagElement.innerHTML = `
-                ${tag.name}
-                <span class="remove-tag" data-id="${tag.id}">&times;</span>
-            `;
-            
-            // Add event listener for removing tag
-            const removeButton = tagElement.querySelector('.remove-tag');
-            removeButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.preventDefault(); // Add this to prevent default action
-                
-                // Prevent the event from bubbling up to parent elements
-                if (e.cancelBubble !== undefined) {
-                    e.cancelBubble = true;
-                }
-                
-                editSelectedTags = editSelectedTags.filter(t => t.id !== tag.id);
-                
-                // Re-render just the tags
-                renderEditSelectedTags();
-                return false; // Add return false for older browsers
-            });
-            
-            editSelectedTagsContainer.appendChild(tagElement);
-        });
-    } else {
-        const placeholder = document.createElement('span');
-        placeholder.className = 'no-tags-selected';
-        placeholder.textContent = 'No tags selected';
-        editSelectedTagsContainer.appendChild(placeholder);
-    }
-}
-
-// Create a new tag via the management modal form
-function createNewTag() {
-    const tagNameInput = document.getElementById('newTagName');
-    const tagColorInput = document.getElementById('newTagColor');
-    
-    const name = tagNameInput ? tagNameInput.value.trim() : '';
-    const color = tagColorInput ? tagColorInput.value : '#808080'; // Default color if input not found
-    
-    if (!name) {
-        showToast('Tag name cannot be empty', 'error');
-        return;
-    }
-    
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
-        console.error('No authentication token found');
-        showToast('Authentication required', 'error');
-        return;
-    }
-    
-    showLoadingSpinner(); // Show loading indicator
-    
-    fetch('/api/tags', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({
-            name: name,
-            color: color
-        })
-    })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 409) {
-                throw new Error('A tag with this name already exists');
-            }
-            // Try to get error message from response body
-            return response.json().then(errData => {
-                throw new Error(errData.error || errData.message || 'Failed to create tag');
-            }).catch(() => {
-                 // If response body is not JSON or empty
-                throw new Error(`Failed to create tag. Status: ${response.status}`);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        // Add new tag to allTags array
-        allTags.push({
-            id: data.id,
-            name: data.name,
-            color: data.color
-        });
-        
-        // --- FIX: Clear input fields and re-render existing tags ---
-        if (tagNameInput) tagNameInput.value = '';
-        if (tagColorInput) tagColorInput.value = '#808080'; // Reset color picker
-        renderExistingTags(); // Update the list in the modal
-        populateTagFilter(); // Update the filter dropdown on the main page
-        // --- END FIX ---
-        
-        showToast('Tag created successfully', 'success');
-    })
-    .catch(error => {
-        console.error('Error creating tag:', error);
-        showToast(error.message || 'Failed to create tag', 'error');
-    })
-    .finally(() => {
-        hideLoadingSpinner(); // Hide loading indicator
     });
 }
 
@@ -2878,7 +2992,25 @@ function resetAddWarrantyWizard() {
 
     // Reset file input displays
     if (fileName) fileName.textContent = '';
-    if (manualFileName) manualFileName.textContent = '';
+    if (manualFileName) fileName.textContent = '';
+
+    // Reset selected tags
+    selectedTags = [];
+    console.log('Resetting Add Warranty Wizard...');
+    // Reset the form fields
+    if (warrantyForm) {
+        warrantyForm.reset();
+    }
+
+    // Reset serial numbers container (remove all but the first input structure)
+    if (serialNumbersContainer) {
+        serialNumbersContainer.innerHTML = ''; // Clear it
+        addSerialNumberInput(); // Add the initial input back
+    }
+
+    // Reset file input displays
+    if (fileName) fileName.textContent = '';
+    if (manualFileName) fileName.textContent = '';
 
     // Reset selected tags
     selectedTags = [];
@@ -2913,10 +3045,8 @@ function setupModalTriggers() {
         showAddWarrantyBtn.addEventListener('click', () => {
             resetAddWarrantyWizard(); // Reset before showing
             addWarrantyModal.classList.add('active');
-            // Re-initialize tabs specifically for this modal if needed,
-            // but initFormTabs() in DOMContentLoaded should handle it.
-            // Ensure the first tab content is displayed correctly after reset
-            switchToTab(0); 
+            initFormTabs(); // Initialize tabs only when modal is shown
+            switchToTab(0); // Ensure the first tab content is displayed correctly after reset
         });
     }
 
@@ -2930,20 +3060,153 @@ function setupModalTriggers() {
                 resetAddWarrantyWizard(); // Reset on close
             });
         }
-        // Backdrop click
+        // REMOVED: Backdrop click listener
+        /*
         addWarrantyModal.addEventListener('click', (e) => {
             if (e.target === addWarrantyModal) {
                 addWarrantyModal.classList.remove('active');
                 resetAddWarrantyWizard(); // Reset on close
             }
         });
+        */
         // Optional: Cancel button in footer if you add one
-        // const cancelBtn = addWarrantyModal.querySelector('.cancel-btn');
-        // if (cancelBtn) {
-        //     cancelBtn.addEventListener('click', () => {
-        //         addWarrantyModal.classList.remove('active');
-        //         resetAddWarrantyWizard(); // Reset on cancel
-        //     });
-        // }
+        // ... (cancel button logic remains unchanged)
+    }
+
+    // --- Edit Modal Triggers (Keep existing logic) ---
+    // Close edit/delete modals when clicking outside or on close button
+    document.querySelectorAll('#editModal, #deleteModal, [data-dismiss="modal"]').forEach(element => {
+        element.addEventListener('click', (e) => {
+            // Check if the click is on the backdrop itself OR a dismiss button
+            if (e.target === element || e.target.matches('[data-dismiss="modal"]')) {
+                 // Find the closest modal backdrop to the element clicked
+                const modalToClose = e.target.closest('.modal-backdrop');
+                if (modalToClose) {
+                    // *** ADD CHECK: Do NOT close addWarrantyModal via this general listener ***
+                    if (modalToClose.id === 'addWarrantyModal') {
+                        return; // Ignore backdrop clicks for the add modal here
+                    }
+                    // *** END ADD CHECK ***
+
+                    modalToClose.classList.remove('active');
+                    // Reset edit form state if closing edit modal
+                    if (modalToClose.id === 'editModal') {
+                        // Optional: Add any edit form reset logic here if needed
+                    }
+                }
+            }
+        });
+    });
+
+    // Prevent modal content clicks from closing the modal (Keep for all modals)
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    });
+}
+
+// --- CSV Import Functionality ---
+
+async function handleImport(file) {
+    if (!file) {
+        showToast('No file selected.', 'warning');
+        return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+        showToast('Invalid file type. Please select a .csv file.', 'error');
+        return;
+    }
+
+    // Show loading indicator
+    showLoadingSpinner();
+
+    const formData = new FormData();
+    formData.append('csv_file', file);
+
+    try {
+        // const token = localStorage.getItem('token'); // Incorrect key
+        const token = localStorage.getItem('auth_token'); // Correct key used elsewhere
+        if (!token) {
+            showToast('Authentication error. Please log in again.', 'error');
+            hideLoadingSpinner();
+            // Maybe redirect to login: window.location.href = '/login.html';
+            return;
+        }
+
+        const response = await fetch('/api/warranties/import', {
+            method: 'POST',
+            headers: {
+                // Content-Type is automatically set by browser when using FormData
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        hideLoadingSpinner();
+        const result = await response.json();
+
+        if (response.ok) {
+            const { success_count, failure_count, errors } = result;
+            let message = `${success_count} warranties imported successfully.`;
+            if (failure_count > 0) {
+                message += ` ${failure_count} rows failed.`;
+                // Log detailed errors to the console for now
+                console.warn('Import errors:', errors);
+                // Consider showing errors in a modal or separate report later
+            }
+            showToast(message, 'success');
+
+            // ***** FIX: Reload the tags list *****
+            console.log("Import successful, reloading tags...");
+            await loadTags(); // Fetch the updated list of all tags
+            // ***** END FIX *****
+
+            loadWarranties(); // Refresh the list
+        } else {
+            showToast(`Import failed: ${result.error || 'Unknown error'}`, 'error');
+            if (result.errors) {
+                 console.error('Detailed import errors:', result.errors);
+            }
+        }
+
+    } catch (error) {
+        hideLoadingSpinner();
+        console.error('Error during file import:', error);
+        showToast('An error occurred during import. Check console for details.', 'error');
+    } finally {
+        // Reset the file input so the user can select the same file again if needed
+        if (csvFileInput) {
+            csvFileInput.value = '';
+        }
     }
 }
+
+// --- End CSV Import Functionality ---
+
+// --- Add Storage Event Listener for Real-time Sync ---
+window.addEventListener('storage', (event) => {
+    const prefix = getPreferenceKeyPrefix();
+    const viewKeys = [
+        `${prefix}defaultView`,
+        'viewPreference',
+        `${prefix}warrantyView`,
+        // Add `${prefix}viewPreference` if still used/relevant
+        `${prefix}viewPreference` 
+    ];
+
+    if (viewKeys.includes(event.key) && event.newValue) {
+        console.log(`Storage event detected for view preference (${event.key}). New value: ${event.newValue}`);
+        // Check if the new value is different from the current view to avoid loops
+        if (event.newValue !== currentView) {
+             // Ensure view buttons exist before switching (we're on the main page)
+             if (gridViewBtn || listViewBtn || tableViewBtn) {
+                 switchView(event.newValue);
+             }
+        } else {
+             console.log('Storage event value matches current view, ignoring.');
+        }
+    }
+});
+// --- End Storage Event Listener ---

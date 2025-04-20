@@ -32,6 +32,13 @@ header .container {
     color: var(--primary-color) !important;
 }
 
+/* Group for right-aligned header elements */
+.header-right-group {
+    display: flex !important; /* Ensure horizontal layout */
+    align-items: center !important; /* Align items vertically */
+    gap: 10px !important; /* Add space between items */
+}
+
 /* Navigation Links */
 .nav-links {
     display: flex !important;

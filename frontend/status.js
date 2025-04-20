@@ -22,123 +22,63 @@ let EXPIRING_SOON_DAYS = 30; // Default value, will be updated from user prefere
 let currentSort = { column: 'expiration', direction: 'asc' };
 let allWarranties = []; // Store all warranties for filtering/sorting
 
-// Chart instances
-window.statusChart = null;
-window.timelineChart = null;
+// Global variables for chart instances and data
+let statusChart = null;
+let timelineChart = null;
+let currentStatusData = null; // To store data for redraws
+let currentTimelineData = null; // To store data for redraws
 
-// Theme Management
+// Theme Management - Simplified
 function setTheme(isDark) {
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    const theme = isDark ? 'dark' : 'light';
+    console.log('Setting theme to:', theme, 'from status.js');
+
+    // 1. Apply theme attribute to document root
+    document.documentElement.setAttribute('data-theme', theme);
+    
+    // 2. Save the single source of truth to localStorage
     localStorage.setItem('darkMode', isDark);
-    darkModeToggle.checked = isDark;
-}
 
-// Initialize theme based on user preference or system preference
-function initializeTheme() {
-    const savedTheme = localStorage.getItem('darkMode');
-    
-    if (savedTheme !== null) {
-        // Use saved preference
-        setTheme(savedTheme === 'true');
-    } else {
-        // Check for system preference
-        const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        setTheme(prefersDarkMode);
+    // Update toggle state if the toggle exists on this page
+    if (darkModeToggle) { 
+        darkModeToggle.checked = isDark;
     }
 }
 
-// Initialize theme when page loads
-initializeTheme();
-
-// Initialize settings button
-document.addEventListener('DOMContentLoaded', () => {
-    // Ensure auth state is checked
-    if (window.auth && window.auth.checkAuthState) {
-        window.auth.checkAuthState();
+// Function to redraw charts after theme change
+function redrawChartsWithNewTheme() {
+    console.log("Theme changed, redrawing charts...");
+    // Destroy existing charts if they exist - USE CORRECT VARIABLE NAMES
+    if (statusChart && typeof statusChart.destroy === 'function') {
+        statusChart.destroy(); 
+        statusChart = null; // Reset variable
     }
-    
-    // Ensure settings button works
-    if (settingsBtn && settingsMenu) {
-        console.log('Status page: Settings button found, adding event listener');
-        settingsBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            settingsMenu.classList.toggle('active');
-            console.log('Status page: Settings button clicked, menu toggled');
-        });
-        
-        // Close settings menu when clicking outside
-        document.addEventListener('click', function(e) {
-            if (settingsMenu.classList.contains('active') && 
-                !settingsMenu.contains(e.target) && 
-                !settingsBtn.contains(e.target)) {
-                settingsMenu.classList.remove('active');
-            }
-        });
-    } else {
-        console.error('Status page: Settings button or menu not found');
+    if (timelineChart && typeof timelineChart.destroy === 'function') {
+        timelineChart.destroy(); 
+        timelineChart = null; // Reset variable
     }
-    
-    // ... existing code ...
-});
-
-// Refresh dashboard button
-refreshDashboardBtn.addEventListener('click', () => {
-    refreshDashboard();
-});
-
-// Search input event listener
-searchWarranties.addEventListener('input', () => {
-    filterAndSortWarranties();
-});
-
-// Status filter change event listener
-statusFilter.addEventListener('change', () => {
-    filterAndSortWarranties();
-});
-
-// Add click event listeners to sortable headers
-sortableHeaders.forEach(header => {
-    header.addEventListener('click', () => {
-        const column = header.getAttribute('data-sort');
-        
-        // Toggle sort direction if clicking the same column
-        if (currentSort.column === column) {
-            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-        } else {
-            currentSort.column = column;
-            currentSort.direction = 'asc';
-        }
-        
-        // Update header classes
-        updateSortHeaderClasses();
-        
-        // Re-sort the table
-        filterAndSortWarranties();
-    });
-});
-
-// Update the sort header classes
-function updateSortHeaderClasses() {
-    sortableHeaders.forEach(header => {
-        const column = header.getAttribute('data-sort');
-        header.classList.remove('sort-asc', 'sort-desc');
-        
-        if (column === currentSort.column) {
-            header.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
-        }
-    });
+    // Re-create charts with current data which will use new theme colors
+    if (currentStatusData) {
+        createStatusChart(currentStatusData);
+    }
+    if (currentTimelineData) {
+        createTimelineChart(currentTimelineData);
+    }
 }
 
-// Show loading indicator
+// Loading indicator functions
 function showLoading() {
-    loadingIndicator.classList.add('active');
-    dashboardContent.style.opacity = '0.5';
+    if (loadingIndicator) {
+        loadingIndicator.classList.add('active');
+        dashboardContent.style.opacity = '0.5';
+    }
 }
 
-// Hide loading indicator
 function hideLoading() {
-    loadingIndicator.classList.remove('active');
-    dashboardContent.style.opacity = '1';
+    if (loadingIndicator) {
+        loadingIndicator.classList.remove('active');
+        dashboardContent.style.opacity = '1';
+    }
 }
 
 // Show error message
@@ -231,11 +171,17 @@ function showToast(message, type = 'info') {
 }
 
 // Update the summary counts
-function updateSummaryCounts(stats) {
-    document.getElementById('activeCount').textContent = stats.active;
-    document.getElementById('expiringCount').textContent = stats.expiring_soon;
-    document.getElementById('expiredCount').textContent = stats.expired;
-    document.getElementById('totalCount').textContent = stats.total;
+function updateSummaryCounts(statusData) {
+    // Check if the elements exist before trying to set textContent
+    const totalEl = document.getElementById('totalCount');
+    const activeEl = document.getElementById('activeCount');
+    const expiringEl = document.getElementById('expiringCount');
+    const expiredEl = document.getElementById('expiredCount');
+
+    if (totalEl) totalEl.textContent = statusData.total || 0;
+    if (activeEl) activeEl.textContent = statusData.active || 0;
+    if (expiringEl) expiringEl.textContent = statusData.expiring_soon || 0;
+    if (expiredEl) expiredEl.textContent = statusData.expired || 0;
 }
 
 // Create the status distribution chart
@@ -256,12 +202,12 @@ function createStatusChart(stats) {
     // Calculate truly active (not expiring soon)
     const trulyActive = Math.max(0, active - expiringSoon);
     
-    // Destroy existing chart if it exists
-    if (window.statusChart) {
-        window.statusChart.destroy();
+    // Destroy existing chart if it exists - USE CORRECT VARIABLE NAME
+    if (statusChart && typeof statusChart.destroy === 'function') {
+        statusChart.destroy();
     }
     
-    window.statusChart = new Chart(ctx, {
+    statusChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: ['Active', 'Expiring Soon', 'Expired'],
@@ -348,12 +294,12 @@ function createTimelineChart(timeline) {
         }
     }
     
-    // Destroy existing chart if it exists
-    if (window.timelineChart) {
-        window.timelineChart.destroy();
+    // Destroy existing chart if it exists - USE CORRECT VARIABLE NAME
+    if (timelineChart && typeof timelineChart.destroy === 'function') {
+        timelineChart.destroy();
     }
     
-    window.timelineChart = new Chart(ctx, {
+    timelineChart = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: formattedLabels,
@@ -399,9 +345,6 @@ function updateRecentExpirations(recentWarranties) {
             invoice_path: warranty.invoice_path || null
         };
     });
-    
-    // Store all warranties for filtering/sorting
-    allWarranties = normalizedWarranties;
     
     // Apply initial filtering and sorting
     filterAndSortWarranties();
@@ -657,323 +600,69 @@ function refreshDashboard() {
 // Initialize the dashboard
 async function initDashboard() {
     console.log('Initializing dashboard');
-    
     try {
-        // Show loading indicator
         showLoading();
+        await loadUserPreferences(); // Load preferences first
         
-        // Load user preferences
-        await loadUserPreferences();
+        // Fetch data using the statistics endpoint
+        const data = await fetchStatistics(); 
         
-        // Check authentication
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-            window.location.href = 'login.html';
-            return;
+        // Log the raw response
+        console.log('Raw API Response for /api/statistics:', data);
+        if (data && typeof data === 'object') {
+            console.log('API Response type:', typeof data);
+            console.log('API Response keys:', Object.keys(data));
+        } else {
+            console.log('API Response type:', typeof data);
         }
-        
-        const data = await fetchStatistics();
-        console.log('API Response:', data); // Log the actual response for debugging
-        
-        // Handle different possible API response structures
-        let summary, timeline, recentWarranties;
-        
-        // Check if data is directly the summary object
-        if (data && typeof data === 'object' && 'active' in data && 'expired' in data) {
-            summary = data;
-            timeline = data.timeline || [];
-            recentWarranties = data.recent_warranties || [];
-        } 
-        // Check if data has summary as a property
-        else if (data && typeof data === 'object' && data.summary && typeof data.summary === 'object') {
-            summary = data.summary;
-            timeline = data.timeline || [];
-            recentWarranties = data.recent_warranties || [];
-        } 
-        // If we can't find a valid structure, throw an error
-        else {
-            console.error('Unexpected API response structure:', data);
-            throw new Error('Invalid data structure received from API. Expected summary data with active and expired counts.');
+
+        // *** UPDATED VALIDATION ***
+        // Check for required top-level keys directly on the data object
+        if (!data || typeof data !== 'object' || !('active' in data) || !('expired' in data)) {
+            throw new Error(`Invalid data structure received from statistics API. Missing required keys (active, expired). Received: ${JSON.stringify(data)}`);
         }
-        
-        // Ensure summary has all required properties
-        if (!('active' in summary) || !('expired' in summary)) {
-            throw new Error('API response missing required summary fields (active, expired)');
+
+        // *** USE DATA DIRECTLY (No 'summary' object) ***
+        const recentWarranties = data.recent_warranties || [];
+        const allWarrantiesData = data.all_warranties || recentWarranties; // Use all_warranties if available
+
+        // *** ADD LOGGING HERE ***
+        console.log('API Data received:', JSON.stringify(data, null, 2)); // Log the whole data object
+        console.log('Does data have all_warranties?', data.hasOwnProperty('all_warranties'));
+        if (data.hasOwnProperty('all_warranties')) {
+            console.log('Length of data.all_warranties:', data.all_warranties ? data.all_warranties.length : 'null/undefined');
         }
-        
-        // Set default values for any missing properties
-        summary.expiring_soon = summary.expiring_soon || 0;
-        summary.total = summary.total || (summary.active + summary.expired);
-        
-        // Update summary counts
-        updateSummaryCounts(summary);
-        
-        // Create status chart
-        createStatusChart(summary);
-        
-        // Update recent expirations table with the initial data
-        updateRecentExpirations(recentWarranties);
-        
-        // Fetch all warranties for better filtering
-        try {
-            const allWarrantiesResponse = await fetch('/api/warranties', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (allWarrantiesResponse.ok) {
-                const allWarrantiesData = await allWarrantiesResponse.json();
-                // Store all warranties for filtering
-                allWarranties = allWarrantiesData;
-                console.log('Fetched all warranties for filtering:', allWarranties.length);
-                
-                // Generate a more comprehensive timeline using all warranty data
-                if (allWarranties && allWarranties.length > 0) {
-                    const timelineData = extractTimelineData(allWarranties);
-                    console.log('Created comprehensive timeline data:', timelineData);
-                    createTimelineChart(timelineData);
-                } else {
-                    // Fallback to API timeline if no warranties found
-                    createTimelineChart(timeline);
-                }
-            } else {
-                // If we can't get all warranties, fall back to the recent ones
-                allWarranties = recentWarranties;
-                console.warn('Could not fetch all warranties, falling back to recent warranties');
-                // Use API timeline for the chart
-                createTimelineChart(timeline);
-            }
-        } catch (error) {
-            console.error('Error fetching all warranties:', error);
-            // Fall back to recent warranties on error
-            allWarranties = recentWarranties;
-            // Use API timeline for the chart
-            createTimelineChart(timeline);
-        }
-        
-        // Set up event listeners for filtering and sorting
-        setupEventListeners();
-        
+        console.log('Length of data.recent_warranties:', recentWarranties.length);
+        console.log('Content being assigned to global allWarranties:', JSON.stringify(allWarrantiesData, null, 2));
+        // *** END LOGGING ***
+
+        // Store data for potential redraws, directly from 'data'
+        currentStatusData = { 
+            active: data.active || 0, 
+            expiring_soon: data.expiring_soon || 0, 
+            expired: data.expired || 0,
+            total: data.total || 0 // Include total if needed
+        };
+        currentTimelineData = extractTimelineData(allWarrantiesData); // Use all warranties for timeline
+
+        // Update UI using the structured data
+        updateSummaryCounts(currentStatusData); // Pass the structured status data
+        createStatusChart(currentStatusData);   // Pass the structured status data
+        createTimelineChart(currentTimelineData);
+        allWarranties = allWarrantiesData; // Store for filtering
+        console.log('Global allWarranties length AFTER assignment:', allWarranties.length); // Log length after assignment
+        filterAndSortWarranties(); // Apply initial filters/sort to the table
+
+        // Setup event listeners AFTER data is loaded and initial render is done
+        setupEventListeners(); 
+
         hideLoading();
     } catch (error) {
         console.error('Error initializing dashboard:', error);
-        
-        // Check if it's an authentication error
-        if (error.message.includes('Authentication required') || 
-            error.message.includes('Authentication token') || 
-            error.message.includes('401')) {
-            
-            showError('Authentication Required', 
-                'Please <a href="login.html">log in</a> to view your warranty statistics.');
-        } else {
-            showError('Error Loading Dashboard', 
-                'There was a problem loading the warranty statistics. Please try refreshing the page.');
-        }
+        // Display error appropriately using showError function
+        showError(error.message || 'Failed to load dashboard', error.stack);
     } finally {
-        hideLoading();
-    }
-}
-
-// Initialize the dashboard when the page loads
-document.addEventListener('DOMContentLoaded', initDashboard);
-
-// Export button event listener
-exportBtn.addEventListener('click', () => {
-    exportWarrantyData();
-});
-
-// Export warranty data as CSV
-function exportWarrantyData() {
-    // Get filtered and sorted warranties
-    const searchTerm = searchWarranties.value.toLowerCase();
-    const statusValue = statusFilter.value;
-    const today = new Date();
-    
-    // Filter warranties
-    let filteredWarranties = allWarranties.filter(warranty => {
-        // Apply search filter
-        const productName = warranty.product_name.toLowerCase();
-        const matchesSearch = searchTerm === '' || productName.includes(searchTerm);
-        
-        // Apply status filter
-        if (statusValue === 'all') {
-            return matchesSearch;
-        }
-        
-        const expirationDate = new Date(warranty.expiration_date);
-        
-        if (statusValue === 'expired') {
-            return expirationDate <= today && matchesSearch;
-        } else if (statusValue === 'expiring') {
-            const timeDiff = expirationDate - today;
-            const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-            return expirationDate > today && daysDiff <= EXPIRING_SOON_DAYS && matchesSearch;
-        } else if (statusValue === 'active') {
-            const timeDiff = expirationDate - today;
-            const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-            return expirationDate > today && daysDiff > EXPIRING_SOON_DAYS && matchesSearch;
-        }
-        
-        return matchesSearch;
-    });
-    
-    // Sort warranties based on current sort settings
-    filteredWarranties.sort((a, b) => {
-        let valueA, valueB;
-        
-        switch (currentSort.column) {
-            case 'product':
-                valueA = a.product_name;
-                valueB = b.product_name;
-                break;
-            case 'purchase':
-                valueA = new Date(a.purchase_date);
-                valueB = new Date(b.purchase_date);
-                break;
-            case 'expiration':
-                valueA = new Date(a.expiration_date);
-                valueB = new Date(b.expiration_date);
-                break;
-            case 'status':
-                // Sort by status priority: active, expiring, expired
-                const statusA = getStatusPriority(a.expiration_date, today);
-                const statusB = getStatusPriority(b.expiration_date, today);
-                valueA = statusA;
-                valueB = statusB;
-                break;
-            default:
-                valueA = new Date(a.expiration_date);
-                valueB = new Date(b.expiration_date);
-        }
-        
-        // Compare values based on sort direction
-        if (currentSort.direction === 'asc') {
-            return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
-        } else {
-            return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
-        }
-    });
-    
-    // If no warranties to export
-    if (filteredWarranties.length === 0) {
-        showToast('No data to export', 'warning');
-        return;
-    }
-    
-    // Create CSV content
-    let csvContent = 'Product,Purchase Date,Expiration Date,Status\n';
-    
-    filteredWarranties.forEach(warranty => {
-        const purchaseDate = new Date(warranty.purchase_date).toLocaleDateString();
-        const expirationDate = new Date(warranty.expiration_date).toLocaleDateString();
-        
-        // Determine status
-        const today = new Date();
-        const expDate = new Date(warranty.expiration_date);
-        let status = 'Active';
-        
-        if (expDate <= today) {
-            status = 'Expired';
-        } else {
-            const timeDiff = expDate - today;
-            const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-            
-            if (daysDiff <= EXPIRING_SOON_DAYS) {
-                status = 'Expiring Soon';
-            }
-        }
-        
-        // Escape commas in product name
-        const escapedProductName = warranty.product_name.includes(',') 
-            ? `"${warranty.product_name}"` 
-            : warranty.product_name;
-        
-        csvContent += `${escapedProductName},${purchaseDate},${expirationDate},${status}\n`;
-    });
-    
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    // Set link properties
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'warranty_data.csv');
-    link.style.visibility = 'hidden';
-    
-    // Add to document, click and remove
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('Data exported successfully', 'success');
-}
-
-// Set up event listeners for filtering and sorting
-function setupEventListeners() {
-    // Refresh button
-    if (refreshDashboardBtn) { // Check element exists before adding listener
-        refreshDashboardBtn.addEventListener('click', refreshDashboard);
-    }
-
-    // Search input
-    if (searchWarranties) {
-        searchWarranties.addEventListener('input', filterAndSortWarranties);
-    }
-
-    // Status filter
-    if (statusFilter) { // Check element exists before adding listener
-        statusFilter.addEventListener('change', filterAndSortWarranties);
-    }
-
-    // Sortable headers (check if collection exists)
-    if (sortableHeaders) {
-        sortableHeaders.forEach(header => {
-            header.addEventListener('click', () => {
-                const column = header.getAttribute('data-sort');
-                
-                // Toggle direction if same column, otherwise default to ascending
-                if (currentSort.column === column) {
-                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    currentSort.column = column;
-                    currentSort.direction = 'asc';
-                }
-                
-                // Update header classes to show sort direction
-                updateSortHeaderClasses();
-                
-                // Apply the new sort
-                filterAndSortWarranties();
-            });
-        });
-    }
-
-    // Export button
-    if (exportBtn) { // Check element exists before adding listener
-        exportBtn.addEventListener('click', exportWarrantyData);
-    }
-
-    // Dark mode toggle (check element exists before adding listener)
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('change', (e) => {
-            setTheme(e.target.checked);
-
-            // Redraw charts with new theme colors if they exist
-            if (window.statusChart) {
-                createStatusChart({
-                    active: parseInt(document.getElementById('activeCount').textContent) || 0,
-                    expiring_soon: parseInt(document.getElementById('expiringCount').textContent) || 0,
-                    expired: parseInt(document.getElementById('expiredCount').textContent) || 0
-                });
-            }
-            
-            if (window.timelineChart && allWarranties.length > 0) {
-                createTimelineChart(extractTimelineData(allWarranties));
-            }
-        });
+        hideLoading(); // Ensure loading is hidden even on error
     }
 }
 
@@ -1043,4 +732,237 @@ async function loadUserPreferences() {
     } catch (error) {
         console.error('Error loading user preferences:', error);
     }
-} 
+}
+
+// Update the sort header classes
+function updateSortHeaderClasses() {
+    sortableHeaders.forEach(header => {
+        const column = header.getAttribute('data-sort');
+        header.classList.remove('sort-asc', 'sort-desc');
+        
+        if (column === currentSort.column) {
+            header.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+}
+
+// Function to display overall status counts
+function displayStatus(data) {
+    document.getElementById('totalCount').textContent = data.total_count;
+    document.getElementById('activeCount').textContent = data.active_count;
+    document.getElementById('expiringCount').textContent = data.expiring_soon_count;
+    document.getElementById('expiredCount').textContent = data.expired_count;
+}
+
+// Function to display errors
+function displayError(error) {
+    const statusContent = document.getElementById('statusContent'); // Assuming a main container
+    if (!statusContent) return;
+    statusContent.innerHTML = `
+        <div class="error-message">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Failed to Load Status</h3>
+            <p>Could not retrieve warranty status data. Please try again later.</p>
+            <p>Error: ${error.message}</p>
+        </div>
+    `;
+}
+
+// Function to display recently expired/expiring warranties in the table
+function displayRecentExpirations(expirations) {
+    const tableBody = document.getElementById('recentExpirationsTableBody');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = ''; // Clear existing rows
+
+    if (!expirations || expirations.length === 0) {
+        tableBody.innerHTML = '<tr class="empty-row"><td colspan="5" class="no-data">No warranties expiring soon or recently expired.</td></tr>';
+        return;
+    }
+
+    expirations.forEach(warranty => {
+        const row = tableBody.insertRow();
+        const statusClass = warranty.status.toLowerCase().replace('_', '-'); // e.g., expiring-soon
+        row.classList.add(`status-${statusClass}`);
+
+        // Calculate days remaining/past
+        let daysText = 'N/A';
+        if (warranty.days_remaining !== null) {
+            if (warranty.days_remaining < 0) {
+                daysText = `${Math.abs(warranty.days_remaining)} days ago`;
+            } else {
+                daysText = `in ${warranty.days_remaining} days`;
+            }
+        }
+
+        row.innerHTML = `
+            <td>${warranty.product_name}</td>
+            <td>${new Date(warranty.purchase_date).toLocaleDateString()}</td>
+            <td>${new Date(warranty.expiration_date).toLocaleDateString()} (${daysText})</td>
+            <td><span class="status-${statusClass}">${warranty.status.replace('_', ' ')}</span></td>
+            <td>
+                <a href="index.html#warranty-${warranty.id}" class="action-btn view-btn" title="View Warranty"><i class="fas fa-eye"></i></a>
+                <!-- Add edit/delete if needed -->
+            </td>
+        `;
+    });
+}
+
+// Export warranty data as CSV
+function exportWarrantyData() {
+    // Get filtered and sorted warranties based on current view state
+    const searchTerm = document.getElementById('searchWarranties').value.toLowerCase();
+    const statusValue = document.getElementById('statusFilter').value;
+    const today = new Date();
+    
+    // Filter warranties (similar logic to filterAndSortWarranties)
+    let filteredWarranties = allWarranties.filter(warranty => {
+        const productName = (warranty.product_name || '').toLowerCase();
+        const matchesSearch = searchTerm === '' || productName.includes(searchTerm);
+        if (!matchesSearch) return false;
+
+        if (statusValue === 'all') return true;
+        if (!warranty.expiration_date) return false;
+        
+        const expirationDate = new Date(warranty.expiration_date);
+        if (statusValue === 'expired') return expirationDate <= today;
+        
+        const timeDiff = expirationDate - today;
+        const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+        
+        if (statusValue === 'expiring') return expirationDate > today && daysDiff <= EXPIRING_SOON_DAYS;
+        if (statusValue === 'active') return expirationDate > today && daysDiff > EXPIRING_SOON_DAYS;
+        
+        return false; // Should not happen if statusValue is valid
+    });
+    
+    // Sort warranties based on current sort settings
+    filteredWarranties.sort((a, b) => {
+        let valueA, valueB;
+        switch (currentSort.column) {
+            case 'product': valueA = a.product_name || ''; valueB = b.product_name || ''; break;
+            case 'purchase': valueA = new Date(a.purchase_date || 0); valueB = new Date(b.purchase_date || 0); break;
+            case 'status': valueA = getStatusPriority(a.expiration_date, today); valueB = getStatusPriority(b.expiration_date, today); break;
+            default: valueA = new Date(a.expiration_date || 0); valueB = new Date(b.expiration_date || 0); // Default to expiration
+        }
+        if (currentSort.direction === 'asc') {
+            return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+        } else {
+            return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+        }
+    });
+    
+    if (filteredWarranties.length === 0) {
+        showToast('No data to export based on current filters', 'warning');
+        return;
+    }
+    
+    // Create CSV content
+    let csvContent = 'Product,Purchase Date,Expiration Date,Status\n';
+    filteredWarranties.forEach(warranty => {
+        const purchaseDate = warranty.purchase_date ? new Date(warranty.purchase_date).toLocaleDateString() : 'N/A';
+        const expirationDate = warranty.expiration_date ? new Date(warranty.expiration_date).toLocaleDateString() : 'N/A';
+        const status = getStatusText(warranty.expiration_date, today);
+        const escapedProductName = (warranty.product_name || '').includes(',') 
+            ? `"${warranty.product_name}"` 
+            : warranty.product_name;
+        csvContent += `${escapedProductName},${purchaseDate},${expirationDate},${status}\n`;
+    });
+    
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'warranty_status_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url); // Clean up blob URL
+    showToast('Data exported successfully', 'success');
+}
+
+// Helper to get status text
+function getStatusText(expirationDateStr, today) {
+    if (!expirationDateStr) return 'Unknown';
+    const expirationDate = new Date(expirationDateStr);
+    if (expirationDate <= today) return 'Expired';
+    const timeDiff = expirationDate - today;
+    const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    if (daysDiff <= EXPIRING_SOON_DAYS) return 'Expiring Soon';
+    return 'Active';
+}
+
+// Function to setup event listeners specific to the status page
+function setupEventListeners() {
+    console.log("Setting up status page event listeners...");
+    const refreshBtn = document.getElementById('refreshStatusBtn');
+    const searchInput = document.getElementById('searchWarranties');
+    const filterSelect = document.getElementById('statusFilter');
+    const exportDataBtn = document.getElementById('exportBtn');
+    const headers = document.querySelectorAll('.sortable');
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', initDashboard); // Reload everything on refresh
+    }
+    if (searchInput) {
+        searchInput.addEventListener('input', filterAndSortWarranties);
+    }
+    if (filterSelect) {
+        filterSelect.addEventListener('change', filterAndSortWarranties);
+    }
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', exportWarrantyData);
+    }
+    if (headers) {
+        headers.forEach(header => {
+            header.addEventListener('click', () => {
+                const column = header.getAttribute('data-sort');
+                if (currentSort.column === column) {
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort.column = column;
+                    currentSort.direction = 'asc';
+                }
+                updateSortHeaderClasses();
+                filterAndSortWarranties();
+            });
+        });
+    }
+    
+    // NOTE: The theme toggle listener is set up in DOMContentLoaded
+    console.log("Status page event listeners setup complete.");
+}
+
+// Dummy checkLoginStatus and setupSettingsMenu for completeness
+// function checkLoginStatus() { console.log("Checking login status..."); }
+// function setupSettingsMenu() { console.log("Setting up settings menu..."); }
+
+// --- Initialization --- 
+// IMPORTANT: Ensure ALL function definitions are ABOVE this listener
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Status page DOM loaded');
+    // showLoading(); // Loading is shown inside initDashboard
+
+    // Initialize theme toggle state *after* DOM is loaded
+    if (darkModeToggle) {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        darkModeToggle.checked = currentTheme === 'dark';
+        darkModeToggle.addEventListener('change', function() {
+            setTheme(this.checked);
+            redrawChartsWithNewTheme(); 
+        });
+        console.log(`Initialized theme toggle to: ${darkModeToggle.checked ? 'dark' : 'light'}`);
+    }
+
+    // Initialize the main dashboard logic
+    initDashboard();
+    
+    // Setup settings menu (assuming it's part of the shared header)
+    // if (typeof setupSettingsMenu === 'function') { 
+    //     setupSettingsMenu(); 
+    // } else if (window.auth && typeof window.auth.setupSettingsMenu === 'function') {
+    //     window.auth.setupSettingsMenu();
+    // }
+}); 

@@ -146,17 +146,46 @@ function updateAuthButtons() {
     }
 }
 
+// --- USER MENU DROPDOWN UNIVERSAL FIX (IMPROVED) ---
+function setupUserMenuDropdown() {
+    const userMenuBtn = document.getElementById('userMenuBtn') || document.getElementById('userBtn');
+    const userMenuDropdown = document.getElementById('userMenuDropdown');
+    if (userMenuBtn && userMenuDropdown) {
+        // Remove all previous click listeners by replacing the node
+        const newBtn = userMenuBtn.cloneNode(true);
+        userMenuBtn.parentNode.replaceChild(newBtn, userMenuBtn);
+        newBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            userMenuDropdown.classList.toggle('active');
+        });
+        // Only add one document-level listener
+        if (!window._userMenuDropdownListenerAdded) {
+            document.addEventListener('click', function(e) {
+                if (userMenuDropdown.classList.contains('active') &&
+                    !userMenuDropdown.contains(e.target) &&
+                    !newBtn.contains(e.target)) {
+                    userMenuDropdown.classList.remove('active');
+                }
+            });
+            window._userMenuDropdownListenerAdded = true;
+        }
+    }
+}
+
 // Run immediately
 console.log('Running updateAuthButtons immediately');
 updateAuthButtons();
+setupUserMenuDropdown();
 
 // Update auth buttons when page loads
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOMContentLoaded event triggered, updating auth buttons');
     updateAuthButtons();
+    setupUserMenuDropdown();
     
     // Set up periodic check (every 2 seconds)
     setInterval(updateAuthButtons, 2000);
+    setInterval(setupUserMenuDropdown, 2000);
 });
 
 // Update auth buttons when localStorage changes
@@ -165,4 +194,4 @@ window.addEventListener('storage', (event) => {
         console.log('Auth data changed, updating auth buttons');
         updateAuthButtons();
     }
-}); 
+});

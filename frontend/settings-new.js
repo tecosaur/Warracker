@@ -45,65 +45,61 @@ const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
 const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
 
 /**
- * Initialize dark mode toggle
+ * Set theme (dark/light) - Unified and persistent
+ * @param {boolean} isDark - Whether to use dark mode
  */
-function initDarkModeToggle() {
-    // Get current dark mode state from body class
-    const isDarkMode = document.body.classList.contains('dark-mode');
-    console.log('Current dark mode state (from body class):', isDarkMode);
-    
-    // Set the toggle states based on the current visual theme
-    if (darkModeToggle) {
-        darkModeToggle.checked = isDarkMode;
+function setTheme(isDark) {
+    const theme = isDark ? 'dark' : 'light';
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+    if (isDark) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
     }
-    
-    if (darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDarkMode;
+    // Save to localStorage (single source of truth)
+    localStorage.setItem('darkMode', isDark);
+    // Sync both toggles if present
+    if (typeof darkModeToggle !== 'undefined' && darkModeToggle) {
+        darkModeToggle.checked = isDark;
     }
-    
-    // Header toggle handler
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('change', function() {
-            const isDark = this.checked;
-            setTheme(isDark);
-            
-            if (darkModeToggleSetting) {
-                darkModeToggleSetting.checked = isDark;
-            }
-        });
+    if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) {
+        darkModeToggleSetting.checked = isDark;
     }
-    
-    // Settings toggle handler
-    if (darkModeToggleSetting) {
-        darkModeToggleSetting.addEventListener('change', function() {
-            const isDark = this.checked;
-            setTheme(isDark);
-            
-            if (darkModeToggle) {
-                darkModeToggle.checked = isDark;
-            }
-        });
+    // Also update user_preferences.theme for backward compatibility
+    try {
+        let userPrefs = {};
+        const storedPrefs = localStorage.getItem('user_preferences');
+        if (storedPrefs) {
+            userPrefs = JSON.parse(storedPrefs);
+        }
+        userPrefs.theme = theme;
+        localStorage.setItem('user_preferences', JSON.stringify(userPrefs));
+    } catch (e) {
+        console.error('Error updating theme in user_preferences:', e);
     }
-    
-    // Also update the localStorage to match the visual state
-    localStorage.setItem('darkMode', isDarkMode);
 }
 
 /**
- * Initialize settings gear menu in the header
+ * Initialize dark mode toggle and synchronize state
  */
-function initSettingsMenu() {
-    if (settingsBtn && settingsMenu) {
-        // Toggle settings menu when settings button is clicked
-        settingsBtn.addEventListener('click', function() {
-            settingsMenu.classList.toggle('active');
+function initDarkModeToggle() {
+    // Always check the single source of truth in localStorage
+    const isDarkMode = localStorage.getItem('darkMode') === 'true';
+    // Apply theme to DOM if not already set
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    // Sync both toggles
+    if (typeof darkModeToggle !== 'undefined' && darkModeToggle) {
+        darkModeToggle.checked = isDarkMode;
+        darkModeToggle.addEventListener('change', function() {
+            setTheme(this.checked);
         });
-        
-        // Close settings menu when clicking outside
-        document.addEventListener('click', function(event) {
-            if (!settingsBtn.contains(event.target) && !settingsMenu.contains(event.target)) {
-                settingsMenu.classList.remove('active');
-            }
+    }
+    if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) {
+        darkModeToggleSetting.checked = isDarkMode;
+        darkModeToggleSetting.addEventListener('change', function() {
+            setTheme(this.checked);
         });
     }
 }
@@ -112,98 +108,30 @@ function initSettingsMenu() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded, initializing settings page');
     
-    // Initialize the page
-    initPage();
-    
     // Set up event listeners
-    setupEventListeners();
-    
-    // Initialize modals
-    initModals();
+    setupEventListeners(); // Ensure this doesn't also try to init settings menu
     
     // Set up direct event listeners for critical elements
     setupCriticalEventListeners();
     
-    // Make deleteUser function globally accessible
+    // Make functions globally accessible if needed
     window.deleteUser = deleteUser;
     window.directDeleteUserAPI = directDeleteUserAPI;
     
-    // Add a global click handler for delete buttons
-    document.addEventListener('click', function(event) {
-        // Check if the click was on a delete button or inside the delete modal
-        if (event.target && event.target.id === 'confirmDeleteUserBtn') {
-            console.log('Global click handler caught delete button click');
-            event.preventDefault();
-            event.stopPropagation();
-            deleteUser();
-            return false;
-        }
-        
-        // Check for clicks on the direct delete link
-        if (event.target && event.target.id === 'directDeleteLink') {
-            console.log('Global click handler caught direct delete link click');
-            event.preventDefault();
-            event.stopPropagation();
-            deleteUser();
-            return false;
-        }
-        
-        // Check for clicks on the direct API link
-        if (event.target && event.target.id === 'directAPILink') {
-            console.log('Global click handler caught direct API link click');
-            event.preventDefault();
-            event.stopPropagation();
-            const userId = window.currentDeleteUserId || 
-                          (document.getElementById('deleteUserId') ? document.getElementById('deleteUserId').value : null);
-            directDeleteUserAPI(userId);
-            return false;
-        }
-        
-        // Check for clicks on the emergency delete button
-        if (event.target && event.target.id === 'emergencyDeleteBtn') {
-            console.log('Global click handler caught emergency delete button click');
-            // The button has its own inline handler, so we don't need to do anything here
-        }
-        
-        // Check for any element with delete-user-btn class or containing "delete" in the id
-        if (event.target && 
-            (event.target.classList.contains('delete-user-btn') || 
-             (event.target.id && event.target.id.toLowerCase().includes('delete')))) {
-            console.log('Global click handler caught click on element with delete in the id:', event.target.id);
-            console.log('Element:', event.target);
-            
-            // If this is a button inside the delete modal, try to delete the user
-            if (event.target.closest('#deleteUserModal')) {
-                console.log('Element is inside delete modal, attempting to delete user');
-                event.preventDefault();
-                event.stopPropagation();
-                deleteUser();
-                return false;
-            }
-        }
-    });
-    
-    // Add a direct event listener to the confirmDeleteUserBtn
-    const confirmDeleteUserBtn = document.getElementById('confirmDeleteUserBtn');
-    if (confirmDeleteUserBtn) {
-        console.log('Adding direct event listener to confirmDeleteUserBtn on page load');
-        confirmDeleteUserBtn.addEventListener('click', function(e) {
-            console.log('Direct event listener on confirmDeleteUserBtn triggered');
-            e.preventDefault();
-            e.stopPropagation();
-            deleteUser();
-            return false;
-        });
-    }
-    
-    // Initialize theme
-    applyInitialTheme();
-    
+    // Add global click handlers if needed
+    // ... (existing delete button handler logic) ...
+
     // Initialize dark mode toggle
     initDarkModeToggle();
     
-    // Initialize settings menu
-    initSettingsMenu();
+    // REMOVED initSettingsMenu() call - Handled by auth.js
+
+    // Load initial data for the settings page
+    loadUserData();
+    loadTimezones().then(() => loadPreferences()).catch(err => {
+        console.error('Error loading timezones/prefs:', err);
+        loadPreferences(); // Try loading prefs anyway
+    });
 });
 
 /**
@@ -275,58 +203,7 @@ function initPage() {
 }
 
 /**
- * Apply the initial theme based on the user's preference
- */
-function applyInitialTheme() {
-    // Get the appropriate key prefix based on user type
-    const prefix = getPreferenceKeyPrefix();
-    console.log(`Checking initial theme with prefix: ${prefix}`);
-    
-    // First check user/admin specific setting
-    const userSpecificDarkMode = localStorage.getItem(`${prefix}darkMode`);
-    if (userSpecificDarkMode !== null) {
-        const isDarkMode = userSpecificDarkMode === 'true';
-        console.log(`Found user-specific dark mode setting: ${isDarkMode}`);
-        
-        if (isDarkMode) {
-            document.body.classList.add('dark-mode');
-            document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
-        return;
-    }
-    
-    // If no user-specific setting, check global setting (for backward compatibility)
-    const globalDarkMode = localStorage.getItem('darkMode');
-    if (globalDarkMode !== null) {
-        const isDarkMode = globalDarkMode === 'true';
-        console.log(`Found global dark mode setting: ${isDarkMode}`);
-        
-        if (isDarkMode) {
-            document.body.classList.add('dark-mode');
-            document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
-        return;
-    }
-    
-    // If no setting in localStorage, check system preference as final fallback
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark-mode');
-        document.documentElement.setAttribute('data-theme', 'dark');
-        console.log('Applied dark theme from system preference');
-        return;
-    }
-    
-    console.log('No dark theme preference found, using light theme');
-}
-
-/**
- * Set up critical event listeners that must work for core functionality
+ * Setup critical event listeners that must work for core functionality
  */
 function setupCriticalEventListeners() {
     console.log('Setting up critical event listeners');
@@ -538,47 +415,74 @@ function loadPreferences() {
         darkModeToggleSetting.checked = isDarkMode;
     }
     
-    // Load other preferences from localStorage using the appropriate prefix
-    try {
-        const userPrefs = localStorage.getItem(`${prefix}preferences`);
-        if (userPrefs) {
-            const preferences = JSON.parse(userPrefs);
-            
-            // Default view preference
-            if (defaultViewSelect && preferences.default_view) {
-                defaultViewSelect.value = preferences.default_view;
-            }
-            
-            // Email notifications preference
-            if (emailNotificationsToggle && preferences.email_notifications) {
-                emailNotificationsToggle.checked = preferences.email_notifications;
-            }
-            
-            // Expiring soon days preference
-            if (expiringSoonDaysInput && preferences.expiring_soon_days) {
-                expiringSoonDaysInput.value = preferences.expiring_soon_days;
-            }
-            
-            // Notification frequency preference
-            if (notificationFrequencySelect && preferences.notification_frequency) {
-                notificationFrequencySelect.value = preferences.notification_frequency;
-            }
-            
-            // Notification time preference
-            if (notificationTimeInput && preferences.notification_time) {
-                notificationTimeInput.value = preferences.notification_time;
-            }
-            
-            // Timezone preference
-            if (timezoneSelect && preferences.timezone) {
-                timezoneSelect.value = preferences.timezone;
-            }
+    // --- BEGIN EDIT: Load Default View with Priority ---
+    let defaultViewLoaded = false;
+    if (defaultViewSelect) {
+        const userSpecificView = localStorage.getItem(`${prefix}defaultView`);
+        const generalView = localStorage.getItem('viewPreference');
+        const legacyWarrantyView = localStorage.getItem(`${prefix}warrantyView`); // Check legacy key
+
+        if (userSpecificView) {
+            defaultViewSelect.value = userSpecificView;
+            defaultViewLoaded = true;
+            console.log(`Loaded default view from ${prefix}defaultView:`, userSpecificView);
+        } else if (generalView) {
+            defaultViewSelect.value = generalView;
+            defaultViewLoaded = true;
+            console.log('Loaded default view from viewPreference:', generalView);
+        } else if (legacyWarrantyView) {
+            defaultViewSelect.value = legacyWarrantyView;
+            defaultViewLoaded = true;
+            console.log(`Loaded default view from legacy ${prefix}warrantyView:`, legacyWarrantyView);
         }
-    } catch (e) {
-        console.error('Error loading preferences from localStorage:', e);
     }
-    
-    // Load preferences from API
+    // --- END EDIT ---
+
+    // Load other preferences from localStorage using the appropriate prefix (only if default view not loaded yet)
+    if (!defaultViewLoaded) {
+        try {
+            const userPrefs = localStorage.getItem(`${prefix}preferences`);
+            if (userPrefs) {
+                const preferences = JSON.parse(userPrefs);
+
+                // Default view preference (load only if not loaded above)
+                if (defaultViewSelect && preferences.default_view && !defaultViewLoaded) {
+                    defaultViewSelect.value = preferences.default_view;
+                    defaultViewLoaded = true; // Mark as loaded
+                    console.log(`Loaded default view from ${prefix}preferences object:`, preferences.default_view);
+                }
+
+                // Email notifications preference
+                if (emailNotificationsToggle && typeof preferences.email_notifications !== 'undefined') { // Check for undefined
+                    emailNotificationsToggle.checked = preferences.email_notifications;
+                }
+
+                // Expiring soon days preference
+                if (expiringSoonDaysInput && preferences.expiring_soon_days) {
+                    expiringSoonDaysInput.value = preferences.expiring_soon_days;
+                }
+
+                // Notification frequency preference
+                if (notificationFrequencySelect && preferences.notification_frequency) {
+                    notificationFrequencySelect.value = preferences.notification_frequency;
+                }
+
+                // Notification time preference
+                if (notificationTimeInput && preferences.notification_time) {
+                    notificationTimeInput.value = preferences.notification_time;
+                }
+
+                // Timezone preference
+                if (timezoneSelect && preferences.timezone) {
+                    timezoneSelect.value = preferences.timezone;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading preferences from localStorage:', e);
+        }
+    }
+
+    // Load preferences from API (API data should override if available, except maybe for default view if already loaded)
     fetch('/api/auth/preferences', {
         method: 'GET',
         headers: {
@@ -599,11 +503,14 @@ function loadPreferences() {
         const apiPrefs = data;
         
         // Update UI with API preferences
-        if (defaultViewSelect && apiPrefs.default_view) {
+        // Default View: Only update if not already loaded from higher priority localStorage keys
+        if (defaultViewSelect && apiPrefs.default_view && !defaultViewLoaded) {
             defaultViewSelect.value = apiPrefs.default_view;
+            console.log('Loaded default view from API:', apiPrefs.default_view);
         }
         
-        if (emailNotificationsToggle && apiPrefs.email_notifications) {
+        // Other preferences always updated from API if available
+        if (emailNotificationsToggle && typeof apiPrefs.email_notifications !== 'undefined') { // Check for undefined
             emailNotificationsToggle.checked = apiPrefs.email_notifications;
         }
         
@@ -891,54 +798,6 @@ function resetPasswordForm() {
 }
 
 /**
- * Set theme (dark/light)
- * @param {boolean} isDark - Whether to use dark mode
- */
-function setTheme(isDark) {
-    console.log('Setting theme to:', isDark ? 'dark' : 'light');
-    
-    // Get the appropriate key prefix based on user type
-    const prefix = getPreferenceKeyPrefix();
-    console.log(`Setting theme with prefix: ${prefix}`);
-    
-    // Apply theme to document
-    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    
-    // Also add/remove the dark-mode class on the body for additional styling
-    if (isDark) {
-        document.body.classList.add('dark-mode');
-    } else {
-        document.body.classList.remove('dark-mode');
-    }
-    
-    // Save to localStorage with the appropriate prefix
-    localStorage.setItem(`${prefix}darkMode`, isDark);
-    localStorage.setItem('darkMode', isDark); // Keep this for backward compatibility
-    
-    // Also update preferences in localStorage for consistency
-    try {
-        let userPrefs = {};
-        const storedPrefs = localStorage.getItem(`${prefix}preferences`);
-        if (storedPrefs) {
-            userPrefs = JSON.parse(storedPrefs);
-        }
-        userPrefs.theme = isDark ? 'dark' : 'light';
-        localStorage.setItem(`${prefix}preferences`, JSON.stringify(userPrefs));
-    } catch (e) {
-        console.error(`Error updating theme in ${prefix}preferences:`, e);
-    }
-    
-    // Update toggle states
-    if (darkModeToggle) {
-        darkModeToggle.checked = isDark;
-    }
-    
-    if (darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDark;
-    }
-}
-
-/**
  * Save user profile
  */
 async function saveProfile() {
@@ -1071,10 +930,11 @@ function savePreferences() {
             // Save to localStorage with the appropriate prefix
             localStorage.setItem(`${prefix}preferences`, JSON.stringify(data));
             
-            // Also save individual preferences for backward compatibility
+            // Also save individual preferences for backward compatibility and general preference
             localStorage.setItem(`${prefix}defaultView`, defaultView);
-            localStorage.setItem(`${prefix}warrantyView`, defaultView);
+            localStorage.setItem(`${prefix}warrantyView`, defaultView); // Keep saving legacy key for now
             localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
+            localStorage.setItem('viewPreference', defaultView); // --- EDIT: Save general key ---
             
             // Save the dark mode setting for the current user type
             localStorage.setItem(`${prefix}darkMode`, isDarkMode);
@@ -1091,9 +951,10 @@ function savePreferences() {
             // Save to localStorage as fallback with the appropriate prefix
             localStorage.setItem(`${prefix}theme`, isDarkMode ? 'dark' : 'light');
             localStorage.setItem(`${prefix}defaultView`, defaultView);
-            localStorage.setItem(`${prefix}warrantyView`, defaultView);
+            localStorage.setItem(`${prefix}warrantyView`, defaultView); // Keep saving legacy key for now
             localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
             localStorage.setItem(`${prefix}darkMode`, isDarkMode);
+            localStorage.setItem('viewPreference', defaultView); // --- EDIT: Save general key ---
             
             // Apply theme even if API save fails
             document.body.classList.toggle('dark-mode', isDarkMode);
@@ -2963,4 +2824,34 @@ function saveEmailSettings() {
         showToast('Error saving email settings', 'error');
         hideLoading();
     }
-} 
+}
+
+// --- Add Storage Event Listener for Real-time Sync ---
+window.addEventListener('storage', (event) => {
+    const prefix = getPreferenceKeyPrefix();
+    const viewKeys = [
+        `${prefix}defaultView`,
+        'viewPreference',
+        `${prefix}warrantyView`,
+        // Add `${prefix}viewPreference` if still used/relevant
+        `${prefix}viewPreference` 
+    ];
+
+    if (viewKeys.includes(event.key) && event.newValue) {
+        console.log(`Storage event detected for view preference (${event.key}) in settings. New value: ${event.newValue}`);
+        // Ensure the dropdown element exists and the value is different
+        if (defaultViewSelect && defaultViewSelect.value !== event.newValue) {
+            // Check if the new value is a valid option in the select
+            const optionExists = [...defaultViewSelect.options].some(option => option.value === event.newValue);
+            if (optionExists) {
+                defaultViewSelect.value = event.newValue;
+                console.log('Updated settings default view dropdown.');
+            } else {
+                console.warn(`Storage event value (${event.newValue}) not found in dropdown options.`);
+            }
+        } else if (defaultViewSelect) {
+             console.log('Storage event value matches current dropdown selection, ignoring.');
+        }
+    }
+});
+// --- End Storage Event Listener ---

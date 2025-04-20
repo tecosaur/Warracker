@@ -927,6 +927,39 @@ input.invalid {
 
 /* ===== RESPONSIVE ADJUSTMENTS ===== */
 @media (max-width: 768px) {
+  /* Header Responsive Styles */
+  header .container {
+    flex-wrap: wrap; /* Allow header items to wrap */
+    justify-content: center; /* Center items when wrapped */
+    gap: 15px; /* Add space between wrapped items */
+    padding: 10px 15px !important; /* Adjust padding for smaller screens */
+  }
+
+  header .app-title h1 {
+    font-size: 1.8rem !important; /* Slightly reduce title size */
+  }
+  
+  header .app-title i {
+    font-size: 1.6rem !important; /* Slightly reduce icon size */
+    margin-right: 10px !important;
+  }
+  
+  header .nav-links {
+      order: 3; /* Push nav links to the bottom row when wrapped */
+      width: 100%; /* Make nav links take full width */
+      justify-content: center; /* Center nav links */
+      margin: 10px 0 0 0 !important; /* Add margin top, remove horizontal margin */
+      padding-bottom: 5px; /* Add some padding below nav links */
+  }
+  
+  header .auth-buttons,
+  header .user-menu,
+  header .settings-container {
+      margin-left: 0 !important; /* Reset margins */
+      margin-right: 0 !important;
+  }
+  /* End Header Responsive Styles */
+
   .main-content {
     grid-template-columns: 1fr;
   }
@@ -965,6 +998,13 @@ input.invalid {
 .settings-container {
   position: relative;
   z-index: 100;
+}
+
+/* Group for right-aligned header elements (User Menu, Auth, Settings) */
+.header-right-group {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Adjust gap as needed */
 }
 
 .settings-btn {
@@ -3022,4 +3062,43 @@ input.invalid {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 768px) {
+  header .container {
+    flex-wrap: wrap; /* Allow header items to wrap */
+    justify-content: center; /* Center items when wrapped */
+    gap: 15px; /* Add space between wrapped items */
+    padding: 10px 15px !important; /* Adjust padding for smaller screens */
+  }
+
+  header .app-title h1 {
+    font-size: 1.8rem !important; /* Slightly reduce title size */
+  }
+  
+  header .app-title i {
+    font-size: 1.6rem !important; /* Slightly reduce icon size */
+    margin-right: 10px !important;
+  }
+  
+  header .nav-links {
+      order: 3; /* Push nav links to the bottom row when wrapped */
+      width: 100%; /* Make nav links take full width */
+      justify-content: center; /* Center nav links */
+      margin: 10px 0 0 0 !important; /* Add margin top, remove horizontal margin */
+      padding-bottom: 5px; /* Add some padding below nav links */
+  }
+  
+  header .auth-buttons,
+  header .user-menu,
+  header .settings-container {
+      margin-left: 0 !important; /* Reset margins */
+      margin-right: 0 !important;
+  }
+
+  /* Adjust existing rules within the media query */
+  .main-content {
+    grid-template-columns: 1fr;
+  }
 }

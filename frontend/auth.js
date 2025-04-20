@@ -29,36 +29,69 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthState();
     
     // Set up periodic check of auth state (every 30 seconds)
-    setInterval(checkAuthState, 30000);
+    // setInterval(checkAuthState, 30000); // Consider if needed, can cause flicker
     
-    // User menu toggle
-    if (userBtn) {
-        userBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
+    // --- USER MENU TOGGLE --- 
+    const userMenuBtn = document.getElementById('userMenuBtn');
+    const userMenuDropdown = document.getElementById('userMenuDropdown');
+    console.log('auth.js: Checking for user menu elements...', { userMenuBtn, userMenuDropdown }); // Debug log
+    if (userMenuBtn && userMenuDropdown) {
+        console.log('auth.js: User menu elements found, adding listener.'); // Debug log
+        userMenuBtn.addEventListener('click', (e) => { 
+            console.log('auth.js: User menu button CLICKED!'); // *** ADDED LOG ***
+            e.stopPropagation(); 
             userMenuDropdown.classList.toggle('active');
+            console.log('auth.js: User menu dropdown toggled.', { active: userMenuDropdown.classList.contains('active') }); // *** ADDED LOG ***
         });
+    } else {
+        console.log('auth.js: User menu button or dropdown not found on this page.'); // Debug log
     }
     
-    // Close user menu when clicking outside
+    // --- SETTINGS GEAR MENU TOGGLE (Moved from settings-new.js) ---
+    const settingsBtn = document.getElementById('settingsBtn'); // Gear icon button
+    const settingsMenu = document.getElementById('settingsMenu'); // The dropdown menu itself
+    console.log('auth.js: Checking for settings menu elements...', { settingsBtn, settingsMenu }); // Debug log
+    if (settingsBtn && settingsMenu) {
+        console.log('auth.js: Settings menu elements found, adding listeners.'); // Debug log
+        // Toggle settings menu when settings button is clicked
+        settingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent click from closing menu immediately
+            settingsMenu.classList.toggle('active');
+            console.log('auth.js: Settings button clicked, menu toggled.', { active: settingsMenu.classList.contains('active') }); // Debug log
+        });
+    } else {
+        console.log('auth.js: Settings button or menu not found on this page.'); // Debug log
+    }
+    // --- END SETTINGS GEAR MENU TOGGLE ---
+    
+    // Close menus when clicking outside
     document.addEventListener('click', (e) => {
-        if (userMenuDropdown && userBtn && !userMenuDropdown.contains(e.target) && !userBtn.contains(e.target)) {
+        // Close user menu
+        if (userMenuDropdown && userMenuBtn && 
+            userMenuDropdown.classList.contains('active') && 
+            !userMenuDropdown.contains(e.target) && 
+            !userMenuBtn.contains(e.target)) {
             userMenuDropdown.classList.remove('active');
+        }
+        // Close settings menu
+        if (settingsMenu && settingsBtn &&
+            settingsMenu.classList.contains('active') &&
+            !settingsMenu.contains(e.target) && 
+            !settingsBtn.contains(e.target)) {
+            settingsMenu.classList.remove('active');
+            console.log('auth.js: Click outside closed settings menu.'); // Debug log
         }
     });
     
     // Logout functionality
+    const logoutMenuItem = document.getElementById('logoutMenuItem');
     if (logoutMenuItem) {
         logoutMenuItem.addEventListener('click', logout);
     }
     
-    // Profile menu item
-    if (profileMenuItem) {
-        profileMenuItem.addEventListener('click', () => {
-            // Redirect to profile page when implemented
-            // For now, just show a message
-            showToast('Profile page coming soon!', 'info');
-        });
-    }
+    // Profile menu item link (assuming it's an <a> tag now)
+    // const profileLink = document.querySelector('.user-menu-item a[href="settings-new.html"]'); 
+    // No special listener needed if it's just a link
 });
 
 /**
@@ -90,6 +123,13 @@ function checkAuthState() {
 function updateUIForAuthenticatedUser() {
     console.log('auth.js: Updating UI for authenticated user');
     
+    // Log the user data being used
+    console.log('auth.js: Current user data from state:', currentUser);
+    if (!currentUser) {
+        console.error('auth.js: Cannot update UI, currentUser is null or undefined.');
+        return;
+    }
+
     // Hide login/register buttons
     if (authContainer) {
         console.log('auth.js: Hiding authContainer');
@@ -104,13 +144,19 @@ function updateUIForAuthenticatedUser() {
         userMenu.style.visibility = 'visible';
     }
     
-    // Update user info
-    if (currentUser) {
-        const displayName = currentUser.first_name || currentUser.username;
-        if (userDisplayName) userDisplayName.textContent = displayName;
-        if (userName) userName.textContent = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username;
-        if (userEmail) userEmail.textContent = currentUser.email;
-    }
+    // Update user info in the header menu
+    const displayName = currentUser.first_name || currentUser.username || 'User'; // Fallback added
+    const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'User Name'; // Fallback added
+    const email = currentUser.email || 'user@example.com'; // Fallback added
+    
+    // Log the values being set
+    console.log(`auth.js: Setting display name (short): [${displayName}]`);
+    console.log(`auth.js: Setting full name (menu): [${fullName}]`);
+    console.log(`auth.js: Setting email (menu): [${email}]`);
+
+    if (userDisplayName) userDisplayName.textContent = displayName;
+    if (userName) userName.textContent = fullName;
+    if (userEmail) userEmail.textContent = email;
     
     // Hide all login and register buttons
     const loginButtons = document.querySelectorAll('a[href="login.html"], .login-btn, .auth-btn.login-btn');
