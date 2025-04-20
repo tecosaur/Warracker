@@ -209,7 +209,7 @@ warracker/
 *   Customizing Reminders to any day needed - **Completed ✅**
 *   Email Reminders for Expiring Warranties - **Completed ✅**
 *   Warranty Categories/Grouping through tags - **Completed ✅**
-*   Warranty Data Import (CSV) - **Planned**
+*   Warranty Data Import (CSV) - **Completed ✅**
 *   Improved Search and Filtering - **Planned**
 *   Warranty claim tracking - **Planned**
 *   Calendar Integration - **Planned**
