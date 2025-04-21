@@ -173,6 +173,20 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
 *   Click the edit icon to modify warranty details.
 *   Click the delete icon to remove a warranty.
 
+## 📦 Product Information Entry Requirements for import
+
+| Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
+|----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
+| **ProductName** | Text                                       | ✅ Yes                                                  | Provide the name of the product.                                     |
+| **PurchaseDate** | Date (`YYYY-MM-DD`, e.g., `2024-05-21`)   | ✅ Yes                                                  | Use ISO format only.                                                 |
+| **WarrantyYears** | Whole Number (`1`, `3`, `10`)             | ✅ Yes, unless `IsLifetime` is `TRUE`                   | Must be between `1` and `100` if provided.                           |
+| **IsLifetime**  | `TRUE` or `FALSE` (case-insensitive)       | ❌ No (Optional)                                        | If omitted, defaults to `FALSE`.                                     |
+| **PurchasePrice** | Number (`199.99`, `50`)                  | ❌ No (Optional)                                        | Cannot be negative if provided.                                      |
+| **SerialNumber** | Text (`SN123`, `SN123,SN456`)             | ❌ No (Optional)                                        | For multiple values, separate with commas.                           |
+| **ProductURL**   | Text (URL format)                         | ❌ No (Optional)                                        | Full URL to product page (optional field). https://producturl.com                           |
+| **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
+
+
 ## 💻 Development
 
 ### Local Development Environment
