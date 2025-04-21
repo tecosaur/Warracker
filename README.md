@@ -37,6 +37,7 @@ Warracker is a web-based application that provides a centralized system for mana
 * **Secure Access:**  User authentication and support for multiple users.
 * **System Status:** Real-time system status page.
 * **Data Export:** Export warranty data to CSV format.
+* **Data Import:** Import warranty data in CSV format.
 * **Email notifications:** Stay informed about expiring warranties with email reminders, based on your preference delivered daily, weekly, or monthly.
 * **Tagging:** Add tags to help categorize and group warranties.
 
@@ -209,7 +210,7 @@ warracker/
 *   Customizing Reminders to any day needed - **Completed ✅**
 *   Email Reminders for Expiring Warranties - **Completed ✅**
 *   Warranty Categories/Grouping through tags - **Completed ✅**
-*   Warranty Data Import (CSV) - **Planned**
+*   Warranty Data Import (CSV) - **Completed ✅**
 *   Improved Search and Filtering - **Planned**
 *   Warranty claim tracking - **Planned**
 *   Calendar Integration - **Planned**
