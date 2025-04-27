@@ -231,7 +231,7 @@ warracker/
 *   Email Reminders for Expiring Warranties - **Completed ✅**
 *   Warranty Categories/Grouping through tags - **Completed ✅**
 *   Warranty Data Import (CSV) - **Completed ✅**
-*   Improved Search and Filtering - **Planned**
+*   Improved Search and Filtering - **Completed ✅**
 *   Warranty claim tracking - **Planned**
 *   Calendar Integration - **Planned**
 
