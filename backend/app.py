@@ -699,22 +699,22 @@ def request_password_reset():
             # Construct the full reset link
             reset_link = f"{email_base_url}/reset-password.html?token={reset_token}" # Use base URL and correct page
             
-            # TODO: Implement actual email sending logic here
-            logger.info(f"Password reset requested for user {user_id}. Reset link: {reset_link}")
-            # Send email using send_email function (implement this)
-            # subject = "Password Reset Request"
-            # body = f"Click the link to reset your password: {reset_link}"
-            # try:
-            #     send_email(email, subject, body) # Placeholder for email sending
-            # except Exception as e:
-            #     logger.error(f"Failed to send password reset email to {email}: {e}")
-            #     # Still return success to the user, don't leak email failure
+            # Send password reset email
+            logger.info(f"Password reset requested for user {user_id}. Preparing to send email.")
+            try:
+                send_password_reset_email(email, reset_link)
+                logger.info(f"Password reset email initiated for {email}")
+            except Exception as e:
+                logger.error(f"Failed to send password reset email to {email}: {e}")
+                # Even if email fails, don't tell the user. 
+                # This prevents leaking information about registered emails or email server issues.
+                # The user journey remains the same: "If registered, you'll get an email."
             
+            # Always return success to the user, regardless of email success/failure
             return jsonify({
                 'message': 'If your email is registered, you will receive a password reset link.'
             }), 200
-            # Remove reset_link from response in production
-            # 'reset_link': reset_link 
+
     except Exception as e:
         logger.error(f"Password reset request error: {e}")
         if conn:
@@ -724,53 +724,41 @@ def request_password_reset():
         if conn:
             release_db_connection(conn)
 
-@app.route('/api/auth/password/reset', methods=['POST'])
-def reset_password():
+@app.route('/api/auth/password/verify-token', methods=['GET'])
+def verify_reset_token():
+    """Verify if a password reset token is valid and not expired."""
+    token = request.args.get('token')
+    
+    if not token:
+        return jsonify({'valid': False, 'message': 'Token is missing!'}), 400
+        
     conn = None
     try:
-        data = request.get_json()
-        
-        if not data.get('token') or not data.get('password'):
-            return jsonify({'message': 'Token and password are required!'}), 400
-        
-        token = data['token']
-        password = data['password']
-        
-        # Validate password strength
-        if not is_valid_password(password):
-            return jsonify({'message': 'Password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
-        
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if token exists and is valid
-            cur.execute('SELECT user_id, expires_at FROM password_reset_tokens WHERE token = %s', (token,))
+            cur.execute('SELECT expires_at FROM password_reset_tokens WHERE token = %s', (token,))
             token_info = cur.fetchone()
             
-            if not token_info or token_info[1] < datetime.utcnow():
-                return jsonify({'message': 'Invalid or expired token!'}), 400
+            if not token_info:
+                return jsonify({'valid': False, 'message': 'Token not found!'}), 404
             
-            user_id = token_info[0]
+            expires_at = token_info[0]
+            if expires_at < datetime.utcnow():
+                return jsonify({'valid': False, 'message': 'Token has expired!'}), 410 # 410 Gone might be appropriate
             
-            # Hash the new password
-            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+            # Token is valid and not expired
+            return jsonify({'valid': True, 'message': 'Token is valid.'}), 200
             
-            # Update user's password
-            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
-            
-            # Delete the used token
-            cur.execute('DELETE FROM password_reset_tokens WHERE token = %s', (token,))
-            
-            conn.commit()
-            
-            return jsonify({'message': 'Password reset successful!'}), 200
     except Exception as e:
-        logger.error(f"Password reset error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Password reset failed!'}), 500
+        logger.error(f"Token verification error for token {token}: {e}")
+        return jsonify({'valid': False, 'message': 'Error verifying token!'}), 500
     finally:
         if conn:
             release_db_connection(conn)
+
+# Note: The actual reset_password function is defined earlier in the file.
+# The duplicated block that caused the error has been removed.
+
 
 # Update existing endpoints to use authentication
 
@@ -864,6 +852,7 @@ def add_warranty():
         serial_numbers = request.form.getlist('serial_numbers[]')
         product_url = request.form.get('product_url', '')
         user_id = request.user['id']
+        notes = request.form.get('notes', '')
         
         # Get tag IDs if provided
         tag_ids = []
@@ -937,13 +926,13 @@ def add_warranty():
             cur.execute('''
                 INSERT INTO warranties (
                     product_name, purchase_date, warranty_years, expiration_date, 
-                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime
+                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime, notes
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, warranty_years, expiration_date,
-                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime
+                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime, notes
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -1114,6 +1103,7 @@ def update_warranty(warranty_id):
             # purchase_date_str = request.form['purchase_date'] # Moved up
             serial_numbers = request.form.getlist('serial_numbers')
             product_url = request.form.get('product_url', '')
+            notes = request.form.get('notes', None)
             
             # Get tag IDs if provided
             tag_ids = []
@@ -1164,7 +1154,20 @@ def update_warranty(warranty_id):
                     invoice.save(invoice_path)
                     db_invoice_path = os.path.join('uploads', filename)
                     logger.info(f"New invoice uploaded: {db_invoice_path}")
-            
+            # Handle invoice deletion if requested
+            elif request.form.get('delete_invoice', 'false').lower() == 'true':
+                cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_invoice_path = cur.fetchone()[0]
+                if old_invoice_path:
+                    full_path = os.path.join('/data', old_invoice_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted invoice (delete request): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting invoice (delete request): {e}")
+                db_invoice_path = None  # Set to None to clear in DB
+
             # Handle manual file upload if new file is provided
             db_manual_path = None
             if 'manual' in request.files:
@@ -1194,7 +1197,20 @@ def update_warranty(warranty_id):
                     manual.save(manual_path)
                     db_manual_path = os.path.join('uploads', filename)
                     logger.info(f"New manual uploaded: {db_manual_path}")
-                
+            # Handle manual deletion if requested
+            elif request.form.get('delete_manual', 'false').lower() == 'true':
+                cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_manual_path = cur.fetchone()[0]
+                if old_manual_path:
+                    full_path = os.path.join('/data', old_manual_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted manual (delete request): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting manual (delete request): {e}")
+                db_manual_path = None  # Set to None to clear in DB
+
             # Update the warranty in database - IMPORTANT: The database set operation needs to be updated
             # Create a list of parameters for the UPDATE query
             # --- Modified: Add is_lifetime, use potentially None values ---
@@ -1215,17 +1231,25 @@ def update_warranty(warranty_id):
             for key, value in update_params.items():
                 sql_fields.append(f"{key} = %s")
                 sql_values.append(value)
+            # Add notes to the update fields before executing the SQL
+            if notes is not None:
+                sql_fields.append("notes = %s")
+                sql_values.append(notes)
             
             # Only include invoice_path in the update if it's not None
             if db_invoice_path is not None:
                 sql_fields.append("invoice_path = %s")
                 sql_values.append(db_invoice_path)
-                
+            elif 'delete_invoice' in request.form and request.form.get('delete_invoice', 'false').lower() == 'true':
+                sql_fields.append("invoice_path = NULL")
+            
             # Only include manual_path in the update if it's not None
             if db_manual_path is not None:
                 sql_fields.append("manual_path = %s")
                 sql_values.append(db_manual_path)
-                
+            elif 'delete_manual' in request.form and request.form.get('delete_manual', 'false').lower() == 'true':
+                sql_fields.append("manual_path = NULL")
+            
             # --- Add updated_at to the SET clause --- 
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
                 
@@ -1582,25 +1606,18 @@ def delete_account():
 @token_required
 def get_preferences():
     user_id = request.user['id']
-    
     try:
-        # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         try:
-            # Check if user_preferences table exists
             cursor.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_name = 'user_preferences'
                 )
             """)
-            
             table_exists = cursor.fetchone()[0]
-            
             if not table_exists:
-                # Create the user_preferences table
                 cursor.execute("""
                     CREATE TABLE user_preferences (
                         id SERIAL PRIMARY KEY,
@@ -1612,47 +1629,58 @@ def get_preferences():
                         notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
                         notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
                         timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
+                        currency_symbol VARCHAR(8) DEFAULT '$',
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         UNIQUE(user_id)
                     )
                 """)
-                
-                # Add index for faster lookups
                 cursor.execute("""
                     CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
                 """)
-                
                 conn.commit()
                 logger.info(f"Created user_preferences table")
-            
-            # Get user preferences
-            cursor.execute(
-                """
-                SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
-                FROM user_preferences
-                WHERE user_id = %s
-                """,
-                (user_id,)
-            )
-            
-            preferences_data = cursor.fetchone()
-            
-            if not preferences_data:
-                # Create default preferences if not exists
+            has_currency = has_currency_symbol_column(cursor)
+            if has_currency:
                 cursor.execute(
                     """
-                    INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone)
-                    VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC')
-                    RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
+                    SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
+                    FROM user_preferences
+                    WHERE user_id = %s
                     """,
                     (user_id,)
                 )
-                
+            else:
+                cursor.execute(
+                    """
+                    SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
+                    FROM user_preferences
+                    WHERE user_id = %s
+                    """,
+                    (user_id,)
+                )
+            preferences_data = cursor.fetchone()
+            if not preferences_data:
+                if has_currency:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol)
+                        VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC', '$')
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
+                        """,
+                        (user_id,)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone)
+                        VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC')
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
+                        """,
+                        (user_id,)
+                    )
                 preferences_data = cursor.fetchone()
                 conn.commit()
-            
-            # Format preferences data
             preferences = {
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
@@ -1660,16 +1688,13 @@ def get_preferences():
                 'expiring_soon_days': preferences_data[3],
                 'notification_frequency': preferences_data[4],
                 'notification_time': preferences_data[5],
-                'timezone': preferences_data[6]
+                'timezone': preferences_data[6] if len(preferences_data) > 6 else 'UTC',
+                'currency_symbol': preferences_data[7] if has_currency and len(preferences_data) > 7 and preferences_data[7] else '$'
             }
-            
             return jsonify(preferences), 200
-            
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error in get_preferences: {str(e)}")
-            
-            # Return default preferences as fallback
             default_preferences = {
                 'email_notifications': True,
                 'default_view': 'grid',
@@ -1677,18 +1702,15 @@ def get_preferences():
                 'expiring_soon_days': 30,
                 'notification_frequency': 'daily',
                 'notification_time': '09:00',
-                'timezone': 'UTC'
+                'timezone': 'UTC',
+                'currency_symbol': '$'
             }
-            
             return jsonify(default_preferences), 200
         finally:
             cursor.close()
             release_db_connection(conn)
-            
     except Exception as e:
         logger.error(f"Error in get_preferences: {str(e)}")
-        
-        # Return default preferences as fallback
         default_preferences = {
             'email_notifications': True,
             'default_view': 'grid',
@@ -1696,24 +1718,19 @@ def get_preferences():
             'expiring_soon_days': 30,
             'notification_frequency': 'daily',
             'notification_time': '09:00',
-            'timezone': 'UTC'
+            'timezone': 'UTC',
+            'currency_symbol': '$'
         }
-        
         return jsonify(default_preferences), 200
 
 @app.route('/api/auth/preferences', methods=['PUT'])
 @token_required
 def update_preferences():
     user_id = request.user['id']
-    
     try:
-        # Get request data
         data = request.get_json()
-        
         if not data:
             return jsonify({'message': 'No input data provided'}), 400
-        
-        # Extract fields
         email_notifications = data.get('email_notifications')
         default_view = data.get('default_view')
         theme = data.get('theme')
@@ -1721,14 +1738,11 @@ def update_preferences():
         notification_frequency = data.get('notification_frequency')
         notification_time = data.get('notification_time')
         timezone = data.get('timezone')
-        
-        # Validate input
+        currency_symbol = data.get('currency_symbol')
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
-            
         if theme and theme not in ['light', 'dark']:
             return jsonify({'message': 'Invalid theme'}), 400
-            
         if expiring_soon_days is not None:
             try:
                 expiring_soon_days = int(expiring_soon_days)
@@ -1736,42 +1750,23 @@ def update_preferences():
                     return jsonify({'message': 'Expiring soon days must be between 1 and 365'}), 400
             except ValueError:
                 return jsonify({'message': 'Expiring soon days must be a valid number'}), 400
-            
         if notification_frequency and notification_frequency not in ['daily', 'weekly', 'monthly']:
             return jsonify({'message': 'Invalid notification frequency'}), 400
-            
         if notification_time and not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', notification_time):
             return jsonify({'message': 'Invalid notification time format'}), 400
-            
         if timezone and not is_valid_timezone(timezone):
             return jsonify({'message': 'Invalid timezone'}), 400
-
-        # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        
         try:
-            # Check if timezone column exists in user_preferences
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'user_preferences' AND column_name = 'timezone'
-            """)
-            
-            has_timezone_column = cursor.fetchone() is not None
-            
-            # Check if user_preferences table exists
             cursor.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_name = 'user_preferences'
                 )
             """)
-            
             table_exists = cursor.fetchone()[0]
-            
             if not table_exists:
-                # Create the user_preferences table
                 cursor.execute("""
                     CREATE TABLE user_preferences (
                         id SERIAL PRIMARY KEY,
@@ -1783,85 +1778,67 @@ def update_preferences():
                         notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
                         notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
                         timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
+                        currency_symbol VARCHAR(8) DEFAULT '$',
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         UNIQUE(user_id)
                     )
                 """)
-                
-                # Add index for faster lookups
                 cursor.execute("""
                     CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
                 """)
-                
-                # Set preferences_exist to false to create new preferences
                 preferences_exist = False
                 conn.commit()
                 logger.info(f"Created user_preferences table")
-            else:
-                # Check if preferences exist
-                cursor.execute(
-                    "SELECT 1 FROM user_preferences WHERE user_id = %s",
-                    (user_id,)
-                )
-                
-                preferences_exist = cursor.fetchone() is not None
-            
+            has_currency = has_currency_symbol_column(cursor)
+            cursor.execute(
+                "SELECT 1 FROM user_preferences WHERE user_id = %s",
+                (user_id,)
+            )
+            preferences_exist = cursor.fetchone() is not None
             if preferences_exist:
-                # Update existing preferences
                 update_fields = []
                 update_values = []
-                
                 if email_notifications is not None:
                     update_fields.append("email_notifications = %s")
                     update_values.append(email_notifications)
-                    
                 if default_view:
                     update_fields.append("default_view = %s")
                     update_values.append(default_view)
-                    
                 if theme:
                     update_fields.append("theme = %s")
                     update_values.append(theme)
-                
                 if expiring_soon_days is not None:
                     update_fields.append("expiring_soon_days = %s")
                     update_values.append(expiring_soon_days)
-                
                 if notification_frequency:
                     update_fields.append("notification_frequency = %s")
                     update_values.append(notification_frequency)
-                
                 if notification_time:
                     update_fields.append("notification_time = %s")
                     update_values.append(notification_time)
-                
-                if timezone and has_timezone_column:
+                if timezone:
                     update_fields.append("timezone = %s")
                     update_values.append(timezone)
-                
+                if has_currency and currency_symbol is not None:
+                    update_fields.append("currency_symbol = %s")
+                    update_values.append(currency_symbol)
                 if update_fields:
-                    # Construct return fields based on whether timezone column exists
-                    return_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time"
-                    if has_timezone_column:
-                        return_fields += ", timezone"
-                    
+                    return_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone"
+                    if has_currency:
+                        return_fields += ", currency_symbol"
                     update_query = f"""
                         UPDATE user_preferences 
                         SET {', '.join(update_fields)}
                         WHERE user_id = %s
                         RETURNING {return_fields}
                     """
-                    
                     cursor.execute(update_query, update_values + [user_id])
                     preferences_data = cursor.fetchone()
                 else:
-                    # No fields to update
-                    # Construct select fields based on whether timezone column exists
-                    select_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time"
-                    if has_timezone_column:
-                        select_fields += ", timezone"
-                    
+                    select_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone"
+                    if has_currency:
+                        select_fields += ", currency_symbol"
                     cursor.execute(
                         f"""
                         SELECT {select_fields}
@@ -1872,9 +1849,36 @@ def update_preferences():
                     )
                     preferences_data = cursor.fetchone()
             else:
-                # Create new preferences
-                # Check for timezone column to adjust INSERT statement
-                if has_timezone_column:
+                if has_currency:
+                    cursor.execute(
+                        """
+                        INSERT INTO user_preferences (
+                            user_id, 
+                            email_notifications, 
+                            default_view, 
+                            theme,
+                            expiring_soon_days,
+                            notification_frequency,
+                            notification_time,
+                            timezone,
+                            currency_symbol
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
+                        """,
+                        (
+                            user_id,
+                            email_notifications if email_notifications is not None else True,
+                            default_view or 'grid',
+                            theme or 'light',
+                            expiring_soon_days if expiring_soon_days is not None else 30,
+                            notification_frequency or 'daily',
+                            notification_time or '09:00',
+                            timezone or 'UTC',
+                            currency_symbol or '$'
+                        )
+                    )
+                else:
                     cursor.execute(
                         """
                         INSERT INTO user_preferences (
@@ -1901,58 +1905,26 @@ def update_preferences():
                             timezone or 'UTC'
                         )
                     )
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_preferences (
-                            user_id, 
-                            email_notifications, 
-                            default_view, 
-                            theme,
-                            expiring_soon_days,
-                            notification_frequency,
-                            notification_time
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time
-                        """,
-                        (
-                            user_id,
-                            email_notifications if email_notifications is not None else True,
-                            default_view or 'grid',
-                            theme or 'light',
-                            expiring_soon_days if expiring_soon_days is not None else 30,
-                            notification_frequency or 'daily',
-                            notification_time or '09:00'
-                        )
-                    )
                 preferences_data = cursor.fetchone()
-            
-            # Format preferences data
             preferences = {
                 'email_notifications': preferences_data[0],
                 'default_view': preferences_data[1],
                 'theme': preferences_data[2],
                 'expiring_soon_days': preferences_data[3],
                 'notification_frequency': preferences_data[4],
-                'notification_time': preferences_data[5]
+                'notification_time': preferences_data[5],
+                'timezone': preferences_data[6] if len(preferences_data) > 6 else 'UTC',
+                # Use parentheses for line continuation
+                'currency_symbol': (
+                    currency_symbol if has_currency and currency_symbol is not None
+                    else (preferences_data[7] if has_currency and len(preferences_data) > 7 and preferences_data[7] else '$')
+                )
             }
-            
-            # Add timezone if column exists
-            if has_timezone_column and len(preferences_data) > 6:
-                preferences['timezone'] = preferences_data[6]
-            else:
-                preferences['timezone'] = timezone or 'UTC'
-            
             conn.commit()
-            
             return jsonify(preferences), 200
-            
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error in update_preferences: {str(e)}")
-            
-            # Return original data as fallback
             fallback_preferences = {
                 'email_notifications': email_notifications if email_notifications is not None else True,
                 'default_view': default_view or 'grid',
@@ -1960,18 +1932,15 @@ def update_preferences():
                 'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30,
                 'notification_frequency': notification_frequency or 'daily',
                 'notification_time': notification_time or '09:00',
-                'timezone': timezone or 'UTC'
+                'timezone': timezone or 'UTC',
+                'currency_symbol': currency_symbol or '$'
             }
-            
             return jsonify(fallback_preferences), 200
         finally:
             cursor.close()
             release_db_connection(conn)
-            
     except Exception as e:
         logger.error(f"Error in update_preferences: {str(e)}")
-        
-        # Return default preferences as fallback
         default_preferences = {
             'email_notifications': True,
             'default_view': 'grid',
@@ -1979,9 +1948,9 @@ def update_preferences():
             'expiring_soon_days': 30,
             'notification_frequency': 'daily',
             'notification_time': '09:00',
-            'timezone': 'UTC'
+            'timezone': 'UTC',
+            'currency_symbol': '$'
         }
-        
         return jsonify(default_preferences), 200
 
 # Admin User Management Endpoints
@@ -2489,6 +2458,116 @@ def format_expiration_email(user, warranties):
 
     return msg
 
+def send_password_reset_email(recipient_email, reset_link):
+    """Sends the password reset email."""
+    logger.info(f"Attempting to send password reset email to {recipient_email}")
+    
+    subject = "Warracker: Password Reset Request"
+    
+    # Basic text body
+    text_body = f"""Hello,
+
+You requested a password reset for your Warracker account.
+
+Click the link below to set a new password:
+{reset_link}
+
+If you did not request this reset, please ignore this email. This link will expire in 24 hours.
+
+Thanks,
+The Warracker Team
+"""
+
+    # Basic HTML body
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Warracker Password Reset</title>
+</head>
+<body style="font-family: sans-serif; line-height: 1.6;">
+  <h2>Warracker Password Reset Request</h2>
+  <p>Hello,</p>
+  <p>You requested a password reset for your Warracker account.</p>
+  <p>Click the button below to set a new password:</p>
+  <p style="margin: 25px 0;">
+    <a href="{reset_link}" style="background-color: #007bff; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+      Reset Your Password
+    </a>
+  </p>
+  <p>If the button doesn't work, copy and paste this link into your browser:</p>
+  <p><a href="{reset_link}">{reset_link}</a></p>
+  <p>If you did not request this reset, please ignore this email. This link will expire in 24 hours.</p>
+  <p>Thanks,<br>The Warracker Team</p>
+</body>
+</html>
+"""
+
+    # Get SMTP settings from environment variables
+    smtp_host = os.environ.get('SMTP_HOST', 'localhost')
+    smtp_port = int(os.environ.get('SMTP_PORT', '1025'))
+    smtp_username = os.environ.get('SMTP_USERNAME') # No default sender here, should be configured
+    smtp_password = os.environ.get('SMTP_PASSWORD')
+    # Use SMTP_USERNAME as sender if available, otherwise a default
+    sender_email = smtp_username or 'noreply@warracker.local' 
+
+    if not smtp_username:
+         logger.warning("SMTP_USERNAME environment variable not set. Using default sender address.")
+
+    # Create a MIMEMultipart object for both text and HTML
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+
+    part1 = MIMEText(text_body, 'plain', 'utf-8')
+    part2 = MIMEText(html_body, 'html', 'utf-8')
+
+    msg.attach(part1)
+    msg.attach(part2)
+
+    # Connect to SMTP server and send
+    try:
+        server = None # Initialize server to None
+        if smtp_port == 465:
+            logger.info(f"Using SMTP_SSL connection for port 465 to host {smtp_host}")
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) # Add timeout
+        else:
+            logger.info(f"Using standard SMTP connection for port {smtp_port} to host {smtp_host}")
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10) # Add timeout
+            # Start TLS for security if not local debug server and not using SSL
+            # Check if host suggests a non-local environment
+            if smtp_host != 'localhost' and not smtp_host.startswith('127.'): 
+                logger.info("Attempting to start TLS")
+                server.starttls()
+        
+        # Login if credentials are provided
+        if smtp_username and smtp_password:
+            logger.info(f"Logging in with username: {smtp_username}")
+            server.login(smtp_username, smtp_password)
+        
+        # Send email
+        logger.info(f"Sending email via {smtp_host}:{smtp_port} from {sender_email}")
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        logger.info(f"Password reset email successfully sent to {recipient_email}")
+        
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"SMTP Authentication Error sending email to {recipient_email}: {e}")
+        # Re-raise a more generic exception or handle appropriately
+        raise Exception(f"SMTP Authentication failed for {smtp_username}") from e
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {recipient_email}: {e}")
+        logger.error(f"SMTP details used - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}, Sender: {sender_email}")
+        # Raise an exception to be caught by the calling function
+        raise Exception("Failed to send password reset email") from e
+    finally:
+        if server:
+            try:
+                server.quit()
+                logger.info("SMTP connection closed.")
+            except Exception as e:
+                 logger.error(f"Error quitting SMTP connection: {e}")
+
 # Create a lock for the notification function
 notification_lock = threading.Lock()
 # Track when notifications were last sent to each user
@@ -2747,7 +2826,6 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"Application startup error: {e}")
 
-# Move this code before the if __name__ == '__main__' block
 @app.route('/api/admin/send-notifications', methods=['POST'])
 @admin_required
 def trigger_notifications():
@@ -3431,3 +3509,72 @@ def import_warranties():
             release_db_connection(conn)
 
 # --- End CSV Import Endpoint ---
+
+# --- PATCH START: Currency Symbol Support ---
+# 1. Add a helper function to check if the currency_symbol column exists in user_preferences
+
+def has_currency_symbol_column(cursor):
+    cursor.execute("""
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'user_preferences' AND column_name = 'currency_symbol'
+    """)
+    return cursor.fetchone() is not None
+
+# 2. Update GET /api/auth/preferences
+#    - Add currency_symbol to CREATE TABLE, SELECT, INSERT, and response
+#    - Default to '$' if not set
+#
+# 3. Update PUT /api/auth/preferences
+#    - Accept currency_symbol from request data and update if provided
+#    - Add currency_symbol to CREATE TABLE, SELECT, INSERT, UPDATE, and response
+#    - Default to '$' if not set
+# --- PATCH END ---
+
+@app.route('/api/auth/password/reset', methods=['POST'])
+def reset_password():
+    conn = None
+    try:
+        data = request.get_json()
+        
+        if not data.get('token') or not data.get('password'):
+            return jsonify({'message': 'Token and password are required!'}), 400
+        
+        token = data['token']
+        password = data['password']
+        
+        # Validate password strength
+        if not is_valid_password(password):
+            return jsonify({'message': 'Password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if token exists and is valid
+            cur.execute('SELECT user_id, expires_at FROM password_reset_tokens WHERE token = %s', (token,))
+            token_info = cur.fetchone()
+            
+            if not token_info or token_info[1] < datetime.utcnow():
+                return jsonify({'message': 'Invalid or expired token!'}), 400
+            
+            user_id = token_info[0]
+            
+            # Hash the new password
+            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+            
+            # Update user's password
+            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
+            
+            # Delete the used token
+            cur.execute('DELETE FROM password_reset_tokens WHERE token = %s', (token,))
+            
+            conn.commit()
+            
+            return jsonify({'message': 'Password reset successful!'}), 200
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({'message': 'Password reset failed!'}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+

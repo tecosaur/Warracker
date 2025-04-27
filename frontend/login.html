@@ -216,9 +216,12 @@
                     console.error('Login error:', error);
                     showMessage(error.message || 'Login failed. Please check your credentials.', 'error');
                     
-                    // Reset button
-                    submitBtn.innerHTML = originalBtnText;
-                    submitBtn.disabled = false;
+                    // Reset button state explicitly
+                    const submitBtn = loginForm.querySelector('button[type="submit"]'); // Ensure we have the button reference
+                    if (submitBtn) {
+                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login'; // Set back to original text
+                        submitBtn.disabled = false; // Re-enable the button
+                    }
                 }
             });
             

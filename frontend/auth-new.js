@@ -88,7 +88,7 @@ function updateUIForAuthenticatedUser() {
     // Show user info if it exists
     const userDisplay = document.querySelector('.user-display');
     if (userDisplay && currentUser) {
-        const displayName = currentUser.first_name || currentUser.username || 'User';
+        let displayName = currentUser.username || 'User';
         userDisplay.textContent = displayName;
         userDisplay.style.display = 'inline-block';
     }

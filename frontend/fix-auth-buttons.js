@@ -84,7 +84,7 @@ function updateAuthButtons() {
         if (userInfo) {
             try {
                 const user = JSON.parse(userInfo);
-                const username = user.first_name || user.username || 'User';
+                const username = user.username || 'User';
                 console.log('Setting username to:', username);
                 
                 // Find username display elements

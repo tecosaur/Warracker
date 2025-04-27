@@ -145,7 +145,7 @@ function updateUIForAuthenticatedUser() {
     }
     
     // Update user info in the header menu
-    const displayName = currentUser.first_name || currentUser.username || 'User'; // Fallback added
+    let displayName = currentUser.username || 'User';
     const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'User Name'; // Fallback added
     const email = currentUser.email || 'user@example.com'; // Fallback added
     

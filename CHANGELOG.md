@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.9.9.3] - 2025-04-27
+
+### Added
+
+ - **Document Deletion in Edit Warranty:**
+    - Users can now delete uploaded documents (Invoice/Receipt and Product Manual) when editing an existing warranty.
+    - The edit modal now displays "Delete Invoice" and "Delete Manual" buttons if a document is present. Clicking these marks the document for deletion, which is processed when saving changes.
+    - Backend and database are updated to remove the file from storage and clear the reference in the database.
+  _Files: `backend/app.py`, `frontend/index.html`, `frontend/script.js`_
+
+ - **Notes for Warranties:**
+    - Users can now add, view, and edit freeform notes for each warranty.
+    - Notes can be entered when adding or editing a warranty, and are accessible from the warranty card via a dedicated "Notes" link.
+    - A modal dialog allows users to view and edit notes in place, with support for multi-line text and instant updates.
+    - Notes are searchable and filterable alongside product names and tags.
+    - Backend and database support for notes has been added, including migration and API changes.
+    - UI includes clear styling for notes links and modal, with full support for both light and dark themes.
+  _Files: `backend/app.py`, `backend/migrations/014_add_notes_to_warranties.sql`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+ - **Currency Symbol Customization:**
+    - Users can now select their preferred currency symbol ($, €, £, ¥, ₹, or a custom one) in the settings page.
+    - The selected symbol is now displayed next to purchase prices on warranty cards on the main page (`index.html`).
+  _Files: `backend/app.py`, `backend/migrations/006_add_currency_symbol_column.py`, `frontend/settings-new.html`, `frontend/settings-new.js`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+ - **Password Reset Functionality:**
+    - Users can now reset their password via a secure, token-based email workflow.
+    - Added a "Forgot Password?" link on the login page that initiates the process.
+    - Users receive an email with a unique link to set a new password.
+    - Implemented frontend pages for requesting the reset and setting the new password.
+    - Backend handles token generation, validation, email sending, and password updates.
+  _Files: `backend/app.py`, `frontend/login.html`, `frontend/reset-password-request.html`, `frontend/reset-password.html`, `backend/migrations/003_add_users_table.sql` (or similar migration)_
+
+### Changed
+- **Status Page Table:** Removed the "Actions" column (and its buttons) from the "Recently Expired or Expiring Soon" table on `status.html` for a cleaner look.
+- **Table Layout:** Updated the table and CSS to use dynamic column widths, eliminating empty space after the Status column and ensuring the table fills the available space naturally.
+- **UI Polish:** Fixed awkward right-side spacing in the table and removed all flex styling and fixed-width rules for the last column, so the table now adapts responsively to its content.
+- **CSS Cleanup:** Cleaned up and removed obsolete or conflicting CSS rules for the recent expirations table, resolving layout and syntax errors.
+- **Status Page Table Sorting:**
+    - Fixed date comparison logic in the sort function to correctly handle `Date` objects.
+    - Refactored event listener attachment for sortable table headers to prevent duplicate listeners being added, resolving issues where sorting only worked once or behaved erratically.
+    - Ensured all event listeners (sort, filter, search, export, refresh) are attached reliably after initial data load and rendering.
+  _Files: `frontend/status.html`, `frontend/status.js`, `frontend/style.css`_
+
+- **Mobile Export Button:** On mobile devices, the export button at the bottom of the status page now only displays the icon (no text), for a cleaner and more compact UI. The text remains visible on desktop.
+- **Mobile Search Functionality:** The search box for recent expirations at the bottom of the status page now works correctly on mobile, with event listeners properly initialized to ensure filtering works as expected on all devices.
+  _Files: `frontend/status.html`, `frontend/status.js`, `frontend/style.css`_
+
+### Fixed
+- **Settings Toggle Size:** Fixed inconsistent toggle switch sizing on mobile views, ensuring all toggles render at the correct dimensions (`47x24px`).
+  _File: `frontend/settings-styles.css`_
+- **Username Display:** Resolved an issue where user interface elements sometimes incorrectly displayed the username instead of the first name (or vice versa).
+  _Files: `frontend/settings-new.js`, `frontend/auth.js` 
+- **List/Table View:** Implemented updates and fixes for the warranty list and table views, improving layout and data presentation.
+  _Files: `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
 ## [0.9.9.2] - 2025-04-20
 
 ### Added

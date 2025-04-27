@@ -208,6 +208,28 @@
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
+                                    <label>Currency Symbol</label>
+                                    <p class="text-muted">Choose the symbol to display for prices</p>
+                                </div>
+                                <select id="currencySymbolSelect" class="form-control" style="width: 120px; font-size: 1.1em;">
+                                    <option value="$">$ (USD)</option>
+                                    <option value="€">€ (EUR)</option>
+                                    <option value="£">£ (GBP)</option>
+                                    <option value="¥">¥ (JPY/CNY)</option>
+                                    <option value="₹">₹ (INR)</option>
+                                    <option value="₩">₩ (KRW)</option>
+                                    <option value="CHF">CHF (Swiss Franc)</option>
+                                    <option value="CAD">CAD (Canadian Dollar)</option>
+                                    <option value="AUD">AUD (Australian Dollar)</option>
+                                    <option value="other">Other...</option>
+                                </select>
+                                <input type="text" id="currencySymbolCustom" class="form-control" maxlength="6" style="width: 70px; text-align: center; font-size: 1.2em; display: none; margin-left: 10px;" placeholder="Custom">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
                                     <label>Expiring Soon Days</label>
                                     <p class="text-muted">Number of days before warranty expiration to mark as "Expiring Soon"</p>
                                 </div>

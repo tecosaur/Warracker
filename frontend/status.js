@@ -466,9 +466,17 @@ function filterAndSortWarranties() {
         
         // Compare values based on sort direction
         if (currentSort.direction === 'asc') {
-            return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+            if (valueA instanceof Date && valueB instanceof Date) {
+                return valueA.getTime() - valueB.getTime();
+            } else {
+                return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+            }
         } else {
-            return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+            if (valueA instanceof Date && valueB instanceof Date) {
+                return valueB.getTime() - valueA.getTime();
+            } else {
+                return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+            }
         }
     });
     
@@ -553,14 +561,6 @@ function filterAndSortWarranties() {
             <td>${purchaseDate}</td>
             <td>${formattedExpirationDate}</td>
             <td><span class="${statusClass}">${statusText}</span></td>
-            <td>
-                <a href="index.html?edit=${warranty.id}" class="action-btn edit-btn" title="Edit">
-                    <i class="fas fa-edit"></i>
-                </a>
-                <a href="#" onclick="window.openSecureFile ? openSecureFile('${warranty.invoice_path || ''}') : alert('File viewer not available'); return false;" class="action-btn view-btn" title="View Invoice" ${!warranty.invoice_path ? 'style="display: none;"' : ''}>
-                    <i class="fas fa-file-alt"></i>
-                </a>
-            </td>
         `;
         
         tableBody.appendChild(row);
@@ -653,8 +653,41 @@ async function initDashboard() {
         console.log('Global allWarranties length AFTER assignment:', allWarranties.length); // Log length after assignment
         filterAndSortWarranties(); // Apply initial filters/sort to the table
 
-        // Setup event listeners AFTER data is loaded and initial render is done
-        setupEventListeners(); 
+        // Attach sort listeners *after* initial render
+        attachSortListeners();
+
+        // Re-add other listeners previously in setupEventListeners
+        const searchInput = document.getElementById('searchWarranties');
+        const filterSelect = document.getElementById('statusFilter');
+        const exportDataBtn = document.getElementById('exportBtn');
+        const refreshBtn = document.getElementById('refreshDashboardBtn'); // Use the correct ID
+
+        if (refreshBtn) {
+            // Avoid adding multiple listeners if initDashboard is called again
+            if (!refreshBtn.hasAttribute('data-listener-added')) {
+                refreshBtn.addEventListener('click', refreshDashboard); // Call the refresh wrapper
+                refreshBtn.setAttribute('data-listener-added', 'true');
+            }
+        }
+        if (searchInput) {
+            if (!searchInput.hasAttribute('data-listener-added')) {
+                searchInput.addEventListener('input', filterAndSortWarranties);
+                searchInput.setAttribute('data-listener-added', 'true');
+            }
+        }
+        if (filterSelect) {
+            if (!filterSelect.hasAttribute('data-listener-added')) {
+                filterSelect.addEventListener('change', filterAndSortWarranties);
+                filterSelect.setAttribute('data-listener-added', 'true');
+            }
+        }
+        if (exportDataBtn) {
+            if (!exportDataBtn.hasAttribute('data-listener-added')) {
+                exportDataBtn.addEventListener('click', exportWarrantyData);
+                exportDataBtn.setAttribute('data-listener-added', 'true');
+            }
+        }
+        console.log("Attached other listeners (search, filter, export, refresh).")
 
         hideLoading();
     } catch (error) {
@@ -800,10 +833,6 @@ function displayRecentExpirations(expirations) {
             <td>${new Date(warranty.purchase_date).toLocaleDateString()}</td>
             <td>${new Date(warranty.expiration_date).toLocaleDateString()} (${daysText})</td>
             <td><span class="status-${statusClass}">${warranty.status.replace('_', ' ')}</span></td>
-            <td>
-                <a href="index.html#warranty-${warranty.id}" class="action-btn view-btn" title="View Warranty"><i class="fas fa-eye"></i></a>
-                <!-- Add edit/delete if needed -->
-            </td>
         `;
     });
 }
@@ -894,50 +923,29 @@ function getStatusText(expirationDateStr, today) {
     return 'Active';
 }
 
-// Function to setup event listeners specific to the status page
-function setupEventListeners() {
-    console.log("Setting up status page event listeners...");
-    const refreshBtn = document.getElementById('refreshStatusBtn');
-    const searchInput = document.getElementById('searchWarranties');
-    const filterSelect = document.getElementById('statusFilter');
-    const exportDataBtn = document.getElementById('exportBtn');
+// Define attachSortListeners globally within the script scope
+function attachSortListeners() {
     const headers = document.querySelectorAll('.sortable');
+    headers.forEach(header => {
+        // Clear potentially existing listener to prevent duplicates if this is called multiple times
+        // A more robust way might involve checking if a listener already exists, but this is simpler
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
 
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', initDashboard); // Reload everything on refresh
-    }
-    if (searchInput) {
-        searchInput.addEventListener('input', filterAndSortWarranties);
-    }
-    if (filterSelect) {
-        filterSelect.addEventListener('change', filterAndSortWarranties);
-    }
-    if (exportDataBtn) {
-        exportDataBtn.addEventListener('click', exportWarrantyData);
-    }
-    if (headers) {
-        headers.forEach(header => {
-            header.addEventListener('click', () => {
-                const column = header.getAttribute('data-sort');
-                if (currentSort.column === column) {
-                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    currentSort.column = column;
-                    currentSort.direction = 'asc';
-                }
-                updateSortHeaderClasses();
-                filterAndSortWarranties();
-            });
+        newHeader.addEventListener('click', () => {
+            const column = newHeader.getAttribute('data-sort');
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+            updateSortHeaderClasses();
+            filterAndSortWarranties();
         });
-    }
-    
-    // NOTE: The theme toggle listener is set up in DOMContentLoaded
-    console.log("Status page event listeners setup complete.");
+    });
+    console.log("Attached sort listeners.");
 }
-
-// Dummy checkLoginStatus and setupSettingsMenu for completeness
-// function checkLoginStatus() { console.log("Checking login status..."); }
-// function setupSettingsMenu() { console.log("Setting up settings menu..."); }
 
 // --- Initialization --- 
 // IMPORTANT: Ensure ALL function definitions are ABOVE this listener
@@ -958,11 +966,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize the main dashboard logic
     initDashboard();
-    
+
+    // Setup event listeners for search/filter/export/sort
+    // setupEventListeners(); // Removed: listeners now attached in initDashboard
+
     // Setup settings menu (assuming it's part of the shared header)
     // if (typeof setupSettingsMenu === 'function') { 
     //     setupSettingsMenu(); 
     // } else if (window.auth && typeof window.auth.setupSettingsMenu === 'function') {
     //     window.auth.setupSettingsMenu();
     // }
-}); 
+});

@@ -151,6 +151,12 @@
         .register-btn:hover {
             background-color: var(--primary-dark);
         }
+        
+        @media (max-width: 768px) {
+            .export-btn .export-text {
+                display: none;
+            }
+        }
     </style>
 
     <!-- Immediate authentication check script -->
@@ -362,7 +368,7 @@
                                 </select>
                             </div>
                             <button id="exportBtn" class="export-btn" title="Export data">
-                                <i class="fas fa-download"></i> Export
+                                <i class="fas fa-download"></i> <span class="export-text">Export</span>
                             </button>
                         </div>
                     </div>
@@ -374,7 +380,6 @@
                                     <th class="sortable" data-sort="purchase">Purchase Date <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="expiration">Expiration Date <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="recentExpirationsBody">

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS warranties (
     invoice_path TEXT,
     manual_path TEXT,
     product_url TEXT,
+    notes TEXT,
     -- purchase_price is added by migration 002
     -- user_id is added by migration 003
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

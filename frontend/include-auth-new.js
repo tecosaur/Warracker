@@ -56,7 +56,7 @@ if (localStorage.getItem('auth_token')) {
             var userInfoStr = localStorage.getItem('user_info');
             if (userInfoStr) {
                 var userInfo = JSON.parse(userInfoStr);
-                var displayName = userInfo.first_name || userInfo.username || 'User';
+                var displayName = userInfo.username || 'User';
                 
                 var userDisplayName = document.getElementById('userDisplayName');
                 if (userDisplayName) {

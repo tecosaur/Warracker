@@ -43,6 +43,9 @@ const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
 const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
+const currencySymbolInput = document.getElementById('currencySymbol');
+const currencySymbolSelect = document.getElementById('currencySymbolSelect');
+const currencySymbolCustom = document.getElementById('currencySymbolCustom');
 
 /**
  * Set theme (dark/light) - Unified and persistent
@@ -61,10 +64,10 @@ function setTheme(isDark) {
     localStorage.setItem('darkMode', isDark);
     // Sync both toggles if present
     if (typeof darkModeToggle !== 'undefined' && darkModeToggle) {
-        darkModeToggle.checked = isDark;
+        darkModeToggle.checked = isDarkMode;
     }
     if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDark;
+        darkModeToggleSetting.checked = isDarkMode;
     }
     // Also update user_preferences.theme for backward compatibility
     try {
@@ -132,6 +135,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Error loading timezones/prefs:', err);
         loadPreferences(); // Try loading prefs anyway
     });
+
+    // --- ADD THIS LINE TO INITIALIZE MODALS ---
+    initModals();
 });
 
 /**
@@ -298,7 +304,12 @@ async function loadUserData() {
             if (emailInput) emailInput.value = currentUser.email || ''; // Add null checks
 
             // --- UPDATE DISPLAY ELEMENT (Initial Load) ---
-            const displayName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.username || 'User';
+            let displayName;
+            if (currentUser.first_name && currentUser.last_name) {
+                displayName = `${currentUser.first_name} ${currentUser.last_name}`;
+            } else {
+                displayName = currentUser.username || 'User';
+            }
             if (userNameDisplay) userNameDisplay.textContent = displayName;
             if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || 'N/A';
             // --- END UPDATE ---
@@ -331,7 +342,12 @@ async function loadUserData() {
                 if (emailInput) emailInput.value = userData.email || ''; // Add null checks
 
                 // --- UPDATE DISPLAY ELEMENT (After API Load) ---
-                const displayName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username || 'User';
+                let displayName;
+                if (userData.first_name && userData.last_name) {
+                    displayName = `${userData.first_name} ${userData.last_name}`;
+                } else {
+                    displayName = userData.username || 'User';
+                }
                  if (userNameDisplay) userNameDisplay.textContent = displayName;
                  if (userEmailDisplay) userEmailDisplay.textContent = userData.email || 'N/A';
                 // --- END UPDATE ---
@@ -346,7 +362,21 @@ async function loadUserData() {
                 }
 
                 // Update localStorage
-                localStorage.setItem('user_info', JSON.stringify(userData));
+                const currentUser = window.auth.getCurrentUser();
+                let first_name = userData.first_name;
+                let last_name = userData.last_name;
+                if (!last_name) first_name = '';
+                const updatedUser = {
+                    ...(currentUser || {}), // Handle case where currentUser might be null
+                    first_name,
+                    last_name,
+                    // Ensure email and username are preserved if they existed
+                    email: currentUser ? currentUser.email : userData.email,
+                    username: currentUser ? currentUser.username : userData.username,
+                    is_admin: currentUser ? currentUser.is_admin : userData.is_admin,
+                    id: currentUser ? currentUser.id : userData.id
+                };
+                localStorage.setItem('user_info', JSON.stringify(updatedUser));
             } else {
                 const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
                 console.warn('API error fetching user data:', errorData.message);
@@ -476,10 +506,36 @@ function loadPreferences() {
                 if (timezoneSelect && preferences.timezone) {
                     timezoneSelect.value = preferences.timezone;
                 }
+
+                // Currency symbol preference
+                let symbol = '$';
+                if (preferences && preferences.currency_symbol) {
+                    symbol = preferences.currency_symbol;
+                }
+                if (currencySymbolSelect && currencySymbolCustom) {
+                    // If symbol is in the dropdown, select it; else, select 'other' and show custom
+                    const found = Array.from(currencySymbolSelect.options).some(opt => opt.value === symbol);
+                    if (found) {
+                        currencySymbolSelect.value = symbol;
+                        currencySymbolCustom.style.display = 'none';
+                        currencySymbolCustom.value = '';
+                    } else {
+                        currencySymbolSelect.value = 'other';
+                        currencySymbolCustom.style.display = '';
+                        currencySymbolCustom.value = symbol;
+                    }
+                }
             }
         } catch (e) {
             console.error('Error loading preferences from localStorage:', e);
+            // Fallback to default '$' using the correct elements
+            if (currencySymbolSelect) currencySymbolSelect.value = '$';
+            if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
         }
+    } else {
+        // Fallback to default '$' if no localStorage and defaultViewLoaded is true
+        if (currencySymbolSelect) currencySymbolSelect.value = '$';
+        if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
     }
 
     // Load preferences from API (API data should override if available, except maybe for default view if already loaded)
@@ -535,6 +591,21 @@ function loadPreferences() {
                     console.log('Applied timezone from API:', apiPrefs.timezone, 'Current select value:', timezoneSelect.value);
                 }
             }, 500);
+        }
+        
+        // Currency symbol from API
+        let apiSymbol = data.currency_symbol || '$';
+        if (currencySymbolSelect && currencySymbolCustom) {
+            const found = Array.from(currencySymbolSelect.options).some(opt => opt.value === apiSymbol);
+            if (found) {
+                currencySymbolSelect.value = apiSymbol;
+                currencySymbolCustom.style.display = 'none';
+                currencySymbolCustom.value = '';
+            } else {
+                currencySymbolSelect.value = 'other';
+                currencySymbolCustom.style.display = '';
+                currencySymbolCustom.value = apiSymbol;
+            }
         }
         
         // Store in localStorage with the appropriate prefix
@@ -712,41 +783,37 @@ function setupEventListeners() {
  * Initialize modals
  */
 function initModals() {
+    // Helper to close all modals and reset forms
+    function closeModalHandler(e) {
+        if (e) e.preventDefault();
+        document.querySelectorAll('.modal-backdrop').forEach(modal => {
+            modal.style.display = 'none';
+        });
+        // Reset delete confirm input
+        if (deleteConfirmInput) {
+            deleteConfirmInput.value = '';
+            confirmDeleteAccountBtn.disabled = true;
+        }
+        // Reset password form
+        resetPasswordForm();
+    }
+
     // Close modal when clicking on X or outside
     document.querySelectorAll('.close-btn, [data-dismiss="modal"]').forEach(closeBtn => {
-        closeBtn.addEventListener('click', () => {
-            document.querySelectorAll('.modal-backdrop').forEach(modal => {
-                modal.style.display = 'none';
-            });
-            
-            // Reset delete confirm input
-            if (deleteConfirmInput) {
-                deleteConfirmInput.value = '';
-                confirmDeleteAccountBtn.disabled = true;
-            }
-            
-            // Reset password form
-            resetPasswordForm();
-        });
+        closeBtn.addEventListener('click', closeModalHandler);
+        closeBtn.addEventListener('touchend', closeModalHandler);
     });
     
-    // Close modal when clicking outside
-    window.addEventListener('click', (event) => {
+    // Close modal when clicking outside (backdrop)
+    function backdropHandler(event) {
         document.querySelectorAll('.modal-backdrop').forEach(modal => {
             if (event.target === modal) {
-                modal.style.display = 'none';
-                
-                // Reset delete confirm input
-                if (deleteConfirmInput) {
-                    deleteConfirmInput.value = '';
-                    confirmDeleteAccountBtn.disabled = true;
-                }
-                
-                // Reset password form
-                resetPasswordForm();
+                closeModalHandler(event);
             }
         });
-    });
+    }
+    window.addEventListener('click', backdropHandler);
+    window.addEventListener('touchend', backdropHandler);
     
     // Add direct click handler to delete user modal
     if (deleteUserModal) {
@@ -829,10 +896,13 @@ async function saveProfile() {
 
             // Update localStorage
             const currentUser = window.auth.getCurrentUser();
+            let first_name = userData.first_name;
+            let last_name = userData.last_name;
+            if (!last_name) first_name = '';
             const updatedUser = {
                 ...(currentUser || {}), // Handle case where currentUser might be null
-                first_name: userData.first_name,
-                last_name: userData.last_name,
+                first_name,
+                last_name,
                 // Ensure email and username are preserved if they existed
                 email: currentUser ? currentUser.email : userData.email,
                 username: currentUser ? currentUser.username : userData.username,
@@ -842,7 +912,12 @@ async function saveProfile() {
             localStorage.setItem('user_info', JSON.stringify(updatedUser));
 
             // --- UPDATE DISPLAY ELEMENT IMMEDIATELY ---
-            const displayName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || updatedUser.username || 'User'; // Use updatedUser for username fallback
+            let displayName;
+            if (userData.first_name && userData.last_name) {
+                displayName = `${userData.first_name} ${userData.last_name}`;
+            } else {
+                displayName = updatedUser.username || 'User';
+            }
             if (userNameDisplay) userNameDisplay.textContent = displayName;
             // --- END UPDATE ---
 
@@ -886,6 +961,12 @@ function savePreferences() {
         const notificationFrequency = notificationFrequencySelect.value;
         const notificationTime = notificationTimeInput.value;
         const timezone = timezoneSelect.value;
+        let currencySymbol = '$';
+        if (currencySymbolSelect && currencySymbolSelect.value === 'other') {
+            currencySymbol = currencySymbolCustom && currencySymbolCustom.value ? currencySymbolCustom.value : '$';
+        } else if (currencySymbolSelect) {
+            currencySymbol = currencySymbolSelect.value;
+        }
         
         // Validate inputs
         if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
@@ -908,7 +989,8 @@ function savePreferences() {
             expiring_soon_days: expiringSoonDays,
             notification_frequency: notificationFrequency,
             notification_time: notificationTime,
-            timezone: timezone
+            timezone: timezone,
+            currency_symbol: currencySymbol
         };
         
         // Save to API
@@ -2855,3 +2937,16 @@ window.addEventListener('storage', (event) => {
     }
 });
 // --- End Storage Event Listener ---
+
+// Add event listener for dropdown to show/hide custom input
+if (currencySymbolSelect && currencySymbolCustom) {
+    currencySymbolSelect.addEventListener('change', function() {
+        if (this.value === 'other') {
+            currencySymbolCustom.style.display = '';
+            currencySymbolCustom.focus();
+        } else {
+            currencySymbolCustom.style.display = 'none';
+            currencySymbolCustom.value = '';
+        }
+    });
+}

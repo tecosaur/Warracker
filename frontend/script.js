@@ -169,6 +169,8 @@ document.addEventListener('DOMContentLoaded', function() {
         lifetimeCheckbox.addEventListener('change', handleLifetimeChange);
         handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
     }
+
+    updateCurrencySymbols();
 });
 
 // Initialize theme based on user preference or system preference
@@ -1087,6 +1089,7 @@ async function renderWarranties(warrantiesToRender) {
     }
     
     const today = new Date();
+    const symbol = getCurrencySymbol(); // Get the correct symbol HERE
     
     warrantiesList.innerHTML = '';
     
@@ -1139,17 +1142,10 @@ async function renderWarranties(warrantiesToRender) {
         const statusText = warranty.statusText || 'Unknown Status';
         const warrantyYearsText = isLifetime ? 'Lifetime' : (warranty.warranty_years !== undefined ? `${warranty.warranty_years} ${warranty.warranty_years === 1 ? 'year' : 'years'}` : 'N/A');
         const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
-        
-        // Debug file paths
-        console.log(`Warranty ID ${warranty.id} - Product: ${warranty.product_name}`);
-        console.log(`- Invoice path: ${warranty.invoice_path}`);
-        console.log(`- Manual path: ${warranty.manual_path}`);
-        
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
             ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
             : [];
-        
         // Prepare tags HTML
         const tagsHtml = warranty.tags && warranty.tags.length > 0 
             ? `<div class="tags-row">
@@ -1160,6 +1156,14 @@ async function renderWarranties(warrantiesToRender) {
                 ).join('')}
               </div>`
             : '';
+        // Add notes display button if present
+        let notesHtml = '';
+        const hasNotes = warranty.notes && warranty.notes.trim() !== '';
+        // Remove the button, and instead prepare a notes link for document-links-row
+        let notesLinkHtml = '';
+        if (hasNotes) {
+            notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> Notes</a>`;
+        }
         
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
@@ -1183,7 +1187,7 @@ async function renderWarranties(warrantiesToRender) {
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
                         <div>Warranty: <span>${warrantyYearsText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1198,19 +1202,22 @@ async function renderWarranties(warrantiesToRender) {
                     <span>${statusText}</span>
                 </div>
                 <div class="document-links-row">
-                    ${warranty.product_url ? `
-                        <a href="${warranty.product_url}" class="product-link" target="_blank">
-                            <i class="fas fa-globe"></i> Product Website
-                        </a>
-                    ` : ''}
-                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                            <i class="fas fa-file-invoice"></i> Invoice
-                        </a>` : ''}
-                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                            <i class="fas fa-book"></i> Manual
-                        </a>` : ''}
+                    <div class="document-links-inner-container">
+                        ${warranty.product_url ? `
+                            <a href="${warranty.product_url}" class="product-link" target="_blank">
+                                <i class="fas fa-globe"></i> Product Website
+                            </a>
+                        ` : ''}
+                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
+                                <i class="fas fa-file-invoice"></i> Invoice
+                            </a>` : ''}
+                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
+                                <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${notesLinkHtml}
+                    </div>
                 </div>
                 ${tagsHtml}
             `;
@@ -1233,7 +1240,7 @@ async function renderWarranties(warrantiesToRender) {
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
                         <div>Warranty: <span>${warrantyYearsText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div>Price: <span>$${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1248,19 +1255,22 @@ async function renderWarranties(warrantiesToRender) {
                     <span>${statusText}</span>
                 </div>
                 <div class="document-links-row">
-                    ${warranty.product_url ? `
-                        <a href="${warranty.product_url}" class="product-link" target="_blank">
-                            <i class="fas fa-globe"></i>
-                        </a>
-                    ` : ''}
-                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                            <i class="fas fa-file-invoice"></i> Invoice
-                        </a>` : ''}
-                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                            <i class="fas fa-book"></i> Manual
-                        </a>` : ''}
+                    <div class="document-links-inner-container">
+                        ${warranty.product_url ? `
+                            <a href="${warranty.product_url}" class="product-link" target="_blank">
+                                <i class="fas fa-globe"></i> Product Website
+                            </a>
+                        ` : ''}
+                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
+                                <i class="fas fa-file-invoice"></i> Invoice
+                            </a>` : ''}
+                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
+                                <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${notesLinkHtml}
+                    </div>
                 </div>
                 ${tagsHtml}
             `;
@@ -1288,19 +1298,22 @@ async function renderWarranties(warrantiesToRender) {
                     <span>${statusText}</span>
                 </div>
                 <div class="document-links-row">
-                    ${warranty.product_url ? `
-                        <a href="${warranty.product_url}" class="product-link" target="_blank">
-                            <i class="fas fa-globe"></i>
-                        </a>
-                    ` : ''}
-                    ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                            <i class="fas fa-file-invoice"></i> Invoice
-                        </a>` : ''}
-                    ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                        <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                            <i class="fas fa-book"></i> Manual
-                        </a>` : ''}
+                    <div class="document-links-inner-container">
+                        ${warranty.product_url ? `
+                            <a href="${warranty.product_url}" class="product-link" target="_blank">
+                                <i class="fas fa-globe"></i> Product Website
+                            </a>
+                        ` : ''}
+                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
+                                <i class="fas fa-file-invoice"></i> Invoice
+                            </a>` : ''}
+                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
+                                <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${notesLinkHtml}
+                    </div>
                 </div>
                 ${tagsHtml}
             `;
@@ -1318,6 +1331,14 @@ async function renderWarranties(warrantiesToRender) {
         cardElement.querySelector('.delete-btn').addEventListener('click', () => {
             openDeleteModal(warranty.id, warranty.product_name);
         });
+        // View notes button event listener
+        const notesLink = cardElement.querySelector('.notes-link');
+        if (notesLink) {
+            notesLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showNotesModal(warranty.notes, warranty);
+            });
+        }
     });
 }
 
@@ -1343,7 +1364,14 @@ function filterWarranties() {
 
         // Check tags
         if (warranty.tags && Array.isArray(warranty.tags)) {
-            return warranty.tags.some(tag => tag.name && tag.name.toLowerCase().includes(searchTerm)); // Add null check
+            if (warranty.tags.some(tag => tag.name && tag.name.toLowerCase().includes(searchTerm))) {
+                return true;
+            }
+        }
+
+        // Check notes
+        if (warranty.notes && warranty.notes.toLowerCase().includes(searchTerm)) {
+            return true;
         }
 
         return false;
@@ -1382,16 +1410,15 @@ function applyFilters() {
         // Search filter
         if (currentFilters.search) {
             const searchTerm = currentFilters.search.toLowerCase();
-            
             // Check if product name contains search term
             const productNameMatch = warranty.product_name.toLowerCase().includes(searchTerm);
-            
             // Check if any tag name contains search term
             const tagMatch = warranty.tags && Array.isArray(warranty.tags) && 
                 warranty.tags.some(tag => tag.name.toLowerCase().includes(searchTerm));
-            
-            // Return true if either product name or tag name matches
-            if (!productNameMatch && !tagMatch) {
+            // Check if notes contains search term
+            const notesMatch = warranty.notes && warranty.notes.toLowerCase().includes(searchTerm);
+            // Return true if any match
+            if (!productNameMatch && !tagMatch && !notesMatch) {
                 return false;
             }
         }
@@ -1474,7 +1501,8 @@ function openEditModal(warranty) {
     
     // Show current invoice if exists
     const currentInvoiceElement = document.getElementById('currentInvoice');
-    if (currentInvoiceElement) {
+    const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
+    if (currentInvoiceElement && deleteInvoiceBtn) {
         if (warranty.invoice_path && warranty.invoice_path !== 'null') {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
@@ -1483,14 +1511,23 @@ function openEditModal(warranty) {
                     (Upload a new file to replace)
                 </span>
             `;
+            deleteInvoiceBtn.style.display = '';
         } else {
             currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+            deleteInvoiceBtn.style.display = 'none';
         }
+        // Reset delete state
+        deleteInvoiceBtn.dataset.delete = 'false';
+        deleteInvoiceBtn.onclick = function() {
+            deleteInvoiceBtn.dataset.delete = 'true';
+            currentInvoiceElement.innerHTML = '<span class="text-danger">Invoice will be deleted on save</span>';
+            deleteInvoiceBtn.style.display = 'none';
+        };
     }
-    
     // Show current manual if exists
     const currentManualElement = document.getElementById('currentManual');
-    if (currentManualElement) {
+    const deleteManualBtn = document.getElementById('deleteManualBtn');
+    if (currentManualElement && deleteManualBtn) {
         if (warranty.manual_path && warranty.manual_path !== 'null') {
             currentManualElement.innerHTML = `
                 <span class="text-success">
@@ -1499,9 +1536,18 @@ function openEditModal(warranty) {
                     (Upload a new file to replace)
                 </span>
             `;
+            deleteManualBtn.style.display = '';
         } else {
             currentManualElement.innerHTML = '<span>No manual uploaded</span>';
+            deleteManualBtn.style.display = 'none';
         }
+        // Reset delete state
+        deleteManualBtn.dataset.delete = 'false';
+        deleteManualBtn.onclick = function() {
+            deleteManualBtn.dataset.delete = 'true';
+            currentManualElement.innerHTML = '<span class="text-danger">Manual will be deleted on save</span>';
+            deleteManualBtn.style.display = 'none';
+        };
     }
     
     // Reset file inputs
@@ -1618,6 +1664,12 @@ function openEditModal(warranty) {
         editWarrantyYearsInput.value = warranty.is_lifetime ? '' : (warranty.warranty_years || '');
     } else {
         console.error("Lifetime warranty elements not found in edit form");
+    }
+
+    // Set notes
+    const notesInput = document.getElementById('editNotes');
+    if (notesInput) {
+        notesInput.value = warranty.notes || '';
     }
 }
 
@@ -1820,6 +1872,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load preferences (if needed for things other than theme)
     // loadPreferences(); // Consider if needed
+
+    updateCurrencySymbols();
 });
 
 // Add this function to handle edit tab functionality
@@ -2859,10 +2913,28 @@ function saveWarranty() {
         formData.append('manual', manualFile);
     }
     
+    // Document deletion flags
+    const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
+    if (deleteInvoiceBtn && deleteInvoiceBtn.dataset.delete === 'true') {
+        formData.append('delete_invoice', 'true');
+    }
+    const deleteManualBtn = document.getElementById('deleteManualBtn');
+    if (deleteManualBtn && deleteManualBtn.dataset.delete === 'true') {
+        formData.append('delete_manual', 'true');
+    }
+    
     // --- Append is_lifetime and warranty_years ---
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
         formData.append('warranty_years', warrantyYears);
+    }
+    // Add notes
+    const notes = document.getElementById('editNotes').value;
+    if (notes && notes.trim() !== '') {
+        formData.append('notes', notes);
+    } else {
+        // Explicitly clear notes if empty
+        formData.append('notes', '');
     }
     
     // Get auth token
@@ -2894,7 +2966,44 @@ function saveWarranty() {
         hideLoadingSpinner();
         showToast('Warranty updated successfully', 'success');
         closeModals();
-        loadWarranties();
+        // Update the notes in the card immediately if present
+        if (typeof currentWarrantyId !== 'undefined' && currentWarrantyId !== null) {
+            const card = document.querySelector(`.warranty-card .edit-btn[data-id="${currentWarrantyId}"]`);
+            if (card) {
+                const cardElement = card.closest('.warranty-card');
+                if (cardElement) {
+                    // Remove old notes button if present
+                    const oldNotesBtn = cardElement.querySelector('.view-notes-btn');
+                    if (oldNotesBtn) oldNotesBtn.remove();
+                    // Get the new notes value
+                    const newNotes = document.getElementById('editNotes').value;
+                    if (newNotes && newNotes.trim() !== '') {
+                        // Add the button if not present
+                        let notesBtn = cardElement.querySelector('.view-notes-btn');
+                        if (!notesBtn) {
+                            const btn = document.createElement('button');
+                            btn.className = 'btn btn-secondary btn-sm view-notes-btn';
+                            btn.setAttribute('data-id', currentWarrantyId);
+                            btn.style.margin = '10px 0 0 0';
+                            btn.innerHTML = '<i class="fas fa-sticky-note"></i> View Notes';
+                            btn.addEventListener('click', () => showNotesModal(newNotes));
+                            // Insert after tags row if present, else at end
+                            const tagsRow = cardElement.querySelector('.tags-row');
+                            if (tagsRow && tagsRow.nextSibling) {
+                                cardElement.insertBefore(btn, tagsRow.nextSibling);
+                            } else {
+                                cardElement.appendChild(btn);
+                            }
+                        }
+                    } else {
+                        // If notes are empty, ensure the button is removed
+                        const notesBtn = cardElement.querySelector('.view-notes-btn');
+                        if (notesBtn) notesBtn.remove();
+                    }
+                }
+            }
+        }
+        loadWarranties(); // Still reload to ensure all data is fresh
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -3210,3 +3319,219 @@ window.addEventListener('storage', (event) => {
     }
 });
 // --- End Storage Event Listener ---
+
+// Add modal HTML to the end of the body if not present
+if (!document.getElementById('notesModal')) {
+    const notesModal = document.createElement('div');
+    notesModal.id = 'notesModal';
+    notesModal.className = 'modal-backdrop';
+    notesModal.innerHTML = `
+        <div class="modal" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Warranty Notes</h3>
+                <button class="close-btn" id="closeNotesModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="notesModalContent" style="white-space: pre-line;"></div>
+                <textarea id="notesModalTextarea" style="display:none;width:100%;min-height:100px;"></textarea>
+            </div>
+            <div class="modal-footer" id="notesModalFooter">
+                <button class="btn btn-secondary" id="editNotesBtn">Edit</button>
+                <button class="btn btn-primary" id="saveNotesBtn" style="display:none;">Save</button>
+                <button class="btn btn-danger" id="cancelEditNotesBtn" style="display:none;">Cancel</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(notesModal);
+    document.getElementById('closeNotesModal').addEventListener('click', () => {
+        notesModal.classList.remove('active');
+    });
+}
+
+// Add global to track which warranty is being edited in the notes modal
+let notesModalWarrantyId = null;
+let notesModalWarrantyObj = null;
+
+function showNotesModal(notes, warrantyOrId = null) {
+    const notesModal = document.getElementById('notesModal');
+    const notesModalContent = document.getElementById('notesModalContent');
+    const notesModalTextarea = document.getElementById('notesModalTextarea');
+    const editBtn = document.getElementById('editNotesBtn');
+    const saveBtn = document.getElementById('saveNotesBtn');
+    const cancelBtn = document.getElementById('cancelEditNotesBtn');
+
+    // Support both (notes, warrantyObj) and (notes, id) for backward compatibility
+    if (typeof warrantyOrId === 'object' && warrantyOrId !== null) {
+        notesModalWarrantyId = warrantyOrId.id;
+        notesModalWarrantyObj = warrantyOrId;
+    } else {
+        notesModalWarrantyId = warrantyOrId;
+        // Try to find the warranty object from global warranties array
+        notesModalWarrantyObj = warranties.find(w => w.id === notesModalWarrantyId) || null;
+    }
+
+    // Show note content, hide textarea and edit controls
+    notesModalContent.style.display = '';
+    notesModalContent.textContent = notes;
+    notesModalTextarea.style.display = 'none';
+    editBtn.style.display = '';
+    saveBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
+
+    // Edit button handler
+    editBtn.onclick = function() {
+        notesModalContent.style.display = 'none';
+        notesModalTextarea.style.display = '';
+        notesModalTextarea.value = notes;
+        editBtn.style.display = 'none';
+        saveBtn.style.display = '';
+        cancelBtn.style.display = '';
+        notesModalTextarea.focus();
+    };
+    // Save button handler
+    saveBtn.onclick = async function() {
+        const newNote = notesModalTextarea.value.trim(); // Trim the note
+        if (!notesModalWarrantyId || !notesModalWarrantyObj) {
+            showToast('No warranty selected for note update', 'error');
+            return;
+        }
+        // Save note via API, sending all required fields
+        try {
+            showLoadingSpinner();
+            const token = localStorage.getItem('auth_token');
+            const formData = new FormData();
+            // --- Populate with existing data to avoid clearing fields ---
+            formData.append('product_name', notesModalWarrantyObj.product_name);
+            formData.append('purchase_date', (notesModalWarrantyObj.purchase_date || '').split('T')[0]);
+            formData.append('is_lifetime', notesModalWarrantyObj.is_lifetime ? 'true' : 'false');
+            if (!notesModalWarrantyObj.is_lifetime) {
+                formData.append('warranty_years', notesModalWarrantyObj.warranty_years || ''); // Use empty string if null/undefined
+            }
+            if (notesModalWarrantyObj.product_url) {
+                formData.append('product_url', notesModalWarrantyObj.product_url);
+            }
+            if (notesModalWarrantyObj.purchase_price !== null && notesModalWarrantyObj.purchase_price !== undefined) { // Check for null/undefined
+                formData.append('purchase_price', notesModalWarrantyObj.purchase_price);
+            }
+            if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
+                notesModalWarrantyObj.serial_numbers.forEach(sn => {
+                    if (sn && sn.trim() !== '') {
+                        formData.append('serial_numbers', sn);
+                    }
+                });
+            }
+             // Send empty array if no serial numbers exist or are provided
+            else if (!formData.has('serial_numbers')) {
+                 formData.append('serial_numbers', JSON.stringify([]));
+            }
+
+            if (notesModalWarrantyObj.tags && Array.isArray(notesModalWarrantyObj.tags)) {
+                const tagIds = notesModalWarrantyObj.tags.map(tag => tag.id);
+                formData.append('tag_ids', JSON.stringify(tagIds));
+            }
+            // Send empty array if no tags exist or are provided
+            else {
+                 formData.append('tag_ids', JSON.stringify([]));
+            }
+            // --- End Populate ---
+
+            formData.append('notes', newNote); // Append the potentially empty, trimmed note
+
+            const response = await fetch(`/api/warranties/${notesModalWarrantyId}`, { // Added await and response handling
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: formData
+            });
+
+            if (!response.ok) { // Check if the API call was successful
+                 const errorData = await response.json().catch(() => ({})); // Try to parse error, default to empty object
+                 throw new Error(errorData.error || `Failed to update note (Status: ${response.status})`);
+            }
+
+
+            hideLoadingSpinner();
+            showToast('Note updated', 'success');
+
+            // --- Updated UI logic ---
+             if (newNote === '') {
+                // If the note is now empty, close the modal
+                document.getElementById('notesModal').classList.remove('active');
+            } else {
+                // If note is not empty, update the view and stay in the modal
+                notesModalContent.textContent = newNote;
+                notesModalContent.style.display = '';
+                notesModalTextarea.style.display = 'none';
+                editBtn.style.display = '';
+                saveBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                 // Update the local warranty object's notes
+                 if (notesModalWarrantyObj) {
+                    notesModalWarrantyObj.notes = newNote;
+                }
+            }
+             // --- End Updated UI logic ---
+
+            // Refresh warranties list to update the card UI state (e.g., show/hide notes link)
+            loadWarranties();
+        } catch (e) {
+            hideLoadingSpinner();
+            console.error("Error updating note:", e); // Log the error
+            showToast(e.message || 'Failed to update note', 'error'); // Show specific error if available
+        }
+    };
+    // Cancel button handler
+    cancelBtn.onclick = function() {
+        notesModalContent.style.display = '';
+        notesModalTextarea.style.display = 'none';
+        editBtn.style.display = '';
+        saveBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+    };
+    notesModal.classList.add('active');
+}
+
+// Utility to get currency symbol from preferences/localStorage
+function getCurrencySymbol() {
+    const prefix = getPreferenceKeyPrefix();
+    console.log(`[getCurrencySymbol] Using prefix: ${prefix}`); // Log prefix
+    let symbol = '$'; // Default value
+    try {
+        const prefsString = localStorage.getItem(`${prefix}preferences`);
+        console.log(`[getCurrencySymbol] Read prefsString for ${prefix}preferences:`, prefsString); // Log raw string
+        if (prefsString) {
+            const prefs = JSON.parse(prefsString);
+            // Use the symbol from prefs if it exists, otherwise keep the default
+            if (prefs && prefs.currency_symbol) {
+                symbol = prefs.currency_symbol;
+            }
+        }
+    } catch (e) {
+        console.error(`Error reading ${prefix}preferences from localStorage:`, e);
+        // Keep the default '$' symbol in case of error
+    }
+    console.log(`[getCurrencySymbol] Returning symbol: ${symbol}`); // Log final symbol
+    return symbol;
+}
+
+function updateCurrencySymbols() {
+    const symbol = getCurrencySymbol();
+    console.log(`Updating currency symbols to: ${symbol}`); // Log the symbol being applied
+    const elements = document.querySelectorAll('.currency-symbol');
+    console.log(`Found ${elements.length} elements with class 'currency-symbol'.`); // Log how many elements are found
+    elements.forEach(el => {
+        // console.log('Updating element:', el); // Optional: Log each element being updated
+        el.textContent = symbol;
+    });
+}
+
+// If you want to update currency symbols live when storage changes (e.g. settings page open in another tab):
+window.addEventListener('storage', function(e) {
+    const prefix = getPreferenceKeyPrefix();
+    // Only update if the main preferences object for the current user type changed
+    if (e.key === `${prefix}preferences`) {
+        console.log(`Storage event detected for ${prefix}preferences. Updating currency symbols.`);
+        updateCurrencySymbols();
+    }
+});
