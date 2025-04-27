@@ -27,44 +27,49 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 ## 🌟 Overview
 
-Warracker is a web-based application that provides a centralized system for managing all your product warranties. Key features include:
+**Warracker** is a web-based application designed to simplify and centralize product warranty management. Key capabilities include:
 
-* **Centralized Warranty Management:** Track all product warranties in one place.
-* **Detailed Records:** Store key warranty information like purchase date and duration.
-* **Document Storage:** Upload and securely store warranty documentation and receipts.
-* **Proactive Alerts:** Get visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
-* **Quick Search:** Easily find specific warranties within your collection.
-* **Secure Access:**  User authentication and support for multiple users.
-* **System Status:** Real-time system status page.
-* **Data Export:** Export warranty data to CSV format.
-* **Data Import:** Import warranty data in CSV format.
-* **Email notifications:** Stay informed about expiring warranties with email reminders, based on your preference delivered daily, weekly, or monthly.
-* **Tagging:** Add tags to help categorize and group warranties.
-
+- **Centralized Warranty Management:** Track and manage all your product warranties in one place.
+- **Detailed Records:** Save essential details like purchase dates, durations, and notes.
+- **Document Storage:** Upload and securely store receipts, invoices, and product manuals.
+- **Proactive Alerts:** Visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
+- **Quick Search and Filter:** Instantly find warranties by product name, tags, or notes.
+- **Notes Support:** Add freeform notes to each warranty for extra context or reminders.
+- **Secure Access with Multi-User Support:** Create multiple user accounts for shared access; admins can enable or disable new user creation.
+- **System Status Dashboard:** Real-time system health and warranty summary.
+- **Data Export and Import:** Export warranty data to CSV, or import warranties from CSV files.
+- **Email Notifications:** Receive timely email reminders about upcoming expirations — configurable as daily, weekly, or monthly.
+- **Customizable Currency Symbols:** Display prices using your preferred currency symbol ($, €, £, ¥, ₹, or a custom symbol).
+- **Tagging:** Organize warranties with flexible, multi-tag support.
+- **Password Reset:** Easily recover accounts through a secure, token-based password reset flow.
 
 ## 📸 Screenshots
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/dc29f858-4f8c-4a98-b321-5bdc345eab74)
+![image](https://github.com/user-attachments/assets/bf059435-a564-4aca-b518-b0a11f0ff55a)
 
-![image](https://github.com/user-attachments/assets/7348274a-9e59-40d0-865e-92e3fe5bed21)
-
+![image](https://github.com/user-attachments/assets/a7e1802e-3ac3-4464-831e-4f9429edd14a)
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/a9a9f9b4-2ad5-4069-91f8-96066a99658b)
-
-
+![image](https://github.com/user-attachments/assets/38fbb4f2-9ee9-4ecf-a734-8ffab263a703)
 
 ## ✨ Features
 
-*   **Warranty Management**: Add, edit, and delete warranty information.
-*   **Document Storage**: Upload and securely store receipts and warranty documentation.
-*   **Status Tracking**: Visual indicators for warranty status (active, expiring soon, expired).
-*   **Search**: Easily find warranties by product name or tags.
-*   **Tag**: Group your warranties by using multiple tags.
-*   **Responsive Design**: A seamless experience on both desktop and mobile devices.
+- **Warranty Management:** Add, edit, and delete warranty information easily.
+- **Document Storage:** Upload and manage receipts, invoices, and product manuals securely.
+- **Status Tracking:** Visual indicators for warranty status (active, expiring soon, expired).
+- **Notes:** Add detailed notes for each warranty, viewable and editable via a dedicated notes modal.
+- **Search and Tagging:** Find warranties quickly using product names, notes, or multiple tags.
+- **Multi-User Management:** Support for multiple user accounts; admin users can control whether new accounts can be created.
+- **Responsive Design:** Optimized for both desktop and mobile devices.
+- **Secure Login:** Safe and private authentication for all users.
+- **Password Reset:** Token-based secure password recovery flow.
+- **Email Alerts:** Customize how and when you receive expiration notifications.
+- **CSV Export/Import:** Full support for backing up and restoring warranty data.
+- **Currency Customization:** Personalize displayed prices with your preferred symbol.
+
 
 ## 🛠️ Technology Stack
 
