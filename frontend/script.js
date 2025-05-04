@@ -1,9 +1,13 @@
+// alert('script.js loaded!'); // Remove alert after confirming script loads
+console.log('[DEBUG] script.js loaded and running');
+
 // Global variables
 let warranties = [];
 let currentTabIndex = 0;
 let tabContents = []; // Initialize as empty array
 let editMode = false;
 let currentWarrantyId = null;
+let userPreferencePrefix = null; // <<< ADDED GLOBAL PREFIX VARIABLE
 let currentFilters = {
     status: 'all',
     tag: 'all',
@@ -117,15 +121,18 @@ function setTheme(isDark) {
 
 // Initialization logic on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('[DEBUG] Registering authStateReady event handler');
     // ... other initialization ...
 
     // REMOVE call to undefined checkLoginStatus - Handled by auth.js
     // checkLoginStatus(); 
-    
-    // Load warranties (assuming warrantiesList exists on this page)
-    if (document.getElementById('warrantiesList')) {
-        loadWarranties();
-    }
+
+    // --- DEFERRED WARRANTY LOADING ---
+    // Don't load warranties immediately. Wait for authentication.
+    // if (document.getElementById('warrantiesList')) {
+    //     loadWarranties(); // <<< OLD CALL - REMOVED
+    // }
+    // --- END DEFERRED WARRANTY LOADING ---
 
     // Setup form submission (assuming addWarrantyForm exists)
     const form = document.getElementById('addWarrantyForm');
@@ -137,32 +144,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // REMOVED setupSettingsMenu - Handled by auth.js
     // setupSettingsMenu();
-    
+
     // Initialize theme toggle state *after* DOM is loaded
     // ... (theme toggle init logic) ...
-    
+
     // Setup view switcher (assuming view switcher elements exist)
     if (document.getElementById('gridViewBtn')) {
         // setupViewSwitcher(); // Removed undefined function
         loadViewPreference();
     }
-    
+
     // Setup filter controls (assuming filter controls exist)
     if (document.getElementById('filterControls')) {
         // setupFilterControls(); // Removed: function not defined
         populateTagFilter();
     }
-        
+
     // Initialize modal interactions
     // initializeModals(); // Removed: function not defined, handled by setupModalTriggers
     setupModalTriggers();
-    
+
     // Initialize Tag functionality (assuming tag elements exist)
     if (document.getElementById('tagSearchInput')) {
         initTagFunctionality();
         loadTags();
     }
-    
+
     // Initialize form-specific lifetime checkbox handler
     const lifetimeCheckbox = document.getElementById('isLifetime');
     if (lifetimeCheckbox) {
@@ -170,35 +177,56 @@ document.addEventListener('DOMContentLoaded', function() {
         handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
     }
 
-    updateCurrencySymbols();
+    // --- LOAD WARRANTIES AFTER AUTH --- 
+    // Listen for an event from auth.js indicating authentication is complete and user context is ready.
+    // ** IMPORTANT: Replace 'authStateReady' with the actual event name fired by auth.js **
+    window.addEventListener('authStateReady', async function handleAuthReady() { // <-- Make handler async
+        console.log('[DEBUG] authStateReady handler called');
+        console.log("Auth state ready event received. Preparing preferences and warranties...");
+        // Ensure this listener runs only once
+        window.removeEventListener('authStateReady', handleAuthReady);
+
+        // Set prefix
+        userPreferencePrefix = getPreferenceKeyPrefix();
+        console.log(`[authStateReady] Determined and stored global prefix: ${userPreferencePrefix}`);
+
+        // Load preferences
+        await loadAndApplyUserPreferences();
+
+        // Load warranty data (fetches, processes, populates global array)
+        if (document.getElementById('warrantiesList')) {
+            console.log("[authStateReady] Loading warranty data...");
+            await loadWarranties(); // Waits for fetch/process
+            console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+        } else {
+            console.log("[authStateReady] Warranties list element not found.");
+        }
+
+        // Now that data and preferences are ready, apply view/currency and render via applyFilters
+        console.log("[authStateReady] Applying preferences and rendering...");
+        loadViewPreference(); // Sets currentView and UI classes/buttons
+        updateCurrencySymbols(); // Update symbols
+        
+        // Apply filters using the loaded data and render the list
+        if (document.getElementById('warrantiesList')) { 
+            applyFilters(); 
+        }
+
+    }, { once: true }); // Use { once: true } as a fallback if removeEventListener isn't reliable across scripts
+    // --- END LOAD WARRANTIES AFTER AUTH ---
+
+    // updateCurrencySymbols(); // Call removed, rely on loadWarranties triggering render with correct symbol
 });
 
 // Initialize theme based on user preference or system preference
 function initializeTheme() {
-    // Get the appropriate key prefix based on user type
-    const prefix = getPreferenceKeyPrefix();
-    console.log(`Initializing theme with prefix: ${prefix}`);
-    
-    // First check user-specific setting
-    const userDarkMode = localStorage.getItem(`${prefix}darkMode`);
-    if (userDarkMode !== null) {
-        console.log(`Found user-specific dark mode setting: ${userDarkMode}`);
-        setTheme(userDarkMode === 'true');
-        return;
+    // Only use the global darkMode key for theme persistence
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme !== null) {
+        setTheme(savedTheme === 'true');
+    } else {
+        setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
     }
-    
-    // Then check global setting for backward compatibility
-    const globalDarkMode = localStorage.getItem('darkMode');
-    if (globalDarkMode !== null) {
-        console.log(`Found global dark mode setting: ${globalDarkMode}`);
-        setTheme(globalDarkMode === 'true');
-        return;
-    }
-    
-    // Check for system preference if no stored preference
-    const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    console.log(`No saved preference, using system preference: ${prefersDarkMode}`);
-    setTheme(prefersDarkMode);
 }
 
 // Variables
@@ -219,7 +247,79 @@ const nextButton = document.querySelector('.next-tab'); // Keep these if needed 
 const prevButton = document.querySelector('.prev-tab'); // Keep these if needed globally, otherwise might remove
 
 // --- Add near other DOM Element declarations ---
-// ... existing code ...
+    // ... existing code ...
+    // Add save button handler for notes modal (if not already present)
+    const saveNotesBtn = document.getElementById('saveNotesBtn');
+    if (saveNotesBtn) {
+        saveNotesBtn.onclick = async function() {
+            // Get the warranty ID being edited
+            const warrantyId = notesModalWarrantyId;
+            const notesValue = document.getElementById('notesModalTextarea').value;
+            if (!warrantyId || !notesModalWarrantyObj) return;
+            // Get auth token
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                showToast('Authentication required', 'error');
+                return;
+            }
+            showLoadingSpinner();
+            try {
+                // Use FormData and send all required fields, just like the edit modal
+                const formData = new FormData();
+                formData.append('product_name', notesModalWarrantyObj.product_name);
+                formData.append('purchase_date', (notesModalWarrantyObj.purchase_date || '').split('T')[0]);
+                formData.append('is_lifetime', notesModalWarrantyObj.is_lifetime ? 'true' : 'false');
+                if (!notesModalWarrantyObj.is_lifetime) {
+                    formData.append('warranty_years', notesModalWarrantyObj.warranty_years || '');
+                }
+                if (notesModalWarrantyObj.product_url) {
+                    formData.append('product_url', notesModalWarrantyObj.product_url);
+                }
+                if (notesModalWarrantyObj.purchase_price !== null && notesModalWarrantyObj.purchase_price !== undefined) {
+                    formData.append('purchase_price', notesModalWarrantyObj.purchase_price);
+                }
+                if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
+                    notesModalWarrantyObj.serial_numbers.forEach(sn => {
+                        if (sn && sn.trim() !== '') {
+                            formData.append('serial_numbers', sn);
+                        }
+                    });
+                } else if (!formData.has('serial_numbers')) {
+                    formData.append('serial_numbers', JSON.stringify([]));
+                }
+                if (notesModalWarrantyObj.tags && Array.isArray(notesModalWarrantyObj.tags)) {
+                    const tagIds = notesModalWarrantyObj.tags.map(tag => tag.id);
+                    formData.append('tag_ids', JSON.stringify(tagIds));
+                } else {
+                    formData.append('tag_ids', JSON.stringify([]));
+                }
+                formData.append('notes', notesValue);
+                const response = await fetch(`/api/warranties/${warrantyId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'Failed to update notes');
+                }
+                hideLoadingSpinner();
+                showToast('Notes updated successfully', 'success');
+                // Close the modal
+                const notesModal = document.getElementById('notesModal');
+                if (notesModal) notesModal.style.display = 'none';
+                // Now reload warranties and re-render UI
+                await loadWarranties();
+                applyFilters();
+            } catch (error) {
+                hideLoadingSpinner();
+                console.error('Error updating notes:', error);
+                showToast(error.message || 'Failed to update notes', 'error');
+            }
+        };
+    }
 
 // Initialize form tabs
 function initFormTabs() {
@@ -488,11 +588,29 @@ function updateSummary() {
     }
     
     // Warranty details
-    const purchaseDate = document.getElementById('purchaseDate')?.value;
+    const purchaseDateStr = document.getElementById('purchaseDate')?.value;
     const summaryPurchaseDate = document.getElementById('summary-purchase-date');
     if (summaryPurchaseDate) {
-        summaryPurchaseDate.textContent = purchaseDate ? 
-            new Date(purchaseDate).toLocaleDateString() : '-';
+        if (purchaseDateStr) {
+            // Use the same logic as formatDate to handle YYYY-MM-DD
+            const parts = String(purchaseDateStr).split('-');
+            let formattedDate = '-'; // Default
+            if (parts.length === 3) {
+                const year = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+                const day = parseInt(parts[2], 10);
+                const dateObj = new Date(Date.UTC(year, month, day));
+                if (!isNaN(dateObj.getTime())) {
+                    // Format manually (example: Jan 1, 2023)
+                    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                    formattedDate = `${monthNames[month]} ${day}, ${year}`;
+                }
+            }
+            summaryPurchaseDate.textContent = formattedDate;
+        } else {
+            summaryPurchaseDate.textContent = '-';
+        }
     }
     
     // --- Handle Lifetime in Summary ---
@@ -513,8 +631,8 @@ function updateSummary() {
     
     // Calculate and display expiration date
     const summaryExpirationDate = document.getElementById('summary-expiration-date');
-    if (summaryExpirationDate && purchaseDate && warrantyYears) {
-        const expirationDate = new Date(purchaseDate);
+    if (summaryExpirationDate && purchaseDateStr && warrantyYears) {
+        const expirationDate = new Date(Date.UTC(parseInt(purchaseDateStr.split('-')[0]), parseInt(purchaseDateStr.split('-')[1]) - 1, parseInt(purchaseDateStr.split('-')[2])));
         const yearsNum = parseFloat(warrantyYears);
         if (!isNaN(yearsNum)) {
             expirationDate.setFullYear(expirationDate.getFullYear() + Math.floor(yearsNum));
@@ -569,6 +687,10 @@ function updateSummary() {
             summaryTags.textContent = 'No tags selected';
         }
     }
+
+    // Vendor/Retailer
+    const vendor = document.getElementById('vendor');
+    document.getElementById('summary-vendor').textContent = vendor && vendor.value ? vendor.value : '-';
 }
 
 // Add input event listeners to remove validation errors when user types
@@ -621,8 +743,11 @@ async function exportWarranties() {
             const tagMatch = warranty.tags && Array.isArray(warranty.tags) && 
                 warranty.tags.some(tag => tag.name.toLowerCase().includes(searchTerm));
             
-            // Return true if either product name or tag name matches
-            return productNameMatch || tagMatch;
+            // Check if vendor name contains search term
+            const vendorMatch = warranty.vendor && warranty.vendor.toLowerCase().includes(searchTerm);
+            
+            // Return true if either product name, tag name, or vendor name matches
+            return productNameMatch || tagMatch || vendorMatch;
         });
     }
     
@@ -645,7 +770,7 @@ async function exportWarranties() {
     let csvContent = "data:text/csv;charset=utf-8,";
     
     // Add headers
-    csvContent += "Product Name,Purchase Date,Warranty Period,Expiration Date,Status,Serial Numbers,Tags\n";
+    csvContent += "Product Name,Purchase Date,Warranty Period,Expiration Date,Status,Serial Numbers,Tags,Vendor\n";
     
     // Add data rows
     warrantiesToExport.forEach(warranty => {
@@ -667,7 +792,8 @@ async function exportWarranties() {
             formatDate(new Date(warranty.expiration_date)),
             warranty.status || '',
             serialNumbers,
-            tags
+            tags,
+            warranty.vendor || ''
         ];
         
         // Add row to CSV content
@@ -692,18 +818,60 @@ async function exportWarranties() {
 }
 
 // Switch view of warranties list
-function switchView(viewType) {
+async function switchView(viewType) { // Added async
     console.log(`Switching to view: ${viewType}`);
     currentView = viewType;
 
-    // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
-    // --- BEGIN EDIT: Save to all relevant keys ---
-    localStorage.setItem(`${prefix}viewPreference`, viewType); // Keep this one
-    localStorage.setItem(`${prefix}defaultView`, viewType);    // Add for consistency with settings load priority
-    localStorage.setItem(`${prefix}warrantyView`, viewType);   // Add for consistency with settings legacy save
-    localStorage.setItem('viewPreference', viewType);         // Keep general key
-    // --- END EDIT ---
+    const viewKey = `${prefix}defaultView`;
+    const currentStoredValue = localStorage.getItem(viewKey);
+
+    // Save to localStorage immediately for responsiveness
+    if (currentStoredValue !== viewType) {
+        localStorage.setItem(viewKey, viewType); 
+        // Keep legacy keys for now if needed, but primary is viewKey
+        localStorage.setItem(`${prefix}warrantyView`, viewType);
+        localStorage.setItem('viewPreference', viewType); 
+        console.log(`Saved view preference (${viewKey}) to localStorage: ${viewType}`);
+    } else {
+        console.log(`View preference (${viewKey}) already set to ${viewType} in localStorage.`);
+    }
+
+    // --- BEGIN ADDED: Save preference to API --- 
+    if (window.auth && window.auth.isAuthenticated()) {
+        const token = window.auth.getToken();
+        if (token) {
+            try {
+                console.log(`Attempting to save view preference (${viewType}) to API...`);
+                const response = await fetch('/api/auth/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ default_view: viewType }) // Send only the changed preference
+                });
+
+                if (response.ok) {
+                    console.log('Successfully saved view preference to API.');
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.warn(`Failed to save view preference to API: ${response.status}`, errorData.message || '');
+                    // Optional: Show a non-intrusive warning toast?
+                    // showToast('Failed to sync view preference with server.', 'warning'); 
+                }
+            } catch (error) {
+                console.error('Error saving view preference to API:', error);
+                // Optional: Show a non-intrusive warning toast?
+                // showToast('Error syncing view preference with server.', 'error'); 
+            }
+        } else {
+            console.warn('Cannot save view preference to API: No auth token found.');
+        }
+    } else {
+        console.warn('Cannot save view preference to API: User not authenticated or auth module not loaded.');
+    }
+    // --- END ADDED: Save preference to API ---
 
     // Make sure warrantiesList exists before modifying classes
     if (warrantiesList) {
@@ -716,13 +884,12 @@ function switchView(viewType) {
         gridViewBtn.classList.remove('active');
         listViewBtn.classList.remove('active');
         tableViewBtn.classList.remove('active');
+        // Add active class to the correct button
+        if (viewType === 'grid') gridViewBtn.classList.add('active');
+        if (viewType === 'list') listViewBtn.classList.add('active');
+        if (viewType === 'table') tableViewBtn.classList.add('active');
     }
     
-    // Make sure the specific button exists
-    if (viewType === 'grid' && gridViewBtn) gridViewBtn.classList.add('active');
-    if (viewType === 'list' && listViewBtn) listViewBtn.classList.add('active');
-    if (viewType === 'table' && tableViewBtn) tableViewBtn.classList.add('active');
-
     // Show/hide table header only if it exists
     if (tableViewHeader) {
         tableViewHeader.classList.toggle('visible', viewType === 'table');
@@ -730,7 +897,7 @@ function switchView(viewType) {
 
     // Re-render warranties only if warrantiesList exists
     if (warrantiesList) {
-        renderWarranties(filterWarranties());
+        renderWarranties(filterWarranties()); // Assuming filterWarranties() returns the correct array
     }
 }
 
@@ -907,8 +1074,48 @@ function processWarrantyData(warranty) {
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Normalize today to midnight for accurate date comparisons
 
-    processedWarranty.purchaseDate = processedWarranty.purchase_date ? new Date(processedWarranty.purchase_date) : null;
-    processedWarranty.expirationDate = processedWarranty.expiration_date ? new Date(processedWarranty.expiration_date) : null;
+    // Parse purchase_date string (YYYY-MM-DD) into a UTC Date object
+    let purchaseDateObj = null;
+    if (processedWarranty.purchase_date) {
+        const parts = String(processedWarranty.purchase_date).split('-');
+        if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // JS months are 0-indexed
+            const day = parseInt(parts[2], 10);
+            purchaseDateObj = new Date(Date.UTC(year, month, day));
+            if (isNaN(purchaseDateObj.getTime())) {
+                 purchaseDateObj = null; // Invalid date parsed
+            }
+        } else {
+            // Fallback for unexpected formats, though backend should send YYYY-MM-DD
+            purchaseDateObj = new Date(processedWarranty.purchase_date);
+             if (isNaN(purchaseDateObj.getTime())) {
+                 purchaseDateObj = null; 
+            }
+        }
+    }
+    processedWarranty.purchaseDate = purchaseDateObj;
+    
+    // Parse expiration_date similarly (assuming it's also YYYY-MM-DD)
+    let expirationDateObj = null;
+    if (processedWarranty.expiration_date) {
+        const parts = String(processedWarranty.expiration_date).split('-');
+        if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            expirationDateObj = new Date(Date.UTC(year, month, day));
+             if (isNaN(expirationDateObj.getTime())) {
+                 expirationDateObj = null;
+            }
+        } else {
+            expirationDateObj = new Date(processedWarranty.expiration_date);
+             if (isNaN(expirationDateObj.getTime())) {
+                 expirationDateObj = null;
+            }
+        }
+    }
+    processedWarranty.expirationDate = expirationDateObj;
 
     // --- Lifetime Handling ---
     if (processedWarranty.is_lifetime) {
@@ -954,53 +1161,93 @@ function processAllWarranties() {
 }
 
 async function loadWarranties() {
+    // +++ REMOVED: Ensure Preferences are loaded FIRST (Now handled by authStateReady) +++
+    // await loadAndApplyUserPreferences(); 
+    // +++ Preferences Loaded +++
+    
     try {
-        console.log('Loading warranties...');
+        console.log('[DEBUG] Entered loadWarranties');
         showLoading();
         
-        // Get expiring soon days from user preferences if available
+        // Fetch user preferences (including date format) before loading warranties
+        // --- THIS INNER PREFERENCE FETCH IS NOW REDUNDANT, REMOVE/COMMENT OUT --- 
+        /*
         try {
+            const token = window.auth.getToken(); // Ensure token is retrieved here
+            if (!token) throw new Error("No auth token found"); // Added error handling
+
             const prefsResponse = await fetch('/api/auth/preferences', {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                    'Authorization': `Bearer ${token}`
                 }
             });
             
             if (prefsResponse.ok) {
-                const data = await prefsResponse.json();
-                if (data && data.expiring_soon_days) {
+                const prefsData = await prefsResponse.json();
+                console.log("Preferences fetched in loadWarranties:", prefsData);
+                
+                // Update expiringSoonDays
+                if (prefsData && typeof prefsData.expiring_soon_days !== 'undefined') {
                     const oldValue = expiringSoonDays;
-                    expiringSoonDays = data.expiring_soon_days;
+                    expiringSoonDays = prefsData.expiring_soon_days;
                     console.log('Updated expiring soon days from preferences:', expiringSoonDays);
-                    
-                    // If we already have warranties loaded and the value changed, reprocess them
-                    if (warranties && warranties.length > 0 && oldValue !== expiringSoonDays) {
-                        console.log('Reprocessing warranties with new expiringSoonDays value');
-                        warranties = warranties.map(warranty => processWarrantyData(warranty));
-                        renderWarrantiesTable(warranties);
-                    }
+                    // Reprocess logic moved below warranty fetch
                 }
+
+                // --- ADDED: Update dateFormat in localStorage --- 
+                if (prefsData && typeof prefsData.date_format !== 'undefined') {
+                    const oldDateFormat = localStorage.getItem('dateFormat');
+                    localStorage.setItem('dateFormat', prefsData.date_format);
+                    console.log(`Updated dateFormat in localStorage from API: ${prefsData.date_format}`);
+                    // Trigger re-render if format changed and warranties already exist (though unlikely at this stage)
+                    if (warranties && warranties.length > 0 && oldDateFormat !== prefsData.date_format) {
+                        console.log('Date format changed, triggering re-render via applyFilters');
+                        applyFilters(); // Re-render warranties with new format
+                    }
+                } else {
+                     // If API doesn't return date_format, ensure localStorage has a default
+                     if (!localStorage.getItem('dateFormat')) {
+                         localStorage.setItem('dateFormat', 'MDY');
+                         console.log('API did not return date_format, setting localStorage default to MDY');
+                     }
+                }
+                // --- END ADDED SECTION ---
+
+            } else {
+                 // Handle failed preference fetch
+                 console.warn('Failed to fetch preferences:', prefsResponse.status);
+                 // Ensure a default date format exists if fetch fails
+                 if (!localStorage.getItem('dateFormat')) {
+                     localStorage.setItem('dateFormat', 'MDY');
+                     console.log('Preferences fetch failed, setting localStorage default date format to MDY');
+                 }
             }
         } catch (error) {
             console.error('Error loading preferences:', error);
-            // Continue with default value
+            // Ensure a default date format exists on error
+            if (!localStorage.getItem('dateFormat')) {
+                localStorage.setItem('dateFormat', 'MDY');
+                console.log('Error fetching preferences, setting localStorage default date format to MDY');
+            }
+            // Continue loading warranties even if preferences fail
         }
+        */
+        // --- END REDUNDANT PREFERENCE FETCH ---
         
         // Use the full URL to avoid path issues
         const apiUrl = window.location.origin + '/api/warranties';
         
         // Check if auth is available and user is authenticated
         if (!window.auth || !window.auth.isAuthenticated()) {
-            console.log('User not authenticated, showing empty state');
+            console.log('[DEBUG] Early return: User not authenticated');
             renderEmptyState('Please log in to view your warranties.');
             hideLoading();
             return;
         }
-        
         // Get the auth token
         const token = window.auth.getToken();
         if (!token) {
-            console.log('No auth token available');
+            console.log('[DEBUG] Early return: No auth token available');
             renderEmptyState('Authentication error. Please log in again.');
             hideLoading();
             return;
@@ -1017,22 +1264,23 @@ async function loadWarranties() {
         
         console.log('Fetching warranties with auth token');
         const response = await fetch(apiUrl, options);
-        
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
             console.error('Error loading warranties:', response.status, errorData);
             throw new Error(`Error loading warranties: ${errorData.message || response.status}`);
         }
-        
         const data = await response.json();
-        console.log('Received warranties from server:', data);
-        
+        console.log('[DEBUG] Received warranties from server:', data);
+        if (!Array.isArray(data)) {
+            console.error('[DEBUG] API did not return an array! Data:', data);
+        }
         // Process each warranty to calculate status and days remaining
-        warranties = data.map(warranty => {
-            return processWarrantyData(warranty);
-        });
-        
-        console.log('Processed warranties:', warranties);
+        warranties = Array.isArray(data) ? data.map(warranty => {
+            const processed = processWarrantyData(warranty);
+            console.log('[DEBUG] Processed warranty:', processed);
+            return processed;
+        }) : [];
+        console.log('[DEBUG] Final warranties array:', warranties);
         
         if (warranties.length === 0) {
             console.log('No warranties found, showing empty state');
@@ -1043,10 +1291,10 @@ async function loadWarranties() {
             // Populate tag filter dropdown with tags from warranties
             populateTagFilter();
             
-            applyFilters();
+            // REMOVED: applyFilters(); // Now called from authStateReady after data and prefs are loaded
         }
     } catch (error) {
-        console.error('Error loading warranties:', error);
+        console.error('[DEBUG] Error loading warranties:', error);
         renderEmptyState('Error loading warranties. Please try again later.');
     } finally {
         hideLoading();
@@ -1064,21 +1312,43 @@ function renderEmptyState(message = 'No warranties yet. Add your first warranty 
 }
 
 function formatDate(date) {
-    if (!date) return 'N/A';
-    
-    // If date is already a Date object, use it directly
-    const dateObj = date instanceof Date ? date : new Date(date);
-    
-    // Check if date is valid
-    if (isNaN(dateObj.getTime())) {
+    // Input 'date' should now be a Date object created by processWarrantyData (or null)
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
         return 'N/A';
     }
-    
-    return dateObj.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-    });
+
+    // Get the user's preferred format from localStorage, default to MDY
+    const formatPreference = localStorage.getItem('dateFormat') || 'MDY';
+
+    // Manually extract UTC components to avoid timezone discrepancies
+    const year = date.getUTCFullYear();
+    const monthIndex = date.getUTCMonth(); // 0-indexed for month names array
+    const day = date.getUTCDate();
+
+    // Padded numeric values
+    const monthPadded = (monthIndex + 1).toString().padStart(2, '0');
+    const dayPadded = day.toString().padStart(2, '0');
+
+    // Abbreviated month names
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthAbbr = monthNames[monthIndex];
+
+    switch (formatPreference) {
+        case 'DMY':
+            return `${dayPadded}/${monthPadded}/${year}`;
+        case 'YMD':
+            return `${year}-${monthPadded}-${dayPadded}`;
+        case 'MDY_WORDS': // Added
+            return `${monthAbbr} ${day}, ${year}`;
+        case 'DMY_WORDS': // Added
+            return `${day} ${monthAbbr} ${year}`;
+        case 'YMD_WORDS': // Added
+            return `${year} ${monthAbbr} ${day}`;
+        case 'MDY':
+        default:
+            return `${monthPadded}/${dayPadded}/${year}`;
+    }
 }
 
 async function renderWarranties(warrantiesToRender) {
@@ -1188,6 +1458,7 @@ async function renderWarranties(warrantiesToRender) {
                         <div>Warranty: <span>${warrantyYearsText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1241,6 +1512,7 @@ async function renderWarranties(warrantiesToRender) {
                         <div>Warranty: <span>${warrantyYearsText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1374,6 +1646,18 @@ function filterWarranties() {
             return true;
         }
 
+        // Check vendor
+        if (warranty.vendor && warranty.vendor.toLowerCase().includes(searchTerm)) {
+            return true;
+        }
+
+        // Check if any serial number contains search term
+        if (warranty.serial_numbers && Array.isArray(warranty.serial_numbers)) {
+            if (warranty.serial_numbers.some(sn => sn && sn.toLowerCase().includes(searchTerm))) {
+                return true;
+            }
+        }
+
         return false;
     });
 
@@ -1417,8 +1701,13 @@ function applyFilters() {
                 warranty.tags.some(tag => tag.name.toLowerCase().includes(searchTerm));
             // Check if notes contains search term
             const notesMatch = warranty.notes && warranty.notes.toLowerCase().includes(searchTerm);
+            // Check if vendor contains search term
+            const vendorMatch = warranty.vendor && warranty.vendor.toLowerCase().includes(searchTerm);
+            // Check if any serial number contains search term
+            const serialNumberMatch = warranty.serial_numbers && Array.isArray(warranty.serial_numbers) &&
+                warranty.serial_numbers.some(sn => sn && sn.toLowerCase().includes(searchTerm));
             // Return true if any match
-            if (!productNameMatch && !tagMatch && !notesMatch) {
+            if (!productNameMatch && !tagMatch && !notesMatch && !vendorMatch && !serialNumberMatch) {
                 return false;
             }
         }
@@ -1441,6 +1730,7 @@ function openEditModal(warranty) {
     document.getElementById('editPurchaseDate').value = warranty.purchase_date.split('T')[0];
     document.getElementById('editWarrantyYears').value = warranty.warranty_years;
     document.getElementById('editPurchasePrice').value = warranty.purchase_price || '';
+    document.getElementById('editVendor').value = warranty.vendor || '';
     
     // Clear existing serial number inputs
     const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
@@ -1798,7 +2088,9 @@ function submitForm(event) {
         resetAddWarrantyWizard(); // Reset the wizard form
         // --- End modification ---
 
-        loadWarranties(); // Reload the list
+        loadWarranties().then(() => {
+            applyFilters();
+        }); // Reload the list and update UI
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -1816,8 +2108,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load warranties (might need checks if warrantiesList doesn't always exist)
     if (warrantiesList) { 
-        loadWarranties();
-        loadViewPreference(); // Load user's preferred view
+        // REMOVED: loadWarranties(); // Now called after authStateReady
+        // REMOVED: loadViewPreference(); // Now called after authStateReady
         loadTags(); // Load tags for the form
         initTagFunctionality(); // Initialize tag search/selection
     }
@@ -1873,7 +2165,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load preferences (if needed for things other than theme)
     // loadPreferences(); // Consider if needed
 
-    updateCurrencySymbols();
+    // REMOVED: updateCurrencySymbols(); // Now called after authStateReady
 });
 
 // Add this function to handle edit tab functionality
@@ -2773,7 +3065,7 @@ function setupUIEventListeners() {
     if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
     
     // Load saved view preference
-    loadViewPreference();
+    // loadViewPreference(); // Disabled: now called after authStateReady
 }
 
 // Function to show loading spinner
@@ -2821,7 +3113,16 @@ function deleteWarranty() {
         hideLoadingSpinner();
         showToast('Warranty deleted successfully', 'success');
         closeModals();
-        loadWarranties();
+
+        // --- BEGIN FIX: Update UI immediately ---
+        // Remove the deleted warranty from the global array
+        const deletedId = currentWarrantyId; // Store ID before resetting
+        warranties = warranties.filter(warranty => warranty.id !== deletedId);
+        currentWarrantyId = null; // Reset current ID
+
+        // Re-render the list using the updated local array
+        applyFilters();
+        // --- END FIX ---
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -2937,6 +3238,10 @@ function saveWarranty() {
         formData.append('notes', '');
     }
     
+    // Add vendor/retailer to form data
+    const editVendorInput = document.getElementById('editVendor'); // Use the correct ID
+    formData.append('vendor', editVendorInput ? editVendorInput.value.trim() : ''); // Use the correct variable
+    
     // Get auth token
     const token = localStorage.getItem('auth_token');
     if (!token) {
@@ -2966,44 +3271,15 @@ function saveWarranty() {
         hideLoadingSpinner();
         showToast('Warranty updated successfully', 'success');
         closeModals();
-        // Update the notes in the card immediately if present
-        if (typeof currentWarrantyId !== 'undefined' && currentWarrantyId !== null) {
-            const card = document.querySelector(`.warranty-card .edit-btn[data-id="${currentWarrantyId}"]`);
-            if (card) {
-                const cardElement = card.closest('.warranty-card');
-                if (cardElement) {
-                    // Remove old notes button if present
-                    const oldNotesBtn = cardElement.querySelector('.view-notes-btn');
-                    if (oldNotesBtn) oldNotesBtn.remove();
-                    // Get the new notes value
-                    const newNotes = document.getElementById('editNotes').value;
-                    if (newNotes && newNotes.trim() !== '') {
-                        // Add the button if not present
-                        let notesBtn = cardElement.querySelector('.view-notes-btn');
-                        if (!notesBtn) {
-                            const btn = document.createElement('button');
-                            btn.className = 'btn btn-secondary btn-sm view-notes-btn';
-                            btn.setAttribute('data-id', currentWarrantyId);
-                            btn.style.margin = '10px 0 0 0';
-                            btn.innerHTML = '<i class="fas fa-sticky-note"></i> View Notes';
-                            btn.addEventListener('click', () => showNotesModal(newNotes));
-                            // Insert after tags row if present, else at end
-                            const tagsRow = cardElement.querySelector('.tags-row');
-                            if (tagsRow && tagsRow.nextSibling) {
-                                cardElement.insertBefore(btn, tagsRow.nextSibling);
-                            } else {
-                                cardElement.appendChild(btn);
-                            }
-                        }
-                    } else {
-                        // If notes are empty, ensure the button is removed
-                        const notesBtn = cardElement.querySelector('.view-notes-btn');
-                        if (notesBtn) notesBtn.remove();
-                    }
-                }
+        // Instantly reload and re-render the warranties list
+        loadWarranties().then(() => {
+            applyFilters();
+            // Always close the notes modal if open, to ensure UI is in sync
+            const notesModal = document.getElementById('notesModal');
+            if (notesModal && notesModal.style.display === 'block') {
+                notesModal.style.display = 'none';
             }
-        }
-        loadWarranties(); // Still reload to ensure all data is fresh
+        });
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -3272,7 +3548,14 @@ async function handleImport(file) {
             await loadTags(); // Fetch the updated list of all tags
             // ***** END FIX *****
 
-            loadWarranties(); // Refresh the list
+            // Add a small delay to ensure backend has processed the data
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Await the warranties load to ensure UI is updated
+            await loadWarranties();
+            
+            // Force a UI refresh by reapplying filters
+            applyFilters();
         } else {
             showToast(`Import failed: ${result.error || 'Unknown error'}`, 'error');
             if (result.errors) {
@@ -3305,6 +3588,7 @@ window.addEventListener('storage', (event) => {
         `${prefix}viewPreference` 
     ];
 
+    // Check for view preference changes
     if (viewKeys.includes(event.key) && event.newValue) {
         console.log(`Storage event detected for view preference (${event.key}). New value: ${event.newValue}`);
         // Check if the new value is different from the current view to avoid loops
@@ -3317,6 +3601,28 @@ window.addEventListener('storage', (event) => {
              console.log('Storage event value matches current view, ignoring.');
         }
     }
+
+    // --- Added: Check for date format changes ---
+    if (event.key === 'dateFormat' && event.newValue) {
+        console.log(`Storage event detected for dateFormat. New value: ${event.newValue}`);
+        // Re-apply filters to re-render warranties with the new date format
+        if (warrantiesList) { // Only apply if the warranty list exists on the page
+             applyFilters();
+             showToast('Date format updated.', 'info'); // Optional: Notify user
+        }
+    }
+    // --- End Added Check ---
+
+    // --- Added: Check for currency symbol changes ---
+    if (event.key === `${prefix}currencySymbol` && event.newValue) {
+        console.log(`Storage event detected for ${prefix}currencySymbol. New value: ${event.newValue}`);
+        if (warrantiesList) { // Only apply if on the main page
+            updateCurrencySymbols(); // Update symbols outside cards (e.g., in forms if they exist)
+            applyFilters(); // Re-render cards to update symbols inside them
+            showToast('Currency symbol updated.', 'info'); // Optional: Notify user
+        }
+    }
+    // --- End Added Check ---
 });
 // --- End Storage Event Listener ---
 
@@ -3437,6 +3743,10 @@ function showNotesModal(notes, warrantyOrId = null) {
 
             formData.append('notes', newNote); // Append the potentially empty, trimmed note
 
+            // Add vendor/retailer to form data
+            const editVendorOrRetailer = document.getElementById('editVendorOrRetailer');
+            formData.append('vendor', editVendorOrRetailer ? editVendorOrRetailer.value.trim() : '');
+
             const response = await fetch(`/api/warranties/${notesModalWarrantyId}`, { // Added await and response handling
                 method: 'PUT',
                 headers: {
@@ -3473,8 +3783,10 @@ function showNotesModal(notes, warrantyOrId = null) {
             }
              // --- End Updated UI logic ---
 
-            // Refresh warranties list to update the card UI state (e.g., show/hide notes link)
-            loadWarranties();
+            // Refresh warranties list and THEN update UI
+            await loadWarranties(); // Wait for data refresh
+            applyFilters(); // Re-render the list with updated data
+
         } catch (e) {
             hideLoadingSpinner();
             console.error("Error updating note:", e); // Log the error
@@ -3494,24 +3806,44 @@ function showNotesModal(notes, warrantyOrId = null) {
 
 // Utility to get currency symbol from preferences/localStorage
 function getCurrencySymbol() {
-    const prefix = getPreferenceKeyPrefix();
-    console.log(`[getCurrencySymbol] Using prefix: ${prefix}`); // Log prefix
+    // Use the global prefix determined after auth ready
+    let prefix = userPreferencePrefix; // Use let to allow default override
+     if (!prefix) {
+         console.warn('[getCurrencySymbol] User preference prefix not set yet, defaulting prefix to user_');
+         prefix = 'user_'; // Default prefix if called too early
+    }
+    console.log(`[getCurrencySymbol] Using determined prefix: ${prefix}`);
     let symbol = '$'; // Default value
+
+    const rawValue = localStorage.getItem(`${prefix}currencySymbol`);
+    console.log(`[getCurrencySymbol Debug] Raw value read from localStorage key '${prefix}currencySymbol':`, rawValue);
+    // +++ END ADDED LOG +++
+
+    // --- Priority 1: Load from individual key --- (Saved by settings-new.js)
+    const individualSymbol = rawValue; // Use the already read value
+    if (individualSymbol) { // Check uses the already read value
+        symbol = individualSymbol;
+        console.log(`[getCurrencySymbol] Loaded symbol from individual key (${prefix}currencySymbol): ${symbol}`);
+        return symbol;
+    }
+
+    // --- Priority 2: Load from preferences object (Legacy/Fallback) ---
     try {
         const prefsString = localStorage.getItem(`${prefix}preferences`);
-        console.log(`[getCurrencySymbol] Read prefsString for ${prefix}preferences:`, prefsString); // Log raw string
+        console.log(`[getCurrencySymbol] Read prefsString for ${prefix}preferences:`, prefsString);
         if (prefsString) {
             const prefs = JSON.parse(prefsString);
-            // Use the symbol from prefs if it exists, otherwise keep the default
             if (prefs && prefs.currency_symbol) {
                 symbol = prefs.currency_symbol;
+                console.log(`[getCurrencySymbol] Loaded symbol from object key (${prefix}preferences): ${symbol}`);
             }
         }
     } catch (e) {
         console.error(`Error reading ${prefix}preferences from localStorage:`, e);
-        // Keep the default '$' symbol in case of error
+        // Keep the default '$' symbol in case of error parsing the object
     }
-    console.log(`[getCurrencySymbol] Returning symbol: ${symbol}`); // Log final symbol
+
+    console.log(`[getCurrencySymbol] Returning symbol (default or from object): ${symbol}`);
     return symbol;
 }
 
@@ -3535,3 +3867,83 @@ window.addEventListener('storage', function(e) {
         updateCurrencySymbols();
     }
 });
+
+// +++ NEW FUNCTION TO LOAD PREFS AND SAVE TO LOCALSTORAGE +++
+async function loadAndApplyUserPreferences() {
+    // Use the global prefix determined after auth ready
+    let prefix = userPreferencePrefix; // <<< CHANGED const to let
+    if (!prefix) {
+         console.error('[Prefs Loader] Cannot load preferences: User preference prefix not set yet. Defaulting to user_');
+         // Setting a default might be risky if the user *is* admin but prefix wasn't set in time.
+         // Consider how authStateReady ensures prefix is set before this runs.
+         // For now, let's try defaulting, but this might need review.
+         prefix = 'user_'; 
+    }
+    console.log(`[Prefs Loader] Attempting to load preferences using prefix: ${prefix}`);
+    
+    if (window.auth && window.auth.isAuthenticated()) {
+        const token = window.auth.getToken();
+        if (!token) {
+            console.error('[Prefs Loader] Cannot load preferences: No auth token found.');
+            return; // Exit if no token
+        }
+        
+        try {
+            const response = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const apiPrefs = await response.json();
+                console.log('[Prefs Loader] Preferences loaded from API:', apiPrefs);
+
+                // Save relevant prefs to localStorage
+                if (apiPrefs.currency_symbol) {
+                    localStorage.setItem(`${prefix}currencySymbol`, apiPrefs.currency_symbol);
+                    console.log(`[Prefs Loader] Saved ${prefix}currencySymbol: ${apiPrefs.currency_symbol}`);
+                }
+                if (apiPrefs.default_view) {
+                    localStorage.setItem(`${prefix}defaultView`, apiPrefs.default_view);
+                     console.log(`[Prefs Loader] Saved ${prefix}defaultView: ${apiPrefs.default_view}`);
+                }
+                if (apiPrefs.expiring_soon_days !== undefined) {
+                    localStorage.setItem(`${prefix}expiringSoonDays`, apiPrefs.expiring_soon_days);
+                    // Also update the global variable used by processWarrantyData
+                    expiringSoonDays = apiPrefs.expiring_soon_days;
+                    console.log(`[Prefs Loader] Saved ${prefix}expiringSoonDays: ${apiPrefs.expiring_soon_days}`);
+                    console.log(`[Prefs Loader] Updated global expiringSoonDays variable to: ${expiringSoonDays}`);
+                }
+                if (apiPrefs.date_format) {
+                    localStorage.setItem('dateFormat', apiPrefs.date_format);
+                    console.log(`[Prefs Loader] Saved dateFormat: ${apiPrefs.date_format}`);
+                }
+                
+                // Optionally trigger immediate UI updates if needed, although renderWarranties will use these new values
+                // updateCurrencySymbols(); 
+
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.warn(`[Prefs Loader] Failed to load preferences from API: ${response.status}`, errorData.message || '');
+                // Set defaults in localStorage maybe?
+                if (!localStorage.getItem('dateFormat')) localStorage.setItem('dateFormat', 'MDY');
+                if (!localStorage.getItem(`${prefix}currencySymbol`)) localStorage.setItem(`${prefix}currencySymbol`, '$');
+                // etc.
+            }
+        } catch (error) {
+            console.error('[Prefs Loader] Error fetching/applying preferences from API:', error);
+            // Set defaults in localStorage on error?
+            if (!localStorage.getItem('dateFormat')) localStorage.setItem('dateFormat', 'MDY');
+            if (!localStorage.getItem(`${prefix}currencySymbol`)) localStorage.setItem(`${prefix}currencySymbol`, '$');
+            // etc.
+        }
+    } else {
+        console.warn('[Prefs Loader] Cannot load preferences: User not authenticated or auth module not available.');
+        // Apply defaults if not authenticated?
+         if (!localStorage.getItem('dateFormat')) localStorage.setItem('dateFormat', 'MDY');
+         if (!localStorage.getItem(`${prefix}currencySymbol`)) localStorage.setItem(`${prefix}currencySymbol`, '$');
+         // etc.
+    }
+}
+// +++ END NEW FUNCTION +++

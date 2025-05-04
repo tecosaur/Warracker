@@ -327,20 +327,16 @@ async function saveProfile() {
  * Save user preferences
  */
 function savePreferences() {
-    // Save dark mode preference
-    const isDark = darkModeToggleSetting.checked;
+    // Save dark mode
+    const isDark = darkModeToggle.checked;
     setTheme(isDark);
-    darkModeToggle.checked = isDark;
-    
-    // Save default view preference
-    const defaultView = defaultViewSelect.value;
-    localStorage.setItem('defaultView', defaultView);
-    localStorage.setItem('warrantyView', defaultView);
-    
-    // Save email notifications preference
-    const emailNotifications = emailNotificationsToggle.checked;
-    localStorage.setItem('emailNotifications', emailNotifications);
-    
+
+    // Save default view
+    localStorage.setItem('defaultView', defaultViewSelect.value);
+
+    // Save email notifications
+    localStorage.setItem('emailNotifications', emailNotificationsToggle.checked);
+
     showToast('Preferences saved successfully', 'success');
 }
 

@@ -1,5 +1,115 @@
 # Changelog
 
+## [0.9.9.4] - 2025-05-04
+
+### Fixed
+- **Theme Persistence & Consistency:**
+  - Refactored dark mode logic to use only a single `localStorage` key (`darkMode`) as the source of truth for theme preference across all pages.
+  - Removed all legacy and user-prefixed theme keys (e.g., `user_darkMode`, `admin_darkMode`, `${prefix}darkMode`).
+  - Ensured all theme toggles and settings update only the `darkMode` key, and all pages read only this key for theme initialization.
+  - Verified that `theme-loader.js` is included early in every HTML file to prevent flashes of incorrect theme.
+  - Cleaned up redundant or conflicting theme logic in all frontend scripts and HTML files.
+  - Theme preference now persists reliably across logins, logouts, and browser sessions (except in incognito/private mode, where localStorage is temporary by design).
+  _Files: `frontend/script.js`, `frontend/settings-new.js`, `frontend/status.js`, `frontend/register.html`, `frontend/reset-password.html`, `frontend/reset-password-request.html`, `frontend/theme-loader.js`, all main HTML files._
+
+### Added
+- **Admin/User Tag Separation:**
+  - Implemented distinct tags for Admins and regular Users.
+  - Tags created by an Admin are only visible to other Admins.
+  - Tags created by a User are only visible to other Users.
+  - Added `is_admin_tag` boolean column to the `tags` table via migration (`backend/migrations/009_add_admin_flag_to_tags.sql`).
+  - Backend API endpoints (`/api/tags`, `/api/warranties`, `/api/warranties/<id>/tags`) updated to filter tags based on the logged-in user's role (`is_admin`).
+  - Tag creation (`POST /api/tags`) now automatically sets the `is_admin_tag` flag based on the creator's role.
+  - Tag update (`PUT /api/tags/<id>`) and deletion (`DELETE /api/tags/<id>`) endpoints now prevent users/admins from modifying tags belonging to the other role.
+  _Files: `backend/app.py`, `backend/migrations/009_add_admin_flag_to_tags.sql`_
+
+  - **Version Check:**
+
+  - Added a version checker to the About page (`frontend/about.html`) that compares the current version with the latest GitHub release and displays the update status.
+    _Files: `frontend/about.html`, `frontend/version-checker.js`_
+
+- **Mobile Home Screen Icon Support:**
+  - Added support for mobile devices to display the app icon when added to the home screen.
+  - Included `<link rel="apple-touch-icon" sizes="180x180">` for iOS devices, referencing a new 512x512 PNG icon.
+  - Added a web app manifest (`manifest.json`) referencing the 512x512 icon for Android/Chrome home screen support.
+  - Updated all main HTML files to include these tags for consistent experience across devices.
+  _Files: `frontend/index.html`, `frontend/login.html`, `frontend/register.html`, `frontend/about.html`, `frontend/reset-password.html`, `frontend/reset-password-request.html`, `frontend/status.html`, `frontend/settings-new.html`, `frontend/manifest.json`, `frontend/img/favicon-512x512.png`_
+
+- **Optional Vendor Field for Warranties:**
+  - Users can now specify the vendor (e.g., Amazon, Best Buy) where a product was purchased, as an optional informational field for each warranty.
+  - The field is available when adding a new warranty and when editing an existing warranty.
+  - The vendor is displayed on warranty cards and in the summary tab of the add warranty wizard.
+  - The vendor field is now searchable alongside product name, notes, and tags.
+  - Backend API and database updated to support this field, including a migration to add the column to the warranties table.
+  - Editing a warranty now correctly updates the vendor field.
+  _Files: `backend/app.py`, `backend/migrations/017_add_vendor_to_warranties.sql`, `frontend/index.html`, `frontend/script.js`_
+
+- **Serial Number Search:**
+  - Enhanced search functionality to include serial numbers.
+  - Updated search input placeholder text to reflect serial number search capability.
+  _Files: `frontend/script.js`, `frontend/index.html`_
+
+- **CSV Import Vendor Field:**
+  - Added support for importing the `Vendor` field via CSV file upload.
+  - The CSV header should be `Vendor`.
+  _Files: `backend/app.py`, `frontend/script.js`_
+
+- **Date Format Customization:**
+  - Users can now choose their preferred date display format in Settings > Preferences.
+  - Available formats include:
+    - Month/Day/Year (e.g., 12/31/2024)
+    - Day/Month/Year (e.g., 31/12/2024)
+    - Year-Month-Day (e.g., 2024-12-31)
+    - Mon Day, Year (e.g., Dec 31, 2024)
+    - Day Mon Year (e.g., 31 Dec 2024)
+    - Year Mon Day (e.g., 2024 Dec 31)
+  - The selected format is applied to purchase and expiration dates on warranty cards.
+  - The setting persists across sessions and is synchronized between open tabs.
+  _Files: `frontend/settings-new.html`, `frontend/settings-new.js`, `frontend/script.js`_
+
+- **IPv6 Support:** Added `listen [::]:80;` directive to the Nginx configuration (`nginx.conf`) to enable listening on IPv6 interfaces alongside IPv4.
+  _Files: `nginx.conf`_
+
+- **Cloudflare Compatibility:** Added `<script data-cfasync="false" src="/javascript.js">` to the `<head>` of the status page (`frontend/status.html`) to ensure proper loading when behind Cloudflare.
+  _Files: `frontend/status.html`_
+
+  ### Changed
+  - **Migration System Overhaul:** Refactored the database migration system for improved reliability and consistency.
+  - **House cleaning**: Removed redundant files such as migrations, .env, and uploads folder. 
+  - **Warranty Listing:** Admins now only see their own warranties on the main warranty list (`/api/warranties`).
+  - **Warranty Visibility:** Fixed issue where admins could see all users' warranties. Now both admins and regular users only see their own warranties on all pages.
+  _Files: `backend/app.py`_
+
+**Bug Fixes:**
+
+*   **Date Handling:** Fixed issues causing warranty purchase and expiration dates to display incorrectly (off by one day) due to timezone differences:
+    *   **Backend:** Corrected expiration date calculation in `backend/app.py` by removing the inaccurate `timedelta` fallback logic and ensuring the `python-dateutil` library (using `relativedelta`) is consistently used for accurate year addition.
+    *   **Backend:** Added `python-dateutil` to `backend/requirements.txt` dependencies.
+    *   **Frontend:** Updated date parsing in `frontend/script.js` (`processWarrantyData`) to use `Date.UTC()` when creating `Date` objects from `YYYY-MM-DD` strings, preventing local timezone interpretation.
+    *   **Frontend:** Simplified and corrected date formatting in `frontend/script.js` (`formatDate`) to always use UTC date components (`getUTCFullYear`, etc.) for display, bypassing potential `toLocaleDateString` timezone issues.
+    *   **Frontend:** Fixed purchase date display in the "Add Warranty" summary tab (`updateSummary` in `frontend/script.js`) by applying the same UTC-based parsing and formatting used elsewhere, resolving the off-by-one-day error during summary view.
+*   **Fractional Warranty Years & Date Accuracy:** Corrected the backend expiration date calculation (`backend/app.py`) to accurately handle fractional warranty years (e.g., 1.5 years) and prevent off-by-one-day errors. 
+    *   The initial fix for fractional years used an approximation (`timedelta`) which sometimes resulted in dates being a day early.
+    *   The calculation now uses `dateutil.relativedelta` after decomposing the fractional years into integer years, months, and days, ensuring correct handling of leap years and month lengths.
+*   **UI:** Fixed toasts overlapping header menu due to z-index conflict (`style.css`).
+*   **API:** Fixed bug preventing updates to user preferences if only the timezone was changed (`app.py`).
+*   **Settings:** Resolved issue where opening the settings page in multiple tabs could cause both tabs to refresh continuously and potentially log the user out. This involved:
+    *   Preventing `settings-new.js` from unnecessarily updating `user_info` in `localStorage` on load.
+    *   Changing the `storage` event listener in `include-auth-new.js` to update the UI directly instead of reloading the page when auth data changes.
+    *   Removing redundant checks (`setInterval`) and `storage` listener from `fix-auth-buttons.js` to prevent conflicts.
+
+**New Features & Enhancements:**
+
+*   **API:** Added `/api/timezones` endpoint to provide a structured list of timezones grouped by region (`app.py`).
+
+### Fixed
+- **Tag Visibility:** Fixed an issue where tag visibility was incorrectly reversed between Admins and Users (Users saw Admin tags and vice-versa). Adjusted backend logic to correctly display tags based on role.
+  _Files: `backend/app.py`_
+- Fixed currency symbol not persisting after browser restart/re-login:
+    - Prevented main warranty list from rendering before user authentication and preferences are fully loaded.
+    - Ensured preferences (currency, date format, etc.) are fetched from API and saved to localStorage immediately after login.
+    - Corrected inconsistent user type prefix (`user_` vs `admin_`) determination during initial page load.
+
 ## [0.9.9.3] - 2025-04-27
 
 ### Added

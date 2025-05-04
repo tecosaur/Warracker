@@ -182,16 +182,4 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('DOMContentLoaded event triggered, updating auth buttons');
     updateAuthButtons();
     setupUserMenuDropdown();
-    
-    // Set up periodic check (every 2 seconds)
-    setInterval(updateAuthButtons, 2000);
-    setInterval(setupUserMenuDropdown, 2000);
-});
-
-// Update auth buttons when localStorage changes
-window.addEventListener('storage', (event) => {
-    if (event.key === 'auth_token' || event.key === 'user_info') {
-        console.log('Auth data changed, updating auth buttons');
-        updateAuthButtons();
-    }
 });

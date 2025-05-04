@@ -7,107 +7,87 @@
 
 console.log('include-auth-new.js: Running immediate auth check');
 
-// Immediately check if user is logged in
-if (localStorage.getItem('auth_token')) {
-    console.log('include-auth-new.js: Auth token found, hiding login/register buttons immediately');
-    
-    // Create and inject CSS to hide auth buttons
-    var style = document.createElement('style');
-    style.textContent = `
-        #authContainer, .auth-buttons, a[href="login.html"], a[href="register.html"], 
-        .login-btn, .register-btn, .auth-btn.login-btn, .auth-btn.register-btn {
-            display: none !important;
-            visibility: hidden !important;
+// Function to update UI based on auth state (extracted for reuse)
+function updateAuthUI() {
+    if (localStorage.getItem('auth_token')) {
+        console.log('include-auth-new.js: Updating UI for authenticated user');
+        // Inject CSS to hide auth buttons and show user menu
+        const styleId = 'auth-ui-style';
+        let style = document.getElementById(styleId);
+        if (!style) {
+            style = document.createElement('style');
+            style.id = styleId;
+            document.head.appendChild(style);
         }
-        
-        #userMenu, .user-menu {
-            display: block !important;
-            visibility: visible !important;
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Set the display style as soon as DOM is ready
-    window.addEventListener('DOMContentLoaded', function() {
-        console.log('include-auth-new.js: DOM loaded, ensuring buttons are hidden');
-        
-        // Hide auth container
-        var authContainer = document.getElementById('authContainer');
-        if (authContainer) {
-            authContainer.style.display = 'none';
-            authContainer.style.visibility = 'hidden';
-        }
-        
-        // Hide all login/register buttons
-        document.querySelectorAll('a[href="login.html"], a[href="register.html"], .login-btn, .register-btn, .auth-btn').forEach(function(button) {
-            button.style.display = 'none';
-            button.style.visibility = 'hidden';
-        });
-        
-        // Show user menu
-        var userMenu = document.getElementById('userMenu');
-        if (userMenu) {
-            userMenu.style.display = 'block';
-            userMenu.style.visibility = 'visible';
-        }
-        
-        // Update user information
+        style.textContent = `
+            #authContainer, .auth-buttons, a[href="login.html"], a[href="register.html"], 
+            .login-btn, .register-btn, .auth-btn.login-btn, .auth-btn.register-btn {
+                display: none !important;
+                visibility: hidden !important;
+            }
+            #userMenu, .user-menu {
+                display: block !important;
+                visibility: visible !important;
+            }
+        `;
+
+        // Update user info display elements immediately
         try {
             var userInfoStr = localStorage.getItem('user_info');
             if (userInfoStr) {
                 var userInfo = JSON.parse(userInfoStr);
                 var displayName = userInfo.username || 'User';
-                
                 var userDisplayName = document.getElementById('userDisplayName');
-                if (userDisplayName) {
-                    userDisplayName.textContent = displayName;
-                }
-                
+                if (userDisplayName) userDisplayName.textContent = displayName;
                 var userName = document.getElementById('userName');
                 if (userName) {
                     userName.textContent = (userInfo.first_name || '') + ' ' + (userInfo.last_name || '');
                     if (!userName.textContent.trim()) userName.textContent = userInfo.username || 'User';
                 }
-                
                 var userEmail = document.getElementById('userEmail');
-                if (userEmail && userInfo.email) {
-                    userEmail.textContent = userInfo.email;
-                }
+                if (userEmail && userInfo.email) userEmail.textContent = userInfo.email;
             }
         } catch (e) {
-            console.error('include-auth-new.js: Error updating user info:', e);
+            console.error('include-auth-new.js: Error updating user info display:', e);
         }
-    });
-} else {
-    console.log('include-auth-new.js: No auth token found, showing login/register buttons');
-    
-    // Create and inject CSS to show auth buttons
-    var style = document.createElement('style');
-    style.textContent = `
-        #authContainer, .auth-buttons {
-            display: flex !important;
-            visibility: visible !important;
+
+    } else {
+        console.log('include-auth-new.js: Updating UI for logged-out user');
+        // Inject CSS to show auth buttons and hide user menu
+        const styleId = 'auth-ui-style';
+        let style = document.getElementById(styleId);
+        if (!style) {
+            style = document.createElement('style');
+            style.id = styleId;
+            document.head.appendChild(style);
         }
-        
-        a[href="login.html"], a[href="register.html"], 
-        .login-btn, .register-btn, .auth-btn.login-btn, .auth-btn.register-btn {
-            display: inline-block !important;
-            visibility: visible !important;
-        }
-        
-        #userMenu, .user-menu {
-            display: none !important;
-            visibility: hidden !important;
-        }
-    `;
-    document.head.appendChild(style);
+        style.textContent = `
+            #authContainer, .auth-buttons {
+                display: flex !important; /* Use flex for container */
+                visibility: visible !important;
+            }
+            a[href="login.html"], a[href="register.html"], 
+            .login-btn, .register-btn, .auth-btn.login-btn, .auth-btn.register-btn {
+                display: inline-block !important; /* Use inline-block for buttons */
+                visibility: visible !important;
+            }
+            #userMenu, .user-menu {
+                display: none !important;
+                visibility: hidden !important;
+            }
+        `;
+    }
 }
 
-// Listen for changes to localStorage
+// Immediately check auth state and update UI
+updateAuthUI();
+
+// Listen for changes to localStorage and update UI without reloading
 window.addEventListener('storage', function(event) {
     if (event.key === 'auth_token' || event.key === 'user_info') {
-        console.log('include-auth-new.js: Auth data changed, reloading page to update UI');
-        window.location.reload();
+        console.log(`include-auth-new.js: Storage event detected for ${event.key}. Updating UI.`);
+        updateAuthUI(); // Update UI instead of reloading
+        // window.location.reload(); // <-- Keep commented out / Remove permanently
     }
 });
 

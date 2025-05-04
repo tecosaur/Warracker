@@ -14,6 +14,8 @@
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
+    <link rel="manifest" href="manifest.json">
     <!-- Load the main site styles first -->
     <link rel="stylesheet" href="style.css">
     <!-- Font Awesome for icons -->
@@ -234,6 +236,23 @@
                                     <p class="text-muted">Number of days before warranty expiration to mark as "Expiring Soon"</p>
                                 </div>
                                 <input type="number" id="expiringSoonDays" class="form-control" min="1" max="365" value="30">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
+                                    <label for="dateFormat">Date Format</label>
+                                    <p class="text-muted">Choose how dates are displayed</p>
+                                </div>
+                                <select id="dateFormat" class="form-control">
+                                    <option value="MDY">Month/Day/Year (e.g., 12/31/2024)</option>
+                                    <option value="DMY">Day/Month/Year (e.g., 31/12/2024)</option>
+                                    <option value="YMD">Year-Month-Day (e.g., 2024-12-31)</option>
+                                    <option value="MDY_WORDS">Mon Day, Year (e.g., Dec 31, 2024)</option>
+                                    <option value="DMY_WORDS">Day Mon Year (e.g., 31 Dec 2024)</option>
+                                    <option value="YMD_WORDS">Year Mon Day (e.g., 2024 Dec 31)</option>
+                                </select>
                             </div>
                         </div>
                                                 

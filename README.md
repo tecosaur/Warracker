@@ -40,6 +40,7 @@ Warracker is an open-source warranty tracker application designed to help you ef
 - **Data Export and Import:** Export warranty data to CSV, or import warranties from CSV files.
 - **Email Notifications:** Receive timely email reminders about upcoming expirations — configurable as daily, weekly, or monthly.
 - **Customizable Currency Symbols:** Display prices using your preferred currency symbol ($, €, £, ¥, ₹, or a custom symbol).
+- **Customizable Dates:**  Display dates based on your own region.
 - **Tagging:** Organize warranties with flexible, multi-tag support.
 - **Password Reset:** Easily recover accounts through a secure, token-based password reset flow.
 
@@ -189,6 +190,7 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
 | **PurchasePrice** | Number (`199.99`, `50`)                  | ❌ No (Optional)                                        | Cannot be negative if provided.                                      |
 | **SerialNumber** | Text (`SN123`, `SN123,SN456`)             | ❌ No (Optional)                                        | For multiple values, separate with commas.                           |
 | **ProductURL**   | Text (URL format)                         | ❌ No (Optional)                                        | Full URL to product page (optional field). https://producturl.com                           |
+| **Vendor**       | Text                                      | ❌ No (Optional)                                        | Name of the vendor or seller where the product was purchased.        |
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
 
 

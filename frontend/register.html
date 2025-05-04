@@ -11,6 +11,8 @@
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
     <!-- Font Awesome for icons -->
@@ -574,15 +576,8 @@
                 authMessage.className = 'auth-message';
                 authMessage.classList.add(type);
                 authMessage.style.display = 'block';
-                
                 // Scroll to message
                 authMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-            
-            // Check for dark mode preference
-            const darkModeEnabled = localStorage.getItem('darkMode') === 'enabled';
-            if (darkModeEnabled) {
-                document.body.classList.add('dark-mode');
             }
         });
         

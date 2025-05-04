@@ -47,6 +47,9 @@ const currencySymbolInput = document.getElementById('currencySymbol');
 const currencySymbolSelect = document.getElementById('currencySymbolSelect');
 const currencySymbolCustom = document.getElementById('currencySymbolCustom');
 
+// Add dateFormatSelect near other DOM element declarations if not already there
+const dateFormatSelect = document.getElementById('dateFormat');
+
 /**
  * Set theme (dark/light) - Unified and persistent
  * @param {boolean} isDark - Whether to use dark mode
@@ -64,10 +67,10 @@ function setTheme(isDark) {
     localStorage.setItem('darkMode', isDark);
     // Sync both toggles if present
     if (typeof darkModeToggle !== 'undefined' && darkModeToggle) {
-        darkModeToggle.checked = isDarkMode;
+        darkModeToggle.checked = isDark;
     }
     if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDarkMode;
+        darkModeToggleSetting.checked = isDark;
     }
     // Also update user_preferences.theme for backward compatibility
     try {
@@ -87,23 +90,46 @@ function setTheme(isDark) {
  * Initialize dark mode toggle and synchronize state
  */
 function initDarkModeToggle() {
-    // Always check the single source of truth in localStorage
+    // Always check the single source of truth in localStorage (fallback)
     const isDarkMode = localStorage.getItem('darkMode') === 'true';
     // Apply theme to DOM if not already set
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
     document.body.classList.toggle('dark-mode', isDarkMode);
-    // Sync both toggles
+    // Sync both toggles and add unified handler
+    const syncToggles = (val) => {
+        if (typeof darkModeToggle !== 'undefined' && darkModeToggle) darkModeToggle.checked = val;
+        if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) darkModeToggleSetting.checked = val;
+    };
+    syncToggles(isDarkMode);
+    // Handler to update theme, localStorage, backend
+    const handleToggle = async function(checked) {
+        setTheme(checked);
+        syncToggles(checked);
+        // Save to backend if authenticated
+        if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+            try {
+                let prefs = {};
+                const storedPrefs = localStorage.getItem('user_preferences');
+                if (storedPrefs) prefs = JSON.parse(storedPrefs);
+                prefs.theme = checked ? 'dark' : 'light';
+                await fetch('/api/auth/preferences', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${window.auth.getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(prefs)
+                });
+            } catch (e) {
+                console.warn('Failed to save dark mode to backend:', e);
+            }
+        }
+    };
     if (typeof darkModeToggle !== 'undefined' && darkModeToggle) {
-        darkModeToggle.checked = isDarkMode;
-        darkModeToggle.addEventListener('change', function() {
-            setTheme(this.checked);
-        });
+        darkModeToggle.onchange = function() { handleToggle(this.checked); };
     }
     if (typeof darkModeToggleSetting !== 'undefined' && darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDarkMode;
-        darkModeToggleSetting.addEventListener('change', function() {
-            setTheme(this.checked);
-        });
+        darkModeToggleSetting.onchange = function() { handleToggle(this.checked); };
     }
 }
 
@@ -126,6 +152,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize dark mode toggle
     initDarkModeToggle();
+    // Clear dark mode preference on logout for privacy
+    if (window.auth && window.auth.onLogout) {
+        window.auth.onLogout(() => {
+            localStorage.removeItem('darkMode');
+        });
+    }
     
     // REMOVED initSettingsMenu() call - Handled by auth.js
 
@@ -361,22 +393,34 @@ async function loadUserData() {
                      }
                 }
 
-                // Update localStorage
+                // Update localStorage ONLY if data has changed
                 const currentUser = window.auth.getCurrentUser();
                 let first_name = userData.first_name;
                 let last_name = userData.last_name;
-                if (!last_name) first_name = '';
+                if (!last_name) first_name = ''; // Reset first name if last name is empty
+                
                 const updatedUser = {
-                    ...(currentUser || {}), // Handle case where currentUser might be null
-                    first_name,
-                    last_name,
-                    // Ensure email and username are preserved if they existed
+                    ...(currentUser || {}), // Preserve existing fields
+                    first_name,             // Update first name
+                    last_name,              // Update last name
+                    // Preserve other essential fields from fetched data if currentUser was null
                     email: currentUser ? currentUser.email : userData.email,
                     username: currentUser ? currentUser.username : userData.username,
                     is_admin: currentUser ? currentUser.is_admin : userData.is_admin,
                     id: currentUser ? currentUser.id : userData.id
                 };
-                localStorage.setItem('user_info', JSON.stringify(updatedUser));
+                
+                // Convert both to JSON strings for reliable comparison
+                const currentUserString = JSON.stringify(currentUser);
+                const updatedUserString = JSON.stringify(updatedUser);
+
+                if (currentUserString !== updatedUserString) {
+                    console.log('User data changed, updating localStorage.');
+                    localStorage.setItem('user_info', updatedUserString);
+                } else {
+                    console.log('User data from API matches localStorage, skipping update.');
+                }
+                // localStorage.setItem('user_info', JSON.stringify(updatedUser)); // OLD LINE
             } else {
                 const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
                 console.warn('API error fetching user data:', errorData.message);
@@ -425,198 +469,194 @@ function getPreferenceKeyPrefix() {
 /**
  * Load user preferences
  */
-function loadPreferences() {
+async function loadPreferences() {
     console.log('Loading preferences...');
-    showLoading();
-    
-    // Get the appropriate key prefix based on user type
     const prefix = getPreferenceKeyPrefix();
-    console.log(`Loading preferences with prefix: ${prefix}`);
-    
-    // First check if we're in dark mode by checking the body class
-    const isDarkMode = document.body.classList.contains('dark-mode');
-    
-    // Set the toggle state based on the current theme
-    if (darkModeToggle) {
-        darkModeToggle.checked = isDarkMode;
-    }
-    
-    if (darkModeToggleSetting) {
-        darkModeToggleSetting.checked = isDarkMode;
-    }
-    
-    // --- BEGIN EDIT: Load Default View with Priority ---
-    let defaultViewLoaded = false;
-    if (defaultViewSelect) {
-        const userSpecificView = localStorage.getItem(`${prefix}defaultView`);
-        const generalView = localStorage.getItem('viewPreference');
-        const legacyWarrantyView = localStorage.getItem(`${prefix}warrantyView`); // Check legacy key
+    console.log('Loading preferences with prefix:', prefix);
 
-        if (userSpecificView) {
-            defaultViewSelect.value = userSpecificView;
-            defaultViewLoaded = true;
-            console.log(`Loaded default view from ${prefix}defaultView:`, userSpecificView);
-        } else if (generalView) {
-            defaultViewSelect.value = generalView;
-            defaultViewLoaded = true;
-            console.log('Loaded default view from viewPreference:', generalView);
-        } else if (legacyWarrantyView) {
-            defaultViewSelect.value = legacyWarrantyView;
-            defaultViewLoaded = true;
-            console.log(`Loaded default view from legacy ${prefix}warrantyView:`, legacyWarrantyView);
-        }
-    }
-    // --- END EDIT ---
-
-    // Load other preferences from localStorage using the appropriate prefix (only if default view not loaded yet)
-    if (!defaultViewLoaded) {
+    let darkModeFromAPI = null;
+    let apiPrefs = null;
+    // Try to load preferences from backend if authenticated
+    if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
         try {
-            const userPrefs = localStorage.getItem(`${prefix}preferences`);
-            if (userPrefs) {
-                const preferences = JSON.parse(userPrefs);
-
-                // Default view preference (load only if not loaded above)
-                if (defaultViewSelect && preferences.default_view && !defaultViewLoaded) {
-                    defaultViewSelect.value = preferences.default_view;
-                    defaultViewLoaded = true; // Mark as loaded
-                    console.log(`Loaded default view from ${prefix}preferences object:`, preferences.default_view);
+            const response = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${window.auth.getToken()}`
                 }
-
-                // Email notifications preference
-                if (emailNotificationsToggle && typeof preferences.email_notifications !== 'undefined') { // Check for undefined
-                    emailNotificationsToggle.checked = preferences.email_notifications;
-                }
-
-                // Expiring soon days preference
-                if (expiringSoonDaysInput && preferences.expiring_soon_days) {
-                    expiringSoonDaysInput.value = preferences.expiring_soon_days;
-                }
-
-                // Notification frequency preference
-                if (notificationFrequencySelect && preferences.notification_frequency) {
-                    notificationFrequencySelect.value = preferences.notification_frequency;
-                }
-
-                // Notification time preference
-                if (notificationTimeInput && preferences.notification_time) {
-                    notificationTimeInput.value = preferences.notification_time;
-                }
-
-                // Timezone preference
-                if (timezoneSelect && preferences.timezone) {
-                    timezoneSelect.value = preferences.timezone;
-                }
-
-                // Currency symbol preference
-                let symbol = '$';
-                if (preferences && preferences.currency_symbol) {
-                    symbol = preferences.currency_symbol;
-                }
-                if (currencySymbolSelect && currencySymbolCustom) {
-                    // If symbol is in the dropdown, select it; else, select 'other' and show custom
-                    const found = Array.from(currencySymbolSelect.options).some(opt => opt.value === symbol);
-                    if (found) {
-                        currencySymbolSelect.value = symbol;
-                        currencySymbolCustom.style.display = 'none';
-                        currencySymbolCustom.value = '';
-                    } else {
-                        currencySymbolSelect.value = 'other';
-                        currencySymbolCustom.style.display = '';
-                        currencySymbolCustom.value = symbol;
-                    }
+            });
+            if (response.ok) {
+                apiPrefs = await response.json();
+                if (apiPrefs && apiPrefs.theme) {
+                    darkModeFromAPI = apiPrefs.theme === 'dark';
+                    setTheme(darkModeFromAPI);
+                    // Sync localStorage
+                    localStorage.setItem('darkMode', darkModeFromAPI);
                 }
             }
         } catch (e) {
-            console.error('Error loading preferences from localStorage:', e);
-            // Fallback to default '$' using the correct elements
-            if (currencySymbolSelect) currencySymbolSelect.value = '$';
-            if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+            console.warn('Failed to load preferences from backend:', e);
         }
-    } else {
-        // Fallback to default '$' if no localStorage and defaultViewLoaded is true
-        if (currencySymbolSelect) currencySymbolSelect.value = '$';
-        if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+    }
+    // Fallback: use localStorage if not authenticated or API fails
+    if (darkModeFromAPI === null) {
+        const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+        setTheme(storedDarkMode);
+    }
+    // --- Load Date Format --- Add this section
+    const storedDateFormat = localStorage.getItem('dateFormat');
+    if (storedDateFormat && dateFormatSelect) {
+        dateFormatSelect.value = storedDateFormat;
+        console.log(`Loaded dateFormat from localStorage: ${storedDateFormat}`);
+    } else if (dateFormatSelect) {
+        dateFormatSelect.value = 'MDY'; // Default if not found
+        console.log('dateFormat not found in localStorage, defaulting to MDY');
+    }
+    // --- End Date Format Section ---
+
+    // Default View
+    const storedView = localStorage.getItem(`${prefix}defaultView`);
+    if (storedView && defaultViewSelect) {
+        defaultViewSelect.value = storedView;
+        console.log(`Loaded default view from ${prefix}defaultView: ${storedView}`);
+    } else if (defaultViewSelect) {
+        defaultViewSelect.value = 'grid'; // Default
+        console.log(`${prefix}defaultView not found, defaulting view to grid`);
     }
 
-    // Load preferences from API (API data should override if available, except maybe for default view if already loaded)
-    fetch('/api/auth/preferences', {
-        method: 'GET',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to load preferences from API');
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Preferences loaded from API:', data);
-        
-        // API returns preferences directly, not nested under a 'preferences' key
-        const apiPrefs = data;
-        
-        // Update UI with API preferences
-        // Default View: Only update if not already loaded from higher priority localStorage keys
-        if (defaultViewSelect && apiPrefs.default_view && !defaultViewLoaded) {
-            defaultViewSelect.value = apiPrefs.default_view;
-            console.log('Loaded default view from API:', apiPrefs.default_view);
-        }
-        
-        // Other preferences always updated from API if available
-        if (emailNotificationsToggle && typeof apiPrefs.email_notifications !== 'undefined') { // Check for undefined
-            emailNotificationsToggle.checked = apiPrefs.email_notifications;
-        }
-        
-        if (expiringSoonDaysInput && apiPrefs.expiring_soon_days) {
-            expiringSoonDaysInput.value = apiPrefs.expiring_soon_days;
-        }
-        
-        if (notificationFrequencySelect && apiPrefs.notification_frequency) {
-            notificationFrequencySelect.value = apiPrefs.notification_frequency;
-        }
-        
-        if (notificationTimeInput && apiPrefs.notification_time) {
-            notificationTimeInput.value = apiPrefs.notification_time;
-        }
-        
-        if (timezoneSelect && apiPrefs.timezone) {
-            console.log('API provided timezone:', apiPrefs.timezone);
-            // Will be populated once timezones are loaded
-            setTimeout(() => {
-                if (timezoneSelect.options.length > 1) {
-                    timezoneSelect.value = apiPrefs.timezone;
-                    console.log('Applied timezone from API:', apiPrefs.timezone, 'Current select value:', timezoneSelect.value);
-                }
-            }, 500);
-        }
-        
-        // Currency symbol from API
-        let apiSymbol = data.currency_symbol || '$';
-        if (currencySymbolSelect && currencySymbolCustom) {
-            const found = Array.from(currencySymbolSelect.options).some(opt => opt.value === apiSymbol);
-            if (found) {
-                currencySymbolSelect.value = apiSymbol;
-                currencySymbolCustom.style.display = 'none';
-                currencySymbolCustom.value = '';
+    // Currency Symbol
+    const storedCurrency = localStorage.getItem(`${prefix}currencySymbol`);
+    if (storedCurrency) {
+        if (currencySymbolSelect) {
+            // Check if the stored symbol is a standard option
+            const standardOption = Array.from(currencySymbolSelect.options).find(opt => opt.value === storedCurrency);
+            if (standardOption) {
+                currencySymbolSelect.value = storedCurrency;
+                if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
             } else {
+                // It's a custom symbol
                 currencySymbolSelect.value = 'other';
-                currencySymbolCustom.style.display = '';
-                currencySymbolCustom.value = apiSymbol;
+                if (currencySymbolCustom) {
+                    currencySymbolCustom.value = storedCurrency;
+                    currencySymbolCustom.style.display = 'inline-block';
+                }
             }
+            console.log(`Loaded currency symbol from ${prefix}currencySymbol: ${storedCurrency}`);
         }
-        
-        // Store in localStorage with the appropriate prefix
-        localStorage.setItem(`${prefix}preferences`, JSON.stringify(apiPrefs));
-    })
-    .catch(error => {
-        console.error('Error loading preferences from API:', error);
-    })
-    .finally(() => {
-        hideLoading();
-    });
+    } else {
+        // Default to '$' if nothing stored
+        if (currencySymbolSelect) currencySymbolSelect.value = '$';
+        if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+        console.log(`${prefix}currencySymbol not found, defaulting to $`);
+    }
+
+    // Expiring Soon Days
+    const storedExpiringDays = localStorage.getItem(`${prefix}expiringSoonDays`);
+    if (storedExpiringDays && expiringSoonDaysInput) {
+        expiringSoonDaysInput.value = storedExpiringDays;
+        console.log(`Loaded expiring soon days from ${prefix}expiringSoonDays: ${storedExpiringDays}`);
+    } else if (expiringSoonDaysInput) {
+        expiringSoonDaysInput.value = 30; // Default
+        console.log(`${prefix}expiringSoonDays not found, defaulting to 30`);
+    }
+
+    // Now, try fetching preferences from API to override/confirm
+    if (window.auth && window.auth.isAuthenticated()) {
+        try {
+            const token = window.auth.getToken();
+            const response = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const apiPrefs = await response.json();
+                console.log('Preferences loaded from API:', apiPrefs);
+
+                // Update UI elements with API data where available
+                if (apiPrefs.default_view && defaultViewSelect) {
+                    // Only update if different from localStorage value (or if localStorage was empty)
+                    const storedView = localStorage.getItem(`${prefix}defaultView`) || 'grid'; // Default if null
+                    if (apiPrefs.default_view !== storedView) {
+                         console.log(`API default_view (${apiPrefs.default_view}) differs from localStorage (${storedView}). Updating UI.`);
+                         defaultViewSelect.value = apiPrefs.default_view;
+                    }
+                }
+                // --- MODIFIED CURRENCY SYMBOL HANDLING ---
+                const storedCurrency = localStorage.getItem(`${prefix}currencySymbol`); // Get localStorage value again for comparison
+                if (apiPrefs.currency_symbol && currencySymbolSelect) {
+                    // Only update UI from API if the API value is different from what was in localStorage
+                    // Or if localStorage didn't have a value initially
+                    if (!storedCurrency || apiPrefs.currency_symbol !== storedCurrency) {
+                        console.log(`API currency_symbol (${apiPrefs.currency_symbol}) differs from localStorage (${storedCurrency}). Updating UI.`);
+                        // Logic to handle standard vs custom symbol from API
+                        const standardOption = Array.from(currencySymbolSelect.options).find(opt => opt.value === apiPrefs.currency_symbol);
+                        if (standardOption) {
+                            currencySymbolSelect.value = apiPrefs.currency_symbol;
+                            if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+                        } else {
+                            currencySymbolSelect.value = 'other';
+                            if (currencySymbolCustom) {
+                                currencySymbolCustom.value = apiPrefs.currency_symbol;
+                                currencySymbolCustom.style.display = 'inline-block';
+                            }
+                        }
+                    } else {
+                         console.log(`API currency_symbol (${apiPrefs.currency_symbol}) matches localStorage (${storedCurrency}). Skipping UI update.`);
+                    }
+                }
+                // --- END MODIFIED CURRENCY SYMBOL HANDLING ---
+                if (apiPrefs.expiring_soon_days && expiringSoonDaysInput) {
+                     // Only update if different from localStorage value (or if localStorage was empty)
+                     const storedExpiringDays = localStorage.getItem(`${prefix}expiringSoonDays`) || '30'; // Default if null
+                     if (String(apiPrefs.expiring_soon_days) !== storedExpiringDays) {
+                         console.log(`API expiring_soon_days (${apiPrefs.expiring_soon_days}) differs from localStorage (${storedExpiringDays}). Updating UI.`);
+                         expiringSoonDaysInput.value = apiPrefs.expiring_soon_days;
+                     }
+                }
+
+                 // --- Update Date Format from API Prefs --- Add this check
+                 const storedDateFormat = localStorage.getItem('dateFormat') || 'MDY'; // Default if null
+                 if (apiPrefs.date_format && dateFormatSelect) {
+                      if (apiPrefs.date_format !== storedDateFormat) {
+                         console.log(`API date_format (${apiPrefs.date_format}) differs from localStorage (${storedDateFormat}). Updating UI.`);
+                         dateFormatSelect.value = apiPrefs.date_format;
+                     }
+                 }
+                 // --- End Date Format Check ---
+
+                // Update Email Settings from API
+                if (emailNotificationsToggle) {
+                    emailNotificationsToggle.checked = apiPrefs.email_notifications !== false; // Default true if null/undefined
+                }
+                if (notificationFrequencySelect && apiPrefs.notification_frequency) {
+                    notificationFrequencySelect.value = apiPrefs.notification_frequency;
+                }
+                if (notificationTimeInput && apiPrefs.notification_time) {
+                    notificationTimeInput.value = apiPrefs.notification_time.substring(0, 5); // HH:MM format
+                }
+                // Load and set timezone from API
+                if (timezoneSelect && apiPrefs.timezone) {
+                    console.log('API provided timezone:', apiPrefs.timezone);
+                    // Ensure the option exists before setting
+                    if (Array.from(timezoneSelect.options).some(option => option.value === apiPrefs.timezone)) {
+                        timezoneSelect.value = apiPrefs.timezone;
+                        console.log('Applied timezone from API:', timezoneSelect.value, 'Current select value:', timezoneSelect.value);
+                    } else {
+                        console.warn(`Timezone '${apiPrefs.timezone}' from API not found in dropdown.`);
+                    }
+                } else {
+                    console.log('No timezone preference found in API or timezone select element missing.');
+                }
+
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.warn(`Failed to load preferences from API: ${response.status}`, errorData.message || '');
+            }
+        } catch (error) {
+            console.error('Error fetching preferences from API:', error);
+        }
+    }
 }
 
 /**
@@ -945,109 +985,80 @@ async function saveProfile() {
 /**
  * Save user preferences
  */
-function savePreferences() {
-    showLoading();
-    
-    try {
-        // Get the appropriate key prefix based on user type
-        const prefix = getPreferenceKeyPrefix();
-        console.log(`Saving preferences with prefix: ${prefix}`);
-        
-        // Get values
-        const isDarkMode = darkModeToggleSetting.checked;
-        const defaultView = defaultViewSelect.value;
-        const emailNotifications = emailNotificationsToggle.checked;
-        const expiringSoonDays = parseInt(expiringSoonDaysInput.value);
-        const notificationFrequency = notificationFrequencySelect.value;
-        const notificationTime = notificationTimeInput.value;
-        const timezone = timezoneSelect.value;
-        let currencySymbol = '$';
-        if (currencySymbolSelect && currencySymbolSelect.value === 'other') {
-            currencySymbol = currencySymbolCustom && currencySymbolCustom.value ? currencySymbolCustom.value : '$';
-        } else if (currencySymbolSelect) {
+async function savePreferences() {
+    console.log('Saving preferences...');
+    const prefix = getPreferenceKeyPrefix();
+
+    // --- Prepare data to save --- Add dateFormat and dark mode
+    const preferencesToSave = {
+        default_view: defaultViewSelect ? defaultViewSelect.value : 'grid',
+        expiring_soon_days: expiringSoonDaysInput ? parseInt(expiringSoonDaysInput.value) : 30,
+        date_format: dateFormatSelect ? dateFormatSelect.value : 'MDY',
+        theme: (localStorage.getItem('darkMode') === 'true') ? 'dark' : 'light',
+    };
+
+    // Handle currency symbol (standard or custom)
+    let currencySymbol = '$'; // Default
+    if (currencySymbolSelect) {
+        if (currencySymbolSelect.value === 'other' && currencySymbolCustom) {
+            currencySymbol = currencySymbolCustom.value.trim() || '$'; // Use custom or default to $ if empty
+        } else {
             currencySymbol = currencySymbolSelect.value;
         }
-        
-        // Validate inputs
-        if (isNaN(expiringSoonDays) || expiringSoonDays < 1 || expiringSoonDays > 365) {
-            showToast('Expiring soon days must be between 1 and 365', 'error');
+    }
+    preferencesToSave.currency_symbol = currencySymbol;
+    // --- End data preparation ---
+
+    // +++ ADDED DEBUG LOGGING +++
+    console.log(`[SavePrefs Debug] Currency Select Value: ${currencySymbolSelect ? currencySymbolSelect.value : 'N/A'}`);
+    console.log(`[SavePrefs Debug] Custom Input Value: ${currencySymbolCustom ? currencySymbolCustom.value : 'N/A'}`);
+    console.log(`[SavePrefs Debug] Final currencySymbol value determined: ${currencySymbol}`);
+    // +++ END DEBUG LOGGING +++
+
+    // Save Dark Mode separately (using the single source of truth)
+    const isDark = darkModeToggleSetting ? darkModeToggleSetting.checked : false;
+    setTheme(isDark);
+    console.log(`Saved dark mode: ${isDark}`);
+
+    // Save simple preferences to localStorage immediately
+    localStorage.setItem('dateFormat', preferencesToSave.date_format); // Added
+    localStorage.setItem(`${prefix}defaultView`, preferencesToSave.default_view);
+    localStorage.setItem(`${prefix}currencySymbol`, preferencesToSave.currency_symbol);
+    localStorage.setItem(`${prefix}expiringSoonDays`, preferencesToSave.expiring_soon_days);
+
+    console.log('Preferences saved to localStorage (prefix:', prefix, '):', preferencesToSave);
+    console.log(`Value of dateFormat in localStorage: ${localStorage.getItem('dateFormat')}`);
+
+    // Try saving to API
+    if (window.auth && window.auth.isAuthenticated()) {
+        try {
+            showLoading();
+            const token = window.auth.getToken();
+            const response = await fetch('/api/auth/preferences', {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(preferencesToSave)
+            });
+
             hideLoading();
-            return;
-        }
-        
-        if (!timezone) {
-            showToast('Please select a timezone', 'error');
-            hideLoading();
-            return;
-        }
-        
-        // Create preferences object
-        const preferences = {
-            theme: isDarkMode ? 'dark' : 'light',
-            default_view: defaultView,
-            email_notifications: emailNotifications,
-            expiring_soon_days: expiringSoonDays,
-            notification_frequency: notificationFrequency,
-            notification_time: notificationTime,
-            timezone: timezone,
-            currency_symbol: currencySymbol
-        };
-        
-        // Save to API
-        fetch('/api/auth/preferences', {
-            method: 'PUT',
-            headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(preferences)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to save preferences');
+            if (response.ok) {
+                showToast('Preferences saved successfully.', 'success');
+                console.log('Preferences successfully saved to API.');
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Failed to save preferences to API: ${response.status}`);
             }
-            return response.json();
-        })
-        .then(data => {
-            // Save to localStorage with the appropriate prefix
-            localStorage.setItem(`${prefix}preferences`, JSON.stringify(data));
-            
-            // Also save individual preferences for backward compatibility and general preference
-            localStorage.setItem(`${prefix}defaultView`, defaultView);
-            localStorage.setItem(`${prefix}warrantyView`, defaultView); // Keep saving legacy key for now
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem('viewPreference', defaultView); // --- EDIT: Save general key ---
-            
-            // Save the dark mode setting for the current user type
-            localStorage.setItem(`${prefix}darkMode`, isDarkMode);
-            
-            // Apply theme immediately
-            document.body.classList.toggle('dark-mode', isDarkMode);
-            
-            showToast('Preferences saved successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error saving preferences:', error);
-            showToast('Error saving preferences', 'error');
-            
-            // Save to localStorage as fallback with the appropriate prefix
-            localStorage.setItem(`${prefix}theme`, isDarkMode ? 'dark' : 'light');
-            localStorage.setItem(`${prefix}defaultView`, defaultView);
-            localStorage.setItem(`${prefix}warrantyView`, defaultView); // Keep saving legacy key for now
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem(`${prefix}darkMode`, isDarkMode);
-            localStorage.setItem('viewPreference', defaultView); // --- EDIT: Save general key ---
-            
-            // Apply theme even if API save fails
-            document.body.classList.toggle('dark-mode', isDarkMode);
-        })
-        .finally(() => {
+        } catch (error) {
             hideLoading();
-        });
-    } catch (error) {
-        console.error('Error in savePreferences:', error);
-        showToast('Error saving preferences', 'error');
-        hideLoading();
+            console.error('Error saving preferences to API:', error);
+            showToast(`Preferences saved locally, but failed to sync with server: ${error.message}`, 'warning');
+        }
+    } else {
+        // No auth, just show local save success
+        showToast('Preferences saved locally.', 'success');
     }
 }
 
@@ -2910,31 +2921,80 @@ function saveEmailSettings() {
 
 // --- Add Storage Event Listener for Real-time Sync ---
 window.addEventListener('storage', (event) => {
-    const prefix = getPreferenceKeyPrefix();
-    const viewKeys = [
-        `${prefix}defaultView`,
-        'viewPreference',
-        `${prefix}warrantyView`,
-        // Add `${prefix}viewPreference` if still used/relevant
-        `${prefix}viewPreference` 
-    ];
+    console.log(`[Settings Storage Listener] Event received: key=${event.key}, newValue=${event.newValue}`); // Log all events
 
-    if (viewKeys.includes(event.key) && event.newValue) {
-        console.log(`Storage event detected for view preference (${event.key}) in settings. New value: ${event.newValue}`);
-        // Ensure the dropdown element exists and the value is different
-        if (defaultViewSelect && defaultViewSelect.value !== event.newValue) {
-            // Check if the new value is a valid option in the select
+    const prefix = getPreferenceKeyPrefix();
+    const targetKey = `${prefix}defaultView`;
+
+    // Only react to changes in the specific default view key for the current user type
+    if (event.key === targetKey) { // Check key match first
+        console.log(`[Settings Storage Listener] Matched key: ${targetKey}`);
+        console.log(`[Settings Storage Listener] defaultViewSelect exists: ${!!defaultViewSelect}`);
+        if (defaultViewSelect) {
+            console.log(`[Settings Storage Listener] Current dropdown value: ${defaultViewSelect.value}`);
+        }
+        console.log(`[Settings Storage Listener] Event newValue: ${event.newValue}`);
+
+        if (event.newValue && defaultViewSelect && defaultViewSelect.value !== event.newValue) {
+            console.log(`[Settings Storage Listener] Value changed and dropdown exists. Checking options...`);
             const optionExists = [...defaultViewSelect.options].some(option => option.value === event.newValue);
+             console.log(`[Settings Storage Listener] Option ${event.newValue} exists: ${optionExists}`);
             if (optionExists) {
                 defaultViewSelect.value = event.newValue;
-                console.log('Updated settings default view dropdown.');
+                console.log(`[Settings Storage Listener] SUCCESS: Updated settings default view dropdown via storage event to ${event.newValue}.`);
             } else {
-                console.warn(`Storage event value (${event.newValue}) not found in dropdown options.`);
+                console.warn(`[Settings Storage Listener] Storage event value (${event.newValue}) not found in dropdown options.`);
             }
-        } else if (defaultViewSelect) {
-             console.log('Storage event value matches current dropdown selection, ignoring.');
+        } else if (!event.newValue) {
+            console.log(`[Settings Storage Listener] Ignoring event for ${targetKey} because newValue is null/empty.`);
+        } else if (!defaultViewSelect) {
+            console.log(`[Settings Storage Listener] Ignoring event for ${targetKey} because defaultViewSelect element not found.`);
+        } else {
+             console.log(`[Settings Storage Listener] Ignoring event for ${targetKey} because value hasn't changed (${defaultViewSelect.value} === ${event.newValue}).`);
         }
     }
+
+    // Add similar checks for other preferences if needed, e.g., dateFormat, currencySymbol
+    if (event.key === 'dateFormat') { // Simplified log for other keys
+        console.log(`[Settings Storage Listener] dateFormat changed to ${event.newValue}`);
+        if (event.newValue && dateFormatSelect && dateFormatSelect.value !== event.newValue) {
+            const optionExists = [...dateFormatSelect.options].some(option => option.value === event.newValue);
+            if (optionExists) {
+                dateFormatSelect.value = event.newValue;
+                console.log('[Settings Storage Listener] Updated settings date format dropdown via storage event.');
+            }
+        }
+    }
+
+    if (event.key === `${prefix}currencySymbol`) { // Simplified log for other keys
+         console.log(`[Settings Storage Listener] ${prefix}currencySymbol changed to ${event.newValue}`);
+         if (event.newValue && currencySymbolSelect && currencySymbolSelect.value !== event.newValue) {
+            // Handle standard vs custom symbol update
+             const standardOption = Array.from(currencySymbolSelect.options).find(opt => opt.value === event.newValue);
+             if (standardOption) {
+                 currencySymbolSelect.value = event.newValue;
+                 if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+                 console.log('[Settings Storage Listener] Updated settings currency dropdown via storage event.');
+             } else if (currencySymbolSelect.value !== 'other' || (currencySymbolCustom && currencySymbolCustom.value !== event.newValue)) {
+                 currencySymbolSelect.value = 'other';
+                 if (currencySymbolCustom) {
+                     currencySymbolCustom.value = event.newValue;
+                     currencySymbolCustom.style.display = 'inline-block';
+                 }
+                 console.log('[Settings Storage Listener] Updated settings currency dropdown to custom via storage event.');
+             }
+         }
+    }
+
+    // Add check for expiringSoonDays
+    if (event.key === `${prefix}expiringSoonDays`) { // Simplified log for other keys
+        console.log(`[Settings Storage Listener] ${prefix}expiringSoonDays changed to ${event.newValue}`);
+        if (event.newValue && expiringSoonDaysInput && expiringSoonDaysInput.value !== event.newValue) {
+            expiringSoonDaysInput.value = event.newValue;
+            console.log('[Settings Storage Listener] Updated settings expiring soon days input via storage event.');
+        }
+    }
+
 });
 // --- End Storage Event Listener ---
 

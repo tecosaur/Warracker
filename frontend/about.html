@@ -10,6 +10,8 @@
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
+    <link rel="manifest" href="manifest.json">
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="style.css"> <!-- Main stylesheet -->
@@ -23,6 +25,22 @@
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
     <script src="include-auth-new.js"></script> <!-- Handles auth state display -->
     <script src="fix-auth-buttons-loader.js"></script> <!-- Fixes auth button display timing -->
+    <script src="auth.js"></script> <!-- Load auth.js early for authentication check -->
+
+    <!-- Authentication Check -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if user is authenticated
+            const authToken = localStorage.getItem('auth_token');
+            const userInfo = localStorage.getItem('user_info');
+            
+            if (!authToken || !userInfo) {
+                // User is not authenticated, redirect to login page
+                window.location.href = 'login.html';
+                return;
+            }
+        });
+    </script>
 
 </head>
 <body>
@@ -88,7 +106,14 @@
             <div class="about-container" style="background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box;"> 
                 <h1 style="color: var(--primary-color); margin-bottom: 20px;">About Warracker</h1>
 
-                <p><strong>Version:</strong> v0.9.9.3</p>
+                <p><strong>Version:</strong> v0.9.9.4</p>
+
+                <div id="versionTracker" style="margin-bottom: 20px;">
+                    <p><strong>Update Status:</strong> <span id="updateStatus">Checking for updates...</span></p>
+                    <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer" style="display: none; color: var(--link-color);">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Release Notes
+                    </a>
+                </div>
 
                 <p>
                     <strong>GitHub Repository:</strong>
@@ -137,6 +162,7 @@
     <!-- Scripts loaded at the end of body -->
     <script src="auth.js"></script> <!-- Added for user menu and other auth interactions -->
     <script src="script.js"></script> <!-- Include main site script, might contain helpers -->
+    <script src="version-checker.js"></script> <!-- Version checker script -->
 
     <!-- Explicitly call setupUIEventListeners for this page -->
     <script>

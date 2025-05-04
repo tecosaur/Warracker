@@ -121,6 +121,11 @@ function checkAuthState() {
  * Update UI elements for authenticated user
  */
 function updateUIForAuthenticatedUser() {
+    // Fire a global event so other scripts (like script.js) can react to authentication being ready
+    setTimeout(() => {
+        console.log('[auth.js] Dispatching authStateReady event');
+        window.dispatchEvent(new Event('authStateReady'));
+    }, 0);
     console.log('auth.js: Updating UI for authenticated user');
     
     // Log the user data being used

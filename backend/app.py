@@ -24,10 +24,7 @@ import threading
 import json
 import csv  # Added for CSV import
 import io   # Added for CSV import
-try:  # Added for CSV import date calculation
-    from dateutil.relativedelta import relativedelta
-except ImportError:
-    relativedelta = None
+from dateutil.relativedelta import relativedelta
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)  # Enable CORS with credentials
@@ -768,15 +765,13 @@ def get_warranties():
     conn = None
     try:
         user_id = request.user['id']
-        is_admin = request.user['is_admin']
-        
+        # is_admin = request.user.get('is_admin', False) # Removed admin check
+
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # If admin, can see all warranties, otherwise only user's warranties
-            if is_admin:
-                cur.execute('SELECT * FROM warranties ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name')
-            else:
-                cur.execute('SELECT * FROM warranties WHERE user_id = %s ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name', (user_id,))
+            # Always fetch warranties belonging to the logged-in user
+            # Removed the if is_admin: block
+            cur.execute('SELECT * FROM warranties WHERE user_id = %s ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name', (user_id,))
                 
             warranties = cur.fetchall()
             columns = [desc[0] for desc in cur.description]
@@ -798,12 +793,12 @@ def get_warranties():
                 serial_numbers = [row[0] for row in cur.fetchall()]
                 warranty_dict['serial_numbers'] = serial_numbers
                 
-                # Get tags for this warranty
+                # Get tags for this warranty (show all associated tags the user can see via warranty access)
                 cur.execute('''
                     SELECT t.id, t.name, t.color
                     FROM tags t
                     JOIN warranty_tags wt ON t.id = wt.tag_id
-                    WHERE wt.warranty_id = %s
+                    WHERE wt.warranty_id = %s -- Removed user_id/is_admin filter here
                     ORDER BY t.name
                 ''', (warranty_id,))
                 tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
@@ -853,6 +848,7 @@ def add_warranty():
         product_url = request.form.get('product_url', '')
         user_id = request.user['id']
         notes = request.form.get('notes', '')
+        vendor = request.form.get('vendor', None)
         
         # Get tag IDs if provided
         tag_ids = []
@@ -881,11 +877,23 @@ def add_warranty():
             
         # Calculate expiration date only if not lifetime
         if not is_lifetime and warranty_years is not None:
+            # Decompose fractional years into years, months, days
             try:
-                from dateutil.relativedelta import relativedelta
-                expiration_date = purchase_date + relativedelta(years=warranty_years)
-            except ImportError:
-                expiration_date = purchase_date + timedelta(days=warranty_years * 365)  # Approximate
+                years_float = float(warranty_years)
+                total_months_float = years_float * 12
+                years_int = int(years_float)
+                remaining_months_float = total_months_float - (years_int * 12)
+                months_int = int(remaining_months_float)
+                # Approximate remaining days based on fraction of a month
+                remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12) 
+                days_int = int(round(remaining_days_float)) # Round to nearest day
+                
+                expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
+                logger.info(f"Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
+            except Exception as calc_err:
+                 logger.error(f"Error calculating expiration date from warranty_years={warranty_years}: {calc_err}")
+                 # Fallback or re-raise depending on desired behavior. Let's return error for now.
+                 return jsonify({"error": "Failed to calculate expiration date from warranty years"}), 500
         
         # Handle invoice file upload
         db_invoice_path = None
@@ -926,13 +934,13 @@ def add_warranty():
             cur.execute('''
                 INSERT INTO warranties (
                     product_name, purchase_date, warranty_years, expiration_date, 
-                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime, notes
+                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, warranty_years, expiration_date,
-                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime, notes
+                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -1039,7 +1047,6 @@ def update_warranty(warranty_id):
     try:
         user_id = request.user['id']
         is_admin = request.user['is_admin']
-        
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if warranty exists and belongs to the user
@@ -1047,37 +1054,34 @@ def update_warranty(warranty_id):
                 cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
             else:
                 cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', (warranty_id, user_id))
-                
             warranty = cur.fetchone()
-            
             if not warranty:
                 return jsonify({"error": "Warranty not found or you don't have permission to update it"}), 404
-            
+
+            # --- PATCH: Support JSON-only notes update ---
+            if request.is_json and 'notes' in request.json and len(request.json) == 1:
+                notes = request.json.get('notes', None)
+                cur.execute("UPDATE warranties SET notes = %s, updated_at = NOW() WHERE id = %s", (notes, warranty_id))
+                conn.commit()
+                return jsonify({"message": "Notes updated successfully"}), 200
+
+            # --- Otherwise, continue with the original (form-based) update logic ---
             # Validate input data similar to the add_warranty route
             if not request.form.get('product_name'):
                 return jsonify({"error": "Product name is required"}), 400
-                
             if not request.form.get('purchase_date'):
                 return jsonify({"error": "Purchase date is required"}), 400
-                
-            # --- Log received data ---
             logger.info(f"Received update request for warranty {warranty_id}")
             logger.info(f"Form data received: is_lifetime={request.form.get('is_lifetime')}, warranty_years={request.form.get('warranty_years')}")
-            
-            # --- Added: Get is_lifetime ---
             is_lifetime = request.form.get('is_lifetime', 'false').lower() == 'true'
             logger.info(f"Parsed is_lifetime as: {is_lifetime}")
-            
             purchase_date_str = request.form['purchase_date']
             try:
                 purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date() # Use .date()
             except ValueError:
                 return jsonify({"error": "Invalid date format for purchase date. Use YYYY-MM-DD"}), 400
-
             warranty_years = None
             expiration_date = None
-
-            # --- Modified: Conditional validation and calculation ---
             if not is_lifetime:
                 warranty_years_str = request.form.get('warranty_years')
                 if not warranty_years_str:
@@ -1086,26 +1090,27 @@ def update_warranty(warranty_id):
                     warranty_years = float(warranty_years_str)
                     if warranty_years < 0.1 or warranty_years > 100:
                         return jsonify({"error": "Warranty years must be between 0.1 and 100 for non-lifetime warranties"}), 400
-
-                    # Calculate expiration date precisely if possible, otherwise approximate
                     try:
-                        from dateutil.relativedelta import relativedelta
-                        expiration_date = purchase_date + relativedelta(years=warranty_years)
-                    except ImportError:
-                        expiration_date = purchase_date + timedelta(days=warranty_years * 365)
-
+                        years_float = float(warranty_years)
+                        total_months_float = years_float * 12
+                        years_int = int(years_float)
+                        remaining_months_float = total_months_float - (years_int * 12)
+                        months_int = int(remaining_months_float)
+                        remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12)
+                        days_int = int(round(remaining_days_float)) # Round to nearest day
+                        expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
+                        logger.info(f"Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
+                    except Exception as calc_err:
+                        logger.error(f"Error calculating expiration date from warranty_years={warranty_years}: {calc_err}")
+                        return jsonify({"error": "Failed to calculate expiration date from warranty years"}), 500
                 except ValueError:
                     return jsonify({"error": "Warranty years must be a valid number"}), 400
-            # else: warranty_years and expiration_date remain None for lifetime
-
-            # Process the data
+            logger.info(f"Calculated values: warranty_years={warranty_years}, expiration_date={expiration_date}")
             product_name = request.form['product_name']
-            # purchase_date_str = request.form['purchase_date'] # Moved up
             serial_numbers = request.form.getlist('serial_numbers')
             product_url = request.form.get('product_url', '')
             notes = request.form.get('notes', None)
-            
-            # Get tag IDs if provided
+            vendor = request.form.get('vendor', None)
             tag_ids = []
             if request.form.get('tag_ids'):
                 try:
@@ -1114,8 +1119,6 @@ def update_warranty(warranty_id):
                         return jsonify({"error": "tag_ids must be a JSON array"}), 400
                 except json.JSONDecodeError:
                     return jsonify({"error": "tag_ids must be a valid JSON array"}), 400
-            
-            # Handle purchase price (optional)
             purchase_price = None
             if request.form.get('purchase_price'):
                 try:
@@ -1124,19 +1127,14 @@ def update_warranty(warranty_id):
                         return jsonify({"error": "Purchase price cannot be negative"}), 400
                 except ValueError:
                     return jsonify({"error": "Purchase price must be a valid number"}), 400
-            
-            # Handle invoice file upload if new file is provided
             db_invoice_path = None
             if 'invoice' in request.files:
                 invoice = request.files['invoice']
                 if invoice.filename != '':
                     if not allowed_file(invoice.filename):
                         return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
-                        
-                    # First check if there's an existing invoice to delete
                     cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
                     old_invoice_path = cur.fetchone()[0]
-                    
                     if old_invoice_path:
                         full_path = os.path.join('/data', old_invoice_path)
                         if os.path.exists(full_path):
@@ -1145,16 +1143,12 @@ def update_warranty(warranty_id):
                                 logger.info(f"Deleted old invoice: {full_path}")
                             except Exception as e:
                                 logger.error(f"Error deleting old invoice: {e}")
-                    
-                    # Save new invoice
                     filename = secure_filename(invoice.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                     invoice_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    
                     invoice.save(invoice_path)
                     db_invoice_path = os.path.join('uploads', filename)
                     logger.info(f"New invoice uploaded: {db_invoice_path}")
-            # Handle invoice deletion if requested
             elif request.form.get('delete_invoice', 'false').lower() == 'true':
                 cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_invoice_path = cur.fetchone()[0]
@@ -1167,19 +1161,14 @@ def update_warranty(warranty_id):
                         except Exception as e:
                             logger.error(f"Error deleting invoice (delete request): {e}")
                 db_invoice_path = None  # Set to None to clear in DB
-
-            # Handle manual file upload if new file is provided
             db_manual_path = None
             if 'manual' in request.files:
                 manual = request.files['manual']
                 if manual.filename != '':
                     if not allowed_file(manual.filename):
                         return jsonify({"error": "File type not allowed. Use PDF, PNG, JPG, or JPEG"}), 400
-                        
-                    # First check if there's an existing manual to delete
                     cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
                     old_manual_path = cur.fetchone()[0]
-                    
                     if old_manual_path:
                         full_path = os.path.join('/data', old_manual_path)
                         if os.path.exists(full_path):
@@ -1188,16 +1177,12 @@ def update_warranty(warranty_id):
                                 logger.info(f"Deleted old manual: {full_path}")
                             except Exception as e:
                                 logger.error(f"Error deleting old manual: {e}")
-                    
-                    # Save new manual
                     filename = secure_filename(manual.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
                     manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    
                     manual.save(manual_path)
                     db_manual_path = os.path.join('uploads', filename)
                     logger.info(f"New manual uploaded: {db_manual_path}")
-            # Handle manual deletion if requested
             elif request.form.get('delete_manual', 'false').lower() == 'true':
                 cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_manual_path = cur.fetchone()[0]
@@ -1210,10 +1195,6 @@ def update_warranty(warranty_id):
                         except Exception as e:
                             logger.error(f"Error deleting manual (delete request): {e}")
                 db_manual_path = None  # Set to None to clear in DB
-
-            # Update the warranty in database - IMPORTANT: The database set operation needs to be updated
-            # Create a list of parameters for the UPDATE query
-            # --- Modified: Add is_lifetime, use potentially None values ---
             update_params = {
                 'product_name': product_name,
                 'purchase_date': purchase_date,
@@ -1221,52 +1202,34 @@ def update_warranty(warranty_id):
                 'warranty_years': warranty_years, # Will be None if lifetime
                 'expiration_date': expiration_date, # Will be None if lifetime
                 'product_url': product_url,
-                'purchase_price': purchase_price
+                'purchase_price': purchase_price,
+                'vendor': vendor
             }
-            
-            # Build dynamic SQL query based on which files have been uploaded or preserved
             sql_fields = []
             sql_values = []
-            
             for key, value in update_params.items():
                 sql_fields.append(f"{key} = %s")
                 sql_values.append(value)
-            # Add notes to the update fields before executing the SQL
             if notes is not None:
                 sql_fields.append("notes = %s")
                 sql_values.append(notes)
-            
-            # Only include invoice_path in the update if it's not None
             if db_invoice_path is not None:
                 sql_fields.append("invoice_path = %s")
                 sql_values.append(db_invoice_path)
             elif 'delete_invoice' in request.form and request.form.get('delete_invoice', 'false').lower() == 'true':
                 sql_fields.append("invoice_path = NULL")
-            
-            # Only include manual_path in the update if it's not None
             if db_manual_path is not None:
                 sql_fields.append("manual_path = %s")
                 sql_values.append(db_manual_path)
             elif 'delete_manual' in request.form and request.form.get('delete_manual', 'false').lower() == 'true':
                 sql_fields.append("manual_path = NULL")
-            
-            # --- Add updated_at to the SET clause --- 
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
-                
-            # Add the warranty_id at the end
             sql_values.append(warranty_id)
-            
-            # Execute the dynamic SQL update
             update_sql = f"UPDATE warranties SET {', '.join(sql_fields)} WHERE id = %s"
             cur.execute(update_sql, sql_values)
             logger.info(f"Updated warranty with SQL: {update_sql}")
             logger.info(f"Parameters: {sql_values}")
-            
-            # Update serial numbers
-            # First, delete existing serial numbers for this warranty
             cur.execute('DELETE FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
-            
-            # Then insert the new serial numbers
             if serial_numbers:
                 for serial_number in serial_numbers:
                     if serial_number.strip():  # Only insert non-empty serial numbers
@@ -1340,6 +1303,11 @@ def get_statistics():
         active_where = "AND"
 
         if not request.user.get('is_admin', False):
+            where_clause = "WHERE w.user_id = %s"
+            params = [user_id]
+            active_where = "AND"
+        else:
+            # Admin should only see their own warranties
             where_clause = "WHERE w.user_id = %s"
             params = [user_id]
             active_where = "AND"
@@ -1582,8 +1550,20 @@ def delete_account():
             # Delete user's reset tokens if any
             cursor.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
             
+            # Delete user's sessions if any
+            cur.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
+            sessions_deleted = cur.rowcount
+            logger.info(f"Deleted {sessions_deleted} sessions belonging to user {user_id}")
+
+            # Delete user's tags
+            cur.execute('DELETE FROM tags WHERE user_id = %s', (user_id,))
+            tags_deleted = cur.rowcount
+            logger.info(f"Deleted {tags_deleted} tags belonging to user {user_id}")
+
             # Delete user
             cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            user_deleted = cur.rowcount
+            logger.info(f"Deleted user {user_id}, affected rows: {user_deleted}")
             
             # Commit transaction
             cursor.execute("COMMIT")
@@ -1641,56 +1621,74 @@ def get_preferences():
                 conn.commit()
                 logger.info(f"Created user_preferences table")
             has_currency = has_currency_symbol_column(cursor)
+
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='user_preferences' AND column_name='date_format'")
+            has_date_format_col = cursor.fetchone() is not None
+
+            # Build select list dynamically
+            select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
             if has_currency:
-                cursor.execute(
-                    """
-                    SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
-                    FROM user_preferences
-                    WHERE user_id = %s
-                    """,
-                    (user_id,)
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
-                    FROM user_preferences
-                    WHERE user_id = %s
-                    """,
-                    (user_id,)
-                )
+                select_fields_list.append("currency_symbol")
+            if has_date_format_col:
+                select_fields_list.append("date_format") # Add date_format if column exists
+            select_fields = ", ".join(select_fields_list)
+
+            cursor.execute(
+                f"""
+                SELECT {select_fields}
+                FROM user_preferences
+                WHERE user_id = %s
+                """,
+                (user_id,)
+            )
             preferences_data = cursor.fetchone()
+            
             if not preferences_data:
+                # Build insert list dynamically
+                insert_cols_list = ["user_id", "email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+                insert_vals = [user_id, True, 'grid', 'light', 30, 'daily', '09:00', 'UTC']
                 if has_currency:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol)
-                        VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC', '$')
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
-                        """,
-                        (user_id,)
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_preferences (user_id, email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone)
-                        VALUES (%s, TRUE, 'grid', 'light', 30, 'daily', '09:00', 'UTC')
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
-                        """,
-                        (user_id,)
-                    )
+                    insert_cols_list.append("currency_symbol")
+                    insert_vals.append('$')
+                if has_date_format_col:
+                    insert_cols_list.append("date_format")
+                    insert_vals.append('MDY') # Default date format
+                
+                insert_cols = ", ".join(insert_cols_list)
+                insert_vals_placeholders = ", ".join(["%s"] * len(insert_cols_list))
+                return_fields = insert_cols # Return the same columns we inserted
+
+                cursor.execute(
+                    f"""
+                    INSERT INTO user_preferences ({insert_cols})
+                    VALUES ({insert_vals_placeholders})
+                    RETURNING {return_fields}
+                    """,
+                    tuple(insert_vals)
+                )
                 preferences_data = cursor.fetchone()
                 conn.commit()
-            preferences = {
-                'email_notifications': preferences_data[0],
-                'default_view': preferences_data[1],
-                'theme': preferences_data[2],
-                'expiring_soon_days': preferences_data[3],
-                'notification_frequency': preferences_data[4],
-                'notification_time': preferences_data[5],
-                'timezone': preferences_data[6] if len(preferences_data) > 6 else 'UTC',
-                'currency_symbol': preferences_data[7] if has_currency and len(preferences_data) > 7 and preferences_data[7] else '$'
-            }
+            
+            # Map returned data to dictionary using the dynamically determined fields
+            returned_columns = [col.strip() for col in select_fields.split(',')]
+            if preferences_data:
+                pref_map = {col: i for i, col in enumerate(returned_columns)}
+                preferences = {
+                    'email_notifications': preferences_data[pref_map.get('email_notifications', 0)],
+                    'default_view': preferences_data[pref_map.get('default_view', 1)],
+                    'theme': preferences_data[pref_map.get('theme', 2)],
+                    'expiring_soon_days': preferences_data[pref_map.get('expiring_soon_days', 3)],
+                    'notification_frequency': preferences_data[pref_map.get('notification_frequency', 4)],
+                    'notification_time': preferences_data[pref_map.get('notification_time', 5)],
+                    'timezone': preferences_data[pref_map.get('timezone', 6)],
+                    'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$', # Handle currency optionality
+                    'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY' # Handle date_format optionality
+                }
+            else:
+                 # Fallback if even insert failed or returned nothing
+                 preferences = default_preferences.copy()
+                 preferences['date_format'] = 'MDY' # Ensure date_format is in fallback
+
             return jsonify(preferences), 200
         except Exception as e:
             conn.rollback()
@@ -1739,6 +1737,8 @@ def update_preferences():
         notification_time = data.get('notification_time')
         timezone = data.get('timezone')
         currency_symbol = data.get('currency_symbol')
+        date_format = data.get('date_format')
+
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
         if theme and theme not in ['light', 'dark']:
@@ -1756,46 +1756,26 @@ def update_preferences():
             return jsonify({'message': 'Invalid notification time format'}), 400
         if timezone and not is_valid_timezone(timezone):
             return jsonify({'message': 'Invalid timezone'}), 400
+        
+        # Add validation for date_format
+        valid_date_formats = ['MDY', 'DMY', 'YMD', 'MDY_WORDS', 'DMY_WORDS', 'YMD_WORDS']
+        if date_format and date_format not in valid_date_formats:
+            return jsonify({'message': 'Invalid date format'}), 400
+
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'user_preferences'
-                )
-            """)
-            table_exists = cursor.fetchone()[0]
-            if not table_exists:
-                cursor.execute("""
-                    CREATE TABLE user_preferences (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-                        default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
-                        theme VARCHAR(10) NOT NULL DEFAULT 'light',
-                        expiring_soon_days INTEGER NOT NULL DEFAULT 30,
-                        notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
-                        notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
-                        timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
-                        currency_symbol VARCHAR(8) DEFAULT '$',
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                        UNIQUE(user_id)
-                    )
-                """)
-                cursor.execute("""
-                    CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
-                """)
-                preferences_exist = False
-                conn.commit()
-                logger.info(f"Created user_preferences table")
+            # Check if date_format column exists first to handle dynamic schema changes
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='user_preferences' AND column_name='date_format'")
+            has_date_format_col = cursor.fetchone() is not None
             has_currency = has_currency_symbol_column(cursor)
+            
             cursor.execute(
                 "SELECT 1 FROM user_preferences WHERE user_id = %s",
                 (user_id,)
             )
             preferences_exist = cursor.fetchone() is not None
+
             if preferences_exist:
                 update_fields = []
                 update_values = []
@@ -1823,10 +1803,20 @@ def update_preferences():
                 if has_currency and currency_symbol is not None:
                     update_fields.append("currency_symbol = %s")
                     update_values.append(currency_symbol)
+                # Add date_format to update only if the column exists
+                if has_date_format_col and date_format:
+                    update_fields.append("date_format = %s")
+                    update_values.append(date_format)
+                
                 if update_fields:
-                    return_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone"
+                    # Build the returning fields string dynamically based on existing columns
+                    return_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
                     if has_currency:
-                        return_fields += ", currency_symbol"
+                        return_fields_list.append("currency_symbol")
+                    if has_date_format_col:
+                        return_fields_list.append("date_format")
+                    return_fields = ", ".join(return_fields_list)
+
                     update_query = f"""
                         UPDATE user_preferences 
                         SET {', '.join(update_fields)}
@@ -1836,9 +1826,14 @@ def update_preferences():
                     cursor.execute(update_query, update_values + [user_id])
                     preferences_data = cursor.fetchone()
                 else:
-                    select_fields = "email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone"
+                    # If no fields to update, select existing data
+                    select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
                     if has_currency:
-                        select_fields += ", currency_symbol"
+                        select_fields_list.append("currency_symbol")
+                    if has_date_format_col:
+                        select_fields_list.append("date_format")
+                    select_fields = ", ".join(select_fields_list)
+                    
                     cursor.execute(
                         f"""
                         SELECT {select_fields}
@@ -1848,78 +1843,56 @@ def update_preferences():
                         (user_id,)
                     )
                     preferences_data = cursor.fetchone()
-            else:
+            else: # Insert new record
+                # Build insert dynamically
+                insert_cols_list = ["user_id", "email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+                insert_vals = [
+                    user_id,
+                    email_notifications if email_notifications is not None else True,
+                    default_view or 'grid',
+                    theme or 'light',
+                    expiring_soon_days if expiring_soon_days is not None else 30,
+                    notification_frequency or 'daily',
+                    notification_time or '09:00',
+                    timezone or 'UTC'
+                ]
                 if has_currency:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_preferences (
-                            user_id, 
-                            email_notifications, 
-                            default_view, 
-                            theme,
-                            expiring_soon_days,
-                            notification_frequency,
-                            notification_time,
-                            timezone,
-                            currency_symbol
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone, currency_symbol
-                        """,
-                        (
-                            user_id,
-                            email_notifications if email_notifications is not None else True,
-                            default_view or 'grid',
-                            theme or 'light',
-                            expiring_soon_days if expiring_soon_days is not None else 30,
-                            notification_frequency or 'daily',
-                            notification_time or '09:00',
-                            timezone or 'UTC',
-                            currency_symbol or '$'
-                        )
-                    )
-                else:
-                    cursor.execute(
-                        """
-                        INSERT INTO user_preferences (
-                            user_id, 
-                            email_notifications, 
-                            default_view, 
-                            theme,
-                            expiring_soon_days,
-                            notification_frequency,
-                            notification_time,
-                            timezone
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING email_notifications, default_view, theme, expiring_soon_days, notification_frequency, notification_time, timezone
-                        """,
-                        (
-                            user_id,
-                            email_notifications if email_notifications is not None else True,
-                            default_view or 'grid',
-                            theme or 'light',
-                            expiring_soon_days if expiring_soon_days is not None else 30,
-                            notification_frequency or 'daily',
-                            notification_time or '09:00',
-                            timezone or 'UTC'
-                        )
-                    )
-                preferences_data = cursor.fetchone()
-            preferences = {
-                'email_notifications': preferences_data[0],
-                'default_view': preferences_data[1],
-                'theme': preferences_data[2],
-                'expiring_soon_days': preferences_data[3],
-                'notification_frequency': preferences_data[4],
-                'notification_time': preferences_data[5],
-                'timezone': preferences_data[6] if len(preferences_data) > 6 else 'UTC',
-                # Use parentheses for line continuation
-                'currency_symbol': (
-                    currency_symbol if has_currency and currency_symbol is not None
-                    else (preferences_data[7] if has_currency and len(preferences_data) > 7 and preferences_data[7] else '$')
+                    insert_cols_list.append("currency_symbol")
+                    insert_vals.append(currency_symbol or '$')
+                if has_date_format_col:
+                    insert_cols_list.append("date_format")
+                    insert_vals.append(date_format or 'MDY')
+
+                insert_cols = ", ".join(insert_cols_list)
+                insert_vals_placeholders = ", ".join(["%s"] * len(insert_cols_list))
+                return_fields = insert_cols # Return the same columns we inserted
+                
+                cursor.execute(
+                    f"""
+                    INSERT INTO user_preferences ({insert_cols})
+                    VALUES ({insert_vals_placeholders})
+                    RETURNING {return_fields}
+                    """,
+                    tuple(insert_vals)
                 )
+                preferences_data = cursor.fetchone()
+            
+            # Map returned data to dictionary using the dynamically determined fields
+            returned_columns = [col.strip() for col in return_fields.split(',')]
+            pref_map = {col: i for i, col in enumerate(returned_columns)}
+
+            preferences = {
+                'email_notifications': preferences_data[pref_map.get('email_notifications', 0)], # Default index 0 might be risky, but needed if column is missing
+                'default_view': preferences_data[pref_map.get('default_view', 1)],
+                'theme': preferences_data[pref_map.get('theme', 2)],
+                'expiring_soon_days': preferences_data[pref_map.get('expiring_soon_days', 3)],
+                'notification_frequency': preferences_data[pref_map.get('notification_frequency', 4)],
+                'notification_time': preferences_data[pref_map.get('notification_time', 5)],
+                'timezone': preferences_data[pref_map.get('timezone', 6)],
+                'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$', # Handle currency optionality
+                'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY' # Handle date_format optionality
             }
+
             conn.commit()
             return jsonify(preferences), 200
         except Exception as e:
@@ -1933,7 +1906,8 @@ def update_preferences():
                 'notification_frequency': notification_frequency or 'daily',
                 'notification_time': notification_time or '09:00',
                 'timezone': timezone or 'UTC',
-                'currency_symbol': currency_symbol or '$'
+                'currency_symbol': currency_symbol or '$',
+                'date_format': date_format or 'MDY' # Add to fallback
             }
             return jsonify(fallback_preferences), 200
         finally:
@@ -2083,7 +2057,12 @@ def delete_user(user_id):
             cur.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
             sessions_deleted = cur.rowcount
             logger.info(f"Deleted {sessions_deleted} sessions belonging to user {user_id}")
-            
+
+            # Delete user's tags
+            cur.execute('DELETE FROM tags WHERE user_id = %s', (user_id,))
+            tags_deleted = cur.rowcount
+            logger.info(f"Deleted {tags_deleted} tags belonging to user {user_id}")
+
             # Delete user
             cur.execute('DELETE FROM users WHERE id = %s', (user_id,))
             user_deleted = cur.rowcount
@@ -2334,6 +2313,7 @@ def get_expiring_warranties():
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT
+                    u.id, -- Select user_id
                     u.email,
                     u.first_name,
                     w.product_name,
@@ -2355,9 +2335,10 @@ def get_expiring_warranties():
 
             expiring_warranties = []
             for row in cur.fetchall():
-                email, first_name, product_name, expiration_date, expiring_soon_days = row
+                user_id, email, first_name, product_name, expiration_date, expiring_soon_days = row # Include user_id
                 expiration_date_str = expiration_date.strftime('%Y-%m-%d')
                 expiring_warranties.append({
+                    'user_id': user_id, # Add user_id to the dict
                     'email': email,
                     'first_name': first_name or 'User',  # Default if first_name is NULL
                     'product_name': product_name,
@@ -2621,7 +2602,7 @@ def send_expiration_notifications(manual_trigger=False):
                         return
                     
                     # Check if we should send notifications based on time and timezone
-                    users_for_current_time = []
+                    users_to_notify_now = set() # Changed variable name and type to set
                     for user in eligible_users:
                         user_id, email, first_name, notification_time, timezone, frequency = user
                         
@@ -2674,23 +2655,23 @@ def send_expiration_notifications(manual_trigger=False):
                                         # Only send if it's been more than 10 minutes since the last notification
                                         # (longer than the 5-minute scheduler interval)
                                         if now_timestamp - last_sent > 600:
-                                            users_for_current_time.append(user_id)
+                                            users_to_notify_now.add(user_id) # Add user_id to the set
                                             logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
                                         else:
                                             logger.info(f"Skipping notification for {email} - already sent within the last 10 minutes (last sent: {datetime.fromtimestamp(last_sent).strftime('%Y-%m-%d %H:%M:%S')})")
                                     else:
-                                        users_for_current_time.append(user_id)
+                                        users_to_notify_now.add(user_id) # Add user_id to the set
                                         logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
                         
                         except Exception as e:
                             logger.error(f"Error processing timezone for user {email}: {e}")
                             continue
                     
-                    if not users_for_current_time:
+                    if not users_to_notify_now: # Check the set now
                         logger.info("No users are scheduled for notifications at their local time")
                         return
                     
-                    logger.info(f"Found {len(users_for_current_time)} users eligible for notifications now")
+                    logger.info(f"Found {len(users_to_notify_now)} users eligible for notifications now")
             except Exception as e:
                 logger.error(f"Error determining notification eligibility: {e}")
                 return
@@ -2706,9 +2687,11 @@ def send_expiration_notifications(manual_trigger=False):
         # Group warranties by user
         users_warranties = {}
         for warranty in expiring_warranties:
+            user_id = warranty['user_id'] # Get user_id
             email = warranty['email']
             if email not in users_warranties:
                 users_warranties[email] = {
+                    'user_id': user_id, # Store user_id
                     'first_name': warranty['first_name'],
                     'warranties': []
                 }
@@ -2744,6 +2727,12 @@ def send_expiration_notifications(manual_trigger=False):
             
             emails_sent = 0
             for email, user_data in users_warranties.items():
+                # ---> ADD CHECK HERE <-----
+                user_id_to_check = user_data.get('user_id')
+                if not manual_trigger and user_id_to_check not in users_to_notify_now:
+                    logger.debug(f"Skipping email for {email} (user_id: {user_id_to_check}) - not in current notification window.")
+                    continue # Skip sending if not in the set for scheduled notifications
+                
                 # For manual triggers, check if we've sent recently
                 if manual_trigger and email in last_notification_sent:
                     last_sent = last_notification_sent[email]
@@ -2982,12 +2971,16 @@ def debug_file_check():
 @app.route('/api/tags', methods=['GET'])
 @token_required
 def get_tags():
-    """Get all tags"""
+    """Get tags based on user role."""
     conn = None
     try:
+        user_id = request.user['id']
+        
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute('SELECT id, name, color, created_at FROM tags ORDER BY name')
+            # Fetch tags created by the currently logged-in user
+            cur.execute('SELECT id, name, color, created_at FROM tags WHERE user_id = %s ORDER BY name', (user_id,))
+            
             tags = cur.fetchall()
             
             result = []
@@ -2997,6 +2990,7 @@ def get_tags():
                     'name': tag[1],
                     'color': tag[2],
                     'created_at': tag[3].isoformat() if tag[3] else None
+                    # Removed is_admin_tag comment
                 })
             
             return jsonify(result), 200
@@ -3010,9 +3004,10 @@ def get_tags():
 @app.route('/api/tags', methods=['POST'])
 @token_required
 def create_tag():
-    """Create a new tag"""
+    """Create a new tag owned by the requesting user."""
     conn = None
     try:
+        user_id = request.user['id'] # Get user ID
         data = request.json
         
         if not data or 'name' not in data:
@@ -3030,17 +3025,18 @@ def create_tag():
         
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if tag with this name already exists
-            cur.execute('SELECT id FROM tags WHERE name = %s', (name,))
+            # Check if tag with this name already exists FOR THIS USER
+            cur.execute('SELECT id FROM tags WHERE name = %s AND user_id = %s', (name, user_id)) # Added user_id check
             existing_tag = cur.fetchone()
             
             if existing_tag:
-                return jsonify({"error": "A tag with this name already exists"}), 409
+                 # Differentiate error message slightly
+                return jsonify({"error": f"A tag with this name already exists for your account"}), 409 # Updated error message
             
-            # Create new tag
+            # Create new tag, setting user_id
             cur.execute(
-                'INSERT INTO tags (name, color) VALUES (%s, %s) RETURNING id',
-                (name, color)
+                'INSERT INTO tags (name, color, user_id) VALUES (%s, %s, %s) RETURNING id', # Added user_id
+                (name, color, user_id) # Pass user_id here
             )
             tag_id = cur.fetchone()[0]
             conn.commit()
@@ -3063,7 +3059,8 @@ def create_tag():
 @app.route('/api/tags/<int:tag_id>', methods=['PUT'])
 @token_required
 def update_tag(tag_id):
-    """Update an existing tag"""
+    """Update an existing tag, ensuring user can only update their own type of tag."""
+    user_id = request.user['id']
     data = request.get_json()
     new_name = data.get('name')
     new_color = data.get('color')
@@ -3079,17 +3076,24 @@ def update_tag(tag_id):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if tag exists
-            cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+            # Check if tag exists AND belongs to the user
+            cur.execute('SELECT id, user_id FROM tags WHERE id = %s', (tag_id,)) # Check user_id
             tag = cur.fetchone()
             if not tag:
                 return jsonify({"error": "Tag not found"}), 404
                 
-            # Check if new name conflicts with another tag
-            cur.execute('SELECT id FROM tags WHERE name = %s AND id != %s', (new_name, tag_id))
+            tag_user_id = tag[1]
+            if tag_user_id != user_id:
+                # Prevent user from updating tag they don't own
+                return jsonify({"error": "Permission denied to update this tag"}), 403
+                
+            # Check if new name conflicts with another tag FOR THIS USER
+            cur.execute('SELECT id FROM tags WHERE name = %s AND id != %s AND user_id = %s', 
+                        (new_name, tag_id, user_id)) # Added user_id check
             existing = cur.fetchone()
             if existing:
-                return jsonify({"error": "A tag with this name already exists"}), 409
+                # tag_type = "admin" if is_admin_updater else "user" # Removed
+                return jsonify({"error": f"Another tag with this name already exists for your account"}), 409 # Updated error message
                 
             # Update the tag
             cur.execute('UPDATE tags SET name = %s, color = %s, updated_at = NOW() WHERE id = %s RETURNING id, name, color', 
@@ -3110,21 +3114,25 @@ def update_tag(tag_id):
             release_db_connection(conn)
 
 @app.route('/api/tags/<int:tag_id>', methods=['DELETE'])
-@token_required # Or @admin_required if only admins should delete tags
+@token_required 
 def delete_tag_endpoint(tag_id):
-    """Delete a tag and its associations"""
+    """Delete a tag owned by the requesting user and its associations."""
+    user_id = request.user['id'] # Get user ID
     conn = None
     try:
-        # Check if the user has permission (you might want admin_required here)
-        # For now, just check if logged in using token_required
-
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if tag exists
-            cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
+            # Check if tag exists AND belongs to the user
+            cur.execute('SELECT id, user_id FROM tags WHERE id = %s', (tag_id,)) # Check user_id
             tag = cur.fetchone()
             if not tag:
                 return jsonify({"error": "Tag not found"}), 404
+            
+            tag_user_id = tag[1]
+            # Only allow deletion if the user owns the tag
+            if tag_user_id != user_id:
+                 # Prevent users from deleting tags they don't own
+                return jsonify({"error": "Permission denied to delete this tag"}), 403
 
             # Delete associations from warranty_tags first
             cur.execute('DELETE FROM warranty_tags WHERE tag_id = %s', (tag_id,))
@@ -3148,30 +3156,36 @@ def delete_tag_endpoint(tag_id):
 @app.route('/api/warranties/<int:warranty_id>/tags', methods=['GET'])
 @token_required
 def get_warranty_tags(warranty_id):
-    """Get all tags associated with a specific warranty"""
+    # """Get tags associated with a specific warranty, filtered by user role.""" # Docstring update needed
+    """Get tags associated with a specific warranty."""
     conn = None
     try:
         user_id = request.user['id']
-        is_admin = request.user['is_admin']
+        # is_admin = request.user.get('is_admin', False) # Removed
         
         conn = get_db_connection()
         with conn.cursor() as cur:
             # First check if the warranty exists and user has access to it
-            if is_admin:
-                cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
-            else:
-                cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
-                          (warranty_id, user_id))
+            # Simplified check: just check if warranty exists and belongs to the user
+            cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
+                      (warranty_id, user_id))
             
             if cur.fetchone() is None:
-                return jsonify({"error": "Warranty not found or you don't have permission to access it"}), 404
+                # Add admin check here if admins should be able to see tags for any warranty
+                is_admin = request.user.get('is_admin', False)
+                if is_admin:
+                    cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
+                    if cur.fetchone() is None:
+                        return jsonify({"error": "Warranty not found"}), 404
+                else:
+                     return jsonify({"error": "Warranty not found or you don't have permission to access it"}), 404
             
-            # Get tags for this warranty
+            # Get tags for this warranty (show all associated tags)
             cur.execute('''
                 SELECT t.id, t.name, t.color, t.created_at
                 FROM tags t
                 JOIN warranty_tags wt ON t.id = wt.tag_id
-                WHERE wt.warranty_id = %s
+                WHERE wt.warranty_id = %s -- Removed user_id/is_admin filter
                 ORDER BY t.name
             ''', (warranty_id,))
             
@@ -3197,11 +3211,12 @@ def get_warranty_tags(warranty_id):
 @app.route('/api/warranties/<int:warranty_id>/tags', methods=['POST'])
 @token_required
 def add_tags_to_warranty(warranty_id):
-    """Add tags to a warranty"""
+    # """Add tags to a warranty, ensuring tags match user role.""" # Docstring update needed
+    """Add tags owned by the user to a warranty they own."""
     conn = None
     try:
         user_id = request.user['id']
-        is_admin = request.user['is_admin']
+        # is_admin = request.user.get('is_admin', False) # Removed
         
         data = request.json
         if not data or 'tag_ids' not in data:
@@ -3213,32 +3228,56 @@ def add_tags_to_warranty(warranty_id):
         
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # First check if the warranty exists and user has access to it
-            if is_admin:
-                cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
-            else:
-                cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
-                          (warranty_id, user_id))
+            # First check if the warranty exists and user has access to it (owns it)
+            cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', 
+                      (warranty_id, user_id))
             
             if cur.fetchone() is None:
-                return jsonify({"error": "Warranty not found or you don't have permission to modify it"}), 404
+                 # Add admin check here if admins should modify any warranty tags
+                is_admin = request.user.get('is_admin', False)
+                if is_admin:
+                    cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
+                    if cur.fetchone() is None:
+                         return jsonify({"error": "Warranty not found"}), 404
+                    # Allow admin to proceed even if they don't own it
+                else:
+                    return jsonify({"error": "Warranty not found or you don't have permission to modify it"}), 404
             
-            # Remove existing tags
+            # Validate tags before removing/adding
+            valid_tag_ids = []
+            if tag_ids: # Only validate if there are tags to add
+                # Check if all provided tag IDs exist AND belong to the user
+                placeholders = ', '.join(['%s'] * len(tag_ids))
+                # Ensure the tags being added are owned by the user adding them
+                sql = f'SELECT id, user_id FROM tags WHERE id IN ({placeholders}) AND user_id = %s' 
+                cur.execute(sql, tag_ids + [user_id]) # Check against current user_id
+                found_tags = cur.fetchall()
+                
+                found_tag_map = {tag[0]: tag[1] for tag in found_tags}
+                
+                for tag_id in tag_ids:
+                    if tag_id not in found_tag_map: # This check also implicitly confirms ownership due to the query change
+                        conn.rollback() # Ensure transaction consistency
+                        return jsonify({"error": f"Tag with ID {tag_id} not found or not owned by you"}), 404
+                    # Removed the old is_admin check
+                    # if found_tag_map[tag_id] != is_admin: 
+                    #     conn.rollback()
+                    #     tag_type_required = "admin" if is_admin else "user"
+                    #     return jsonify({"error": f"Tag with ID {tag_id} is not a valid {tag_type_required} tag"}), 403
+                    valid_tag_ids.append(tag_id) # Keep track of validated tags
+            
+            # Remove ALL existing tags before adding new ones for simplicity
+            # The old logic only removed tags of the same "type", which is no longer relevant
             cur.execute('DELETE FROM warranty_tags WHERE warranty_id = %s', (warranty_id,))
             
-            # Add new tags
-            for tag_id in tag_ids:
-                # Verify tag exists
-                cur.execute('SELECT id FROM tags WHERE id = %s', (tag_id,))
-                if cur.fetchone() is None:
-                    conn.rollback()
-                    return jsonify({"error": f"Tag with ID {tag_id} not found"}), 404
-                
-                # Add tag to warranty
-                cur.execute(
-                    'INSERT INTO warranty_tags (warranty_id, tag_id) VALUES (%s, %s)',
-                    (warranty_id, tag_id)
-                )
+            # Add new (validated) tags
+            if valid_tag_ids:
+                values_placeholder = ', '.join(['(%s, %s)'] * len(valid_tag_ids))
+                sql = f'INSERT INTO warranty_tags (warranty_id, tag_id) VALUES {values_placeholder}'
+                params = []
+                for tag_id in valid_tag_ids:
+                    params.extend([warranty_id, tag_id])
+                cur.execute(sql, params)
             
             conn.commit()
             return jsonify({"message": "Tags updated successfully"}), 200
@@ -3257,7 +3296,7 @@ EXPECTED_CSV_HEADERS = [
     'PurchasePrice', 'SerialNumber', 'ProductURL'
 ]
 # Add Tags as an optional header
-OPTIONAL_CSV_HEADERS = ['WarrantyYears', 'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags']
+OPTIONAL_CSV_HEADERS = ['WarrantyYears', 'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor'] # Added Vendor
 REQUIRED_CSV_HEADERS = ['ProductName', 'PurchaseDate']
 
 @app.route('/api/warranties/import', methods=['POST'])
@@ -3317,6 +3356,7 @@ def import_warranties():
                     serial_numbers_str = row.get('SerialNumber', '').strip()
                     product_url = row.get('ProductURL', '').strip()
                     tags_str = row.get('Tags', '').strip() # Get Tags string
+                    vendor = row.get('Vendor', '').strip() # Extract Vendor
 
                     if not product_name:
                         errors.append("ProductName is required.")
@@ -3356,10 +3396,23 @@ def import_warranties():
 
                     # Calculate expiration date if valid
                     if not errors and not is_lifetime and warranty_years and purchase_date:
-                         if relativedelta:
-                             expiration_date = purchase_date + relativedelta(years=warranty_years)
-                         else:
-                             expiration_date = purchase_date + timedelta(days=warranty_years * 365) # Approximate
+                        # Decompose fractional years into years, months, days
+                        try:
+                            years_float = float(warranty_years)
+                            total_months_float = years_float * 12
+                            years_int = int(years_float)
+                            remaining_months_float = total_months_float - (years_int * 12)
+                            months_int = int(remaining_months_float)
+                            # Approximate remaining days based on fraction of a month
+                            remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12) 
+                            days_int = int(round(remaining_days_float)) # Round to nearest day
+                            
+                            expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
+                            logger.info(f"[Import] Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
+                        except Exception as calc_err:
+                            logger.error(f"[Import] Error calculating expiration date for row {row_number} from warranty_years={warranty_years}: {calc_err}")
+                            errors.append("Failed to calculate expiration date from WarrantyYears.")
+                            expiration_date = None # Ensure expiration_date is None if calculation fails
 
                     # Split serial numbers
                     serial_numbers = [sn.strip() for sn in serial_numbers_str.split(',') if sn.strip()] if serial_numbers_str else []
@@ -3369,10 +3422,11 @@ def import_warranties():
                     if tags_str:
                         tag_names = [name.strip() for name in tags_str.split(',') if name.strip()]
                         if tag_names:
-                            # Find existing tag IDs (case-insensitive)
+                            # Find existing tag IDs (case-insensitive) for THIS USER
                             placeholders = ', '.join(['%s'] * len(tag_names))
-                            sql = f"SELECT id, LOWER(name) FROM tags WHERE LOWER(name) IN ({placeholders})"
-                            cur.execute(sql, [name.lower() for name in tag_names])
+                            # Include user_id in the lookup
+                            sql = f"SELECT id, LOWER(name) FROM tags WHERE LOWER(name) IN ({placeholders}) AND user_id = %s"
+                            cur.execute(sql, [name.lower() for name in tag_names] + [user_id]) # Add user_id to params
                             existing_tags = {name_lower: tag_id for tag_id, name_lower in cur.fetchall()}
                             
                             processed_tag_ids = []
@@ -3387,24 +3441,25 @@ def import_warranties():
                                     if name_lower not in [t['name_lower'] for t in tags_to_create]:
                                         tags_to_create.append({'name': name, 'name_lower': name_lower})
                             
-                            # Create tags that don't exist
+                            # Create tags that don't exist for this user
                             if tags_to_create:
                                 default_color = '#808080' # Default color for new tags
                                 for tag_data in tags_to_create:
                                     try:
-                                        # Insert new tag with default color, preserving original case for name
+                                        # Insert new tag with default color, preserving original case for name, AND user_id
                                         cur.execute(
-                                            "INSERT INTO tags (name, color) VALUES (%s, %s) RETURNING id",
-                                            (tag_data['name'], default_color)
+                                            "INSERT INTO tags (name, color, user_id) VALUES (%s, %s, %s) RETURNING id",
+                                            (tag_data['name'], default_color, user_id) # Add user_id
                                         )
                                         new_tag_id = cur.fetchone()[0]
                                         processed_tag_ids.append(new_tag_id)
-                                        logger.info(f"Created new tag '{(tag_data['name'])}' with ID {new_tag_id} during CSV import.")
+                                        logger.info(f"Created new tag '{(tag_data['name'])}' with ID {new_tag_id} for user {user_id} during CSV import.")
                                     except Exception as tag_insert_err:
-                                        # If tag creation fails (e.g., unique constraint conflict due to race condition), log and potentially add error
-                                        logger.error(f"Error creating tag '{(tag_data['name'])}' during import: {tag_insert_err}")
+                                        # If tag creation fails (e.g., unique constraint conflict due to race condition),
+                                        # ensure the constraint includes user_id
+                                        logger.error(f"Error creating tag '{(tag_data['name'])}' for user {user_id} during import: {tag_insert_err}")
                                         # Attempt to fetch the ID again in case it was created by another process
-                                        cur.execute("SELECT id FROM tags WHERE LOWER(name) = %s", (tag_data['name_lower'],))
+                                        cur.execute("SELECT id FROM tags WHERE LOWER(name) = %s AND user_id = %s", (tag_data['name_lower'], user_id))
                                         existing_id_result = cur.fetchone()
                                         if existing_id_result:
                                             processed_tag_ids.append(existing_id_result[0])
@@ -3438,13 +3493,13 @@ def import_warranties():
                     cur.execute("""
                         INSERT INTO warranties (
                             product_name, purchase_date, warranty_years, expiration_date, 
-                            product_url, purchase_price, user_id, is_lifetime
+                            product_url, purchase_price, user_id, is_lifetime, vendor
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         product_name, purchase_date, warranty_years, expiration_date,
-                        product_url, purchase_price, user_id, is_lifetime
+                        product_url, purchase_price, user_id, is_lifetime, vendor
                     ))
                     warranty_id = cur.fetchone()[0]
 
