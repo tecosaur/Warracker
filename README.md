@@ -168,7 +168,7 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
 
 ### Adding a Warranty
 
-1.  Fill in the product details on the left panel.
+1.  Click add new warranty button then fill in the product details .
 2.  Enter the purchase date and warranty duration.
 3.  Optionally upload receipt/documentation.
 4.  Click the "Add Warranty" button.
