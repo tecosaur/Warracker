@@ -1,21 +1,28 @@
 # Start with Python base image
-FROM python:3.9-slim-buster
+FROM python:3.12-slim-bookworm
 
-# Install nginx, postgresql-client, supervisor and dependencies
+# Install build tools, dev headers, nginx, etc.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
         nginx \
         curl \
         postgresql-client \
-        supervisor \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+        supervisor && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# (build-essential = C compiler + tools)
+# (libpq-dev      = provides pg_config for psycopg2)
 
-# Ensure nginx runs in the foreground for Supervisor
+
+# Ensure nginx runs in foreground
 RUN sed -i '1i daemon off;' /etc/nginx/nginx.conf
 
-# Set working directory
 WORKDIR /app
+
+# (Optional) Upgrade pip to latest
+RUN pip install --no-cache-dir --upgrade pip
 
 # Install Python dependencies
 COPY backend/requirements.txt .

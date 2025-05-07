@@ -71,6 +71,38 @@
   .table-view .product-name-header .action-btn i {
     color: #FFFFFF; /* White icon color */
   }
+
+  /* Dark mode styles for tags */
+  .tag {
+    background-color: var(--medium-gray); /* e.g., #404040 */
+    color: var(--text-color); /* e.g., #e0e0e0 */
+    box-shadow: 0 1px 2px var(--shadow-color); /* Softer shadow for dark mode */
+  }
+
+  .tag .remove-tag {
+    background-color: rgba(255, 255, 255, 0.1); /* Light transparent background for the 'x' button */
+    color: var(--text-color); /* Light color for the 'x' icon */
+  }
+
+  .tag .remove-tag:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Slightly more opaque on hover */
+  }
+
+  /* Dark mode styles for filter select options */
+  .filter-select option,
+  .filter-select option:hover,
+  .filter-select option:focus {
+    background-color: var(--input-background);
+    color: var(--text-color);
+  }
+
+  /* Dark mode styles for filter select options - using !important to override browser defaults */
+  .filter-select option,
+  .filter-select option:hover,
+  .filter-select option:focus {
+    background-color: var(--input-background) !important;
+    color: var(--text-color) !important;
+  }
 }
 
 body {

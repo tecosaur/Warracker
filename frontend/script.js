@@ -3316,11 +3316,13 @@ function populateTagFilter() {
         .sort((a, b) => a.name.localeCompare(b.name));
     
     // Add options to the dropdown
+    // Add options to the dropdown
     sortedTags.forEach(tag => {
         const option = document.createElement('option');
         option.value = tag.id;
-        option.textContent = tag.name;
-        option.style.backgroundColor = tag.color;
+        option.textContent = tag.name; // Reverted to textContent
+        // Apply background color directly for now, acknowledging potential contrast issues
+        // option.style.backgroundColor = tag.color; // Removed to prevent individual option background colors
         tagFilter.appendChild(option);
     });
 }

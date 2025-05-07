@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.9.5] - 2025-05-07
+
+### Changed
+- **Header Branding Improvement:**
+  - Made the "Warracker" text in the header of the Status, Settings, and About pages a clickable link to the home page (`index.html`) for improved navigation and consistency.
+  _Files: `frontend/status.html`, `frontend/settings-new.html`, `frontend/about.html`_
+
+- **Tag Dropdown Color Removal:**
+  - Removed all background and text colours from the tags dropdown in both dark mode and light mode for a cleaner, more consistent appearance.
+  _Files: `frontend/style.css`, `frontend/script.js`, and any related tag dropdown CSS/JS._
+
+- **Docker Base Image Update:**
+  - Updated the `Dockerfile` to use Python 3.12 and Debian 12 (bookworm) as the base image for the container, ensuring improved compatibility and security.
+  _File: `Dockerfile`_
+
+
 ## [0.9.9.4] - 2025-05-04
 
 ### Fixed
