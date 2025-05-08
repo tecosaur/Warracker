@@ -2707,7 +2707,6 @@ def send_expiration_notifications(manual_trigger=False):
         try:
             # Use SMTP_SSL for port 465, regular SMTP for other ports
             if smtp_port == 465:
-                import smtplib
                 logger.info(f"Using SMTP_SSL connection for port 465")
                 server = smtplib.SMTP_SSL(smtp_host, smtp_port)
             else:
