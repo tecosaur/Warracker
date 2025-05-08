@@ -120,7 +120,7 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 
 ```
-  services:
+services:
   warracker:
     image: ghcr.io/sassanix/warracker/main:latest
     ports:
