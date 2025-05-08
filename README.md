@@ -245,15 +245,31 @@ warracker/
 *   **Connection Refused Error**:  Ensure all containers are running (`docker-compose ps`). Verify the backend is correctly connected to the database.
 *   **Database Errors**: If schema issues arise, double-check that the database initialization script (`init.sql`) matches the expected schema in `app.py`.
 
+---
+
 ## 🤝 Contributing
 
-Contributions are welcome! We encourage you to submit a Pull Request.
+We welcome contributions and appreciate your interest in improving this project! To get started, please follow these steps:
 
-1.  Fork the repository.
-2.  Create your feature branch (`git checkout -b feature/amazing-feature`).
-3.  Commit your changes (`git commit -m 'Add some amazing feature'`).
-4.  Push to the branch (`git push origin feature/amazing-feature`).
-5.  Open a Pull Request.
+### How to Contribute
+
+1. **Fork** the repository.
+2. **Create a branch** for your changes:
+   `git checkout -b feature/amazing-feature`
+3. **Commit** your changes:
+   `git commit -m "Add: amazing feature"`
+4. **Push** to your forked repository:
+   `git push origin feature/amazing-feature`
+5. **Open a Pull Request** with a clear explanation of your changes.
+
+### 📌 Contribution Guidelines
+
+* **Start with an issue**: Before submitting a Pull Request, ensure the change has been discussed in an issue.
+* **Help is welcome**: Check the [issues](../../issues) for open discussions or areas where help is needed.
+* **Keep it focused**: Each Pull Request should focus on a single change or feature.
+* **Follow project style**: Match the project's code style and naming conventions.
+* **Be respectful**: We value inclusive and constructive collaboration.
+
 
 ## 📜 License
 
