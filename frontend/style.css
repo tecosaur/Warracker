@@ -1711,7 +1711,7 @@ tr.status-expiring {
     border-top: 1px solid var(--border-color);
 }
 
-.invoice-link, .manual-link, .product-link, .notes-link { /* Added .notes-link here */
+.invoice-link, .manual-link, .product-link, .notes-link, .other-document-link { /* Added .notes-link here */
     display: inline-flex; /* Remove !important */
     align-items: center !important; /* Keep important if needed for vertical icon align */
     color: var(--primary-color) !important; /* Keep appearance */
@@ -1726,12 +1726,12 @@ tr.status-expiring {
     white-space: nowrap !important; /* Keep appearance */
 }
 
-.invoice-link i, .manual-link i, .product-link i, .notes-link i { /* Added .notes-link here */
+.invoice-link i, .manual-link i, .product-link i, .notes-link i, .other-document-link i { /* Added .notes-link here */
     margin-right: 5px !important;
     font-size: 1rem !important;
 }
 
-.invoice-link:hover, .manual-link:hover, .product-link:hover, .notes-link:hover {
+.invoice-link:hover, .manual-link:hover, .product-link:hover, .notes-link:hover, .other-document-link:hover {
     text-decoration: none !important;
     background-color: var(--medium-gray) !important;
     color: var(--primary-dark) !important;
@@ -2707,26 +2707,27 @@ input.invalid {
 }
 
 @media (max-width: 768px) {
-    .edit-tabs-nav {
-        justify-content: space-between;
-    }
-    
-    .edit-tab-btn {
-        padding: 0.5rem;
-        font-size: 0.85rem;
-    }
-    
-    .edit-tab-btn i {
-        margin-right: 0.25rem;
-    }
+  .document-links-row .notes-link,
+  .document-links-row .invoice-link,
+  .document-links-row .manual-link,
+  .document-links-row .product-link,
+  .document-links-row .other-document-link {
+    margin-right: 5px !important;
+    margin-left: 0 !important;
+  }
 }
 
-#editModal .modal-body {
-    background-color: var(--modal-background, #ffffff);
-    padding: 1.5rem;
-    padding-top: 0.5rem;
-    max-height: 70vh;
-    overflow-y: auto;
+@media (max-width: 768px) {
+  .document-links-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 5px !important;
+  }
+  .invoice-link, .manual-link, .product-link, .notes-link, .other-document-link {
+    width: auto !important;
+    justify-content: center !important;
+  }
 }
 
 .edit-tab-content {
@@ -2953,11 +2954,42 @@ input.invalid {
     accent-color: var(--primary-color);
 }
 
-/* Style for the warranty years group when hidden */
-#warrantyYearsGroup[style*="display: none"],
-#editWarrantyYearsGroup[style*="display: none"] {
+/* Style for the warranty duration fields container */
+.duration-inputs {
+    display: flex;
+    gap: 15px; /* Adjust spacing between inputs */
+    align-items: flex-start; /* Align items to the top */
+}
+
+.duration-inputs > div {
+    flex: 1; /* Allow each input group to take equal space */
+    display: flex;
+    flex-direction: column; /* Stack input and label vertically */
+    align-items: center; /* Center items horizontally within their div */
+}
+
+.duration-inputs input[type="number"].form-control {
+    text-align: center; /* Center the number inside the input */
+    margin-bottom: 5px; /* Space between input and label */
+    /* Inherits padding, border, etc. from .form-control */
+}
+
+.duration-inputs small {
+    font-size: 0.85rem;
+    color: var(--dark-gray);
+}
+
+/* Style for the warranty duration group when hidden (due to lifetime checkbox) */
+#warrantyDurationFields[style*="display: none"],
+#editWarrantyDurationFields[style*="display: none"] {
     opacity: 0.5;
     transition: opacity 0.3s ease;
+    /* Optionally add height transition if needed */
+    /* max-height: 0; */
+    /* overflow: hidden; */
+    /* padding-top: 0; */
+    /* padding-bottom: 0; */
+    /* margin-bottom: 0; */
 }
 
 /* Add CSS for the tags cell in table view */

@@ -320,9 +320,24 @@
                                     </div>
                                     <!-- End Lifetime Checkbox -->
                                     
-                                    <div class="form-group" id="warrantyYearsGroup">
-                                        <label for="warrantyYears">Warranty Period (Years)</label>
-                                        <input type="number" id="warrantyYears" name="warranty_years" class="form-control" min="0.1" max="100" step="any" required>
+                                    <div id="warrantyDurationFields">
+                                        <div class="form-group">
+                                            <label for="warrantyDurationYears">Warranty Period</label>
+                                            <div class="duration-inputs">
+                                                <div>
+                                                    <input type="number" id="warrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" placeholder="Years">
+                                                    <small>Years</small>
+                                                </div>
+                                                <div>
+                                                    <input type="number" id="warrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" placeholder="Months">
+                                                    <small>Months</small>
+                                                </div>
+                                                <div>
+                                                    <input type="number" id="warrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" placeholder="Days">
+                                                    <small>Days</small>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <div class="form-group">
@@ -359,6 +374,16 @@
                                             <input type="file" id="manual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                                         </div>
                                         <div id="manualFileName" class="file-name"></div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Files (ZIP/RAR, Optional)</label>
+                                        <div class="file-input-wrapper">
+                                            <label for="otherDocument" class="file-input-label">
+                                                <i class="fas fa-upload"></i> Choose File
+                                            </label>
+                                            <input type="file" id="otherDocument" name="other_document" class="file-input" accept=".zip,.rar">
+                                        </div>
+                                        <div id="otherDocumentFileName" class="file-name"></div>
                                     </div>
                                 </div>
                                 <!-- Tags Tab -->
@@ -417,7 +442,7 @@
                                             </div>
                                             <div class="summary-item">
                                                 <span class="summary-label">Warranty Period:</span>
-                                                <span id="summary-warranty-years" class="summary-value">-</span>
+                                                <span id="summary-warranty-duration" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
                                                 <span class="summary-label">Purchase Price:</span>
@@ -433,6 +458,10 @@
                                             <div class="summary-item">
                                                 <span class="summary-label">Product Manual:</span>
                                                 <span id="summary-manual" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Files:</span>
+                                                <span id="summary-other-document" class="summary-value">-</span>
                                             </div>
                                         </div>
                                         <div class="summary-section">
@@ -535,9 +564,24 @@
                         </div>
                         <!-- End Lifetime Checkbox -->
                         
-                        <div class="form-group" id="editWarrantyYearsGroup">
-                            <label for="editWarrantyYears">Warranty Period (Years)</label>
-                            <input type="number" id="editWarrantyYears" name="warranty_years" class="form-control" min="0.1" max="100" step="any" required>
+                        <div id="editWarrantyDurationFields">
+                            <div class="form-group">
+                                <label for="editWarrantyDurationYears">Warranty Period</label>
+                                <div class="duration-inputs">
+                                    <div>
+                                        <input type="number" id="editWarrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" placeholder="Years">
+                                        <small>Years</small>
+                                    </div>
+                                    <div>
+                                        <input type="number" id="editWarrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" placeholder="Months">
+                                        <small>Months</small>
+                                    </div>
+                                    <div>
+                                        <input type="number" id="editWarrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" placeholder="Days">
+                                        <small>Days</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-group">
@@ -578,6 +622,18 @@
                             <div id="editManualFileName" class="file-name"></div>
                             <div id="currentManual" class="mt-10"></div>
                             <button type="button" id="deleteManualBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Manual</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Files (ZIP/RAR, Optional)</label>
+                            <div class="file-input-wrapper">
+                                <label for="editOtherDocument" class="file-input-label">
+                                    <i class="fas fa-upload"></i> Choose File
+                                </label>
+                                <input type="file" id="editOtherDocument" name="other_document" class="file-input" accept=".zip,.rar">
+                            </div>
+                            <div id="editOtherDocumentFileName" class="file-name"></div>
+                            <div id="currentOtherDocument" class="mt-10"></div>
+                            <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Files</button>
                         </div>
                     </div>
                     

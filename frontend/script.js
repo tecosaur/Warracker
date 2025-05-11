@@ -42,6 +42,8 @@ const fileInput = document.getElementById('invoice');
 const fileName = document.getElementById('fileName');
 const manualInput = document.getElementById('manual');
 const manualFileName = document.getElementById('manualFileName');
+const otherDocumentInput = document.getElementById('otherDocument'); 
+const otherDocumentFileName = document.getElementById('otherDocumentFileName'); 
 const editModal = document.getElementById('editModal');
 const deleteModal = document.getElementById('deleteModal');
 const editWarrantyForm = document.getElementById('editWarrantyForm');
@@ -69,15 +71,21 @@ const existingTagsContainer = document.getElementById('existingTags');
 
 // --- Add near other DOM Element declarations ---
 const isLifetimeCheckbox = document.getElementById('isLifetime');
-const warrantyYearsGroup = document.getElementById('warrantyYearsGroup');
-const warrantyYearsInput = document.getElementById('warrantyYears');
+const warrantyDurationFields = document.getElementById('warrantyDurationFields'); // New container
+const warrantyDurationYearsInput = document.getElementById('warrantyDurationYears');
+const warrantyDurationMonthsInput = document.getElementById('warrantyDurationMonths');
+const warrantyDurationDaysInput = document.getElementById('warrantyDurationDays');
+
 const editIsLifetimeCheckbox = document.getElementById('editIsLifetime');
-const editWarrantyYearsGroup = document.getElementById('editWarrantyYearsGroup');
-const editWarrantyYearsInput = document.getElementById('editWarrantyYears');
+const editWarrantyDurationFields = document.getElementById('editWarrantyDurationFields'); // New container
+const editWarrantyDurationYearsInput = document.getElementById('editWarrantyDurationYears');
+const editWarrantyDurationMonthsInput = document.getElementById('editWarrantyDurationMonths');
+const editWarrantyDurationDaysInput = document.getElementById('editWarrantyDurationDays');
 
 // Add near other DOM Element declarations
 const showAddWarrantyBtn = document.getElementById('showAddWarrantyBtn');
 const addWarrantyModal = document.getElementById('addWarrantyModal');
+const serialNumbersContainer = document.getElementById('serialNumbersContainer'); // Ensure this is defined
 
 /**
  * Get current user type (admin or user)
@@ -165,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupModalTriggers();
 
     // Initialize Tag functionality (assuming tag elements exist)
-    if (document.getElementById('tagSearchInput')) {
+    if (document.getElementById('tagSearch')) { // Check for tagSearch instead of non-existent tagSearchInput
         initTagFunctionality();
         loadTags();
     }
@@ -243,8 +251,8 @@ let formTabs = []; // Changed from const to let, initialized as empty
 // Removed const tabContentsElements = document.querySelectorAll('.tab-content');
 // Removed tabContents assignment here
 
-const nextButton = document.querySelector('.next-tab'); // Keep these if needed globally, otherwise might remove
-const prevButton = document.querySelector('.prev-tab'); // Keep these if needed globally, otherwise might remove
+// const nextButton = document.querySelector('.next-tab'); // Keep these if needed globally, otherwise might remove
+// const prevButton = document.querySelector('.prev-tab'); // Keep these if needed globally, otherwise might remove
 
 // --- Add near other DOM Element declarations ---
     // ... existing code ...
@@ -270,7 +278,10 @@ const prevButton = document.querySelector('.prev-tab'); // Keep these if needed 
                 formData.append('purchase_date', (notesModalWarrantyObj.purchase_date || '').split('T')[0]);
                 formData.append('is_lifetime', notesModalWarrantyObj.is_lifetime ? 'true' : 'false');
                 if (!notesModalWarrantyObj.is_lifetime) {
-                    formData.append('warranty_years', notesModalWarrantyObj.warranty_years || '');
+                    // Append duration components instead of warranty_years
+                    formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
+                    formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
+                    formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
                 }
                 if (notesModalWarrantyObj.product_url) {
                     formData.append('product_url', notesModalWarrantyObj.product_url);
@@ -281,11 +292,12 @@ const prevButton = document.querySelector('.prev-tab'); // Keep these if needed 
                 if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
                     notesModalWarrantyObj.serial_numbers.forEach(sn => {
                         if (sn && sn.trim() !== '') {
-                            formData.append('serial_numbers', sn);
+                            formData.append('serial_numbers[]', sn); // Use [] for arrays
                         }
                     });
-                } else if (!formData.has('serial_numbers')) {
-                    formData.append('serial_numbers', JSON.stringify([]));
+                } else if (!formData.has('serial_numbers[]')) {
+                    // Send empty array if none exist
+                    // formData.append('serial_numbers[]', ''); // Sending empty string might not work as expected, better to not send if empty
                 }
                 if (notesModalWarrantyObj.tags && Array.isArray(notesModalWarrantyObj.tags)) {
                     const tagIds = notesModalWarrantyObj.tags.map(tag => tag.id);
@@ -615,34 +627,23 @@ function updateSummary() {
     
     // --- Handle Lifetime in Summary ---
     const isLifetime = isLifetimeCheckbox ? isLifetimeCheckbox.checked : false;
-    const warrantyYears = warrantyYearsInput ? warrantyYearsInput.value : null;
-    const summaryWarrantyYears = document.getElementById('summary-warranty-years');
+    const summaryWarrantyDuration = document.getElementById('summary-warranty-duration'); // Use new ID
 
-    if (summaryWarrantyYears) {
+    if (summaryWarrantyDuration) {
         if (isLifetime) {
-            summaryWarrantyYears.textContent = 'Lifetime';
-        } else if (warrantyYears) {
-            const yearsNum = parseFloat(warrantyYears);
-            summaryWarrantyYears.textContent = `${yearsNum} ${yearsNum === 1 ? 'year' : 'years'}`;
+            summaryWarrantyDuration.textContent = 'Lifetime';
         } else {
-            summaryWarrantyYears.textContent = '-';
+            const years = parseInt(warrantyDurationYearsInput?.value || 0);
+            const months = parseInt(warrantyDurationMonthsInput?.value || 0);
+            const days = parseInt(warrantyDurationDaysInput?.value || 0);
+            
+            let durationParts = [];
+            if (years > 0) durationParts.push(`${years} year${years !== 1 ? 's' : ''}`);
+            if (months > 0) durationParts.push(`${months} month${months !== 1 ? 's' : ''}`);
+            if (days > 0) durationParts.push(`${days} day${days !== 1 ? 's' : ''}`);
+            
+            summaryWarrantyDuration.textContent = durationParts.length > 0 ? durationParts.join(', ') : '-';
         }
-    }
-    
-    // Calculate and display expiration date
-    const summaryExpirationDate = document.getElementById('summary-expiration-date');
-    if (summaryExpirationDate && purchaseDateStr && warrantyYears) {
-        const expirationDate = new Date(Date.UTC(parseInt(purchaseDateStr.split('-')[0]), parseInt(purchaseDateStr.split('-')[1]) - 1, parseInt(purchaseDateStr.split('-')[2])));
-        const yearsNum = parseFloat(warrantyYears);
-        if (!isNaN(yearsNum)) {
-            expirationDate.setFullYear(expirationDate.getFullYear() + Math.floor(yearsNum));
-            expirationDate.setMonth(expirationDate.getMonth() + Math.round((yearsNum % 1) * 12));
-            summaryExpirationDate.textContent = expirationDate.toLocaleDateString();
-        } else {
-            summaryExpirationDate.textContent = '-';
-        }
-    } else if (summaryExpirationDate) {
-        summaryExpirationDate.textContent = '-';
     }
     
     // Purchase price
@@ -667,6 +668,13 @@ function updateSummary() {
         summaryManual.textContent = manualFile ? 
             manualFile.name : 'No file selected';
     }
+
+    const otherDocumentFile = document.getElementById('otherDocument')?.files[0]; 
+    const summaryOtherDocument = document.getElementById('summary-other-document'); 
+    if (summaryOtherDocument) { 
+        summaryOtherDocument.textContent = otherDocumentFile ? 
+            otherDocumentFile.name : 'No file selected'; 
+    } 
     
     // Tags
     const summaryTags = document.getElementById('summary-tags');
@@ -726,6 +734,7 @@ function resetForm() {
     // Clear any file input displays
     fileName.textContent = '';
     manualFileName.textContent = '';
+    if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
 }
 
 async function exportWarranties() {
@@ -769,8 +778,8 @@ async function exportWarranties() {
     // Create CSV content
     let csvContent = "data:text/csv;charset=utf-8,";
     
-    // Add headers
-    csvContent += "Product Name,Purchase Date,Warranty Period,Expiration Date,Status,Serial Numbers,Tags,Vendor\n";
+    // Add headers - Updated for duration components
+    csvContent += "ProductName,PurchaseDate,IsLifetime,WarrantyDurationYears,WarrantyDurationMonths,WarrantyDurationDays,ExpirationDate,Status,PurchasePrice,SerialNumber,ProductURL,Tags,Vendor\n";
     
     // Add data rows
     warrantiesToExport.forEach(warranty => {
@@ -784,14 +793,19 @@ async function exportWarranties() {
             ? warranty.tags.map(tag => tag.name).join(', ')
             : '';
         
-        // Format row data
+        // Format row data - Updated for duration components
         const row = [
             warranty.product_name || '',
             formatDate(new Date(warranty.purchase_date)),
-            `${warranty.warranty_years || 0} ${warranty.warranty_years === 1 ? 'year' : 'years'}`,
-            formatDate(new Date(warranty.expiration_date)),
+            warranty.is_lifetime ? 'TRUE' : 'FALSE',
+            warranty.warranty_duration_years || 0,
+            warranty.warranty_duration_months || 0,
+            warranty.warranty_duration_days || 0,
+            warranty.is_lifetime ? '' : formatDate(new Date(warranty.expiration_date)), // Expiration date empty for lifetime
             warranty.status || '',
+            warranty.purchase_price || '',
             serialNumbers,
+            warranty.product_url || '',
             tags,
             warranty.vendor || ''
         ];
@@ -1122,6 +1136,10 @@ function processWarrantyData(warranty) {
         processedWarranty.status = 'active';
         processedWarranty.statusText = 'Lifetime';
         processedWarranty.daysRemaining = Infinity;
+        // Ensure duration components are 0 for lifetime
+        processedWarranty.warranty_duration_years = 0;
+        processedWarranty.warranty_duration_months = 0;
+        processedWarranty.warranty_duration_days = 0;
     } else if (processedWarranty.expirationDate && !isNaN(processedWarranty.expirationDate.getTime())) {
         // Existing logic for dated warranties
         const expirationDateOnly = new Date(processedWarranty.expirationDate);
@@ -1330,7 +1348,7 @@ function formatDate(date) {
     const dayPadded = day.toString().padStart(2, '0');
 
     // Abbreviated month names
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthAbbr = monthNames[monthIndex];
 
@@ -1410,7 +1428,22 @@ async function renderWarranties(warrantiesToRender) {
         const isLifetime = warranty.is_lifetime;
         const statusClass = warranty.status || 'unknown';
         const statusText = warranty.statusText || 'Unknown Status';
-        const warrantyYearsText = isLifetime ? 'Lifetime' : (warranty.warranty_years !== undefined ? `${warranty.warranty_years} ${warranty.warranty_years === 1 ? 'year' : 'years'}` : 'N/A');
+        // Format warranty duration text
+        let warrantyDurationText = 'N/A';
+        if (isLifetime) {
+            warrantyDurationText = 'Lifetime';
+        } else {
+            const years = warranty.warranty_duration_years || 0;
+            const months = warranty.warranty_duration_months || 0;
+            const days = warranty.warranty_duration_days || 0;
+            let parts = [];
+            if (years > 0) parts.push(`${years} year${years !== 1 ? 's' : ''}`);
+            if (months > 0) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
+            if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+            if (parts.length > 0) {
+                warrantyDurationText = parts.join(', ');
+            }
+        }
         const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
@@ -1455,7 +1488,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="warranty-content">
                     <div class="warranty-info">
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Warranty: <span>${warrantyYearsText}</span></div>
+                        <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
@@ -1486,6 +1519,10 @@ async function renderWarranties(warrantiesToRender) {
                         ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                             <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                                 <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
+                                <i class="fas fa-file-alt"></i> Files
                             </a>` : ''}
                         ${notesLinkHtml}
                     </div>
@@ -1509,7 +1546,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="warranty-content">
                     <div class="warranty-info">
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Warranty: <span>${warrantyYearsText}</span></div>
+                        <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
@@ -1540,6 +1577,10 @@ async function renderWarranties(warrantiesToRender) {
                         ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                             <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                                 <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
+                                <i class="fas fa-file-alt"></i> Files
                             </a>` : ''}
                         ${notesLinkHtml}
                     </div>
@@ -1583,6 +1624,10 @@ async function renderWarranties(warrantiesToRender) {
                         ${warranty.manual_path && warranty.manual_path !== 'null' ? `
                             <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
                                 <i class="fas fa-book"></i> Manual
+                            </a>` : ''}
+                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
+                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
+                                <i class="fas fa-file-alt"></i> Files
                             </a>` : ''}
                         ${notesLinkHtml}
                     </div>
@@ -1728,7 +1773,11 @@ function openEditModal(warranty) {
     document.getElementById('editProductName').value = warranty.product_name;
     document.getElementById('editProductUrl').value = warranty.product_url || '';
     document.getElementById('editPurchaseDate').value = warranty.purchase_date.split('T')[0];
-    document.getElementById('editWarrantyYears').value = warranty.warranty_years;
+    // Populate new duration fields
+    document.getElementById('editWarrantyDurationYears').value = warranty.warranty_duration_years || 0;
+    document.getElementById('editWarrantyDurationMonths').value = warranty.warranty_duration_months || 0;
+    document.getElementById('editWarrantyDurationDays').value = warranty.warranty_duration_days || 0;
+    
     document.getElementById('editPurchasePrice').value = warranty.purchase_price || '';
     document.getElementById('editVendor').value = warranty.vendor || '';
     
@@ -1839,12 +1888,40 @@ function openEditModal(warranty) {
             deleteManualBtn.style.display = 'none';
         };
     }
+
+    // Show current other document if exists
+    const currentOtherDocumentElement = document.getElementById('currentOtherDocument'); 
+    const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
+    if (currentOtherDocumentElement && deleteOtherDocumentBtn) { 
+        if (warranty.other_document_path && warranty.other_document_path !== 'null') { 
+            currentOtherDocumentElement.innerHTML = ` 
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current other document: 
+                    <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
+                    (Upload a new file to replace)
+                </span>
+            `; 
+            deleteOtherDocumentBtn.style.display = ''; 
+        } else { 
+            currentOtherDocumentElement.innerHTML = '<span>No other document uploaded</span>'; 
+            deleteOtherDocumentBtn.style.display = 'none'; 
+        } 
+        // Reset delete state
+        deleteOtherDocumentBtn.dataset.delete = 'false'; 
+        deleteOtherDocumentBtn.onclick = function() { 
+            deleteOtherDocumentBtn.dataset.delete = 'true'; 
+            currentOtherDocumentElement.innerHTML = '<span class="text-danger">Other document will be deleted on save</span>'; 
+            deleteOtherDocumentBtn.style.display = 'none'; 
+        }; 
+    } 
     
     // Reset file inputs
     document.getElementById('editInvoice').value = '';
     document.getElementById('editManual').value = '';
+    document.getElementById('editOtherDocument').value = ''; 
     document.getElementById('editFileName').textContent = '';
     document.getElementById('editManualFileName').textContent = '';
+    document.getElementById('editOtherDocumentFileName').textContent = ''; 
     
     // Initialize file input event listeners
     const editInvoiceInput = document.getElementById('editInvoice');
@@ -1860,6 +1937,13 @@ function openEditModal(warranty) {
             updateFileName(event, 'editManual', 'editManualFileName');
         });
     }
+
+    const editOtherDocumentInput = document.getElementById('editOtherDocument'); 
+    if (editOtherDocumentInput) { 
+        editOtherDocumentInput.addEventListener('change', function(event) { 
+            updateFileName(event, 'editOtherDocument', 'editOtherDocumentFileName'); 
+        }); 
+    } 
     
     // Show edit modal
     const modalBackdrop = document.getElementById('editModal');
@@ -1940,8 +2024,8 @@ function openEditModal(warranty) {
         });
     });
 
-    // --- Set Lifetime Checkbox and Toggle Years Input ---
-    if (editIsLifetimeCheckbox && editWarrantyYearsGroup && editWarrantyYearsInput) {
+    // --- Set Lifetime Checkbox and Toggle Duration Fields ---
+    if (editIsLifetimeCheckbox && editWarrantyDurationFields) {
         editIsLifetimeCheckbox.checked = warranty.is_lifetime || false;
         handleEditLifetimeChange(); // Call handler to set initial state
 
@@ -1950,10 +2034,18 @@ function openEditModal(warranty) {
         // Add new listener
         editIsLifetimeCheckbox.addEventListener('change', handleEditLifetimeChange);
 
-        // Set years value only if NOT lifetime
-        editWarrantyYearsInput.value = warranty.is_lifetime ? '' : (warranty.warranty_years || '');
+        // Set duration values only if NOT lifetime
+        if (!warranty.is_lifetime) {
+            document.getElementById('editWarrantyDurationYears').value = warranty.warranty_duration_years || 0;
+            document.getElementById('editWarrantyDurationMonths').value = warranty.warranty_duration_months || 0;
+            document.getElementById('editWarrantyDurationDays').value = warranty.warranty_duration_days || 0;
+        } else {
+            document.getElementById('editWarrantyDurationYears').value = '';
+            document.getElementById('editWarrantyDurationMonths').value = '';
+            document.getElementById('editWarrantyDurationDays').value = '';
+        }
     } else {
-        console.error("Lifetime warranty elements not found in edit form");
+        console.error("Lifetime warranty elements or duration fields not found in edit form");
     }
 
     // Set notes
@@ -1996,6 +2088,10 @@ function validateFileSize(formData, maxSizeMB = 32) {
     if (formData.has('manual') && formData.get('manual').size > 0) {
         totalSize += formData.get('manual').size;
     }
+
+    if (formData.has('other_document') && formData.get('other_document').size > 0) { 
+        totalSize += formData.get('other_document').size; 
+    }
     
     // Convert bytes to MB for comparison and display
     const totalSizeMB = totalSize / (1024 * 1024);
@@ -2015,16 +2111,25 @@ function validateFileSize(formData, maxSizeMB = 32) {
 }
 
 // Submit form function - event handler for form submit
-function submitForm(event) {
+function handleFormSubmit(event) { // Renamed from submitForm
     event.preventDefault();
     
-    // --- Add Lifetime Check ---
-    if (!isLifetimeCheckbox.checked && (!warrantyYearsInput.value || parseFloat(warrantyYearsInput.value) <= 0)) {
-        showToast('Warranty period (years) is required and must be greater than 0 unless it\'s a lifetime warranty', 'error');
+    const isLifetime = isLifetimeCheckbox.checked;
+    const years = parseInt(warrantyDurationYearsInput.value || 0);
+    const months = parseInt(warrantyDurationMonthsInput.value || 0);
+    const days = parseInt(warrantyDurationDaysInput.value || 0);
+
+    // --- Updated Lifetime Check ---
+    if (!isLifetime && years === 0 && months === 0 && days === 0) {
+        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
         switchToTab(1); // Switch to warranty details tab
-        warrantyYearsInput.focus();
-        warrantyYearsInput.classList.add('invalid');
+        // Optionally focus the first duration input
+        if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
+        // Add invalid class to the container or individual inputs if needed
+        if (warrantyDurationFields) warrantyDurationFields.classList.add('invalid-duration'); // Example
         return;
+    } else {
+         if (warrantyDurationFields) warrantyDurationFields.classList.remove('invalid-duration');
     }
     
     // Validate all tabs
@@ -2039,11 +2144,21 @@ function submitForm(event) {
     // Create form data object
     const formData = new FormData(warrantyForm);
     
-    // Add serial numbers to form data
-    const serialInputs = document.querySelectorAll('#serialNumbersContainer input');
+    // Remove old warranty_years if it exists in formData (it shouldn't if HTML is correct)
+    formData.delete('warranty_years'); 
+    
+    // Append new duration fields (already handled by FormData constructor if names match)
+    // formData.append('warranty_duration_years', years);
+    // formData.append('warranty_duration_months', months);
+    // formData.append('warranty_duration_days', days);
+    
+    // Add serial numbers to form data (using correct name 'serial_numbers[]')
+    const serialInputs = document.querySelectorAll('#serialNumbersContainer input[name="serial_numbers[]"]');
+    // Clear existing serial_numbers[] from formData before appending new ones
+    formData.delete('serial_numbers[]'); 
     serialInputs.forEach(input => {
         if (input.value.trim()) {
-            formData.append('serial_numbers', input.value.trim());
+            formData.append('serial_numbers[]', input.value.trim()); // Use [] for arrays
         }
     });
     
@@ -2051,12 +2166,27 @@ function submitForm(event) {
     if (selectedTags && selectedTags.length > 0) {
         const tagIds = selectedTags.map(tag => tag.id);
         formData.append('tag_ids', JSON.stringify(tagIds));
+    } else {
+        formData.append('tag_ids', JSON.stringify([])); // Send empty array if no tags
     }
     
     // --- Ensure is_lifetime is correctly added ---
+    // FormData already includes it if the checkbox is checked. If not checked, it's omitted.
+    // We need to explicitly add 'false' if it's not checked.
     if (!isLifetimeCheckbox.checked) {
         formData.append('is_lifetime', 'false');
+    } else {
+        // Ensure duration fields are 0 if lifetime is checked
+        formData.set('warranty_duration_years', '0');
+        formData.set('warranty_duration_months', '0');
+        formData.set('warranty_duration_days', '0');
     }
+
+    // Add other_document file
+    const otherDocumentFile = document.getElementById('otherDocument').files[0]; 
+    if (otherDocumentFile) { 
+        formData.append('other_document', otherDocumentFile); 
+    } 
     
     // Show loading spinner
     showLoadingSpinner();
@@ -2127,7 +2257,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup form submission
     const form = document.getElementById('addWarrantyForm');
     if (form) {
-        form.addEventListener('submit', handleFormSubmit);
+        form.addEventListener('submit', handleFormSubmit); // Use renamed handler
     }
     
     // Setup settings menu toggle
@@ -2231,8 +2361,13 @@ function openSecureFile(filePath) {
     
     console.log('Opening secure file:', filePath);
     
-    // Get the file name from the path
-    const fileName = filePath.split('/').pop();
+    // Get the file name from the path, handling both uploads/ prefix and direct filenames
+    let fileName = filePath;
+    if (filePath.startsWith('uploads/')) {
+        fileName = filePath.substring(8); // Remove 'uploads/' prefix
+    } else if (filePath.startsWith('/uploads/')) {
+        fileName = filePath.substring(9); // Remove '/uploads/' prefix
+    }
     
     // Get auth token
     const token = window.auth.getToken();
@@ -2250,7 +2385,13 @@ function openSecureFile(filePath) {
     })
     .then(response => {
         if (!response.ok) {
-            throw new Error(`Error: ${response.status} ${response.statusText}`);
+            if (response.status === 404) {
+                throw new Error('File not found. It may have been deleted or moved.');
+            } else if (response.status === 401) {
+                throw new Error('Authentication error. Please log in again.');
+            } else {
+                throw new Error(`Error: ${response.status} ${response.statusText}`);
+            }
         }
         return response.blob();
     })
@@ -2291,21 +2432,27 @@ function initWarrantyForm() {
             updateFileName(event, 'manual', 'manualFileName');
         });
     }
+
+    if (document.getElementById('otherDocument')) { 
+        document.getElementById('otherDocument').addEventListener('change', function(event) { 
+            updateFileName(event, 'otherDocument', 'otherDocumentFileName'); 
+        }); 
+    } 
     
     // Initialize tag functionality
     initTagFunctionality();
     
     // Form submission
     if (warrantyForm) {
-        warrantyForm.addEventListener('submit', submitForm);
+        warrantyForm.addEventListener('submit', handleFormSubmit); // Use renamed handler
     }
 
     // Initialize lifetime checkbox listener
-    if (isLifetimeCheckbox && warrantyYearsGroup && warrantyYearsInput) {
+    if (isLifetimeCheckbox && warrantyDurationFields) { // Check for new container
         isLifetimeCheckbox.addEventListener('change', handleLifetimeChange);
         handleLifetimeChange(); // Initial check
     } else {
-        console.error("Lifetime warranty elements not found in add form");
+        console.error("Lifetime warranty elements or duration fields not found in add form");
     }
 }
 
@@ -3142,7 +3289,10 @@ function saveWarranty() {
     const productName = document.getElementById('editProductName').value.trim();
     const purchaseDate = document.getElementById('editPurchaseDate').value;
     const isLifetime = document.getElementById('editIsLifetime').checked;
-    const warrantyYears = document.getElementById('editWarrantyYears').value; // Declare only once
+    // Get new duration values
+    const years = parseInt(document.getElementById('editWarrantyDurationYears').value || 0);
+    const months = parseInt(document.getElementById('editWarrantyDurationMonths').value || 0);
+    const days = parseInt(document.getElementById('editWarrantyDurationDays').value || 0);
     
     // Basic validation
     if (!productName) {
@@ -3155,20 +3305,21 @@ function saveWarranty() {
         return;
     }
     
-    // --- Modified Validation ---
-    if (!isLifetime) {
-        if (!warrantyYears || parseFloat(warrantyYears) <= 0) {
-            showToast('Warranty period (years) must be greater than 0 for non-lifetime warranties', 'error');
-            // Optional: focus the years input again
-            const yearsInput = document.getElementById('editWarrantyYears');
-            if (yearsInput) { // Check if element exists
-                yearsInput.focus();
-                yearsInput.classList.add('invalid');
-            }
-            return;
+    // --- Updated Validation ---
+    if (!isLifetime && years === 0 && months === 0 && days === 0) {
+        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
+        // Optional: focus the years input again
+        const yearsInput = document.getElementById('editWarrantyDurationYears');
+        if (yearsInput) { // Check if element exists
+            yearsInput.focus();
+            // Add invalid class to container or inputs
+            if (editWarrantyDurationFields) editWarrantyDurationFields.classList.add('invalid-duration');
         }
+        return;
+    } else {
+         if (editWarrantyDurationFields) editWarrantyDurationFields.classList.remove('invalid-duration');
     }
-    // --- End Modified Validation ---
+    // --- End Updated Validation ---
     
     // Create form data
     const formData = new FormData();
@@ -3186,11 +3337,13 @@ function saveWarranty() {
         formData.append('purchase_price', purchasePrice);
     }
     
-    // Serial numbers
-    const serialInputs = document.querySelectorAll('#editSerialNumbersContainer input');
+    // Serial numbers (use correct name 'serial_numbers[]')
+    const serialInputs = document.querySelectorAll('#editSerialNumbersContainer input[name="serial_numbers[]"]');
+    // Clear existing before appending
+    formData.delete('serial_numbers[]'); 
     serialInputs.forEach(input => {
         if (input.value.trim()) {
-            formData.append('serial_numbers', input.value.trim());
+            formData.append('serial_numbers[]', input.value.trim()); // Use []
         }
     });
     
@@ -3213,6 +3366,11 @@ function saveWarranty() {
     if (manualFile) {
         formData.append('manual', manualFile);
     }
+
+    const otherDocumentFile = document.getElementById('editOtherDocument').files[0]; 
+    if (otherDocumentFile) { 
+        formData.append('other_document', otherDocumentFile); 
+    } 
     
     // Document deletion flags
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
@@ -3223,11 +3381,22 @@ function saveWarranty() {
     if (deleteManualBtn && deleteManualBtn.dataset.delete === 'true') {
         formData.append('delete_manual', 'true');
     }
+    const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
+    if (deleteOtherDocumentBtn && deleteOtherDocumentBtn.dataset.delete === 'true') { 
+        formData.append('delete_other_document', 'true'); 
+    } 
     
-    // --- Append is_lifetime and warranty_years ---
+    // --- Append is_lifetime and duration components ---
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
-        formData.append('warranty_years', warrantyYears);
+        formData.append('warranty_duration_years', years);
+        formData.append('warranty_duration_months', months);
+        formData.append('warranty_duration_days', days);
+    } else {
+        // Ensure duration is 0 if lifetime
+        formData.append('warranty_duration_years', 0);
+        formData.append('warranty_duration_months', 0);
+        formData.append('warranty_duration_days', 0);
     }
     // Add notes
     const notes = document.getElementById('editNotes').value;
@@ -3327,39 +3496,66 @@ function populateTagFilter() {
     });
 }
 
-// --- Add New Function ---
+// --- Updated Function ---
 function handleLifetimeChange(event) {
     const checkbox = event ? event.target : isLifetimeCheckbox;
-    const group = warrantyYearsGroup;
-    const input = warrantyYearsInput;
+    const durationFields = warrantyDurationFields; // Use new container ID
+    const yearsInput = warrantyDurationYearsInput;
+    const monthsInput = warrantyDurationMonthsInput;
+    const daysInput = warrantyDurationDaysInput;
 
-    if (!checkbox || !group || !input) return;
+    if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
+        console.error("Lifetime or duration elements not found in add form");
+        return;
+    }
 
     if (checkbox.checked) {
-        group.style.display = 'none';
-        input.required = false;
-        input.value = '';
+        durationFields.style.display = 'none';
+        // Clear and make duration fields not required
+        yearsInput.required = false;
+        monthsInput.required = false;
+        daysInput.required = false;
+        yearsInput.value = '';
+        monthsInput.value = '';
+        daysInput.value = '';
     } else {
-        group.style.display = 'block';
-        input.required = true;
+        durationFields.style.display = 'block';
+        // Make duration fields required (or handle validation differently)
+        // Note: Backend validation ensures at least one is > 0 if not lifetime
+        yearsInput.required = false; // Let backend handle combined validation
+        monthsInput.required = false;
+        daysInput.required = false;
     }
 }
 
-// --- Add New Function ---
+// --- Updated Function ---
 function handleEditLifetimeChange(event) {
     const checkbox = event ? event.target : editIsLifetimeCheckbox;
-    const group = editWarrantyYearsGroup;
-    const input = editWarrantyYearsInput;
+    const durationFields = editWarrantyDurationFields; // Use new container ID
+    const yearsInput = editWarrantyDurationYearsInput;
+    const monthsInput = editWarrantyDurationMonthsInput;
+    const daysInput = editWarrantyDurationDaysInput;
 
-    if (!checkbox || !group || !input) return;
+    if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
+        console.error("Lifetime or duration elements not found in edit form");
+        return;
+    }
 
     if (checkbox.checked) {
-        group.style.display = 'none';
-        input.required = false;
-        input.value = '';
+        durationFields.style.display = 'none';
+        // Clear and make duration fields not required
+        yearsInput.required = false;
+        monthsInput.required = false;
+        daysInput.required = false;
+        yearsInput.value = '';
+        monthsInput.value = '';
+        daysInput.value = '';
     } else {
-        group.style.display = 'block';
-        input.required = true;
+        durationFields.style.display = 'block';
+        // Make duration fields required (or handle validation differently)
+        yearsInput.required = false; // Let backend handle combined validation
+        monthsInput.required = false;
+        daysInput.required = false;
     }
 }
 
@@ -3379,7 +3575,8 @@ function resetAddWarrantyWizard() {
 
     // Reset file input displays
     if (fileName) fileName.textContent = '';
-    if (manualFileName) fileName.textContent = '';
+    if (manualFileName) manualFileName.textContent = '';
+    if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
 
     // Reset selected tags
     selectedTags = [];
@@ -3397,7 +3594,8 @@ function resetAddWarrantyWizard() {
 
     // Reset file input displays
     if (fileName) fileName.textContent = '';
-    if (manualFileName) fileName.textContent = '';
+    if (manualFileName) manualFileName.textContent = '';
+    if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
 
     // Reset selected tags
     selectedTags = [];
@@ -3703,6 +3901,16 @@ function showNotesModal(notes, warrantyOrId = null) {
             showToast('No warranty selected for note update', 'error');
             return;
         }
+
+        // Frontend check for invalid duration before attempting to save notes
+        if (!notesModalWarrantyObj.is_lifetime &&
+            (parseInt(notesModalWarrantyObj.warranty_duration_years) || 0) === 0 &&
+            (parseInt(notesModalWarrantyObj.warranty_duration_months) || 0) === 0 &&
+            (parseInt(notesModalWarrantyObj.warranty_duration_days) || 0) === 0) {
+            showToast('Cannot save notes: The warranty has an invalid duration. Please edit the full warranty details to set a valid duration first.', 'error', 7000); // Longer toast duration
+            return; // Prevent API call
+        }
+
         // Save note via API, sending all required fields
         try {
             showLoadingSpinner();
@@ -3713,7 +3921,10 @@ function showNotesModal(notes, warrantyOrId = null) {
             formData.append('purchase_date', (notesModalWarrantyObj.purchase_date || '').split('T')[0]);
             formData.append('is_lifetime', notesModalWarrantyObj.is_lifetime ? 'true' : 'false');
             if (!notesModalWarrantyObj.is_lifetime) {
-                formData.append('warranty_years', notesModalWarrantyObj.warranty_years || ''); // Use empty string if null/undefined
+                // Append duration components instead of warranty_years
+                formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
+                formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
+                formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
             }
             if (notesModalWarrantyObj.product_url) {
                 formData.append('product_url', notesModalWarrantyObj.product_url);
@@ -3721,17 +3932,17 @@ function showNotesModal(notes, warrantyOrId = null) {
             if (notesModalWarrantyObj.purchase_price !== null && notesModalWarrantyObj.purchase_price !== undefined) { // Check for null/undefined
                 formData.append('purchase_price', notesModalWarrantyObj.purchase_price);
             }
+            // Correctly append serial numbers
             if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
                 notesModalWarrantyObj.serial_numbers.forEach(sn => {
-                    if (sn && sn.trim() !== '') {
-                        formData.append('serial_numbers', sn);
+                    // Ensure sn is treated as a string before trim, and append with [] for array
+                    if (sn && String(sn).trim() !== '') {
+                        formData.append('serial_numbers[]', String(sn).trim());
                     }
                 });
             }
-             // Send empty array if no serial numbers exist or are provided
-            else if (!formData.has('serial_numbers')) {
-                 formData.append('serial_numbers', JSON.stringify([]));
-            }
+            // If notesModalWarrantyObj.serial_numbers is empty or not an array, 
+            // no 'serial_numbers[]' fields will be appended, which is typically interpreted as an empty list by backends.
 
             if (notesModalWarrantyObj.tags && Array.isArray(notesModalWarrantyObj.tags)) {
                 const tagIds = notesModalWarrantyObj.tags.map(tag => tag.id);

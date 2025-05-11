@@ -39,8 +39,21 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key_change_i
 app.config['JWT_EXPIRATION_DELTA'] = timedelta(days=7)  # Token expiration time
 
 UPLOAD_FOLDER = '/data/uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg'}
-MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB max upload
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'zip', 'rar'}
+
+# Default max upload size in MB
+DEFAULT_MAX_UPLOAD_MB = 32
+try:
+    MAX_UPLOAD_MB = int(os.environ.get('MAX_UPLOAD_MB', DEFAULT_MAX_UPLOAD_MB))
+    if MAX_UPLOAD_MB <= 0:
+        MAX_UPLOAD_MB = DEFAULT_MAX_UPLOAD_MB
+        logger.warning(f"MAX_UPLOAD_MB was invalid, defaulting to {DEFAULT_MAX_UPLOAD_MB}MB.")
+except ValueError:
+    MAX_UPLOAD_MB = DEFAULT_MAX_UPLOAD_MB
+    logger.warning(f"MAX_UPLOAD_MB was not a valid integer, defaulting to {DEFAULT_MAX_UPLOAD_MB}MB.")
+
+MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024  # Convert MB to bytes
+logger.info(f"Max upload file size set to: {MAX_UPLOAD_MB}MB ({MAX_CONTENT_LENGTH} bytes)")
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
@@ -771,7 +784,15 @@ def get_warranties():
         with conn.cursor() as cur:
             # Always fetch warranties belonging to the logged-in user
             # Removed the if is_admin: block
-            cur.execute('SELECT * FROM warranties WHERE user_id = %s ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name', (user_id,))
+            # Replaced warranty_years with warranty_duration_years, warranty_duration_months, warranty_duration_days
+            cur.execute('''
+                SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
+                       purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
+                       warranty_duration_years, warranty_duration_months, warranty_duration_days
+                FROM warranties 
+                WHERE user_id = %s 
+                ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
+            ''', (user_id,))
                 
             warranties = cur.fetchall()
             columns = [desc[0] for desc in cur.description]
@@ -828,18 +849,36 @@ def add_warranty():
 
         # Handle lifetime warranty
         is_lifetime = request.form.get('is_lifetime', 'false').lower() == 'true'
-        warranty_years = None
         expiration_date = None
+        warranty_duration_years = 0
+        warranty_duration_months = 0
+        warranty_duration_days = 0
 
         if not is_lifetime:
-            if not request.form.get('warranty_years'):
-                return jsonify({"error": "Warranty period (years) is required unless it's a lifetime warranty"}), 400
             try:
-                warranty_years = float(request.form.get('warranty_years'))
-                if warranty_years < 0.1 or warranty_years > 100:
-                    return jsonify({"error": "Warranty years must be between 0.1 and 100"}), 400
+                # Handle empty strings explicitly, default to 0
+                years_str = request.form.get('warranty_duration_years', '0')
+                months_str = request.form.get('warranty_duration_months', '0')
+                days_str = request.form.get('warranty_duration_days', '0')
+                
+                warranty_duration_years = int(years_str) if years_str else 0
+                warranty_duration_months = int(months_str) if months_str else 0
+                warranty_duration_days = int(days_str) if days_str else 0
+
+                if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
+                    return jsonify({"error": "Warranty duration components cannot be negative."}), 400
+                if warranty_duration_months >= 12:
+                    return jsonify({"error": "Warranty months must be less than 12."}), 400
+                # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
+                if warranty_duration_days >= 366: # A bit more than a typical month
+                    return jsonify({"error": "Warranty days seem too high."}), 400
+                if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
+                    return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
+                if warranty_duration_years > 100: # Keep a reasonable upper limit for years
+                     return jsonify({"error": "Warranty years must be 100 or less"}), 400
+
             except ValueError:
-                return jsonify({"error": "Warranty years must be a valid number"}), 400
+                return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
             
         # Process the data
         product_name = request.form['product_name']
@@ -876,24 +915,20 @@ def add_warranty():
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
             
         # Calculate expiration date only if not lifetime
-        if not is_lifetime and warranty_years is not None:
-            # Decompose fractional years into years, months, days
-            try:
-                years_float = float(warranty_years)
-                total_months_float = years_float * 12
-                years_int = int(years_float)
-                remaining_months_float = total_months_float - (years_int * 12)
-                months_int = int(remaining_months_float)
-                # Approximate remaining days based on fraction of a month
-                remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12) 
-                days_int = int(round(remaining_days_float)) # Round to nearest day
-                
-                expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
-                logger.info(f"Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
-            except Exception as calc_err:
-                 logger.error(f"Error calculating expiration date from warranty_years={warranty_years}: {calc_err}")
-                 # Fallback or re-raise depending on desired behavior. Let's return error for now.
-                 return jsonify({"error": "Failed to calculate expiration date from warranty years"}), 500
+        if not is_lifetime:
+            if warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+                try:
+                    expiration_date = purchase_date + relativedelta(
+                        years=warranty_duration_years,
+                        months=warranty_duration_months,
+                        days=warranty_duration_days
+                    )
+                    logger.info(f"Calculated expiration date: {expiration_date} from years={warranty_duration_years}, months={warranty_duration_months}, days={warranty_duration_days}")
+                except Exception as calc_err:
+                    logger.error(f"Error calculating expiration date: {calc_err}")
+                    return jsonify({"error": "Failed to calculate expiration date from duration components"}), 500
+            else: # Should have been caught by earlier validation
+                return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
         
         # Handle invoice file upload
         db_invoice_path = None
@@ -907,9 +942,15 @@ def add_warranty():
                 filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                 invoice_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 
-                invoice.save(invoice_path)
-                db_invoice_path = os.path.join('uploads', filename)
-                logger.info(f"New invoice uploaded: {db_invoice_path}")
+                logger.info(f"Attempting to save invoice to: {invoice_path}")
+                try:
+                    invoice.save(invoice_path)
+                    db_invoice_path = os.path.join('uploads', filename)
+                    logger.info(f"Successfully saved invoice: {db_invoice_path}")
+                except Exception as e:
+                    logger.error(f"Error saving invoice {filename} to {invoice_path}: {e}")
+                    # Optionally, decide if you want to return an error here or continue
+                    return jsonify({"error": f"Failed to save invoice: {str(e)}"}), 500
         
         # Handle manual file upload
         db_manual_path = None
@@ -922,25 +963,51 @@ def add_warranty():
                 filename = secure_filename(manual.filename)
                 filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
                 manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                
-                manual.save(manual_path)
-                db_manual_path = os.path.join('uploads', filename)
-                logger.info(f"New manual uploaded: {db_manual_path}")
+                logger.info(f"Attempting to save manual to: {manual_path}")
+                try:
+                    manual.save(manual_path)
+                    db_manual_path = os.path.join('uploads', filename)
+                    logger.info(f"Successfully saved manual: {db_manual_path}")
+                except Exception as e:
+                    logger.error(f"Error saving manual {filename} to {manual_path}: {e}")
+                    return jsonify({"error": f"Failed to save manual: {str(e)}"}), 500
         
+        # Handle other_document file upload
+        db_other_document_path = None
+        if 'other_document' in request.files:
+            other_document = request.files['other_document']
+            if other_document.filename != '':
+                if not allowed_file(other_document.filename):
+                    return jsonify({"error": "File type not allowed for other document. Use PDF, PNG, JPG, JPEG, ZIP, or RAR"}), 400
+                    
+                filename = secure_filename(other_document.filename)
+                filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_other_{filename}"
+                other_document_path_on_disk = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                logger.info(f"Attempting to save other_document to: {other_document_path_on_disk}")
+                try:
+                    other_document.save(other_document_path_on_disk)
+                    db_other_document_path = os.path.join('uploads', filename)
+                    logger.info(f"Successfully saved other_document: {db_other_document_path}")
+                except Exception as e:
+                    logger.error(f"Error saving other_document {filename} to {other_document_path_on_disk}: {e}")
+                    return jsonify({"error": f"Failed to save other_document: {str(e)}"}), 500
+
         # Save to database
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Insert warranty
             cur.execute('''
                 INSERT INTO warranties (
-                    product_name, purchase_date, warranty_years, expiration_date, 
-                    invoice_path, manual_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor
+                    product_name, purchase_date, expiration_date, 
+                    invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor,
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
-                product_name, purchase_date, warranty_years, expiration_date,
-                db_invoice_path, db_manual_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor
+                product_name, purchase_date, expiration_date,
+                db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor,
+                warranty_duration_years, warranty_duration_months, warranty_duration_days
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -1003,12 +1070,13 @@ def delete_warranty(warranty_id):
             if not warranty:
                 return jsonify({"error": "Warranty not found or you don't have permission to delete it"}), 404
             
-            # First get the invoice path to delete the file
-            cur.execute('SELECT invoice_path, manual_path FROM warranties WHERE id = %s', (warranty_id,))
+            # First get the file paths to delete the files
+            cur.execute('SELECT invoice_path, manual_path, other_document_path FROM warranties WHERE id = %s', (warranty_id,))
             result = cur.fetchone()
             
             invoice_path = result[0]
             manual_path = result[1]
+            other_document_path = result[2]
             
             # Delete the warranty from database
             cur.execute('DELETE FROM warranties WHERE id = %s', (warranty_id,))
@@ -1027,6 +1095,12 @@ def delete_warranty(warranty_id):
                 if os.path.exists(full_path):
                     os.remove(full_path)
             
+            # Delete the other_document file if it exists
+            if other_document_path:
+                full_path = os.path.join('/data', other_document_path)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+
             return jsonify({"message": "Warranty deleted successfully"}), 200
             
     except Exception as e:
@@ -1072,7 +1146,7 @@ def update_warranty(warranty_id):
             if not request.form.get('purchase_date'):
                 return jsonify({"error": "Purchase date is required"}), 400
             logger.info(f"Received update request for warranty {warranty_id}")
-            logger.info(f"Form data received: is_lifetime={request.form.get('is_lifetime')}, warranty_years={request.form.get('warranty_years')}")
+            logger.info(f"Received update request for warranty {warranty_id}")
             is_lifetime = request.form.get('is_lifetime', 'false').lower() == 'true'
             logger.info(f"Parsed is_lifetime as: {is_lifetime}")
             purchase_date_str = request.form['purchase_date']
@@ -1080,34 +1154,49 @@ def update_warranty(warranty_id):
                 purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date() # Use .date()
             except ValueError:
                 return jsonify({"error": "Invalid date format for purchase date. Use YYYY-MM-DD"}), 400
-            warranty_years = None
+
             expiration_date = None
+            warranty_duration_years = 0
+            warranty_duration_months = 0
+            warranty_duration_days = 0
+
             if not is_lifetime:
-                warranty_years_str = request.form.get('warranty_years')
-                if not warranty_years_str:
-                    return jsonify({"error": "Warranty years is required for non-lifetime warranties"}), 400
                 try:
-                    warranty_years = float(warranty_years_str)
-                    if warranty_years < 0.1 or warranty_years > 100:
-                        return jsonify({"error": "Warranty years must be between 0.1 and 100 for non-lifetime warranties"}), 400
-                    try:
-                        years_float = float(warranty_years)
-                        total_months_float = years_float * 12
-                        years_int = int(years_float)
-                        remaining_months_float = total_months_float - (years_int * 12)
-                        months_int = int(remaining_months_float)
-                        remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12)
-                        days_int = int(round(remaining_days_float)) # Round to nearest day
-                        expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
-                        logger.info(f"Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
-                    except Exception as calc_err:
-                        logger.error(f"Error calculating expiration date from warranty_years={warranty_years}: {calc_err}")
-                        return jsonify({"error": "Failed to calculate expiration date from warranty years"}), 500
+                    # Handle empty strings explicitly, default to 0
+                    years_str = request.form.get('warranty_duration_years', '0')
+                    months_str = request.form.get('warranty_duration_months', '0')
+                    days_str = request.form.get('warranty_duration_days', '0')
+
+                    warranty_duration_years = int(years_str) if years_str else 0
+                    warranty_duration_months = int(months_str) if months_str else 0
+                    warranty_duration_days = int(days_str) if days_str else 0
+
+                    if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
+                        return jsonify({"error": "Warranty duration components cannot be negative."}), 400
+                    if warranty_duration_months >= 12:
+                        return jsonify({"error": "Warranty months must be less than 12."}), 400
+                    if warranty_duration_days >= 366:
+                         return jsonify({"error": "Warranty days seem too high."}), 400
+                    if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
+                        return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
+                    if warranty_duration_years > 100:
+                         return jsonify({"error": "Warranty years must be 100 or less"}), 400
+                    
+                    expiration_date = purchase_date + relativedelta(
+                        years=warranty_duration_years,
+                        months=warranty_duration_months,
+                        days=warranty_duration_days
+                    )
+                    logger.info(f"Calculated expiration date: {expiration_date} from years={warranty_duration_years}, months={warranty_duration_months}, days={warranty_duration_days}")
                 except ValueError:
-                    return jsonify({"error": "Warranty years must be a valid number"}), 400
-            logger.info(f"Calculated values: warranty_years={warranty_years}, expiration_date={expiration_date}")
+                    return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
+                except Exception as calc_err:
+                    logger.error(f"Error calculating expiration date: {calc_err}")
+                    return jsonify({"error": "Failed to calculate expiration date from duration components"}), 500
+            
+            logger.info(f"Calculated values: Y={warranty_duration_years}, M={warranty_duration_months}, D={warranty_duration_days}, expiration_date={expiration_date}")
             product_name = request.form['product_name']
-            serial_numbers = request.form.getlist('serial_numbers')
+            serial_numbers = request.form.getlist('serial_numbers[]') # Ensure correct parsing for lists
             product_url = request.form.get('product_url', '')
             notes = request.form.get('notes', None)
             vendor = request.form.get('vendor', None)
@@ -1146,9 +1235,14 @@ def update_warranty(warranty_id):
                     filename = secure_filename(invoice.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
                     invoice_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    invoice.save(invoice_path)
-                    db_invoice_path = os.path.join('uploads', filename)
-                    logger.info(f"New invoice uploaded: {db_invoice_path}")
+                    logger.info(f"Attempting to save updated invoice to: {invoice_path}")
+                    try:
+                        invoice.save(invoice_path)
+                        db_invoice_path = os.path.join('uploads', filename)
+                        logger.info(f"Successfully saved updated invoice: {db_invoice_path}")
+                    except Exception as e:
+                        logger.error(f"Error saving updated invoice {filename} to {invoice_path}: {e}")
+                        return jsonify({"error": f"Failed to save updated invoice: {str(e)}"}), 500
             elif request.form.get('delete_invoice', 'false').lower() == 'true':
                 cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_invoice_path = cur.fetchone()[0]
@@ -1180,9 +1274,14 @@ def update_warranty(warranty_id):
                     filename = secure_filename(manual.filename)
                     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_manual_{filename}"
                     manual_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    manual.save(manual_path)
-                    db_manual_path = os.path.join('uploads', filename)
-                    logger.info(f"New manual uploaded: {db_manual_path}")
+                    logger.info(f"Attempting to save updated manual to: {manual_path}")
+                    try:
+                        manual.save(manual_path)
+                        db_manual_path = os.path.join('uploads', filename)
+                        logger.info(f"Successfully saved updated manual: {db_manual_path}")
+                    except Exception as e:
+                        logger.error(f"Error saving updated manual {filename} to {manual_path}: {e}")
+                        return jsonify({"error": f"Failed to save updated manual: {str(e)}"}), 500
             elif request.form.get('delete_manual', 'false').lower() == 'true':
                 cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_manual_path = cur.fetchone()[0]
@@ -1195,11 +1294,54 @@ def update_warranty(warranty_id):
                         except Exception as e:
                             logger.error(f"Error deleting manual (delete request): {e}")
                 db_manual_path = None  # Set to None to clear in DB
+            
+            db_other_document_path = None
+            if 'other_document' in request.files:
+                other_document = request.files['other_document']
+                if other_document.filename != '':
+                    if not allowed_file(other_document.filename):
+                        return jsonify({"error": "File type not allowed for other document. Use PDF, PNG, JPG, JPEG, ZIP, or RAR"}), 400
+                    cur.execute('SELECT other_document_path FROM warranties WHERE id = %s', (warranty_id,))
+                    old_other_document_path = cur.fetchone()[0]
+                    if old_other_document_path:
+                        full_path = os.path.join('/data', old_other_document_path)
+                        if os.path.exists(full_path):
+                            try:
+                                os.remove(full_path)
+                                logger.info(f"Deleted old other_document: {full_path}")
+                            except Exception as e:
+                                logger.error(f"Error deleting old other_document: {e}")
+                    filename = secure_filename(other_document.filename)
+                    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_other_{filename}"
+                    other_document_path_on_disk = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    logger.info(f"Attempting to save updated other_document to: {other_document_path_on_disk}")
+                    try:
+                        other_document.save(other_document_path_on_disk)
+                        db_other_document_path = os.path.join('uploads', filename)
+                        logger.info(f"Successfully saved updated other_document: {db_other_document_path}")
+                    except Exception as e:
+                        logger.error(f"Error saving updated other_document {filename} to {other_document_path_on_disk}: {e}")
+                        return jsonify({"error": f"Failed to save updated other_document: {str(e)}"}), 500
+            elif request.form.get('delete_other_document', 'false').lower() == 'true':
+                cur.execute('SELECT other_document_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_other_document_path = cur.fetchone()[0]
+                if old_other_document_path:
+                    full_path = os.path.join('/data', old_other_document_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted other_document (delete request): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting other_document (delete request): {e}")
+                db_other_document_path = None # Set to None to clear in DB
+
             update_params = {
                 'product_name': product_name,
                 'purchase_date': purchase_date,
                 'is_lifetime': is_lifetime,
-                'warranty_years': warranty_years, # Will be None if lifetime
+                'warranty_duration_years': warranty_duration_years,
+                'warranty_duration_months': warranty_duration_months,
+                'warranty_duration_days': warranty_duration_days,
                 'expiration_date': expiration_date, # Will be None if lifetime
                 'product_url': product_url,
                 'purchase_price': purchase_price,
@@ -1223,6 +1365,13 @@ def update_warranty(warranty_id):
                 sql_values.append(db_manual_path)
             elif 'delete_manual' in request.form and request.form.get('delete_manual', 'false').lower() == 'true':
                 sql_fields.append("manual_path = NULL")
+            
+            if db_other_document_path is not None:
+                sql_fields.append("other_document_path = %s")
+                sql_values.append(db_other_document_path)
+            elif 'delete_other_document' in request.form and request.form.get('delete_other_document', 'false').lower() == 'true':
+                sql_fields.append("other_document_path = NULL")
+
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
             sql_values.append(warranty_id)
             update_sql = f"UPDATE warranties SET {', '.join(sql_fields)} WHERE id = %s"
@@ -1366,7 +1515,8 @@ def get_statistics():
             days_later_for_recent = expiring_soon_date # Same as the expiring soon cutoff
             cur.execute(f"""
                 SELECT
-                    id, product_name, purchase_date, warranty_years,
+                    id, product_name, purchase_date, 
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days,
                     expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
                 {from_clause}
                 {where_clause} {active_where if where_clause else 'WHERE'}
@@ -1397,7 +1547,8 @@ def get_statistics():
             logger.info(f"Fetching all warranties for user {user_id}...")
             cur.execute(f"""
                 SELECT
-                    id, product_name, purchase_date, warranty_years,
+                    id, product_name, purchase_date, 
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days,
                     expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
                 {from_clause}
                 {where_clause}
@@ -2259,48 +2410,71 @@ def serve_file(filename):
 def secure_file_access(filename):
     """Enhanced secure file serving with authorization checks."""
     try:
-        logger.info(f"Secure file access request for {filename} by user {request.user['id']}")
-        
+        # ADD EXTRA LOGGING HERE
+        logger.info(f"[SECURE_FILE] Raw filename from route: '{filename}' (len: {len(filename)})")
+        logger.info(f"[SECURE_FILE] repr(filename): {repr(filename)}")
+
         # Security check for path traversal
         if '..' in filename or filename.startswith('/'):
-            logger.warning(f"Potential path traversal attempt detected: {filename} by user {request.user['id']}")
+            logger.warning(f"[SECURE_FILE] Potential path traversal attempt detected: {filename} by user {request.user['id']}")
             return jsonify({"message": "Invalid file path"}), 400
-        
-        # Check if user is authorized to access this file
+
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
-                # Find warranties that reference this file
+                db_search_path = f"uploads/{filename}"
+                logger.info(f"[SECURE_FILE] Searching DB for paths like: '{db_search_path}' (repr: {repr(db_search_path)})")
                 query = """
-                    SELECT w.id, w.user_id 
-                    FROM warranties w 
-                    WHERE w.invoice_path = %s OR w.manual_path = %s
+                    SELECT w.id, w.user_id
+                    FROM warranties w
+                    WHERE w.invoice_path = %s OR w.manual_path = %s OR w.other_document_path = %s
                 """
-                cur.execute(query, (f"uploads/{filename}", f"uploads/{filename}"))
+                cur.execute(query, (db_search_path, db_search_path, db_search_path))
                 results = cur.fetchall()
-                
-                # Check if user owns any of these warranties or is admin
+                logger.info(f"[SECURE_FILE] DB query results for '{db_search_path}': {results}")
+
                 user_id = request.user['id']
                 is_admin = request.user.get('is_admin', False)
-                
-                authorized = is_admin  # Admins can access all files
-                
+                authorized = is_admin
+                logger.info(f"[SECURE_FILE] Initial authorization (is_admin={is_admin}): {authorized}")
+
                 if not authorized and results:
-                    for warranty_id, warranty_user_id in results:
-                        if warranty_user_id == user_id:
+                    for warranty_id_db, warranty_user_id_db in results:
+                        logger.info(f"[SECURE_FILE] Checking ownership: warranty_id={warranty_id_db}, owner_id={warranty_user_id_db}, current_user_id={user_id}")
+                        if warranty_user_id_db == user_id:
                             authorized = True
+                            logger.info(f"[SECURE_FILE] Ownership confirmed for warranty_id={warranty_id_db}")
                             break
                 
                 if not authorized:
-                    logger.warning(f"Unauthorized file access attempt: {filename} by user {user_id}")
+                    logger.warning(f"[SECURE_FILE] Unauthorized file access attempt: '{filename}' (repr: {repr(filename)}) by user {user_id}. DB results count: {len(results) if results else 'None'}")
                     return jsonify({"message": "You are not authorized to access this file"}), 403
                 
-                # Serve the file securely
+                logger.info(f"[SECURE_FILE] User {user_id} authorized for file '{filename}'. Attempting to serve from /data/uploads.")
+                
+                # Log the exact path that will be checked by send_from_directory
+                # and perform an explicit os.path.isfile check here for comparison
+                target_file_path_for_send = os.path.join('/data/uploads', filename)
+                logger.info(f"[SECURE_FILE] Path for os.path.isfile check (constructed for send_from_directory): '{target_file_path_for_send}' (repr: {repr(target_file_path_for_send)})")
+                
+                is_file_check_result = os.path.isfile(target_file_path_for_send)
+                logger.info(f"[SECURE_FILE] os.path.isfile('{target_file_path_for_send}') result: {is_file_check_result}")
+                
+                if not is_file_check_result:
+                    logger.error(f"[SECURE_FILE] File '{target_file_path_for_send}' not found or not a file by os.path.isfile, despite authorization. This will likely lead to a 404 from send_from_directory.")
+                    # Listing directory contents for debugging if file not found
+                    try:
+                        dir_contents = os.listdir('/data/uploads')
+                        logger.info(f"[SECURE_FILE] Contents of /data/uploads: {dir_contents}")
+                    except Exception as list_err:
+                        logger.error(f"[SECURE_FILE] Error listing /data/uploads: {list_err}")
+
+
                 return send_from_directory('/data/uploads', filename)
         finally:
             release_db_connection(conn)
     except Exception as e:
-        logger.error(f"Error in secure file access for {filename}: {e}")
+        logger.error(f"[SECURE_FILE] Error in secure file access for '{filename}' (repr: {repr(filename)}): {e}", exc_info=True)
         return jsonify({"message": "Error accessing file"}), 500
 
 def get_expiring_warranties():
@@ -2889,10 +3063,19 @@ def debug_warranty(warranty_id):
         with conn.cursor() as cur:
             # If admin, can see any warranty, otherwise only user's warranties
             if is_admin:
-                cur.execute('SELECT * FROM warranties WHERE id = %s', (warranty_id,))
+                cur.execute('''
+                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, product_url, notes,
+                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
+                           warranty_duration_years, warranty_duration_months, warranty_duration_days
+                    FROM warranties WHERE id = %s
+                ''', (warranty_id,))
             else:
-                cur.execute('SELECT * FROM warranties WHERE id = %s AND user_id = %s', 
-                          (warranty_id, user_id))
+                cur.execute('''
+                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, product_url, notes,
+                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
+                           warranty_duration_years, warranty_duration_months, warranty_duration_days
+                    FROM warranties WHERE id = %s AND user_id = %s
+                ''', (warranty_id, user_id))
                 
             warranty = cur.fetchone()
             if not warranty:
@@ -3290,13 +3473,12 @@ def add_tags_to_warranty(warranty_id):
             release_db_connection(conn)
 
 # --- CSV Import Endpoint ---
-EXPECTED_CSV_HEADERS = [
-    'ProductName', 'PurchaseDate', 'WarrantyYears', 'IsLifetime',
-    'PurchasePrice', 'SerialNumber', 'ProductURL'
-]
-# Add Tags as an optional header
-OPTIONAL_CSV_HEADERS = ['WarrantyYears', 'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor'] # Added Vendor
+# Updated CSV Headers for duration components
 REQUIRED_CSV_HEADERS = ['ProductName', 'PurchaseDate']
+OPTIONAL_CSV_HEADERS = [
+    'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor',
+    'WarrantyDurationYears', 'WarrantyDurationMonths', 'WarrantyDurationDays'
+]
 
 @app.route('/api/warranties/import', methods=['POST'])
 @token_required
@@ -3350,7 +3532,12 @@ def import_warranties():
                     product_name = row.get('ProductName', '').strip()
                     purchase_date_str = row.get('PurchaseDate', '').strip()
                     is_lifetime_str = row.get('IsLifetime', 'false').strip().lower()
-                    warranty_years_str = row.get('WarrantyYears', '').strip()
+                    
+                    # New duration fields
+                    warranty_duration_years_str = row.get('WarrantyDurationYears', '0').strip()
+                    warranty_duration_months_str = row.get('WarrantyDurationMonths', '0').strip()
+                    warranty_duration_days_str = row.get('WarrantyDurationDays', '0').strip()
+                    
                     purchase_price_str = row.get('PurchasePrice', '').strip()
                     serial_numbers_str = row.get('SerialNumber', '').strip()
                     product_url = row.get('ProductURL', '').strip()
@@ -3370,19 +3557,29 @@ def import_warranties():
                         purchase_date = None # Set to None to prevent further errors
 
                     is_lifetime = is_lifetime_str == 'true'
-                    warranty_years = None
                     expiration_date = None
+                    warranty_duration_years = 0
+                    warranty_duration_months = 0
+                    warranty_duration_days = 0
 
                     if not is_lifetime:
-                        if not warranty_years_str:
-                            errors.append("WarrantyYears is required unless IsLifetime is TRUE.")
-                        else:
-                            try:
-                                warranty_years = float(warranty_years_str)
-                                if warranty_years < 0.1 or warranty_years > 100:
-                                    errors.append("WarrantyYears must be between 0.1 and 100.")
-                            except ValueError:
-                                errors.append("WarrantyYears must be a valid number.")
+                        try:
+                            warranty_duration_years = int(warranty_duration_years_str) if warranty_duration_years_str else 0
+                            warranty_duration_months = int(warranty_duration_months_str) if warranty_duration_months_str else 0
+                            warranty_duration_days = int(warranty_duration_days_str) if warranty_duration_days_str else 0
+
+                            if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
+                                errors.append("Warranty duration components cannot be negative.")
+                            if warranty_duration_months >= 12:
+                                errors.append("WarrantyDurationMonths must be less than 12.")
+                            if warranty_duration_days >= 366: # Basic check
+                                errors.append("WarrantyDurationDays seems too high.")
+                            if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
+                                errors.append("Warranty duration (Years, Months, or Days) is required unless IsLifetime is TRUE.")
+                            if warranty_duration_years > 100:
+                                errors.append("WarrantyDurationYears must be 100 or less.")
+                        except ValueError:
+                            errors.append("WarrantyDurationYears, WarrantyDurationMonths, WarrantyDurationDays must be valid numbers.")
                     
                     purchase_price = None
                     if purchase_price_str:
@@ -3394,24 +3591,20 @@ def import_warranties():
                             errors.append("PurchasePrice must be a valid number.")
 
                     # Calculate expiration date if valid
-                    if not errors and not is_lifetime and warranty_years and purchase_date:
-                        # Decompose fractional years into years, months, days
-                        try:
-                            years_float = float(warranty_years)
-                            total_months_float = years_float * 12
-                            years_int = int(years_float)
-                            remaining_months_float = total_months_float - (years_int * 12)
-                            months_int = int(remaining_months_float)
-                            # Approximate remaining days based on fraction of a month
-                            remaining_days_float = (remaining_months_float - months_int) * (365.2425 / 12) 
-                            days_int = int(round(remaining_days_float)) # Round to nearest day
-                            
-                            expiration_date = purchase_date + relativedelta(years=years_int, months=months_int, days=days_int)
-                            logger.info(f"[Import] Calculated relativedelta for {warranty_years} years: years={years_int}, months={months_int}, days={days_int}")
-                        except Exception as calc_err:
-                            logger.error(f"[Import] Error calculating expiration date for row {row_number} from warranty_years={warranty_years}: {calc_err}")
-                            errors.append("Failed to calculate expiration date from WarrantyYears.")
-                            expiration_date = None # Ensure expiration_date is None if calculation fails
+                    if not errors and not is_lifetime and purchase_date:
+                        if warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+                            try:
+                                expiration_date = purchase_date + relativedelta(
+                                    years=warranty_duration_years,
+                                    months=warranty_duration_months,
+                                    days=warranty_duration_days
+                                )
+                                logger.info(f"[Import] Calculated expiration date: {expiration_date} for row {row_number}")
+                            except Exception as calc_err:
+                                logger.error(f"[Import] Error calculating expiration date for row {row_number}: {calc_err}")
+                                errors.append("Failed to calculate expiration date from duration components.")
+                                expiration_date = None
+                        # No else needed here, error for missing duration already handled
 
                     # Split serial numbers
                     serial_numbers = [sn.strip() for sn in serial_numbers_str.split(',') if sn.strip()] if serial_numbers_str else []
@@ -3491,14 +3684,16 @@ def import_warranties():
                     # --- Insert into Database --- 
                     cur.execute("""
                         INSERT INTO warranties (
-                            product_name, purchase_date, warranty_years, expiration_date, 
-                            product_url, purchase_price, user_id, is_lifetime, vendor
+                            product_name, purchase_date, expiration_date, 
+                            product_url, purchase_price, user_id, is_lifetime, vendor,
+                            warranty_duration_years, warranty_duration_months, warranty_duration_days
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
-                        product_name, purchase_date, warranty_years, expiration_date,
-                        product_url, purchase_price, user_id, is_lifetime, vendor
+                        product_name, purchase_date, expiration_date,
+                        product_url, purchase_price, user_id, is_lifetime, vendor,
+                        warranty_duration_years, warranty_duration_months, warranty_duration_days
                     ))
                     warranty_id = cur.fetchone()[0]
 
@@ -3631,4 +3826,3 @@ def reset_password():
     finally:
         if conn:
             release_db_connection(conn)
-

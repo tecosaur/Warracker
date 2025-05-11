@@ -9,15 +9,15 @@ RUN apt-get update && \
         nginx \
         curl \
         postgresql-client \
-        supervisor && \
+        supervisor \
+        gettext-base && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 # (build-essential = C compiler + tools)
 # (libpq-dev      = provides pg_config for psycopg2)
 
 
-# Ensure nginx runs in foreground
-RUN sed -i '1i daemon off;' /etc/nginx/nginx.conf
+# Nginx will be started with "daemon off;" via supervisor, so no need to sed the main nginx.conf
 
 WORKDIR /app
 
@@ -45,7 +45,8 @@ COPY frontend/img/ /var/www/html/img/
 
 # Configure nginx site
 RUN rm /etc/nginx/sites-enabled/default
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx.conf as a template
+COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 
 # Create startup script with database initialization
 RUN echo '#!/bin/bash\n\
@@ -84,37 +85,33 @@ echo "Setup script finished successfully."\n\
 exit 0 # Exit successfully, Supervisor takes over\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# This is just a fallback Nginx config echo, the copied nginx.conf is primary
-# Note: Removed the /uploads/ location block from here.
-# Ensure your actual nginx.conf doesn't reference it if not needed.
-RUN echo 'server {\n\
-    listen 80;\n\
-    server_name localhost;\n\
-    root /var/www/html;\n\
-    index index.html;\n\
-    \n\
-    # Enable detailed error logging\n\
-    error_log /var/log/nginx/error.log debug;\n\
-    access_log /var/log/nginx/access.log;\n\
-    \n\
-    # Enable gzip compression\n\
-    gzip on;\n\
-    gzip_types text/plain text/css application/javascript application/json;\n\
-    client_max_body_size 32M;\n\
-    \n\
-    location / {\n\
-        try_files $uri $uri/ /index.html;\n\
-    }\n\
-    \n\
-    # Proxy API requests to backend\n\
-    location /api/ {\n\
-        proxy_pass http://127.0.0.1:5000;\n\
-        proxy_set_header Host $host;\n\
-        proxy_set_header X-Real-IP $remote_addr;\n\
-        client_max_body_size 32M;\n\
-    }\n\
-    \n\
-}' > /etc/nginx/conf.d/default.conf
+# Create a wrapper script for starting Nginx with sed for placeholder replacement
+RUN echo '#!/bin/sh' > /app/start_nginx_wrapper.sh && \
+    echo 'set -e' >> /app/start_nginx_wrapper.sh && \
+    echo '' >> /app/start_nginx_wrapper.sh && \
+    echo '# Read the environment variable, which the user sets in docker-compose.yml' >> /app/start_nginx_wrapper.sh && \
+    echo 'EFFECTIVE_SIZE="${NGINX_MAX_BODY_SIZE_VALUE}"' >> /app/start_nginx_wrapper.sh && \
+    echo '' >> /app/start_nginx_wrapper.sh && \
+    echo '# Validate EFFECTIVE_SIZE or set default' >> /app/start_nginx_wrapper.sh && \
+    echo 'if ! echo "${EFFECTIVE_SIZE}" | grep -Eq "^[0-9]+[mMkKgG]?$"; then' >> /app/start_nginx_wrapper.sh && \
+    echo "  echo \"Warning: NGINX_MAX_BODY_SIZE_VALUE ('\${EFFECTIVE_SIZE}') is invalid or empty. Defaulting to 32M.\"" >> /app/start_nginx_wrapper.sh && \
+    echo "  EFFECTIVE_SIZE='32M'" >> /app/start_nginx_wrapper.sh && \
+    echo 'fi' >> /app/start_nginx_wrapper.sh && \
+    echo '' >> /app/start_nginx_wrapper.sh && \
+    echo '# Substitute the placeholder in the template file with the effective size' >> /app/start_nginx_wrapper.sh && \
+    echo '# Using | as sed delimiter to avoid issues if EFFECTIVE_SIZE somehow contained /' >> /app/start_nginx_wrapper.sh && \
+    echo "sed \"s|__NGINX_MAX_BODY_SIZE_CONFIG_VALUE__|\${EFFECTIVE_SIZE}|g\" /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf" >> /app/start_nginx_wrapper.sh && \
+    echo '' >> /app/start_nginx_wrapper.sh && \
+    echo "# Print the processed config for debugging" >> /app/start_nginx_wrapper.sh && \
+    echo "echo '--- Start of Processed Nginx default.conf ---'" >> /app/start_nginx_wrapper.sh && \
+    echo "cat /etc/nginx/conf.d/default.conf" >> /app/start_nginx_wrapper.sh && \
+    echo "echo '--- End of Processed Nginx default.conf ---'" >> /app/start_nginx_wrapper.sh && \
+    echo '' >> /app/start_nginx_wrapper.sh && \
+    echo "# Execute Nginx" >> /app/start_nginx_wrapper.sh && \
+    echo "exec /usr/sbin/nginx -g 'daemon off;'" >> /app/start_nginx_wrapper.sh && \
+    chmod +x /app/start_nginx_wrapper.sh
+
+# REMOVED: The RUN echo command that overwrites the nginx.conf, as we now use a template.
 
 # Expose port
 EXPOSE 80
@@ -156,7 +153,8 @@ stderr_logfile_maxbytes=0
 priority=5                    ; Run before nginx and gunicorn
 
 [program:nginx]
-command=/usr/sbin/nginx       ; Run nginx reading default config (with 'daemon off;' added)
+# Command now executes the wrapper script
+command=/app/start_nginx_wrapper.sh
 autostart=true
 autorestart=true              ; Restart nginx if it crashes
 startsecs=5                   ; Give setup some time before starting nginx

@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.9.9.6] - 2025-05-11
+
+### Added
+- **Warranty Duration Input:** Replaced the single "Warranty Period (Years)" input field with separate fields for Years, Months, and Days when adding or editing warranties.
+  - Allows for more precise warranty duration entry (e.g., 2 years, 6 months, 15 days).
+  - Updated Add/Edit forms (`frontend/index.html`), JavaScript logic (`frontend/script.js`), CSS styling (`frontend/style.css`), backend API (`backend/app.py`), and database schema (`backend/migrations/021_change_warranty_duration_to_components.sql`).
+  - Warranty display on cards and summaries now shows the formatted duration (e.g., "2 years, 6 months").
+  - CSV import/export updated to use `WarrantyDurationYears`, `WarrantyDurationMonths`, `WarrantyDurationDays` columns.
+  - Backend validation ensures at least one duration component is provided for non-lifetime warranties.
+  - Fixed backend logic to correctly handle empty duration inputs, treating them as 0.
+  _Files: `backend/app.py`, `backend/migrations/021_change_warranty_duration_to_components.sql`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+- **Files Upload:** Users can now upload an additional ZIP/RAR file (e.g., for extended warranty documents, photos, or other related files) when adding or editing a warranty.
+  - This document is stored securely and can be accessed from the warranty card.
+  - _Files: `backend/app.py`, `backend/migrations/022_add_other_document_path.sql`, `frontend/index.html`, `frontend/script.js`_
+- **Configurable JWT Secret Key:**
+  - The application's JWT and session secret key can now be configured via the `SECRET_KEY` environment variable.
+  - It is strongly recommended to set a unique, strong secret key in production environments. Defaults to a development key if not set.
+  - _Relevant File: `backend/app.py` (for usage), `docker-compose.yml` (for setting)_
+- **Configurable File Upload Limits:**
+  - Maximum file upload sizes for both the backend application and the Nginx reverse proxy are now configurable via environment variables.
+  - **Application (Flask):** Set `MAX_UPLOAD_MB` (e.g., `MAX_UPLOAD_MB=64`) to define the limit in megabytes. Defaults to 32MB.
+  - **Nginx:** Set `NGINX_MAX_BODY_SIZE_VALUE` (e.g., `NGINX_MAX_BODY_SIZE_VALUE=64M`) to define the limit for Nginx (value must include unit like M or G). Defaults to "32M".
+  - The `Dockerfile` and `nginx.conf` have been updated to support this.
+  - _Files: `backend/app.py`, `nginx.conf`, `Dockerfile`_
+- **Security key can be used in environment:**
+   - **SECRET_KEY=**  is now usuable in docker-compose for jwt secret.
+   - _Files: `Docker/docker-compose.yml`_
+
+### Fixed
+- **Backend Indentation Error:** Corrected an `IndentationError` in `backend/app.py` within the CSV import logic that prevented the backend from starting correctly.
+  _Files: `backend/app.py`_
+- **Migration Script Error:** Fixed an error in migration `021_change_warranty_duration_to_components.sql` where it incorrectly referenced `lifetime_warranty` instead of the correct `is_lifetime` column.
+  _Files: `backend/migrations/021_change_warranty_duration_to_components.sql`_
+- **smtplib import duplicate:** Removed line from app.py that re-imported smtplib with a pull request.
+- _Files: `backend/app.py`_
+
+### House Cleaning
+- **Old Settings files:** Removed all older settings pages , and related files.
+- _Files: `frontend/settings.html`,`frontend/settings.script.js`,`frontend/settings_redirect.html`_
+
 ## [0.9.9.5] - 2025-05-07
 
 ### Changed
