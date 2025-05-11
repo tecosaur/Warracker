@@ -48,13 +48,14 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/bf059435-a564-4aca-b518-b0a11f0ff55a)
+![image](https://github.com/user-attachments/assets/988453a4-b66a-43c2-9d88-65e79852dc1e)
 
-![image](https://github.com/user-attachments/assets/a7e1802e-3ac3-4464-831e-4f9429edd14a)
+
+![image](https://github.com/user-attachments/assets/7645b78b-7fa7-4e10-981e-b7d412e2e2e2)
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/38fbb4f2-9ee9-4ecf-a734-8ffab263a703)
+![image](https://github.com/user-attachments/assets/4c938b33-d6be-4787-a2d9-9153b0234ee2)
 
 ## ✨ Features
 
