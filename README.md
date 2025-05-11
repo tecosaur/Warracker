@@ -33,7 +33,7 @@ Warracker is an open-source warranty tracker application designed to help you ef
 - **Detailed Records:** Save essential details like purchase dates, durations, and notes.
 - **Document Storage:** Upload and securely store receipts, invoices, product manuals, and other related files (e.g., ZIP, RAR archives).
 - **Proactive Alerts:** Visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
-- **Quick Search and Filter:** Instantly find warranties by product name, tags, or notes.
+- **Quick Search and Filter:** Instantly find warranties by product name, serial numbers, vendor, tags, or notes.
 - **Notes Support:** Add freeform notes to each warranty for extra context or reminders.
 - **Secure Access with Multi-User Support:** Create multiple user accounts for shared access; admins can enable or disable new user creation.
 - **System Status Dashboard:** Real-time system health and warranty summary.
@@ -64,7 +64,7 @@ Warracker is an open-source warranty tracker application designed to help you ef
 - **Extended Document Storage:** Securely upload and store additional product-related documents or files in ZIP or RAR format.
 - **Status Tracking:** Visual indicators for warranty status (active, expiring soon, expired).
 - **Notes:** Add detailed notes for each warranty, viewable and editable via a dedicated notes modal.
-- **Search and Tagging:** Find warranties quickly using product names, notes, or multiple tags.
+- **Search and Tagging:** Find warranties quickly using product names, serial numbers, vendor, notes, or multiple tags.
 - **Multi-User Management:** Support for multiple user accounts; admin users can control whether new accounts can be created.
 - **Responsive Design:** Optimized for both desktop and mobile devices.
 - **Secure Login:** Safe and private authentication for all users.
