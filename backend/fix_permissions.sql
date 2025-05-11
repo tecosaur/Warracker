@@ -7,7 +7,7 @@ ALTER ROLE warranty_user WITH SUPERUSER;
 ALTER ROLE warranty_user WITH CREATEROLE;
 
 -- Ensure all database objects are accessible
-GRANT ALL PRIVILEGES ON DATABASE warranty_db TO warranty_user;
+GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO warranty_user;
 GRANT ALL PRIVILEGES ON SCHEMA public TO warranty_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO warranty_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO warranty_user;
@@ -45,7 +45,7 @@ BEGIN
         BEGIN
             EXECUTE 'ALTER FUNCTION public.' || quote_ident(rec.proname) || '(' || pg_get_function_arguments(rec.oid) || ') OWNER TO warranty_user';
         EXCEPTION WHEN OTHERS THEN
-            RAISE NOTICE 'Error changing ownership of function %: %', rec.proname, SQLERRM;
+            RAISE NOTICE 'Error changing ownership of function %%: %%', rec.proname, SQLERRM;
         END;
     END LOOP;
 END $$; 

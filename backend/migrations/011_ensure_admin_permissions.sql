@@ -4,7 +4,7 @@
 ALTER ROLE warranty_user WITH SUPERUSER;
 
 -- Ensure all tables are accessible
-GRANT ALL PRIVILEGES ON DATABASE warranty_db TO warranty_user;
+GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO warranty_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO warranty_user;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO warranty_user;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO warranty_user;
@@ -39,5 +39,5 @@ BEGIN
     );
 EXCEPTION WHEN OTHERS THEN
     -- Log error but continue
-    RAISE NOTICE 'Error setting ownership: %', SQLERRM;
+    RAISE NOTICE 'Error setting ownership: %%', SQLERRM;
 END $$; 
