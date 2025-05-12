@@ -5,6 +5,8 @@ import psycopg2
 import logging
 import time
 
+from psycopg2.extensions import AsIs
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,7 +59,7 @@ def fix_permissions():
         
         # Execute the script
         logger.info("Executing fix permissions SQL script...")
-        cursor.execute(sql_script)
+        cursor.execute(sql_script, {"db_name": AsIs(conn.info.dbname)})
         
         logger.info("Permissions fixed successfully")
         

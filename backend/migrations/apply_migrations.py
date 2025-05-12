@@ -7,6 +7,8 @@ import time
 import sys
 import importlib.util
 
+from psycopg2.extensions import AsIs
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -111,7 +113,7 @@ def apply_migrations():
                     with open(migration_file, 'r') as f:
                         sql = f.read()
                     
-                    cur.execute(sql)
+                    cur.execute(sql, {"db_name": AsIs(conn.info.dbname)})
                 elif migration_file.endswith('.py'):
                     # Apply Python migration
                     migration_module = load_python_migration(migration_file)

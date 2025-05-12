@@ -10,7 +10,7 @@ services:
       - ./backend/migrations:/app/migrations
     environment:
       - DB_HOST=warrackerdb
-      - DB_NAME=warranty_db
+      - DB_NAME=warranty_test
       - DB_USER=warranty_user
       - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
       - DB_ADMIN_USER=warracker_admin
@@ -38,12 +38,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
-      - POSTGRES_DB=warranty_db
+      - POSTGRES_DB=warranty_test
       - POSTGRES_USER=warranty_user
       - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U warranty_user -d warranty_db"]
+      test: ["CMD-SHELL", "pg_isready -U warranty_user -d warranty_test"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -11,7 +11,7 @@ END
 $$;
 
 -- Grant privileges to the admin role
-GRANT ALL PRIVILEGES ON DATABASE warranty_db TO warracker_admin;
+GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO warracker_admin;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO warracker_admin;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO warracker_admin;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO warracker_admin;
