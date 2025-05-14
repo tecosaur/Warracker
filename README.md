@@ -282,6 +282,12 @@ We welcome contributions and appreciate your interest in improving this project!
 [<img src="https://avatars.githubusercontent.com/u/1223625?s=50&v=4" width="50"/>](https://github.com/humrochagf)
 [<img src="https://avatars.githubusercontent.com/u/5875512?s=50&v=4" width="50"/>](https://github.com/clmcavaney)
 
+### ❤️ Supporters:
+**[<img src="https://avatars.githubusercontent.com/u/8194208?u=7ee82feed0044f85bcfc39f001643fe81a188f66&v=4&s=50" width="50"/>](https://github.com/SirSpidey)
+
+If you find Warracker helpful, please support by buying me a cup of coffee to keep me going. 
+
+[![Support Warracker](https://img.shields.io/badge/Support-Warracker-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/sassanix)
 
 ## 📜 License
 
