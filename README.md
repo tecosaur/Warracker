@@ -277,7 +277,8 @@ We welcome contributions and appreciate your interest in improving this project!
 * **Follow project style**: Match the project's code style and naming conventions.
 * **Be respectful**: We value inclusive and constructive collaboration.
 
-**Contributors:**  
+### Contributors:  
+
 [<img src="https://avatars.githubusercontent.com/u/39465071?s=50&v=4" width="50"/>](https://github.com/sassanix)
 [<img src="https://avatars.githubusercontent.com/u/1223625?s=50&v=4" width="50"/>](https://github.com/humrochagf)
 [<img src="https://avatars.githubusercontent.com/u/5875512?s=50&v=4" width="50"/>](https://github.com/clmcavaney)
