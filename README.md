@@ -277,8 +277,8 @@ We welcome contributions and appreciate your interest in improving this project!
 * **Follow project style**: Match the project's code style and naming conventions.
 * **Be respectful**: We value inclusive and constructive collaboration.
 
-**Contributors:**
-[![](https://opencollective.com/html-react-parser/contributors.svg?width=890&button=false)](https://github.com/sassanix/Warracker/graphs/contributors)
+**Contributors:**  
+[![](https://opencollective.com/Warracker/contributors.svg?width=890&button=false)](https://github.com/sassanix/Warracker/graphs/contributors)
 
 ## 📜 License
 
