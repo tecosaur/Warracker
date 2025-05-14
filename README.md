@@ -278,7 +278,7 @@ We welcome contributions and appreciate your interest in improving this project!
 * **Be respectful**: We value inclusive and constructive collaboration.
 
 **Contributors:**  
-[![](https://avatars.githubusercontent.com/u/39465071?s=64&v=4?size=50)](https://github.com/sassanix) [https://avatars.githubusercontent.com/u/1223625?s=64&v=4?size=50](https://github.com/humrochagf) [https://avatars.githubusercontent.com/u/5875512?s=64&v=4?size=50](https://github.com/clmcavaney)
+[![](https://avatars.githubusercontent.com/u/39465071?s=64&v=4?size=50)](https://github.com/sassanix) [![]([https://avatars.githubusercontent.com/u/1223625?s=64&v=4?size=50](https://github.com/humrochagf) [![]([https://avatars.githubusercontent.com/u/5875512?s=64&v=4?size=50](https://github.com/clmcavaney)
 
 ## 📜 License
 
