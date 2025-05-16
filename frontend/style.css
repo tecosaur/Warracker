@@ -1,3 +1,31 @@
+/* Center the Edit Warranty button in the status page details row */
+.warranty-details-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 15px;
+}
+/* Make the Edit Warranty button on the status page details row minimal: blue outline, no fill, only around text */
+.edit-warranty-status-btn {
+  background: transparent !important;
+  color: var(--primary-color) !important;
+  border: 2px solid var(--primary-color) !important;
+  border-radius: 6px !important;
+  font-size: 1rem !important;
+  font-weight: 500;
+  padding: 4px 18px !important;
+  min-width: unset !important;
+  width: auto !important;
+  height: auto !important;
+  box-shadow: none !important;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  display: inline-block;
+}
+.edit-warranty-status-btn:hover, .edit-warranty-status-btn:focus {
+  background: var(--primary-color) !important;
+  color: #fff !important;
+  border-color: var(--primary-dark) !important;
+}
 /* ===== GLOBAL STYLES ===== */
 :root[data-theme="light"] {
   --bg-color: #f5f5f5;
@@ -21,6 +49,12 @@
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   --border-radius: 8px;
   --transition: all 0.3s ease;
+
+  /* New variables for details row */
+  --details-bg: #f8f9fa; /* Light background for details */
+  --details-text-color: var(--text-color);
+  --details-border-color: #dee2e6;
+  --notes-bg: #e9ecef; /* Slightly different background for notes */
 
   /* Ensure warranty card title is white in table view light mode */
   .table-view .warranty-title {
@@ -61,6 +95,12 @@
   --text-muted: #909090;
   --input-background: #1a1a1a;
   --border-radius: 8px; /* Added missing border radius for dark theme */
+
+  /* New variables for details row */
+  --details-bg: #2c3034; /* Darker background for details */
+  --details-text-color: var(--text-color);
+  --details-border-color: #454a4f;
+  --notes-bg: #343a40; /* Slightly different dark background for notes */
 
   /* Ensure warranty card title is white in table view dark mode */
   .table-view .warranty-title {
@@ -992,7 +1032,7 @@ input.invalid {
   
   header .app-title i {
     font-size: 1.6rem !important; /* Slightly reduce icon size */
-    margin-right: 10px !important;
+    margin-right: 10px !important; /* Slightly reduce icon size */
   }
   
   header .nav-links {
@@ -3205,4 +3245,105 @@ input.invalid {
     width: auto !important;
     justify-content: center !important;
   }
+}
+
+/* Styling for the main row when details are expanded */
+#recentExpirationsTable tr.details-expanded {
+    background-color: var(--medium-gray) !important; /* Use important to override existing hover or status colors if needed, or make more specific */
+    /* color: var(--primary-color); /* Optional: change text color of expanded row */
+}
+
+/* Styling for the new details row */
+.warranty-details-row td {
+    padding: 20px !important; /* Ensure padding is applied */
+    background-color: var(--details-bg);
+    color: var(--details-text-color);
+    border-top: 1px solid var(--details-border-color);
+    border-bottom: 1px solid var(--details-border-color);
+}
+
+.warranty-details-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px; /* Increased gap */
+}
+
+.warranty-details-content > div { /* Direct children divs (sections) */
+    flex: 1 1 280px; /* Allow wrapping with a minimum width */
+    padding: 10px;
+}
+
+.warranty-details-content h4 {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--details-border-color);
+    padding-bottom: 8px;
+}
+
+.warranty-details-content p {
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.warranty-details-content p strong {
+    color: var(--details-text-color);
+    margin-right: 5px;
+}
+
+.warranty-details-content a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.warranty-details-content a:hover {
+    text-decoration: underline;
+}
+
+.warranty-details-content ul {
+    list-style-type: disc;
+    margin-left: 20px;
+    padding-left: 0;
+}
+
+.warranty-details-content li {
+    margin-bottom: 5px;
+}
+
+.warranty-details-content pre {
+    background-color: var(--notes-bg);
+    color: var(--details-text-color);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 0.9rem;
+    border: 1px solid var(--details-border-color);
+}
+
+/* ... existing code ... */
+
+/* Ensure view document links in modals are styled consistently, especially in dark mode */
+[data-theme="dark"] .view-document-link {
+    color: var(--primary-color); /* Or your specific dark mode link color variable */
+    text-decoration: underline;
+}
+
+[data-theme="dark"] .view-document-link:hover,
+[data-theme="dark"] .view-document-link:focus {
+    color: var(--primary-light); /* Or a slightly lighter/different hover color */
+    text-decoration: none;
+}
+
+/* If the text-success class interferes, this can provide higher specificity */
+[data-theme="dark"] .text-success .view-document-link {
+    color: var(--primary-color); /* Ensure override if text-success sets link color */
+}
+
+[data-theme="dark"] .text-success .view-document-link:hover,
+[data-theme="dark"] .text-success .view-document-link:focus {
+    color: var(--primary-light);
 }

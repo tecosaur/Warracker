@@ -12,7 +12,8 @@ let currentFilters = {
     status: 'all',
     tag: 'all',
     search: '',
-    sortBy: 'expiration'
+    sortBy: 'expiration',
+    vendor: 'all' // Added vendor filter
 };
 
 // Tag related variables
@@ -33,6 +34,7 @@ const searchInput = document.getElementById('searchWarranties');
 const clearSearchBtn = document.getElementById('clearSearch');
 const statusFilter = document.getElementById('statusFilter');
 const sortBySelect = document.getElementById('sortBy');
+const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
 const exportBtn = document.getElementById('exportBtn');
 const gridViewBtn = document.getElementById('gridViewBtn');
 const listViewBtn = document.getElementById('listViewBtn');
@@ -132,54 +134,73 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[DEBUG] Registering authStateReady event handler');
     // ... other initialization ...
 
-    // REMOVE call to undefined checkLoginStatus - Handled by auth.js
-    // checkLoginStatus(); 
+    // --- BEGIN REFACTORED TAG MODAL AND MAIN FORM TAG UI SETUP ---
+    const globalTagManagementModal = document.getElementById('tagManagementModal');
+    const globalNewTagForm = document.getElementById('newTagForm'); // Inside tagManagementModal
+    const mainTagSearchInput = document.getElementById('tagSearch'); // For the main "Add Warranty" form's tag search
+    const warrantyFormElement = document.getElementById('warrantyForm'); // The main add warranty form
 
-    // --- DEFERRED WARRANTY LOADING ---
-    // Don't load warranties immediately. Wait for authentication.
-    // if (document.getElementById('warrantiesList')) {
-    //     loadWarranties(); // <<< OLD CALL - REMOVED
-    // }
-    // --- END DEFERRED WARRANTY LOADING ---
+    // 1. ALWAYS Initialize listeners for the global Tag Management Modal IF IT EXISTS
+    if (globalTagManagementModal) {
+        if (globalNewTagForm) {
+            // Ensure the event listener is attached only once, or manage it if DOMContentLoaded could fire multiple times (not typical)
+            // For simplicity, assuming DOMContentLoaded runs once per page load.
+            globalNewTagForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                createNewTag();
+            });
+        }
 
-    // Setup form submission (assuming addWarrantyForm exists)
-    const form = document.getElementById('addWarrantyForm');
-    if (form) {
-        form.addEventListener('submit', handleFormSubmit);
-        // Initialize form tabs if the form exists
-        initFormTabs(); 
+        const closeButtons = globalTagManagementModal.querySelectorAll('[data-dismiss="modal"]');
+        closeButtons.forEach(button => {
+            button.addEventListener('click', (event) => {
+                globalTagManagementModal.style.display = 'none';
+                event.stopPropagation(); // This was the fix from before, ensuring it's applied
+            });
+        });
+        console.log('Global Tag Management Modal listeners initialized directly in DOMContentLoaded.');
     }
 
-    // REMOVED setupSettingsMenu - Handled by auth.js
-    // setupSettingsMenu();
+    // 2. Initialize Tag functionality FOR THE MAIN ADD WARRANTY FORM (if its specific tag search input exists)
+    // initTagFunctionality is now refactored to be specific to the main form's tag UI.
+    if (mainTagSearchInput) {
+        initTagFunctionality(); // Sets up main form tag search, its manage button, etc.
+                                // Also calls loadTags() if needed for the main form.
+    }
+    // --- END REFACTORED TAG MODAL AND MAIN FORM TAG UI SETUP ---
+
+
+    // Setup form submission (assuming addWarrantyForm exists - this is 'warrantyFormElement')
+    // const form = document.getElementById('addWarrantyForm'); // Old selector
+    if (warrantyFormElement) { // Use the variable defined above
+        warrantyFormElement.addEventListener('submit', handleFormSubmit);
+        // Initialize form tabs if the form exists
+        // initFormTabs(); // This should be called when the ADD MODAL is SHOWN, not globally here.
+                          // It's correctly in setupModalTriggers for the addWarrantyModal.
+    }
+
 
     // Initialize theme toggle state *after* DOM is loaded
-    // ... (theme toggle init logic) ...
+    // ... (theme toggle init logic remains) ...
 
     // Setup view switcher (assuming view switcher elements exist)
     if (document.getElementById('gridViewBtn')) {
         // setupViewSwitcher(); // Removed undefined function
-        loadViewPreference();
+        loadViewPreference(); // This is fine here, loads initial view preference.
     }
 
     // Setup filter controls (assuming filter controls exist)
     if (document.getElementById('filterControls')) {
         // setupFilterControls(); // Removed: function not defined
-        populateTagFilter();
+        // populateTagFilter(); // This should be called AFTER warranties (and their tags) are loaded.
+                              // It's called in loadWarranties -> processAllWarranties or similar flow.
     }
 
-    // Initialize modal interactions
-    // initializeModals(); // Removed: function not defined, handled by setupModalTriggers
-    setupModalTriggers();
+    // Initialize modal interactions (general modal triggers like close buttons, backdrop)
+    setupModalTriggers(); // This sets up general modal behaviors and specific triggers for add/edit.
 
-    // Initialize Tag functionality (assuming tag elements exist)
-    if (document.getElementById('tagSearch')) { // Check for tagSearch instead of non-existent tagSearchInput
-        initTagFunctionality();
-        loadTags();
-    }
-
-    // Initialize form-specific lifetime checkbox handler
-    const lifetimeCheckbox = document.getElementById('isLifetime');
+    // Initialize form-specific lifetime checkbox handler FOR THE MAIN ADD FORM
+    const lifetimeCheckbox = document.getElementById('isLifetime'); // Main form's checkbox
     if (lifetimeCheckbox) {
         lifetimeCheckbox.addEventListener('change', handleLifetimeChange);
         handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
@@ -200,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Load preferences
         await loadAndApplyUserPreferences();
+        await loadTags(); // Ensure all available tags are loaded after authentication
 
         // Load warranty data (fetches, processes, populates global array)
         if (document.getElementById('warrantiesList')) {
@@ -520,49 +542,61 @@ function updateCompletedTabs() {
 // Validate a specific tab
 function validateTab(tabIndex) {
     const tabContent = tabContents[tabIndex];
-    const requiredInputs = tabContent.querySelectorAll('input[required]');
-    
-    // If there are no required inputs in this tab, it's automatically valid
-    if (requiredInputs.length === 0) {
-        return true;
-    }
-    
-    let isValid = true;
-    
-    requiredInputs.forEach(input => {
-        if (!input.value.trim()) {
-            isValid = false;
-            input.classList.add('invalid');
+    // Get all relevant form controls within the tab
+    const controls = tabContent.querySelectorAll('input, textarea, select');
+    let isTabValid = true;
+
+    controls.forEach(control => {
+        // Check the native HTML5 validity state
+        if (!control.validity.valid) {
+            isTabValid = false;
+            control.classList.add('invalid');
+            // Ensure a validation message placeholder exists or is updated by showValidationErrors
         } else {
-            input.classList.remove('invalid');
+            control.classList.remove('invalid');
+            // Remove validation message if control is now valid and message exists
+            let validationMessageElement = control.nextElementSibling;
+            if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
+                validationMessageElement.remove();
+            }
         }
     });
-    
-    return isValid;
+    return isTabValid;
 }
 
 // Show validation errors for a specific tab
 function showValidationErrors(tabIndex) {
     const tabContent = tabContents[tabIndex];
-    const requiredInputs = tabContent.querySelectorAll('input[required]');
-    
-    requiredInputs.forEach(input => {
-        if (!input.value.trim()) {
-            input.classList.add('invalid');
-            
-            // Add validation message if not already present
-            let validationMessage = input.nextElementSibling;
-            if (!validationMessage || !validationMessage.classList.contains('validation-message')) {
-                validationMessage = document.createElement('div');
-                validationMessage.className = 'validation-message';
-                validationMessage.textContent = 'This field is required';
-                input.parentNode.insertBefore(validationMessage, input.nextSibling);
+    const controls = tabContent.querySelectorAll('input, textarea, select');
+    let firstInvalidControl = null;
+
+    controls.forEach(control => {
+        if (!control.validity.valid) {
+            if (!firstInvalidControl) firstInvalidControl = control;
+            control.classList.add('invalid');
+
+            // Add or update validation message
+            let validationMessageElement = control.nextElementSibling;
+            if (!validationMessageElement || !validationMessageElement.classList.contains('validation-message')) {
+                validationMessageElement = document.createElement('div');
+                validationMessageElement.className = 'validation-message';
+                control.parentNode.insertBefore(validationMessageElement, control.nextSibling);
+            }
+            validationMessageElement.textContent = control.validationMessage || 'This field is invalid.';
+        } else {
+            // Ensure invalid class is removed if somehow missed by validateTab (shouldn't happen)
+            control.classList.remove('invalid');
+            // Remove validation message if control is now valid
+            let validationMessageElement = control.nextElementSibling;
+            if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
+                validationMessageElement.remove();
             }
         }
     });
-    
-    // Show toast message
-    showToast('Please fill in all required fields', 'error');
+
+    // The browser will attempt to focus the first invalid field when form submission is prevented.
+    // Switching to the tab containing the error (done by handleFormSubmit) is key.
+    showToast('Please correct the errors in the current tab.', 'error');
 }
 
 // Update summary tab with current form values
@@ -796,12 +830,12 @@ async function exportWarranties() {
         // Format row data - Updated for duration components
         const row = [
             warranty.product_name || '',
-            formatDate(new Date(warranty.purchase_date)),
+            formatDateYYYYMMDD(new Date(warranty.purchase_date)),
             warranty.is_lifetime ? 'TRUE' : 'FALSE',
             warranty.warranty_duration_years || 0,
             warranty.warranty_duration_months || 0,
             warranty.warranty_duration_days || 0,
-            warranty.is_lifetime ? '' : formatDate(new Date(warranty.expiration_date)), // Expiration date empty for lifetime
+            warranty.is_lifetime ? '' : formatDateYYYYMMDD(new Date(warranty.expiration_date)), // Expiration date empty for lifetime
             warranty.status || '',
             warranty.purchase_price || '',
             serialNumbers,
@@ -1308,6 +1342,7 @@ async function loadWarranties() {
             
             // Populate tag filter dropdown with tags from warranties
             populateTagFilter();
+            populateVendorFilter(); // Added call to populate vendor filter
             
             // REMOVED: applyFilters(); // Now called from authStateReady after data and prefs are loaded
         }
@@ -1369,10 +1404,31 @@ function formatDate(date) {
     }
 }
 
+function formatDateYYYYMMDD(date) {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+        return 'N/A';
+    }
+
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
 async function renderWarranties(warrantiesToRender) {
     console.log('renderWarranties called with:', warrantiesToRender);
+
+    // Guard clause: If the main warrantiesList element doesn't exist on the current page, exit.
+    // This can happen if saveWarranty -> applyFilters -> renderWarranties is called from a page
+    // that doesn't have the main list view (e.g., the status page).
+    if (!warrantiesList) {
+        console.warn('renderWarranties: warrantiesList element not found. Aborting render. This might be normal if not on the main warranties page.');
+        return;
+    }
+
     if (!warrantiesToRender || warrantiesToRender.length === 0) {
-        renderEmptyState();
+        renderEmptyState(); // renderEmptyState should also check for warrantiesList or its specific container
         return;
     }
     
@@ -1385,9 +1441,11 @@ async function renderWarranties(warrantiesToRender) {
     const sortedWarranties = [...warrantiesToRender].sort((a, b) => {
         switch (currentFilters.sortBy) {
             case 'name':
-                return a.product_name.localeCompare(b.product_name);
+                return (a.product_name || '').toLowerCase().localeCompare((b.product_name || '').toLowerCase());
             case 'purchase':
                 return new Date(b.purchase_date || 0) - new Date(a.purchase_date || 0);
+            case 'vendor': // Added vendor sorting
+                return (a.vendor || '').toLowerCase().localeCompare((b.vendor || '').toLowerCase());
             case 'expiration':
             default:
                 const dateA = new Date(a.expiration_date || 0);
@@ -1735,6 +1793,11 @@ function applyFilters() {
                 return false;
             }
         }
+
+        // Vendor filter
+        if (currentFilters.vendor !== 'all' && (warranty.vendor || '').toLowerCase() !== currentFilters.vendor.toLowerCase()) {
+            return false;
+        }
         
         // Search filter
         if (currentFilters.search) {
@@ -1784,18 +1847,25 @@ function openEditModal(warranty) {
     // Clear existing serial number inputs
     const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
     editSerialNumbersContainer.innerHTML = '';
-    
+
+    // Normalize serial_numbers to array of strings if needed
+    if (Array.isArray(warranty.serial_numbers) && warranty.serial_numbers.length > 0 && typeof warranty.serial_numbers[0] === 'object') {
+        warranty.serial_numbers = warranty.serial_numbers
+            .map(snObj => snObj && snObj.serial_number)
+            .filter(sn => typeof sn === 'string' && sn.trim() !== '');
+    }
+
     // Add event listener for adding new serial number inputs in edit modal
     editSerialNumbersContainer.addEventListener('click', (e) => {
         if (e.target.closest('.add-serial-number')) {
             addSerialNumberInput(editSerialNumbersContainer);
         }
     });
-    
+
     const validSerialNumbers = Array.isArray(warranty.serial_numbers)
         ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
         : [];
-    
+
     if (validSerialNumbers.length === 0) {
         // Add a single empty input if there are no serial numbers
         addSerialNumberInput(editSerialNumbersContainer);
@@ -1809,15 +1879,15 @@ function openEditModal(warranty) {
                 <i class="fas fa-plus"></i> Add Another
             </button>
         `;
-        
+
         // Add event listener for the Add button
         firstInput.querySelector('.add-serial-number').addEventListener('click', function(e) {
             e.stopPropagation(); // Stop event from bubbling up
             addSerialNumberInput(editSerialNumbersContainer);
         });
-        
+
         editSerialNumbersContainer.appendChild(firstInput);
-        
+
         // Add the rest of the serial numbers with "Remove" buttons
         for (let i = 1; i < validSerialNumbers.length; i++) {
             const newInput = document.createElement('div');
@@ -1828,12 +1898,12 @@ function openEditModal(warranty) {
                     <i class="fas fa-minus"></i> Remove
                 </button>
             `;
-            
+
             // Add remove button functionality
             newInput.querySelector('.remove-serial-number').addEventListener('click', function() {
                 this.parentElement.remove();
             });
-            
+
             editSerialNumbersContainer.appendChild(newInput);
         }
     }
@@ -1846,7 +1916,7 @@ function openEditModal(warranty) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current invoice: 
-                    <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
                     (Upload a new file to replace)
                 </span>
             `;
@@ -1871,7 +1941,7 @@ function openEditModal(warranty) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current manual: 
-                    <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
                     (Upload a new file to replace)
                 </span>
             `;
@@ -1897,7 +1967,7 @@ function openEditModal(warranty) {
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current other document: 
-                    <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
                     (Upload a new file to replace)
                 </span>
             `; 
@@ -2144,6 +2214,18 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // Create form data object
     const formData = new FormData(warrantyForm);
     
+    // Product URL handling
+    let productUrlValue = formData.get('product_url');
+    if (productUrlValue && typeof productUrlValue === 'string') {
+        productUrlValue = productUrlValue.trim();
+        if (productUrlValue && !productUrlValue.startsWith('http://') && !productUrlValue.startsWith('https://')) {
+            formData.set('product_url', 'https://' + productUrlValue);
+        } else if (productUrlValue) {
+            // Ensure trimmed value is set back if it was already valid
+            formData.set('product_url', productUrlValue);
+        }
+    }
+    
     // Remove old warranty_years if it exists in formData (it shouldn't if HTML is correct)
     formData.delete('warranty_years'); 
     
@@ -2325,30 +2407,37 @@ function initEditTabs() {
 // Update validateEditTabs function
 function validateEditTab(tabId) {
     const tab = document.getElementById(tabId);
-    let isValid = true;
-    
-    // Get all required inputs in this tab
-    const requiredInputs = tab.querySelectorAll('input[required]');
-    
-    // Check if all required fields are filled
-    requiredInputs.forEach(input => {
-        if (!input.value) {
-            isValid = false;
-            input.classList.add('invalid');
+    if (!tab) {
+        console.warn('validateEditTab: Could not find tab with ID:', tabId);
+        return false; // Or true, depending on desired behavior for missing tabs
+    }
+    let isTabValid = true;
+
+    // Get all relevant form controls within the tab
+    const controls = tab.querySelectorAll('input, textarea, select');
+
+    controls.forEach(control => {
+        // Check the native HTML5 validity state
+        if (!control.validity.valid) {
+            isTabValid = false;
+            control.classList.add('invalid');
+            // Optionally, you could add logic here to display specific messages
+            // or rely on browser default behavior if the form is submitted.
         } else {
-            input.classList.remove('invalid');
+            control.classList.remove('invalid');
         }
     });
-    
+
     // Update the tab button to show completion status
     const tabBtn = document.querySelector(`.edit-tab-btn[data-tab="${tabId}"]`);
-    if (isValid) {
-        tabBtn.classList.add('completed');
-    } else {
-        tabBtn.classList.remove('completed');
+    if (tabBtn) {
+        if (isTabValid) {
+            tabBtn.classList.add('completed');
+        } else {
+            tabBtn.classList.remove('completed');
+        }
     }
-    
-    return isValid;
+    return isTabValid;
 }
 
 // Add this function for secure file access
@@ -2458,100 +2547,95 @@ function initWarrantyForm() {
 
 // Initialize tag functionality
 function initTagFunctionality() {
-    // Skip if tag elements don't exist
-    if (!tagSearch || !tagsList || !manageTagsBtn || !selectedTagsContainer) {
-        console.log('Tag elements not found, skipping tag initialization');
+    // This function now ONLY sets up listeners for the main "Add Warranty" form's tag interface.
+    // Assumes globalTagManagementModal listeners (new tag form, close buttons) are set up separately if the modal exists.
+
+    // Get main form tag elements
+    const mainFormTagSearch = document.getElementById('tagSearch');
+    const mainFormTagsList = document.getElementById('tagsList'); // Dropdown for search in main form
+    const mainFormManageTagsBtn = document.getElementById('manageTagsBtn'); // "Manage Tags" button in main form
+    const mainFormSelectedTagsContainer = document.getElementById('selectedTags'); // Container for selected tags in main form
+
+    // Skip if main form specific tag elements don't exist
+    if (!mainFormTagSearch || !mainFormTagsList || !mainFormManageTagsBtn || !mainFormSelectedTagsContainer) {
+        console.log('Main form tag UI elements (tagSearch, tagsList, manageTagsBtn, or selectedTagsContainer) not found, skipping main form tag UI initialization.');
         return;
     }
 
-    // Load tags from API if not already loaded
+    console.log('Initializing main form tag UI functionality (search, selection, manage button).');
+
+    // Load allTags if not already loaded (needed for search suggestions in the main form)
     if (allTags.length === 0) {
-        loadTags();
+        loadTags(); // loadTags is async
     }
-    
-    // Tag search input
-    tagSearch.addEventListener('focus', () => {
-        renderTagsList();
-        tagsList.classList.add('show');
+
+    mainFormTagSearch.addEventListener('focus', () => {
+        renderTagsList(); // Renders suggestions into mainFormTagsList based on allTags
+        mainFormTagsList.classList.add('show');
     });
-    
-    tagSearch.addEventListener('input', () => {
-        renderTagsList(tagSearch.value);
+
+    mainFormTagSearch.addEventListener('input', () => {
+        renderTagsList(mainFormTagSearch.value); // Filters suggestions
     });
-    
+
+    // Hide main form's tag suggestion dropdown when clicking outside
     document.addEventListener('click', (e) => {
-        if (!tagSearch.contains(e.target) && !tagsList.contains(e.target)) {
-            tagsList.classList.remove('show');
+        // Check if mainFormTagSearch and mainFormTagsList are still valid (e.g. not removed from DOM)
+        if (mainFormTagSearch && mainFormTagsList && 
+            !mainFormTagSearch.contains(e.target) && 
+            !mainFormTagsList.contains(e.target)) {
+            mainFormTagsList.classList.remove('show');
         }
     });
-    
-    // Manage tags button
-    manageTagsBtn.addEventListener('click', (e) => {
+
+    // "Manage Tags" button in the main form opens the global tagManagementModal
+    mainFormManageTagsBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        openTagManagementModal();
+        openTagManagementModal(); // This function shows the global modal
     });
-    
-    // Tag management form
-    if (newTagForm) {
-        newTagForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            createNewTag();
-        });
-    }
-    
-    // Close modal buttons
-    if (tagManagementModal) {
-        const closeButtons = tagManagementModal.querySelectorAll('[data-dismiss="modal"]');
-        closeButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                tagManagementModal.style.display = 'none';
-            });
-        });
-    }
+
+    // Initial rendering of selected tags for the main form (if any are pre-selected or loaded)
+    renderSelectedTags(); // Renders into mainFormSelectedTagsContainer
 }
 
 // Function to load all tags
 async function loadTags() {
+    console.log('[script.js] loadTags() called. Current page:', window.location.pathname);
+    
+    // Check if tags are already loaded and reasonably populated
+    if (allTags && allTags.length > 0) {
+        console.log('[script.js] Tags already loaded in allTags global. Skipping fetch. Count:', allTags.length);
+        // Optionally, re-dispatch the event if other components might need it on subsequent (though now less likely) calls
+        // document.dispatchEvent(new CustomEvent('allTagsLoaded', { detail: allTags }));
+        return;
+    }
+
     try {
-        const token = localStorage.getItem('auth_token');
+        const token = auth.getToken();
         if (!token) {
-            console.error('No auth token found');
+            console.warn('[script.js] No token available for loadTags. User might not be authenticated yet.');
+            allTags = []; // Ensure allTags is empty if we can't load
             return;
         }
-        
-        showLoadingSpinner();
-        
         const response = await fetch('/api/tags', {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Authorization': `Bearer ${token}` }
         });
-        
         if (!response.ok) {
-            throw new Error(`Failed to load tags: ${response.status}`);
+            const errorText = await response.text();
+            console.error('[script.js] Failed to load tags:', response.status, errorText);
+            allTags = []; // Default to empty on error
+            return;
         }
-        
-        const data = await response.json();
-        console.log('Loaded tags:', data);
-        
-        // Store tags globally
-        allTags = data;
-        
-        // Populate the tag filter
-        populateTagFilter();
-        
-        // Render selected tags if any
-        if (selectedTagsContainer) {
-            renderSelectedTags();
-        }
-        
-        hideLoadingSpinner();
-        
-        return data;
+        const fetchedTags = await response.json();
+        // Assuming fetchedTags is an array of {id, name, color, ...} as expected by other functions
+        allTags = fetchedTags;
+        console.log('[script.js] All tags loaded into global allTags variable:', allTags.length, 'tags. Sample:', allTags.slice(0,2));
+        // Dispatch event for any components that might be waiting for tags (e.g., Tagify instances)
+        document.dispatchEvent(new CustomEvent('allTagsLoaded', { detail: allTags }));
+
     } catch (error) {
-        console.error('Error loading tags:', error);
-        hideLoadingSpinner();
-        return [];
+        console.error('[script.js] Error in loadTags():', error);
+        allTags = []; // Default to empty on critical error
     }
 }
 
@@ -3082,9 +3166,9 @@ function setupUIEventListeners() {
                 if (modalToClose) {
                     // *** MODIFIED CHECK ***
                     // If the click target is the backdrop itself (not a dismiss button)
-                    // AND the modal is the 'addWarrantyModal', then DO NOTHING.
-                    if (modalToClose.id === 'addWarrantyModal' && e.target === modalToClose) {
-                        return; // Ignore backdrop click for addWarrantyModal
+                    // AND the modal is the 'addWarrantyModal' or 'editModal', then DO NOTHING.
+                    if ((modalToClose.id === 'addWarrantyModal' || modalToClose.id === 'editModal') && e.target === modalToClose) {
+                        return; // Ignore backdrop click for addWarrantyModal and editModal
                     }
                     // *** END MODIFIED CHECK ***
 
@@ -3119,6 +3203,7 @@ function setupUIEventListeners() {
     const statusFilter = document.getElementById('statusFilter');
     const tagFilter = document.getElementById('tagFilter');
     const sortBySelect = document.getElementById('sortBy');
+    const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
     
     if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -3167,6 +3252,13 @@ function setupUIEventListeners() {
         });
     }
     
+    if (vendorFilter) { // Added event listener for vendor filter
+        vendorFilter.addEventListener('change', () => {
+            currentFilters.vendor = vendorFilter.value;
+            applyFilters();
+        });
+    }
+    
     if (sortBySelect) {
         sortBySelect.addEventListener('change', () => {
             currentFilters.sortBy = sortBySelect.value;
@@ -3205,7 +3297,42 @@ function setupUIEventListeners() {
     
     // Save warranty changes
     const saveWarrantyBtn = document.getElementById('saveWarrantyBtn');
-    if (saveWarrantyBtn) saveWarrantyBtn.addEventListener('click', saveWarranty);
+    if (saveWarrantyBtn) {
+        let functionToAttachOnClick = saveWarranty; // Default to the original saveWarranty from script.js
+
+        // Check if the observer setup function from status.js is available
+        if (typeof window.setupSaveWarrantyObserver === 'function') {
+            console.log('[script.js] window.setupSaveWarrantyObserver (from status.js) was FOUND. Attempting to wrap local saveWarranty function.');
+            try {
+                // Call the observer setup function, passing it the original saveWarranty from this script.
+                // The observer setup function is expected to return a new function that wraps the original.
+                functionToAttachOnClick = window.setupSaveWarrantyObserver(saveWarranty);
+                
+                // Optional: A flag to let status.js know that script.js has handled the wrapping.
+                // This can be useful if status.js has any fallback/polling logic to prevent double-wrapping.
+                window.saveWarrantyObserverAttachedByScriptJS = true; 
+                console.log('[script.js] Local saveWarranty function has been successfully WRAPPED by the observer from status.js.');
+            } catch (e) {
+                console.error('[script.js] An error occurred while trying to wrap saveWarranty with the observer from status.js:', e);
+                // If an error occurs during wrapping, functionToAttachOnClick will remain the original saveWarranty.
+            }
+        } else {
+            console.log('[script.js] window.setupSaveWarrantyObserver (from status.js) was NOT FOUND. Using the original saveWarranty function for the button.');
+        }
+
+        // Add the event listener using the (potentially) wrapped function.
+        saveWarrantyBtn.addEventListener('click', () => {
+            console.log('[script.js] Save button (saveWarrantyBtn) clicked. Invoking the determined save function (functionToAttachOnClick).');
+            if (typeof functionToAttachOnClick === 'function') {
+                functionToAttachOnClick(); // Execute the determined save function
+            } else {
+                console.error('[script.js] CRITICAL: functionToAttachOnClick is not a function when save button was clicked!');
+            }
+        });
+
+    } else {
+        console.warn('[script.js] saveWarrantyBtn DOM element not found. Cannot attach click listener.');
+    }
     
     // Confirm delete button
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
@@ -3280,6 +3407,7 @@ function deleteWarranty() {
 
 // Save warranty updates
 function saveWarranty() {
+    console.log("[script.js] CORE saveWarranty (original from script.js) EXECUTING.");
     if (!currentWarrantyId) {
         showToast('No warranty selected for update', 'error');
         return;
@@ -3327,8 +3455,11 @@ function saveWarranty() {
     formData.append('purchase_date', purchaseDate);
     
     // Optional fields
-    const productUrl = document.getElementById('editProductUrl').value.trim();
+    let productUrl = document.getElementById('editProductUrl').value.trim();
     if (productUrl) {
+        if (!productUrl.startsWith('http://') && !productUrl.startsWith('https://')) {
+            productUrl = 'https://' + productUrl;
+        }
         formData.append('product_url', productUrl);
     }
     
@@ -3448,6 +3579,62 @@ function saveWarranty() {
             if (notesModal && notesModal.style.display === 'block') {
                 notesModal.style.display = 'none';
             }
+
+            // --- NEW: Refresh expanded details row if open and keep it open ---
+            // Find the row with details-expanded class (if any)
+            let expandedWarrantyId = null;
+            const expandedRow = document.querySelector('tr.details-expanded');
+            if (expandedRow) {
+                // Try to get the warranty id from the row (assume data-warranty-id or from first cell if needed)
+                expandedWarrantyId = expandedRow.dataset.warrantyId;
+                if (!expandedWarrantyId) {
+                    // Fallback: try to get from first cell if id is rendered there
+                    const firstCell = expandedRow.querySelector('td');
+                    if (firstCell && firstCell.dataset && firstCell.dataset.warrantyId) {
+                        expandedWarrantyId = firstCell.dataset.warrantyId;
+                    }
+                }
+                // If still not found, try to match by product name and purchase date (less robust)
+                if (!expandedWarrantyId && typeof allWarranties !== 'undefined') {
+                    const productName = expandedRow.cells[0]?.textContent?.trim();
+                    const purchaseDate = expandedRow.cells[1]?.textContent?.trim();
+                    const match = allWarranties.find(w => w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
+                    if (match) expandedWarrantyId = match.id;
+                }
+            }
+
+            // After re-render, re-expand the row for the same warranty ID
+            if (expandedWarrantyId) {
+                // Wait for DOM update (next tick)
+                setTimeout(() => {
+                    // Find the new row for this warranty ID
+                    // Try by data-warranty-id attribute
+                    let newRow = document.querySelector(`tr[data-warranty-id="${expandedWarrantyId}"]`);
+                    // If not found, try to match by product name and purchase date (fallback)
+                    if (!newRow) {
+                        const allRows = document.querySelectorAll('tr');
+                        for (const row of allRows) {
+                            const productName = row.cells?.[0]?.textContent?.trim();
+                            const purchaseDate = row.cells?.[1]?.textContent?.trim();
+                            const match = allWarranties.find(w => w.id == expandedWarrantyId && w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
+                            if (match) {
+                                newRow = row;
+                                break;
+                            }
+                        }
+                    }
+                    if (newRow) {
+                        // Expand the details for this row
+                        if (typeof window.toggleWarrantyDetails === 'function') {
+                            window.toggleWarrantyDetails(expandedWarrantyId, newRow);
+                        } else if (typeof toggleWarrantyDetails === 'function') {
+                            toggleWarrantyDetails(expandedWarrantyId, newRow);
+                        }
+                        newRow.classList.add('details-expanded');
+                    }
+                }, 0);
+            }
+            // --- END NEW ---
         });
     })
     .catch(error => {
@@ -3493,6 +3680,41 @@ function populateTagFilter() {
         // Apply background color directly for now, acknowledging potential contrast issues
         // option.style.backgroundColor = tag.color; // Removed to prevent individual option background colors
         tagFilter.appendChild(option);
+    });
+}
+
+// Function to populate vendor filter dropdown
+function populateVendorFilter() {
+    const vendorFilterElement = document.getElementById('vendorFilter');
+    if (!vendorFilterElement) return;
+
+    // Clear existing options (except "All Vendors")
+    while (vendorFilterElement.options.length > 1) {
+        vendorFilterElement.remove(1);
+    }
+
+    // Create a Set to store unique vendor names (case-insensitive)
+    const uniqueVendors = new Set();
+
+    // Collect all unique, non-empty vendors from warranties
+    warranties.forEach(warranty => {
+        if (warranty.vendor && warranty.vendor.trim() !== '') {
+            uniqueVendors.add(warranty.vendor.trim().toLowerCase());
+        }
+    });
+
+    // Sort vendors alphabetically (after converting back to original case for display if needed, or just use lowercase)
+    // For simplicity, we'll sort the lowercase versions and display them as is.
+    // If original casing is important, a map could be used to store original values.
+    const sortedVendors = Array.from(uniqueVendors).sort((a, b) => a.localeCompare(b));
+
+    // Add options to the dropdown
+    sortedVendors.forEach(vendor => {
+        const option = document.createElement('option');
+        option.value = vendor; // Use lowercase for value consistency
+        // Capitalize first letter for display
+        option.textContent = vendor.charAt(0).toUpperCase() + vendor.slice(1);
+        vendorFilterElement.appendChild(option);
     });
 }
 
@@ -3667,9 +3889,9 @@ function setupModalTriggers() {
                  // Find the closest modal backdrop to the element clicked
                 const modalToClose = e.target.closest('.modal-backdrop');
                 if (modalToClose) {
-                    // *** ADD CHECK: Do NOT close addWarrantyModal via this general listener ***
-                    if (modalToClose.id === 'addWarrantyModal') {
-                        return; // Ignore backdrop clicks for the add modal here
+                    // *** ADD CHECK: Do NOT close addWarrantyModal or editModal via this general listener for backdrop clicks ***
+                    if ((modalToClose.id === 'addWarrantyModal' || modalToClose.id === 'editModal') && e.target === modalToClose) {
+                        return; // Ignore backdrop clicks for the add and edit modals here
                     }
                     // *** END ADD CHECK ***
 

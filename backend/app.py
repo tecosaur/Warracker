@@ -1517,7 +1517,7 @@ def get_statistics():
                 SELECT
                     id, product_name, purchase_date, 
                     warranty_duration_years, warranty_duration_months, warranty_duration_days,
-                    expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
+                    expiration_date, invoice_path, manual_path, other_document_path, product_url, purchase_price, is_lifetime
                 {from_clause}
                 {where_clause} {active_where if where_clause else 'WHERE'}
                 w.is_lifetime = FALSE AND w.expiration_date >= %s AND w.expiration_date <= %s
@@ -1549,7 +1549,7 @@ def get_statistics():
                 SELECT
                     id, product_name, purchase_date, 
                     warranty_duration_years, warranty_duration_months, warranty_duration_days,
-                    expiration_date, invoice_path, manual_path, product_url, purchase_price, is_lifetime
+                    expiration_date, invoice_path, manual_path, other_document_path, product_url, purchase_price, is_lifetime
                 {from_clause}
                 {where_clause}
                 ORDER BY expiration_date DESC
@@ -3064,14 +3064,14 @@ def debug_warranty(warranty_id):
             # If admin, can see any warranty, otherwise only user's warranties
             if is_admin:
                 cur.execute('''
-                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, product_url, notes,
+                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
                            purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
                            warranty_duration_years, warranty_duration_months, warranty_duration_days
                     FROM warranties WHERE id = %s
                 ''', (warranty_id,))
             else:
                 cur.execute('''
-                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, product_url, notes,
+                    SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
                            purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
                            warranty_duration_years, warranty_duration_months, warranty_duration_days
                     FROM warranties WHERE id = %s AND user_id = %s
@@ -3099,6 +3099,17 @@ def debug_warranty(warranty_id):
                 'serial_number': row[1]
             } for row in cur.fetchall()]
             warranty_dict['serial_numbers'] = serial_numbers
+
+            # Get tags for this warranty (same as /api/warranties)
+            cur.execute('''
+                SELECT t.id, t.name, t.color
+                FROM tags t
+                JOIN warranty_tags wt ON t.id = wt.tag_id
+                WHERE wt.warranty_id = %s
+                ORDER BY t.name
+            ''', (warranty_id,))
+            tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+            warranty_dict['tags'] = tags
             
             return jsonify({
                 'warranty': warranty_dict,
