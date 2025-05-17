@@ -59,7 +59,13 @@ def fix_permissions():
         
         # Execute the script
         logger.info("Executing fix permissions SQL script...")
-        cursor.execute(sql_script, {"db_name": AsIs(conn.info.dbname)})
+        cursor.execute(
+            sql_script,
+            {
+                "db_name": AsIs(DB_NAME),
+                "db_user": AsIs(DB_USER),
+            }
+        )
         
         logger.info("Permissions fixed successfully")
         

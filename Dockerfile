@@ -65,8 +65,8 @@ while [ $attempt -lt $max_attempts ]; do\n\
     exit 1\n\
   fi\n\
   # Use timeout to prevent indefinite hanging if DB is not ready\n\
-  if PGPASSWORD=$DB_PASSWORD psql -w -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE warranty_user WITH SUPERUSER;" 2>/dev/null; then\n\
-    echo "Successfully granted superuser privileges to warranty_user"\n\
+  if PGPASSWORD=$DB_PASSWORD psql -w -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE $DB_USER WITH SUPERUSER;" 2>/dev/null; then\n\
+    echo "Successfully granted superuser privileges to $DB_USER"\n\
     break\n\
   else\n\
     echo "Failed to grant privileges (attempt $((attempt+1))), retrying in 5 seconds..."\n\
