@@ -1,9 +1,9 @@
 
 <div align="center">
     
-<img src="https://github.com/user-attachments/assets/2132a842-4233-4d37-8fde-b2d23353ed76" width="200"/>
+<img src="https://github.com/user-attachments/assets/2132a842-4233-4d37-8fde-b2d23353ed76" width="150"/>
 
-Warracker
+# **Warracker**
 
 </div>
 
