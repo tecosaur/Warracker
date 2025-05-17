@@ -3,7 +3,7 @@
     
 <img src="https://github.com/user-attachments/assets/2132a842-4233-4d37-8fde-b2d23353ed76" width="145"/>
 
-<h1 style="font-size: 100px;"><strong>Warracker</strong></h1>
+<h1 <strong>Warracker</strong></h1>
 
 </div>
 
