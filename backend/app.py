@@ -2126,7 +2126,7 @@ def update_user(user_id):
         
         data = request.get_json()
         
-        # Use regular connection since warranty_user now has superuser privileges
+        # Use regular connection since db_user now has superuser privileges
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if user exists
@@ -2181,7 +2181,7 @@ def delete_user(user_id):
             logger.warning(f"User {request.user['username']} attempted to delete their own account")
             return jsonify({"message": "Cannot delete your own account through admin API"}), 403
         
-        # Use regular connection since warranty_user now has superuser privileges
+        # Use regular connection since db_user now has superuser privileges
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if user exists

@@ -43,7 +43,7 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U warranty_user -d warranty_test"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5

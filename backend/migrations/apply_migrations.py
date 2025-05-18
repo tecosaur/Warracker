@@ -17,25 +17,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# PostgreSQL connection details
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_PORT = os.environ.get('DB_PORT', '5432')
+DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
+DB_USER = os.environ.get('DB_USER', 'warranty_user')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
+DB_ADMIN_USER = os.environ.get('DB_ADMIN_USER', 'warracker_admin')
+DB_ADMIN_PASSWORD = os.environ.get('DB_ADMIN_PASSWORD', 'change_this_password_in_production')
+
 def get_db_connection(max_attempts=5, attempt_delay=5):
     """Get a connection to the PostgreSQL database with retry logic"""
     for attempt in range(1, max_attempts + 1):
         try:
             logger.info(f"Attempting to connect to database (attempt {attempt}/{max_attempts})")
             
-            # Get connection details from environment variables or use defaults
-            db_host = os.environ.get('DB_HOST', 'localhost')
-            db_port = os.environ.get('DB_PORT', '5432')
-            db_name = os.environ.get('DB_NAME', 'warranty_db')
-            db_user = os.environ.get('DB_USER', 'warranty_user')
-            db_password = os.environ.get('DB_PASSWORD', 'warranty_password')
-            
             conn = psycopg2.connect(
-                host=db_host,
-                port=db_port,
-                dbname=db_name,
-                user=db_user,
-                password=db_password
+                host=DB_HOST,
+                port=DB_PORT,
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
             )
             
             # Set autocommit to False for transaction control
@@ -113,7 +115,15 @@ def apply_migrations():
                     with open(migration_file, 'r') as f:
                         sql = f.read()
                     
-                    cur.execute(sql, {"db_name": AsIs(conn.info.dbname)})
+                    cur.execute(
+                        sql,
+                        {
+                            "db_name": AsIs(DB_NAME),
+                            "db_user": AsIs(DB_USER),
+                            "db_admin_user": AsIs(DB_ADMIN_USER),
+                            "db_admin_password": AsIs(DB_ADMIN_PASSWORD),
+                        }
+                    )
                 elif migration_file.endswith('.py'):
                     # Apply Python migration
                     migration_module = load_python_migration(migration_file)
