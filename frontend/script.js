@@ -131,6 +131,49 @@ function setTheme(isDark) {
 
 // Initialization logic on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch(error => {
+                    console.error('Service Worker registration failed:', error);
+                });
+        });
+    }
+
+    // --- Search button click triggers search ---
+    const searchBtn = document.getElementById('searchBtn');
+    const searchInput = document.getElementById('searchWarranties');
+    if (searchBtn && searchInput) {
+        searchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            currentFilters.search = searchInput.value.toLowerCase();
+            applyFilters();
+        });
+    }
+    // --- Ensure globalManageTagsBtn triggers modal and tag form is always initialized ---
+    // (Redundant with setupUIEventListeners, but ensures modal is always ready)
+    const globalManageTagsBtn = document.getElementById('globalManageTagsBtn');
+    if (globalManageTagsBtn) {
+        globalManageTagsBtn.addEventListener('click', async () => {
+            if (!allTags || allTags.length === 0) {
+                showLoadingSpinner();
+                try {
+                    await loadTags();
+                } catch (error) {
+                    console.error("Failed to load tags before opening modal:", error);
+                    showToast("Could not load tags. Please try again.", "error");
+                    hideLoadingSpinner();
+                    return;
+                }
+                hideLoadingSpinner();
+            }
+            openTagManagementModal();
+        });
+    }
     console.log('[DEBUG] Registering authStateReady event handler');
     // ... other initialization ...
 
@@ -147,7 +190,29 @@ document.addEventListener('DOMContentLoaded', function() {
             // For simplicity, assuming DOMContentLoaded runs once per page load.
             globalNewTagForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                createNewTag();
+                // Inline implementation for creating a new tag from the modal
+                const tagNameInput = document.getElementById('newTagName');
+                const tagColorInput = document.getElementById('newTagColor');
+                const name = tagNameInput ? tagNameInput.value.trim() : '';
+                const color = tagColorInput ? tagColorInput.value : '#808080';
+                if (!name) {
+                    showToast('Tag name is required', 'error');
+                    return;
+                }
+                // Use the existing createTag function if available
+                if (typeof createTag === 'function') {
+                    createTag(name, color)
+                        .then(() => {
+                            if (tagNameInput) tagNameInput.value = '';
+                            if (tagColorInput) tagColorInput.value = '#808080';
+                            renderExistingTags && renderExistingTags();
+                        })
+                        .catch((err) => {
+                            showToast((err && err.message) || 'Failed to create tag', 'error');
+                        });
+                } else {
+                    showToast('Tag creation function not found', 'error');
+                }
             });
         }
 
@@ -2934,7 +2999,7 @@ function openTagManagementModal() {
     renderExistingTags();
     
     // Show modal
-    tagManagementModal.style.display = 'block';
+    tagManagementModal.classList.add('active');
 }
 
 // Render existing tags in the management modal
@@ -3152,6 +3217,26 @@ function deleteTag(id) {
 
 // Set up event listeners for UI controls
 function setupUIEventListeners() {
+    // --- Global Manage Tags Button ---
+    const globalManageTagsBtn = document.getElementById('globalManageTagsBtn');
+    if (globalManageTagsBtn) {
+        globalManageTagsBtn.addEventListener('click', async () => {
+            // Ensure allTags are loaded before opening the modal
+            if (!allTags || allTags.length === 0) {
+                showLoadingSpinner();
+                try {
+                    await loadTags();
+                } catch (error) {
+                    console.error("Failed to load tags before opening modal:", error);
+                    showToast("Could not load tags. Please try again.", "error");
+                    hideLoadingSpinner();
+                    return;
+                }
+                hideLoadingSpinner();
+            }
+            openTagManagementModal();
+        });
+    }
     // Initialize edit tabs
     initEditTabs();
     

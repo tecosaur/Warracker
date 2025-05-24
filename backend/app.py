@@ -38,6 +38,10 @@ logger = logging.getLogger(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key_change_in_production')
 app.config['JWT_EXPIRATION_DELTA'] = timedelta(days=7)  # Token expiration time
 
+# Email change token settings
+EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS = 24 # Token valid for 24 hours
+EMAIL_CHANGE_VERIFICATION_ENDPOINT = '/verify-email-change.html' # Frontend page for verification
+
 UPLOAD_FOLDER = '/data/uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'zip', 'rar'}
 
@@ -734,38 +738,6 @@ def request_password_reset():
         if conn:
             release_db_connection(conn)
 
-@app.route('/api/auth/password/verify-token', methods=['GET'])
-def verify_reset_token():
-    """Verify if a password reset token is valid and not expired."""
-    token = request.args.get('token')
-    
-    if not token:
-        return jsonify({'valid': False, 'message': 'Token is missing!'}), 400
-        
-    conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute('SELECT expires_at FROM password_reset_tokens WHERE token = %s', (token,))
-            token_info = cur.fetchone()
-            
-            if not token_info:
-                return jsonify({'valid': False, 'message': 'Token not found!'}), 404
-            
-            expires_at = token_info[0]
-            if expires_at < datetime.utcnow():
-                return jsonify({'valid': False, 'message': 'Token has expired!'}), 410 # 410 Gone might be appropriate
-            
-            # Token is valid and not expired
-            return jsonify({'valid': True, 'message': 'Token is valid.'}), 200
-            
-    except Exception as e:
-        logger.error(f"Token verification error for token {token}: {e}")
-        return jsonify({'valid': False, 'message': 'Error verifying token!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
 # Note: The actual reset_password function is defined earlier in the file.
 # The duplicated block that caused the error has been removed.
 
@@ -1365,7 +1337,6 @@ def update_warranty(warranty_id):
                 sql_values.append(db_manual_path)
             elif 'delete_manual' in request.form and request.form.get('delete_manual', 'false').lower() == 'true':
                 sql_fields.append("manual_path = NULL")
-            
             if db_other_document_path is not None:
                 sql_fields.append("other_document_path = %s")
                 sql_values.append(db_other_document_path)
@@ -1620,44 +1591,66 @@ def update_profile():
     try:
         # Get request data
         data = request.get_json()
-        
         if not data:
             return jsonify({'message': 'No input data provided'}), 400
-        
+
         # Extract fields
         first_name = data.get('first_name', '').strip()
         last_name = data.get('last_name', '').strip()
-        
+        new_email = data.get('email', '').strip()
+
         # Validate input
         if not first_name or not last_name:
             return jsonify({'message': 'First name and last name are required'}), 400
-            
+
         # Get database connection
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
-            # Update user profile
-            cursor.execute(
-                """
+            update_fields = ["first_name = %s", "last_name = %s"]
+            update_params = [first_name, last_name]
+
+            # Handle email change
+            if new_email:
+                if not is_valid_email(new_email):
+                    conn.rollback()
+                    return jsonify({'message': 'Invalid email format!'}), 400
+
+                # Check if the new email is different from the current one
+                cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+                current_email_tuple = cursor.fetchone()
+                if not current_email_tuple:
+                    conn.rollback()
+                    return jsonify({'message': 'User not found while fetching current email.'}), 404
+                current_email = current_email_tuple[0]
+
+                if new_email.lower() != current_email.lower():
+                    # Check if the new email is already in use by another user
+                    cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s) AND id != %s", (new_email, user_id))
+                    if cursor.fetchone():
+                        conn.rollback()
+                        return jsonify({'message': 'This email address is already in use by another account.'}), 409
+                    update_fields.append("email = %s")
+                    update_params.append(new_email)
+
+            update_query_string = ", ".join(update_fields)
+            final_query = f"""
                 UPDATE users 
-                SET first_name = %s, last_name = %s
+                SET {update_query_string}
                 WHERE id = %s 
                 RETURNING id, username, email, first_name, last_name, created_at
-                """,
-                (first_name, last_name, user_id)
-            )
-            
+                """
+            cursor.execute(final_query, tuple(update_params + [user_id]))
+
             # Get updated user data
             user_data = cursor.fetchone()
-            
             if not user_data:
+                conn.rollback()
                 return jsonify({'message': 'User not found'}), 404
-                
-            # Commit changes
+
             conn.commit()
-            
-            # Format user data
+
             user = {
                 'id': user_data[0],
                 'username': user_data[1],
@@ -1666,9 +1659,8 @@ def update_profile():
                 'last_name': user_data[4],
                 'created_at': user_data[5].isoformat() if user_data[5] else None
             }
-            
             return jsonify(user), 200
-            
+
         except Exception as e:
             conn.rollback()
             logger.error(f"Database error in update_profile: {str(e)}")
@@ -1676,7 +1668,7 @@ def update_profile():
         finally:
             cursor.close()
             release_db_connection(conn)
-            
+
     except Exception as e:
         logger.error(f"Error in update_profile: {str(e)}")
         return jsonify({'message': 'An error occurred while updating profile'}), 500
@@ -3289,18 +3281,17 @@ def update_tag(tag_id):
                 return jsonify({"error": f"Another tag with this name already exists for your account"}), 409 # Updated error message
                 
             # Update the tag
-            cur.execute('UPDATE tags SET name = %s, color = %s, updated_at = NOW() WHERE id = %s RETURNING id, name, color', 
+            cur.execute('UPDATE tags SET name = %s, color = %s, updated_at = NOW() WHERE id = %s RETURNING id, name, color', \
                         (new_name, new_color, tag_id))
             updated_tag = cur.fetchone()
-            
-            conn.commit()
-            
-            return jsonify({"id": updated_tag[0], "name": updated_tag[1], "color": updated_tag[2]}), 200
+        # conn.commit() and return statement are part of the try block, outside the 'with' block.
+        conn.commit()
+        return jsonify({"id": updated_tag[0], "name": updated_tag[1], "color": updated_tag[2]}), 200
             
     except Exception as e:
         logger.error(f"Error updating tag {tag_id}: {e}")
         if conn:
-            conn.rollback()
+            conn.rollback() 
         return jsonify({"error": "Failed to update tag"}), 500
     finally:
         if conn:
@@ -3629,7 +3620,7 @@ def import_warranties():
                             placeholders = ', '.join(['%s'] * len(tag_names))
                             # Include user_id in the lookup
                             sql = f"SELECT id, LOWER(name) FROM tags WHERE LOWER(name) IN ({placeholders}) AND user_id = %s"
-                            cur.execute(sql, [name.lower() for name in tag_names] + [user_id]) # Add user_id to params
+                            cur.execute(sql, [name.lower() for name in tag_names] + [user_id]) # Add user_id
                             existing_tags = {name_lower: tag_id for tag_id, name_lower in cur.fetchall()}
                             
                             processed_tag_ids = []
@@ -3684,7 +3675,7 @@ def import_warranties():
                             SELECT id FROM warranties 
                             WHERE user_id = %s AND product_name = %s AND purchase_date = %s
                         """, (user_id, product_name, purchase_date))
-                        if cur.fetchone():
+                        if cur.fetchone(): # Correctly indented
                             errors.append("Duplicate warranty found (same product name and purchase date).")
                     
                     # --- If errors, skip row --- 
@@ -3836,4 +3827,247 @@ def reset_password():
         return jsonify({'message': 'Password reset failed!'}), 500
     finally:
         if conn:
+            release_db_connection(conn)
+
+def send_email_change_verification_email(recipient_email, verification_link_path_with_token):
+    """Sends an email with a link to verify the new email address."""
+    try:
+        smtp_host = os.environ.get('SMTP_HOST', 'localhost')
+        smtp_port = int(os.environ.get('SMTP_PORT', 1025))
+        smtp_username = os.environ.get('SMTP_USERNAME')
+        smtp_password = os.environ.get('SMTP_PASSWORD')
+        smtp_use_tls = os.environ.get('SMTP_USE_TLS', 'true').lower() == 'true'
+        smtp_use_ssl = os.environ.get('SMTP_USE_SSL', 'false').lower() == 'true'
+        sender_email = os.environ.get('SMTP_SENDER_EMAIL', 'noreply@warracker.com')
+        app_name = "Warracker" # Or get from config
+        
+        subject = f"Confirm Your New Email Address - {app_name}"
+        
+        app_base_url = os.environ.get('APP_BASE_URL', request.url_root.rstrip('/'))
+        full_verification_link = f"{app_base_url}{verification_link_path_with_token}"
+
+        html_content = None
+        email_template_path = os.path.join(os.path.dirname(__file__), 'templates', 'email_change_verification.html')
+        if os.path.exists(email_template_path):
+            with open(email_template_path, 'r') as f:
+                html_content = f.read()
+            html_content = html_content.replace("{{verification_link}}", full_verification_link)
+            html_content = html_content.replace("{{app_name}}", app_name)
+            html_content = html_content.replace("{{expiration_hours}}", str(EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS))
+        else:
+            logger.warning(f"Email template not found: {email_template_path}. Using basic HTML fallback.")
+            html_content = f"""            <html>
+                <body>
+                    <p>Hello,</p>
+                    <p>Please click the link below to confirm your new email address for {app_name}:</p>
+                    <p><a href="{full_verification_link}">Confirm Email Change</a></p>
+                    <p>If you did not request this change, please ignore this email.</p>
+                    <p>This link will expire in {EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS} hours.</p>
+                    <p>Thanks,<br>The {app_name} Team</p>
+                </body>
+            </html>
+            """
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        msg.attach(MIMEText(html_content, 'html'))
+
+        logger.info(f"Attempting to send email change verification to {recipient_email} via {smtp_host}:{smtp_port}")
+
+        if smtp_use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            if smtp_use_tls:
+                server.starttls()
+        
+        if smtp_username and smtp_password:
+            server.login(smtp_username, smtp_password)
+            
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+        server.quit()
+        logger.info(f"Email change verification sent successfully to {recipient_email}")
+        return True
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"SMTP Authentication Error sending email change verification: {e}")
+    except Exception as e:
+        logger.error(f"Error sending email change verification: {e}", exc_info=True)
+    return False
+
+def generate_secure_token(length=40):
+    """Generates a cryptographically secure random string token."""
+    return uuid.uuid4().hex + uuid.uuid4().hex[:length-len(uuid.uuid4().hex)]
+
+@app.route('/api/auth/change-email', methods=['POST'])
+@token_required
+def request_email_change():
+    current_user_id = request.user['id'] # Get user ID from decorator
+    data = request.get_json()
+    new_email = data.get('new_email')
+    password = data.get('password')
+
+    if not new_email or not password:
+        return jsonify({'message': 'New email and password are required'}), 400
+
+    if not is_valid_email(new_email):
+        return jsonify({'message': 'Invalid new email format'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Fetch current user's password hash and current email
+        cur.execute("SELECT password_hash, email FROM users WHERE id = %s", (current_user_id,))
+        user_data = cur.fetchone()
+
+        if not user_data:
+            return jsonify({'message': 'User not found'}), 404 # Should not happen with @token_required
+
+        current_password_hash, current_email = user_data
+
+        if not bcrypt.check_password_hash(current_password_hash, password):
+            return jsonify({'message': 'Incorrect password'}), 401
+            
+        if new_email.lower() == current_email.lower():
+            return jsonify({'message': 'New email cannot be the same as the current email'}), 400
+
+        # Check if the new email is already in use by another user
+        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (new_email.lower(), current_user_id))
+        if cur.fetchone():
+            return jsonify({'message': 'This email address is already in use by another account.'}), 409
+            
+        # Check for an existing, non-expired, non-used request for this user and new email
+        cur.execute("""
+            SELECT id, token_expires_at FROM email_change_requests 
+            WHERE user_id = %s AND new_email = %s AND is_used = FALSE AND token_expires_at > NOW()
+        """, (current_user_id, new_email.lower()))
+        existing_request = cur.fetchone()
+
+        if existing_request:
+            # Potentially resend email if requested soon after, or just inform user
+            return jsonify({'message': 'An email change request for this address is already pending. Please check your inbox.'}), 409
+
+        # Invalidate any older, unused tokens for this user to prevent multiple active links
+        cur.execute("UPDATE email_change_requests SET is_used = TRUE, token_expires_at = NOW() WHERE user_id = %s AND is_used = FALSE", (current_user_id,))
+
+
+        verification_token = generate_secure_token()
+        token_expires_at = datetime.utcnow().replace(tzinfo=pytz.utc) + timedelta(hours=EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS)
+        
+        # Get app base URL from environment or config
+        app_base_url = os.environ.get('APP_BASE_URL', request.url_root.rstrip('/'))
+        verification_link = f"{app_base_url}{EMAIL_CHANGE_VERIFICATION_ENDPOINT}?token={verification_token}"
+
+        cur.execute("""
+            INSERT INTO email_change_requests (user_id, new_email, verification_token, token_expires_at)
+            VALUES (%s, %s, %s, %s)
+        """, (current_user_id, new_email.lower(), verification_token, token_expires_at))
+        
+        conn.commit()
+
+        if send_email_change_verification_email(new_email, verification_link):
+            return jsonify({'message': f'Verification email sent to {new_email}. Please check your inbox to confirm.'}), 200
+        else:
+            # Rollback if email sending failed, to allow user to try again
+            # Or, consider if the request should remain, and user can request resend.
+            # For now, simple rollback.
+            conn.rollback() 
+            return jsonify({'message': 'Failed to send verification email. Please try again later.'}), 500
+
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Database error during email change request: {e}")
+        return jsonify({'message': 'Database error processing your request.'}), 500
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error requesting email change: {e}")
+        return jsonify({'message': 'An unexpected error occurred.'}), 500
+    finally:
+        if conn:
+            cur.close()
+            release_db_connection(conn)
+
+@app.route('/api/auth/verify-email-change', methods=['POST'])
+# This endpoint might not need @token_required if the verification_token itself is the auth mechanism
+# However, if a user is already logged in on the browser where they click the link,
+# it might be good to associate, but the primary auth is the token from email.
+def verify_email_change():
+    data = request.get_json()
+    verification_token = data.get('token')
+
+    if not verification_token:
+        return jsonify({'message': 'Verification token is required'}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id, user_id, new_email, token_expires_at 
+            FROM email_change_requests 
+            WHERE verification_token = %s AND is_used = FALSE
+        """, (verification_token,))
+        request_data = cur.fetchone()
+
+        if not request_data:
+            return jsonify({'message': 'Invalid or expired verification token.'}), 400
+
+        req_id, user_id, new_email, token_expires_at = request_data
+        
+        # Ensure token_expires_at is timezone-aware for comparison
+        if token_expires_at.tzinfo is None:
+            token_expires_at = pytz.utc.localize(token_expires_at)
+
+        if datetime.utcnow().replace(tzinfo=pytz.utc) > token_expires_at:
+            # Mark as used/expired anyway
+            cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,))
+            conn.commit()
+            return jsonify({'message': 'Verification token has expired.'}), 400
+
+        # Check if the new email has been taken by another user *since the request was made*
+        # This is a rare race condition but good to check.
+        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (new_email, user_id))
+        if cur.fetchone():
+            cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,)) # Invalidate token
+            conn.commit()
+            return jsonify({'message': 'This email address has recently been claimed by another account. Please try a different email.'}), 409
+
+        # Update user's email
+        cur.execute("UPDATE users SET email = %s, updated_at = NOW() WHERE id = %s", (new_email, user_id))
+        
+        # Mark token as used
+        cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,))
+        
+        conn.commit()
+        
+        # Optionally, log the user out of other sessions for security.
+        # This would require a session management mechanism (e.g., storing session IDs or using JWT blacklisting).
+        # For now, we will skip this, but it's a good addition for production.
+
+        # Optionally, send a notification to the OLD email address that the email has been changed.
+        # old_email_query = "SELECT email FROM users WHERE id = %s" # This would get new email now
+        # To get old email, it should have been selected before the update or passed through.
+        # For simplicity, this step is omitted but recommended.
+
+        return jsonify({'message': 'Email address updated successfully.'}), 200
+
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Database error during email verification: {e}")
+        return jsonify({'message': 'Database error processing your request.'}), 500
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error verifying email change: {e}")
+        return jsonify({'message': 'An unexpected error occurred.'}), 500
+    finally:
+        if conn:
+            cur.close()
             release_db_connection(conn)

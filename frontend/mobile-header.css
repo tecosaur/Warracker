@@ -1,11 +1,22 @@
 @media (max-width: 768px) {
-  /* Header Responsive Styles */
+  /* Header Responsive Styles with increased specificity */
   header .container {
     flex-wrap: wrap !important; /* Allow header items to wrap */
     justify-content: space-between !important; /* Push title left, right-group right */
     align-items: center !important; /* Vertically align items in the top row */
     gap: 10px 15px !important; /* Add space between wrapped items */
     padding: 10px 15px !important; /* Adjust padding */
+    /* Ensure theme variables are applied */
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+  }
+
+  header {
+    /* Ensure header inherits theme variables on mobile */
+    background-color: var(--card-bg) !important;
+    box-shadow: var(--shadow) !important;
+    padding: 20px 0 !important;
+    margin-bottom: 30px !important;
   }
 
   header .app-title {
@@ -17,11 +28,13 @@
   header .app-title h1 {
     font-size: 1.8rem !important; /* Slightly reduce title size */
     margin: 0 auto !important; /* Center title text if needed */
+    color: var(--primary-color) !important; /* Ensure theme color */
   }
   
   header .app-title i {
     font-size: 1.6rem !important; /* Slightly reduce icon size */
     margin-right: 10px !important;
+    color: var(--primary-color) !important; /* Ensure theme color */
     /* display: none; /* Optionally hide icon on very small screens */
   }
   
@@ -44,11 +57,647 @@
       gap: 15px !important; 
   }
 
+  /* Navigation link styling for mobile */
+  header .nav-link {
+    color: var(--text-color) !important;
+    text-decoration: none !important;
+    padding: 8px 12px !important;
+    border-radius: 4px !important;
+    transition: background-color 0.3s !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  header .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Dark mode hover for nav links */
+  :root[data-theme="dark"] header .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  header .nav-link.active {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    font-weight: 600 !important;
+  }
+
+  /* Dark mode active nav link */
+  :root[data-theme="dark"] header .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
   /* Override specific margins from header-fix.css */
   header .auth-buttons,
   header .user-menu,
   header .settings-container {
       margin: 0 5px !important; /* Override margin-left from header-fix.css */
       flex-shrink: 0 !important; /* Prevent shrinking */
+  }
+
+  /* Auth button styling for mobile with theme support */
+  header .auth-btn {
+    padding: 5px 15px !important;
+    border-radius: 20px !important;
+    font-size: 0.9rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+  }
+
+  header .login-btn {
+    background-color: transparent !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+  }
+
+  header .login-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Dark mode login button hover */
+  :root[data-theme="dark"] header .login-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  header .register-btn {
+    background-color: var(--primary-color) !important;
+    border: 1px solid var(--primary-color) !important;
+    color: white !important;
+  }
+
+  header .register-btn:hover {
+    background-color: var(--primary-dark) !important;
+    border-color: var(--primary-dark) !important;
+  }
+
+  /* User menu styling for mobile */
+  header .user-btn {
+    background: none !important;
+    border: none !important;
+    color: var(--text-color) !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    font-size: 0.9rem !important;
+    padding: 5px 10px !important;
+    border-radius: 20px !important;
+    transition: background-color 0.3s !important;
+  }
+
+  header .user-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Dark mode user button hover */
+  :root[data-theme="dark"] header .user-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* User menu dropdown for mobile */
+  header .user-menu-dropdown {
+    position: absolute !important;
+    top: 100% !important;
+    right: 0 !important;
+    background-color: var(--card-bg) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px var(--shadow-color) !important;
+    width: 200px !important;
+    z-index: 1000 !important;
+    display: none !important;
+    padding: 10px 0 !important;
+    margin-top: 5px !important;
+    border: 1px solid var(--border-color) !important;
+  }
+
+  header .user-menu-dropdown.active {
+    display: block !important;
+  }
+
+  header .user-info {
+    padding: 10px 15px !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    margin-bottom: 5px !important;
+  }
+
+  header .user-name {
+    font-weight: bold !important;
+    margin-bottom: 5px !important;
+    color: var(--text-color) !important;
+  }
+
+  header .user-email {
+    font-size: 0.8rem !important;
+    color: var(--dark-gray) !important;
+    word-break: break-all !important;
+  }
+
+  header .user-menu-item {
+    padding: 8px 15px !important;
+    cursor: pointer !important;
+    transition: background-color 0.3s !important;
+    display: flex !important;
+    align-items: center !important;
+    color: var(--text-color) !important;
+  }
+
+  header .user-menu-item:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Dark mode user menu item hover */
+  :root[data-theme="dark"] header .user-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  header .user-menu-item i {
+    margin-right: 10px !important;
+    width: 16px !important;
+    text-align: center !important;
+    color: var(--text-color) !important;
+  }
+
+  /* Settings container for mobile */
+  header .settings-container {
+    position: relative !important;
+    margin-left: 10px !important;
+  }
+
+  header .settings-btn {
+    background: none !important;
+    border: none !important;
+    color: var(--text-color) !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.2rem !important;
+    padding: 8px !important;
+    border-radius: 50% !important;
+    transition: background-color 0.3s !important;
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  header .settings-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Dark mode settings button hover */
+  :root[data-theme="dark"] header .settings-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* ===== MOBILE SEARCH CONTAINER AND ACTION BUTTONS ===== */
+  
+  /* Override the default mobile stacking behavior from style.css */
+  .search-container {
+    display: flex !important;
+    flex-direction: row !important; /* Keep horizontal layout */
+    width: 100% !important;
+    gap: 8px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important; /* Allow wrapping when needed */
+  }
+
+  /* Search box takes most of the width */
+  .search-container .search-box {
+    flex: 1 1 250px !important; /* Flexible, min 250px */
+    min-width: 250px !important;
+    max-width: none !important;
+  }
+
+  /* Button container stays on the right */
+  .search-container > div:last-child {
+    display: flex !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+  }
+
+  /* Action buttons styling for mobile */
+  .search-container .export-btn,
+  .search-container .import-btn,
+  .search-container #globalManageTagsBtn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 8px 12px !important;
+    border-radius: var(--border-radius) !important;
+    border: none !important;
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: var(--transition) !important;
+    height: 36px !important;
+    white-space: nowrap !important;
+    min-width: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Import button and manage tags button get secondary styling (green) */
+  .search-container .import-btn,
+  .search-container #globalManageTagsBtn {
+    background-color: var(--secondary-color) !important;
+  }
+
+  /* Hover states for action buttons */
+  .search-container .export-btn:hover {
+    background-color: var(--primary-dark) !important;
+    transform: none !important; /* Remove transform for mobile */
+  }
+
+  .search-container .import-btn:hover,
+  .search-container #globalManageTagsBtn:hover {
+    background-color: #27ae60 !important; /* Darker green for secondary */
+  }
+
+  /* Icon spacing in action buttons */
+  .search-container .export-btn i,
+  .search-container .import-btn i,
+  .search-container #globalManageTagsBtn i {
+    font-size: 0.8rem !important;
+    margin-right: 4px !important;
+  }
+
+  /* Dark mode styles for action buttons */
+  :root[data-theme="dark"] .search-container .export-btn {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+  }
+
+  :root[data-theme="dark"] .search-container .import-btn,
+  :root[data-theme="dark"] .search-container #globalManageTagsBtn {
+    background-color: var(--secondary-color) !important;
+    color: white !important;
+  }
+
+  :root[data-theme="dark"] .search-container .export-btn:hover {
+    background-color: var(--primary-dark) !important;
+  }
+
+  :root[data-theme="dark"] .search-container .import-btn:hover,
+  :root[data-theme="dark"] .search-container #globalManageTagsBtn:hover {
+    background-color: #27ae60 !important;
+  }
+
+  /* Very small screens - stack the buttons below search */
+  @media (max-width: 480px) {
+    .search-container {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 10px !important;
+    }
+
+    .search-container .search-box {
+      width: 100% !important;
+      min-width: unset !important;
+      flex: none !important;
+    }
+
+    .search-container > div:last-child {
+      width: 100% !important;
+      justify-content: space-between !important;
+      flex-wrap: wrap !important;
+      gap: 8px !important;
+    }
+
+    .search-container .export-btn,
+    .search-container .import-btn,
+    .search-container #globalManageTagsBtn {
+      flex: 1 1 calc(33.333% - 5px) !important;
+      min-width: 90px !important;
+      padding: 10px 8px !important;
+      font-size: 0.8rem !important;
+    }
+  }
+
+  /* ===== MOBILE STATUS DASHBOARD ===== */
+  
+  /* Status cards 2x2 grid layout for mobile */
+  .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 15px !important;
+    margin-bottom: 25px !important;
+  }
+
+  /* Individual status card mobile optimization */
+  .status-card {
+    background-color: var(--card-bg) !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    box-shadow: var(--shadow) !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: transform 0.3s, box-shadow 0.3s !important;
+    border: 1px solid var(--border-color) !important;
+    min-height: 80px !important;
+  }
+
+  .status-card:hover {
+    transform: translateY(-2px) !important; /* Reduced for mobile */
+    box-shadow: 0 4px 12px var(--shadow-color) !important;
+  }
+
+  /* Card icon sizing for mobile */
+  .status-card .card-icon {
+    font-size: 2rem !important; /* Slightly smaller for mobile */
+    margin-right: 12px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Card content text sizing for mobile */
+  .status-card .card-content h3 {
+    margin: 0 0 4px 0 !important;
+    font-size: 0.85rem !important; /* Smaller text */
+    color: var(--dark-gray) !important;
+    line-height: 1.2 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.6rem !important; /* Slightly smaller number */
+    font-weight: 700 !important;
+    margin: 0 !important;
+    color: var(--text-color) !important;
+    line-height: 1 !important;
+  }
+
+  /* Ensure proper theme colors for status card icons */
+  .status-card[data-status="active"] .card-icon {
+    color: #4CAF50 !important;
+  }
+
+  .status-card[data-status="expiring"] .card-icon {
+    color: #FF9800 !important;
+  }
+
+  .status-card[data-status="expired"] .card-icon {
+    color: #F44336 !important;
+  }
+
+  .status-card[data-status="total"] .card-icon {
+    color: var(--primary-color) !important;
+  }
+
+  /* Dark mode adjustments for better visibility */
+  :root[data-theme="dark"] .status-card {
+    background-color: var(--card-bg) !important;
+    border-color: var(--border-color) !important;
+    box-shadow: var(--shadow) !important;
+  }
+
+  :root[data-theme="dark"] .status-card:hover {
+    box-shadow: 0 4px 12px var(--shadow-color) !important;
+  }
+
+  :root[data-theme="dark"] .status-card .card-content h3 {
+    color: var(--dark-gray) !important;
+  }
+
+  :root[data-theme="dark"] .status-card .card-content .count {
+    color: var(--text-color) !important;
+  }
+}
+
+/* ===== PHONE-SPECIFIC STATUS CARD FIXES ===== */
+/* iPhone SE, iPhone 12/13 mini: 375px */
+@media (max-width: 375px) and (min-width: 361px) {
+  .status-content .status-cards,
+  body .status-cards,
+  .container .status-cards,
+  .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .status-content .status-card,
+  body .status-card,
+  .container .status-card,
+  .status-card {
+    background-color: var(--card-bg) !important;
+    border-radius: 6px !important;
+    padding: 10px !important;
+    box-shadow: var(--shadow) !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 65px !important;
+  }
+
+  .status-card .card-icon {
+    font-size: 1.6rem !important;
+    margin-right: 8px !important;
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.75rem !important;
+    margin: 0 0 2px 0 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.3rem !important;
+  }
+}
+
+/* iPhone 12/13/14, most Android phones: 390px-414px */
+@media (max-width: 414px) and (min-width: 376px) {
+  .status-content .status-cards,
+  body .status-cards,
+  .container .status-cards,
+  .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .status-content .status-card,
+  body .status-card,
+  .container .status-card,
+  .status-card {
+    background-color: var(--card-bg) !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    box-shadow: var(--shadow) !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 70px !important;
+  }
+
+  .status-card .card-icon {
+    font-size: 1.8rem !important;
+    margin-right: 10px !important;
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.8rem !important;
+    margin: 0 0 3px 0 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.4rem !important;
+  }
+}
+
+/* iPhone 14 Plus and larger phones: 428px+ */
+@media (max-width: 480px) and (min-width: 415px) {
+  .status-content .status-cards,
+  body .status-cards,
+  .container .status-cards,
+  .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 15px !important;
+    margin-bottom: 25px !important;
+  }
+
+  .status-content .status-card,
+  body .status-card,
+  .container .status-card,
+  .status-card {
+    background-color: var(--card-bg) !important;
+    border-radius: 8px !important;
+    padding: 15px !important;
+    box-shadow: var(--shadow) !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 75px !important;
+  }
+
+  .status-card .card-icon {
+    font-size: 2rem !important;
+    margin-right: 12px !important;
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.85rem !important;
+    margin: 0 0 4px 0 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.5rem !important;
+  }
+}
+
+/* ===== SPECIFIC FIX FOR 425PX SCREENS ===== */
+@media (max-width: 425px) and (min-width: 361px) {
+  /* Force 2x2 grid layout for 425px screens with higher specificity */
+  .status-content .status-cards,
+  body .status-cards,
+  .container .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Compact status cards for 425px */
+  .status-content .status-card,
+  body .status-card,
+  .container .status-card {
+    background-color: var(--card-bg) !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    box-shadow: var(--shadow) !important;
+    display: flex !important;
+    align-items: center !important;
+    transition: transform 0.3s, box-shadow 0.3s !important;
+    border: 1px solid var(--border-color) !important;
+    min-height: 70px !important;
+  }
+
+  /* Icon and text sizing for 425px */
+  .status-card .card-icon {
+    font-size: 1.8rem !important;
+    margin-right: 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.8rem !important;
+    margin: 0 0 3px 0 !important;
+    color: var(--dark-gray) !important;
+    line-height: 1.2 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    color: var(--text-color) !important;
+    line-height: 1 !important;
+  }
+}
+
+/* ===== EXTENDED MOBILE SUPPORT FOR 425PX AND SMALLER ===== */
+@media (max-width: 480px) {
+  /* Override the default single-column behavior from style.css for status cards */
+  /* Keep the 2x2 grid layout down to 375px for better organization */
+  .status-cards {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important; /* Slightly tighter spacing */
+    margin-bottom: 20px !important;
+  }
+
+  /* Adjust status cards for smaller screens (425px and below) */
+  .status-card {
+    padding: 12px !important; /* Reduced padding for smaller screens */
+    min-height: 70px !important; /* Slightly shorter cards */
+  }
+
+  /* Smaller icon and text for very compact cards */
+  .status-card .card-icon {
+    font-size: 1.8rem !important; /* Smaller icon */
+    margin-right: 10px !important; /* Tighter spacing */
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.8rem !important; /* Even smaller label text */
+    margin: 0 0 3px 0 !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.4rem !important; /* Smaller but still prominent numbers */
+  }
+}
+
+/* ===== VERY SMALL SCREENS (360px and below) ===== */
+@media (max-width: 360px) {
+  /* Only at very small screens, switch to single column */
+  .status-cards {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Full-width cards for tiny screens */
+  .status-card {
+    padding: 15px !important; /* Back to more padding since we have full width */
+    min-height: 60px !important;
+  }
+
+  .status-card .card-icon {
+    font-size: 1.6rem !important;
+    margin-right: 12px !important;
+  }
+
+  .status-card .card-content h3 {
+    font-size: 0.85rem !important;
+  }
+
+  .status-card .card-content .count {
+    font-size: 1.5rem !important;
   }
 } 

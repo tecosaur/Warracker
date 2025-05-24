@@ -166,20 +166,28 @@
                 </div>
                 <!-- Filters and Search -->
                 <div class="filter-controls">
-                    <div class="search-container">
-                        <div class="search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" id="searchWarranties" placeholder="Find by name, notes, tag, or serial number...">
+                    <div class="search-container" style="display: flex; width: 100%; gap: 8px; align-items: center; flex-wrap: nowrap;">
+                        <!-- Make search box much longer, buttons only as wide as needed -->
+                        <div class="search-box" style="flex: 2 1 400px; min-width: 200px; max-width: 1000px;">
+                            <button id="searchBtn" class="search-btn" title="Search">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <input type="text" id="searchWarranties" placeholder="Find by name, vendors, notes, tag, or serial number..." style="width: 100%; min-width: 200px;">
                             <button id="clearSearch" class="clear-search-btn" title="Clear search" style="display: none;">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
-                        <button id="exportBtn" class="export-btn" title="Export warranties">
-                            <i class="fas fa-file-export"></i> Export
-                        </button>
-                        <button id="importBtn" class="import-btn" title="Import warranties from CSV">
-                            <i class="fas fa-file-import"></i> Import
-                        </button>
+                        <div style="display: flex; gap: 8px; flex-wrap: nowrap; flex-shrink: 0; min-width: 0;">
+                            <button id="exportBtn" class="export-btn" title="Export warranties" style="white-space: nowrap;">
+                                <i class="fas fa-file-export"></i> Export
+                            </button>
+                            <button id="importBtn" class="import-btn" title="Import warranties from CSV" style="white-space: nowrap;">
+                                <i class="fas fa-file-import"></i> Import
+                            </button>
+                            <button id="globalManageTagsBtn" class="export-btn" title="Manage all tags" style="white-space: nowrap;">
+                                <i class="fas fa-tags"></i> Manage Tags
+                            </button>
+                        </div>
                         <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     </div>
                     
@@ -248,9 +256,8 @@
                             <th>Actions</th>
                         </tr>
                     </div>
-                    
                     <!-- Warranties will be loaded here -->
-                    <div class="empty-state">
+                    <div class="empty-state" style="display: none;">
                         <i class="fas fa-box-open"></i>
                         <h3>No warranties yet</h3>
                         <p>Add your first warranty to get started</p>

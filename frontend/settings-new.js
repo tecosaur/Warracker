@@ -909,13 +909,25 @@ function resetPasswordForm() {
  */
 async function saveProfile() {
     // Validate form
-    if (!firstNameInput || !lastNameInput || !firstNameInput.value.trim() || !lastNameInput.value.trim()) { // Add null checks for inputs
+    if (!firstNameInput || !lastNameInput || !firstNameInput.value.trim() || !lastNameInput.value.trim()) {
         showToast('Please fill in First Name and Last Name', 'error');
         return;
     }
 
+    // Get the new email value
+    const newEmail = emailInput.value.trim();
+    if (!newEmail) {
+        showToast('Email address cannot be empty.', 'error');
+        return;
+    }
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+        showToast('Please enter a valid email address.', 'error');
+        return;
+    }
+
     showLoading();
-    // Get the display element
     const userNameDisplay = document.getElementById('currentUserNameDisplay');
 
     try {
@@ -927,28 +939,29 @@ async function saveProfile() {
             },
             body: JSON.stringify({
                 first_name: firstNameInput.value.trim(),
-                last_name: lastNameInput.value.trim()
+                last_name: lastNameInput.value.trim(),
+                email: newEmail
             })
         });
 
         if (response.ok) {
             const userData = await response.json();
-
             // Update localStorage
             const currentUser = window.auth.getCurrentUser();
             let first_name = userData.first_name;
             let last_name = userData.last_name;
             if (!last_name) first_name = '';
             const updatedUser = {
-                ...(currentUser || {}), // Handle case where currentUser might be null
+                ...(currentUser || {}),
                 first_name,
                 last_name,
-                // Ensure email and username are preserved if they existed
-                email: currentUser ? currentUser.email : userData.email,
+                email: userData.email, // Use the email returned from the backend
                 username: currentUser ? currentUser.username : userData.username,
                 is_admin: currentUser ? currentUser.is_admin : userData.is_admin,
                 id: currentUser ? currentUser.id : userData.id
             };
+            // Update the email input field with the (potentially new) email from the backend
+            if (emailInput) emailInput.value = userData.email || '';
             localStorage.setItem('user_info', JSON.stringify(updatedUser));
 
             // --- UPDATE DISPLAY ELEMENT IMMEDIATELY ---
@@ -963,16 +976,15 @@ async function saveProfile() {
 
             // Update UI (Header, etc.) - Ensure auth module is loaded
             if (window.auth && window.auth.checkAuthState) {
-                window.auth.checkAuthState(); // This should update the header menu
+                window.auth.checkAuthState();
             } else {
-                 console.warn("Auth module or checkAuthState not found, header might not update immediately.");
+                console.warn("Auth module or checkAuthState not found, header might not update immediately.");
             }
 
             showToast('Profile updated successfully', 'success');
         } else {
             const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
-
-    throw new Error(errorData.message || 'Failed to update profile');
+            throw new Error(errorData.message || 'Failed to update profile');
         }
     } catch (error) {
         console.error('Error updating profile:', error);

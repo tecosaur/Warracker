@@ -782,18 +782,49 @@ input.invalid {
   display: flex; /* Shown when active */
 }
 
-.modal {
-  background-color: var(--modal-background, #ffffff);
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  animation: slide-in 0.3s ease;
-  position: relative;
-  overflow: hidden; /* Changed from auto to hidden */
+/* Specific override for tag management modal to ensure proper centering */
+#tagManagementModal.modal-backdrop {
+  display: none;
+  justify-content: center !important;
+  align-items: center !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  z-index: 1050 !important;
+}
+
+#tagManagementModal.modal-backdrop.active {
+  display: flex !important;
+}
+
+/* Ensure the inner modal content is properly sized */
+#tagManagementModal .modal {
+  background-color: var(--modal-background, #ffffff) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+  width: 90% !important;
+  max-width: 600px !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  animation: slide-in 0.3s ease !important;
+  position: relative !important;
+  overflow: hidden !important;
+  margin: 0 !important; /* Remove any conflicting margins */
+}
+
+/* Override conflicting styles from styles.css for tag management modal */
+#tagManagementModal.modal-backdrop .modal {
+  position: relative !important; /* Override fixed positioning */
+  top: auto !important; /* Remove top positioning */
+  left: auto !important; /* Remove left positioning */
+  width: 90% !important; /* Set proper width */
+  height: auto !important; /* Set auto height */
+  background-color: var(--modal-background, #ffffff) !important;
+  margin: 0 !important; /* Remove conflicting margins */
 }
 
 @keyframes slide-in {
@@ -1861,15 +1892,143 @@ input.invalid {
   border: 1px solid var(--border-color);
 }
 
+/* --- Improved search bar and dropdown spacing --- */
 .search-container {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 15px;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.search-box {
+  flex: 2 1 320px;
+  display: flex;
+  align-items: center;
+  background-color: var(--input-background, #f5f5f5);
+  border: 1.5px solid var(--border-color);
+  border-radius: 25px;
+  padding: 0 16px;
+  height: 44px;
+  box-shadow: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 220px;
+  max-width: 500px;
+}
+
+.search-box:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.10);
+}
+
+.search-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-right: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+.search-btn:hover {
+  color: var(--primary-color);
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  background: none;
+  width: 100%;
+  color: var(--text-color);
+  font-size: 1rem;
+  padding: 8px 0;
+}
+
+.clear-search-btn {
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 4px;
+  transition: color 0.2s;
+}
+.clear-search-btn:hover {
+  color: var(--primary-color);
+}
+
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  align-items: center;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 160px;
+  min-width: 140px;
+  max-width: 220px;
+}
+
+@media (max-width: 900px) {
+  .filter-options {
+    gap: 12px 8px;
+  }
+  .filter-group {
+    min-width: 120px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .search-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .search-box {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+  .filter-options {
+    flex-direction: column;
+    gap: 10px 0;
+  }
+  .filter-group {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .search-container .search-box {
-  flex: 1;
+  flex: 1 1 220px;
 }
 
 .search-container .export-btn {
@@ -1877,6 +2036,38 @@ input.invalid {
   align-self: center;
   height: 42px;
   flex-shrink: 0;
+}
+
+/* Style for the global Manage Tags button to match Export/Import */
+#globalManageTagsBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 15px;
+  border-radius: var(--border-radius);
+  border: none;
+  background-color: var(--secondary-color);
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  height: 40px;
+  align-self: center;
+  margin-top: 0;
+  min-width: 120px;
+  max-width: none;
+  white-space: nowrap;
+}
+
+#globalManageTagsBtn:hover {
+  background-color: #27ae60;
+  transform: translateY(-1px);
+}
+
+#globalManageTagsBtn i {
+  font-size: 0.9rem;
 }
 
 /* Override any conflicting search box styles */
@@ -1905,9 +2096,20 @@ input.invalid {
   outline: none;
   background: none;
   width: 100%;
-  color: var(--text-color);
-  font-size: 0.95rem;
-  padding: 2px 0;
+}
+
+/* Responsive: Make search/btns stack on mobile */
+@media (max-width: 768px) {
+  .search-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  #globalManageTagsBtn, .search-container .export-btn, .search-container .import-btn {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 .filter-options {
@@ -2038,6 +2240,8 @@ input.invalid {
 .view-switcher {
   display: flex;
   flex-direction: column;
+  flex-grow: 1; /* Allow this to take available space */
+  min-width: 120px; /* Minimum width for the 3 buttons */
 }
 
 .view-buttons {
@@ -3098,7 +3302,7 @@ input.invalid {
   
   header .app-title i {
     font-size: 1.6rem !important; /* Slightly reduce icon size */
-    margin-right: 10px !important;
+    margin-right: 10px !important; /* Slightly reduce icon size */
   }
   
   header .nav-links {
@@ -3346,4 +3550,129 @@ input.invalid {
 [data-theme="dark"] .text-success .view-document-link:hover,
 [data-theme="dark"] .text-success .view-document-link:focus {
     color: var(--primary-light);
+}
+
+.modal {
+  background-color: var(--modal-background, #ffffff);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.3s ease;
+  position: relative;
+  overflow: hidden; /* Changed from auto to hidden */
+}
+
+:root[data-theme="dark"] .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* Dark mode styles for tag management modal */
+:root[data-theme="dark"] #tagManagementModal .modal {
+    background-color: var(--modal-background) !important;
+}
+
+:root[data-theme="dark"] #tagManagementModal .modal-header,
+:root[data-theme="dark"] #tagManagementModal .modal-body,
+:root[data-theme="dark"] #tagManagementModal .modal-footer {
+    background-color: var(--modal-background) !important;
+    color: var(--text-color) !important;
+}
+
+:root[data-theme="dark"] #tagManagementModal .form-control {
+    background-color: var(--input-background) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] #tagManagementModal .form-control:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25) !important;
+}
+
+:root[data-theme="dark"] #tagManagementModal label,
+:root[data-theme="dark"] #tagManagementModal h4 {
+    color: var(--text-color) !important;
+}
+
+:root[data-theme="dark"] #tagManagementModal .existing-tag {
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+}
+
+/* Mobile responsive styles for tag management modal */
+@media (max-width: 768px) {
+  #tagManagementModal.modal-backdrop {
+    padding: 10px !important;
+  }
+
+  #tagManagementModal .modal {
+    width: 95% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  #tagManagementModal .modal-header,
+  #tagManagementModal .modal-body,
+  #tagManagementModal .modal-footer {
+    padding: 15px !important;
+  }
+
+  #tagManagementModal .tag-form {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  #tagManagementModal .tag-form input[type="color"] {
+    width: 100% !important;
+    height: 40px !important;
+  }
+}
+
+/* Fix CSS Syntax Error - Replace orphaned properties with stronger tag management modal overrides */
+/* Override styles.css modal positioning specifically for tag management modal */
+#tagManagementModal.modal-backdrop {
+  display: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  z-index: 1050 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  overflow: auto !important;
+}
+
+#tagManagementModal.modal-backdrop.active {
+  display: flex !important;
+}
+
+/* Stronger override to center the tag management modal content */
+#tagManagementModal .modal-content,
+#tagManagementModal .modal {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  margin: 0 !important;
+  width: 90% !important;
+  max-width: 600px !important;
+  max-height: 90vh !important;
+  background-color: var(--modal-background, #ffffff) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }

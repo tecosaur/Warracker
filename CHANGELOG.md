@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.9.9.8] - 2025-05-24
+
+
+### Added
+- **Account Email Change:** Users can now change the email address associated with their account from the Settings page.
+  - The email field in Account Settings is now editable.
+  - Client-side and backend validation ensure the new email is valid and not already in use by another account.
+  - The backend prevents duplicate emails and returns clear error messages for conflicts or invalid formats.
+  - On successful change, the new email is reflected in the UI and localStorage, and users must use the new email to log in.
+  - _Files: `frontend/settings-new.html`, `frontend/settings-new.js`, `backend/app.py`_
+- **Progressive Web App (PWA) Support:** Enabled the application to be installed on Android devices.
+  - Added and configured `manifest.json` with necessary properties (name, short_name, icons, start_url, display, orientation, theme_color, background_color, description).
+  - Implemented a basic service worker (`sw.js`) with a cache-first strategy for core assets (HTML, CSS, JS, manifest, icons) to enable offline access and faster loading.
+  - Registered the service worker in `script.js`.
+  - Ensured `index.html` links to the `manifest.json` file.
+  - Updated icon set in `manifest.json` and `sw.js` to use 16x16, 32x32, and 512x512 favicons.
+  - _Files: `frontend/manifest.json`, `frontend/sw.js`, `frontend/script.js`, `frontend/index.html`_
+- **Manage Tags Button on Index Page:** Added a "Manage Tags" button to the filter controls section on the main warranties page (`index.html`).
+  - Clicking this button opens the tag management modal, which is now centered on the screen.
+  - _Files: `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+### Changed
+- **Mobile/Tablet Responsiveness:** Updated `index.html` , `status.html`  and associated CSS to improve the layout and usability of grid and list views on mobile and tablet devices.
+  - _Files: `frontend/index.html`, `frontend/status.html`, `frontend/style.css` , `frontend/mobile-header.css`_
+- **Database Credential Handling (Contribution by @humrochagf):** Replaced hardcoded database credentials with environment variable references for improved security and maintainability (Commit: 20997e9).
+  - Removed hardcoded `db_user`, `db_admin_user`, and `db_admin_password` values.
+  - Updated Dockerfile to eliminate redundant superuser credential checks.
+  - Ensured `DB_ADMIN_PASSWORD` is configurable via Docker Compose environment variables, removing manual post-deployment steps.
+  - Adjusted scripts to rely on dynamic credentials set in the environment.
+  - _Files: `Dockerfile`, `backend/app.py`, `backend/fix_permissions.py`, `backend/fix_permissions.sql`, `backend/migrations/010_configure_admin_roles.sql`, `backend/migrations/011_ensure_admin_permissions.sql`, `backend/migrations/apply_migrations.py`, `docker-compose.yml`_
 
 ## [0.9.9.7] - 2025-05-16
 
