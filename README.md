@@ -44,7 +44,7 @@ Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to tra
 
 Thank you for your support as I continue to improve Warracker.
 
-### 🔑 Key Capabilities
+## 🔑 Key Capabilities
 
 * **Centralized Warranty Management:** Track and manage all your product warranties in one place.
 * **Detailed Records:** Save essential details like purchase dates, durations, and notes.
