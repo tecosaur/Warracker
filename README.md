@@ -30,22 +30,36 @@ Warracker is an open-source warranty tracker application designed to help you ef
 
 ## 🌟 Overview
 
-**Warracker** is a web-based application designed to simplify and centralize product warranty management. Key capabilities include:
+**Warracker** is a web-based application designed to simplify and centralize product warranty management.
 
-- **Centralized Warranty Management:** Track and manage all your product warranties in one place.
-- **Detailed Records:** Save essential details like purchase dates, durations, and notes.
-- **Document Storage:** Upload and securely store receipts, invoices, product manuals, and other related files (e.g., ZIP, RAR archives).
-- **Proactive Alerts:** Visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
-- **Quick Search and Filter:** Instantly find warranties by product name, serial numbers, vendor, tags, or notes.
-- **Notes Support:** Add freeform notes to each warranty for extra context or reminders.
-- **Secure Access with Multi-User Support:** Create multiple user accounts for shared access; admins can enable or disable new user creation.
-- **System Status Dashboard:** Real-time system health and warranty summary.
-- **Data Export and Import:** Export warranty data to CSV, or import warranties from CSV files.
-- **Email Notifications:** Receive timely email reminders about upcoming expirations — configurable as daily, weekly, or monthly.
-- **Customizable Currency Symbols:** Display prices using your preferred currency symbol ($, €, £, ¥, ₹, or a custom symbol).
-- **Customizable Dates:**  Display dates based on your own region.
-- **Tagging:** Organize warranties with flexible, multi-tag support.
-- **Password Reset:** Easily recover accounts through a secure, token-based password reset flow.
+### 👨‍🔧 Why I Built This
+
+Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
+
+My father once called me for help with his broken dishwasher. We were confident it was still under warranty, especially since we had the invoice. But after countless back-and-forth with the manufacturer, they insisted it wasn’t covered due to a mismatch in the serial number. The truth? My father had unknowingly purchased **two** dishwashers, and we were referencing the wrong one.
+
+This wasn’t my first time running into warranty headaches, and I realized there had to be a better way. That’s when I decided to build **Warracker**, a simple tool to track purchases, receipts, and warranty periods in one place. Since then, Warracker has already saved me money by alerting me before my **car’s warranty expired**, allowing me to make necessary repairs just in time.
+
+Inspired by **Wallos**, an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
+
+Thank you for your support as I continue to improve Warracker.
+
+### 🔑 Key Capabilities
+
+* **Centralized Warranty Management:** Track and manage all your product warranties in one place.
+* **Detailed Records:** Save essential details like purchase dates, durations, and notes.
+* **Document Storage:** Upload and securely store receipts, invoices, product manuals, and other related files (e.g., ZIP, RAR archives).
+* **Proactive Alerts:** Visual notifications for active, expiring (customizable from 1 to 365 days), and expired warranties.
+* **Quick Search and Filter:** Instantly find warranties by product name, serial numbers, vendor, tags, or notes.
+* **Notes Support:** Add freeform notes to each warranty for extra context or reminders.
+* **Secure Access with Multi-User Support:** Create multiple user accounts for shared access; admins can enable or disable new user creation.
+* **System Status Dashboard:** Real-time system health and warranty summary.
+* **Data Export and Import:** Export warranty data to CSV, or import warranties from CSV files.
+* **Email Notifications:** Receive timely email reminders about upcoming expirations, configurable as daily, weekly, or monthly.
+* **Customizable Currency Symbols:** Display prices using your preferred currency symbol (\$, €, £, ¥, ₹, or a custom symbol).
+* **Customizable Dates:** Display dates based on your region.
+* **Tagging:** Organize warranties with flexible, multi-tag support.
+* **Password Reset:** Easily recover accounts through a secure, token-based password reset flow.
 
 ## 📸 Screenshots
 
