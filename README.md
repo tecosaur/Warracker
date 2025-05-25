@@ -40,7 +40,7 @@ My father once called me for help with his broken dishwasher. We were confident 
 
 This wasn’t my first time running into warranty headaches, and I realized there had to be a better way. That’s when I decided to build **Warracker**, a simple tool to track purchases, receipts, and warranty periods in one place. Since then, Warracker has already saved me money by alerting me before my **car’s warranty expired**, allowing me to make necessary repairs just in time.
 
-Inspired by **Wallos**, an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
+Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
 
 Thank you for your support as I continue to improve Warracker.
 
