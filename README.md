@@ -4,7 +4,10 @@
 <img src="https://github.com/user-attachments/assets/2132a842-4233-4d37-8fde-b2d23353ed76" width="145"/>
 
 <h1 <strong>Warracker</strong></h1>
-
+<p align="center">
+    <b>Open-source warranty tracker application designed to help you effortlessly keep track of product warranties, expiration dates, and related documentation.
+</b>
+</p>
 </div>
 
 
@@ -23,10 +26,6 @@
 #
     
 </div>
-
-# 🛡️ Warracker
-
-Warracker is an open-source warranty tracker application designed to help you effortlessly keep track of product warranties, expiration dates, and related documentation.
 
 ## 🌟 Overview
 
