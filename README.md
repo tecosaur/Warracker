@@ -267,7 +267,7 @@ warracker/
 └── nginx.conf           # Web server configuration
 ```
 
-### 👨‍🔧 Why I Built This
+## 👨‍🔧 Why I Built This
 
 Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
 
