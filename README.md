@@ -35,7 +35,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 
 **Warracker** is a web-based application designed to simplify and centralize product warranty management.
 
-## 🔑 Key Capabilities
+## Key Capabilities
 
 * **Centralized Warranty Management:** Track and manage all your product warranties in one place.
 * **Detailed Records:** Save essential details like purchase dates, durations, and notes.
