@@ -5,7 +5,8 @@
 
 <h1 <strong>Warracker</strong></h1>
 <p align="center">
-    <b>Open-source warranty tracker application designed to help you effortlessly keep track of product warranties, expiration dates, and related documentation.
+    <b>Open-source warranty tracker for individuals and teams.</b> <br/>
+The easiest way to organize product warranties, monitor expiration dates, and store receipts or related documents.
 </b>
 </p>
 </div>
