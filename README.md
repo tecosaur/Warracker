@@ -21,8 +21,6 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 ![GitHub release](https://img.shields.io/github/v/release/sassanix/Warracker)
 ![GitHub contributors](https://img.shields.io/github/contributors/sassanix/Warracker)
 <!-- ![Downloads](https://img.shields.io/github/downloads/sassanix/Warracker/total) -->
-[![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/denser-org/denser-retriever/pulls?utf8=%E2%9C%93&q=is%3Apr%20author%3Aapp%2Fdependabot)
-![Maintenance](https://img.shields.io/badge/Maintained-Actively-green)
 
 <p align="center">
   <img src="images/demo.gif" alt="Warracker Demo" width="600">
