@@ -35,18 +35,6 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 
 **Warracker** is a web-based application designed to simplify and centralize product warranty management.
 
-### 👨‍🔧 Why I Built This
-
-Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
-
-My father once called me for help with his broken dishwasher. We were confident it was still under warranty, especially since we had the invoice. But after countless back-and-forth with the manufacturer, they insisted it wasn’t covered due to a mismatch in the serial number. The truth? My father had unknowingly purchased **two** dishwashers, and we were referencing the wrong one.
-
-This wasn’t my first time running into warranty headaches, and I realized there had to be a better way. That’s when I decided to build **Warracker**, a simple tool to track purchases, receipts, and warranty periods in one place. Since then, Warracker has already saved me money by alerting me before my **car’s warranty expired**, allowing me to make necessary repairs just in time.
-
-Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
-
-Thank you for your support as I continue to improve Warracker.
-
 ## 🔑 Key Capabilities
 
 * **Centralized Warranty Management:** Track and manage all your product warranties in one place.
@@ -63,6 +51,7 @@ Thank you for your support as I continue to improve Warracker.
 * **Customizable Dates:** Display dates based on your region.
 * **Tagging:** Organize warranties with flexible, multi-tag support.
 * **Password Reset:** Easily recover accounts through a secure, token-based password reset flow.
+
 
 ## Project Status
 
@@ -278,13 +267,17 @@ warracker/
 └── nginx.conf           # Web server configuration
 ```
 
+### 👨‍🔧 Why I Built This
 
-## 🛠️ Troubleshooting
+Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
 
-### Common Issues
+My father once called me for help with his broken dishwasher. We were confident it was still under warranty, especially since we had the invoice. But after countless back-and-forth with the manufacturer, they insisted it wasn’t covered due to a mismatch in the serial number. The truth? My father had unknowingly purchased **two** dishwashers, and we were referencing the wrong one.
 
-*   **Connection Refused Error**:  Ensure all containers are running (`docker-compose ps`). Verify the backend is correctly connected to the database.
-*   **Database Errors**: If schema issues arise, double-check that the database initialization script (`init.sql`) matches the expected schema in `app.py`.
+This wasn’t my first time running into warranty headaches, and I realized there had to be a better way. That’s when I decided to build **Warracker**, a simple tool to track purchases, receipts, and warranty periods in one place. Since then, Warracker has already saved me money by alerting me before my **car’s warranty expired**, allowing me to make necessary repairs just in time.
+
+Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
+
+Thank you for your support as I continue to improve Warracker.
 
 ## 🤝 Contributing
 
