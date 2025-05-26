@@ -74,22 +74,6 @@ The essential features are reliable and ready for everyday use. Development is o
 * ⚒️ Advanced enhancements are still being worked on
 * ✍️ Your feedback and bug reports help shape the future of the app
 
-## 🗺️ Roadmap
-
-*   User Authentication - **Completed ✅**
-*   Settings Page - **Completed ✅**
-*   Status Page - **Completed ✅**
-*   Customizing Reminders to any day needed - **Completed ✅**
-*   Email Reminders for Expiring Warranties - **Completed ✅**
-*   Warranty Categories/Grouping through tags - **Completed ✅**
-*   Warranty Data Import (CSV) - **Completed ✅**
-*   Improved Search and Filtering - **Completed ✅**
-*   Warranty claim tracking - **Planned**
-*   Calendar Integration - **Planned**
-*   OIDC SSO Functionality - **Planned**
-*   Advanced user and admin control - **Planned**
-*   Localization support - **Planned**
-
 ## 📸 Screenshots
 
 **Home Page**
@@ -127,6 +111,22 @@ The essential features are reliable and ready for everyday use. Development is o
 *   **Database**: PostgreSQL
 *   **Containerization**: Docker and Docker Compose
 *   **Web Server**: Nginx
+
+## 🗺️ Roadmap
+
+*   User Authentication - **Completed ✅**
+*   Settings Page - **Completed ✅**
+*   Status Page - **Completed ✅**
+*   Customizing Reminders to any day needed - **Completed ✅**
+*   Email Reminders for Expiring Warranties - **Completed ✅**
+*   Warranty Categories/Grouping through tags - **Completed ✅**
+*   Warranty Data Import (CSV) - **Completed ✅**
+*   Improved Search and Filtering - **Completed ✅**
+*   Warranty claim tracking - **Planned**
+*   Calendar Integration - **Planned**
+*   OIDC SSO Functionality - **Planned**
+*   Advanced user and admin control - **Planned**
+*   Localization support - **Planned**
 
 ## 🚀 Setup
 
