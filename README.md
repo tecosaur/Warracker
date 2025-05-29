@@ -227,23 +227,6 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
     docker-compose up -d
     ```
 
-### Project Structure
-
-```
-warracker/
-├── backend/             # Python Flask backend
-│   ├── app.py           # Main application logic
-│   ├── requirements.txt # Python dependencies
-│   └── init.sql         # Database initialization
-├── frontend/            # Web frontend
-│   ├── index.html
-│   ├── script.js
-│   └── style.css
-├── docker-compose.yml   # Docker configuration
-├── Dockerfile           # Container definition
-└── nginx.conf           # Web server configuration
-```
-
 
 ## Why I Built This
 
