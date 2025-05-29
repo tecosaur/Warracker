@@ -197,7 +197,7 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
 *   Click the edit icon to modify warranty details.
 *   Click the delete icon to remove a warranty.
 
-## 📦 Product Information Entry Requirements for CSV import
+## Product Information Entry Requirements for CSV import
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
 |----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
