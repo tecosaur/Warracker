@@ -138,7 +138,7 @@ The essential features are reliable and ready for everyday use. Development is o
    docker compose up
    ```
 
-### Updating from a Previous Version ⬆
+### Updating from a Previous Version
 1. Pull the latest changes:
    ```
    git pull origin main
