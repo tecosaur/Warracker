@@ -29,7 +29,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
     
 </div>
 
-## Overview
+## 🌟Overview
 
 **Warracker** is a web-based application that simplifies the management of product warranties. It allows users to organize warranty information, monitor expiration dates, and securely store related documents.
 
@@ -81,13 +81,13 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ## Roadmap
 
-* [x] User Authentication
-* [x] Settings Page
-* [x] Status Page
-* [x] Customizable Reminders
-* [x] Email Notifications
-* [x] Warranty Categories via Tags
-* [x] CSV Import/Export
+* ✅ User Authentication
+* ✅ Settings Page
+* ✅ Status Page
+* ✅ Customizable Reminders
+* ✅ Email Notifications
+* ✅ Warranty Categories via Tags
+* ✅ CSV Import/Export
 * [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
 * [ ] OIDC SSO Functionality
@@ -130,7 +130,7 @@ The essential features are reliable and ready for everyday use. Development is o
     Open your browser and navigate to `http://localhost:8005`.
 
 
-## Pull Docker
+## 🐋Pull Docker
 
 
 ```
