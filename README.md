@@ -63,7 +63,7 @@ The essential features are reliable and ready for everyday use. Development is o
 * ⚒️ Advanced enhancements are still being worked on
 * ✍️ Your feedback and bug reports help shape the future of the app
 
-## 📸 Screenshots
+## Screenshots
 
 **Home Page**
 
