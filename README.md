@@ -81,19 +81,18 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ## Roadmap
 
-*   User Authentication - **Completed ✅**
-*   Settings Page - **Completed ✅**
-*   Status Page - **Completed ✅**
-*   Customizing Reminders to any day needed - **Completed ✅**
-*   Email Reminders for Expiring Warranties - **Completed ✅**
-*   Warranty Categories/Grouping through tags - **Completed ✅**
-*   Warranty Data Import (CSV) - **Completed ✅**
-*   Improved Search and Filtering - **Completed ✅**
-*   Warranty claim tracking - **Planned**
-*   Calendar Integration - **Planned**
-*   OIDC SSO Functionality - **Planned**
-*   Advanced user and admin control - **Planned**
-*   Localization support - **Planned**
+* [x] User Authentication
+* [x] Settings Page
+* [x] Status Page
+* [x] Customizable Reminders
+* [x] Email Notifications
+* [x] Warranty Categories via Tags
+* [x] CSV Import/Export
+* [ ] Warranty Claim Tracking
+* [ ] Calendar Integration
+* [ ] OIDC SSO Functionality
+* [ ] Advanced User/Admin Controls
+* [ ] Localization Support
 
 ## Setup
 
@@ -245,17 +244,15 @@ warracker/
 └── nginx.conf           # Web server configuration
 ```
 
+
 ## Why I Built This
 
-Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
+Warracker was born from personal frustration with warranty confusion. When my father’s dishwasher broke, we had the invoice and assumed it was under warranty, only to find out we were referencing the wrong one, and the warranty had ended by a couple of months.
 
-My father once called me for help with his broken dishwasher. We were confident it was still under warranty, especially since we had the invoice. But after countless back-and-forth with the manufacturer, they insisted it wasn’t covered due to a mismatch in the serial number. The truth? My father had unknowingly purchased **two** dishwashers, and we were referencing the wrong one.
+That experience, along with others like it, made me realize how common and avoidable these issues are. So I built **Warracker**, a simple, organized way to track purchases, receipts, and warranties. It has already saved me money by reminding me to get car repairs done before my warranty expired.
 
-This wasn’t my first time running into warranty headaches, and I realized there had to be a better way. That’s when I decided to build **Warracker**, a simple tool to track purchases, receipts, and warranty periods in one place. Since then, Warracker has already saved me money by alerting me before my **car’s warranty expired**, allowing me to make necessary repairs just in time.
+Inspired by [**Wallos**](https://github.com/ellite/Wallos), I wanted to bring the same clarity to warranties that it brought to subscriptions and share it with anyone who's ever been burned by missed coverage.
 
-Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to track subscriptions, I thought, *why not do the same for warranties?* Now I want to make it available to anyone who has faced similar frustration.
-
-Thank you for your support as I continue to improve Warracker.
 
 ## Contributing
 
