@@ -31,7 +31,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
     
 </div>
 
-## 🌟 Overview
+## Overview
 
 **Warracker** is a web-based application designed to simplify and centralize product warranty management.
 
@@ -76,7 +76,7 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ![image](https://github.com/user-attachments/assets/4c938b33-d6be-4787-a2d9-9153b0234ee2)
 
-## ✨ Features
+## Features
 
 - **Warranty Management:** Add, edit, and delete warranty information easily.
 - **Document Storage:** Upload and manage receipts, invoices, and product manuals securely.
@@ -93,7 +93,7 @@ The essential features are reliable and ready for everyday use. Development is o
 - **Currency Customization:** Personalize displayed prices with your preferred symbol.
 
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 *   **Frontend**: HTML, CSS, JavaScript
 *   **Backend**: Python with Flask
@@ -101,7 +101,7 @@ The essential features are reliable and ready for everyday use. Development is o
 *   **Containerization**: Docker and Docker Compose
 *   **Web Server**: Nginx
 
-## 🗺️ Roadmap
+## Roadmap
 
 *   User Authentication - **Completed ✅**
 *   Settings Page - **Completed ✅**
@@ -117,14 +117,14 @@ The essential features are reliable and ready for everyday use. Development is o
 *   Advanced user and admin control - **Planned**
 *   Localization support - **Planned**
 
-## 🚀 Setup
+## Setup
 
 ### Prerequisites
 
 *   Docker and Docker Compose installed on your system.
 *   Git (for cloning the repository).
 
-### Fresh Installation 🆕
+### Fresh Installation 
 1. Clone the repository:
    ```
    git clone https://github.com/sassanix/Warracker.git
@@ -138,7 +138,7 @@ The essential features are reliable and ready for everyday use. Development is o
    docker compose up
    ```
 
-### Updating from a Previous Version ⬆️
+### Updating from a Previous Version ⬆
 1. Pull the latest changes:
    ```
    git pull origin main
@@ -153,7 +153,7 @@ The essential features are reliable and ready for everyday use. Development is o
     Open your browser and navigate to `http://localhost:8005`.
 
 
-## 🐋 Pull Docker
+## Pull Docker
 
 
 ```
@@ -205,7 +205,7 @@ volumes:
 
 To get the docker compose file please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
-## 📝 Usage
+## Usage
 
 ### Adding a Warranty
 
@@ -237,7 +237,7 @@ To get the docker compose file please go [here](https://github.com/sassanix/Warr
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
 
 
-## 💻 Development
+## Development
 
 ### Local Development Environment
 
@@ -267,7 +267,7 @@ warracker/
 └── nginx.conf           # Web server configuration
 ```
 
-## 👨‍🔧 Why I Built This
+## Why I Built This
 
 Warracker was born out of a frustrating and all-too-common experience: dealing with warranties.
 
@@ -279,7 +279,7 @@ Inspired by [**Wallos**](https://github.com/ellite/Wallos), an app I used to tra
 
 Thank you for your support as I continue to improve Warracker.
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions and appreciate your interest in improving this project! To get started, please follow these steps:
 
@@ -295,7 +295,7 @@ We welcome contributions and appreciate your interest in improving this project!
    `git push origin feature/amazing-feature`
 5. **Open a Pull Request** with a clear explanation of your changes.
 
-### 📌 Contribution Guidelines
+### Contribution Guidelines
 
 * **Start with an issue**: Before submitting a Pull Request, ensure the change has been discussed in an issue.
 * **Help is welcome**: Check the [issues](../../issues) for open discussions or areas where help is needed.
@@ -318,17 +318,17 @@ We welcome contributions and appreciate your interest in improving this project!
 
 [![Support Warracker](https://img.shields.io/badge/Support-Warracker-red?style=for-the-badge&logo=github-sponsors)](https://buymeacoffee.com/sassanix)
 
-## 📜 License
+## License
 
 This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 *   Flask
 *   PostgreSQL
 *   Docker
 
-## ⭐ Star History
+## Star History
 <a href="https://star-history.com/#sassanix/Warracker&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sassanix/Warracker&type=Date&theme=dark" />
