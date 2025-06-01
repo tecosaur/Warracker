@@ -227,6 +227,8 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   Flask
 *   PostgreSQL
 *   Docker
+*   Chart.js
+
 
 ## Star History
 <a href="https://star-history.com/#sassanix/Warracker&Date">
