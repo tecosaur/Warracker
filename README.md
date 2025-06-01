@@ -81,18 +81,18 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ## Roadmap
 
-* ✅ User Authentication
-* ✅ Settings Page
-* ✅ Status Page
-* ✅ Customizable Reminders
-* ✅ Email Notifications
-* ✅ Warranty Categories via Tags
-* ✅ CSV Import/Export
-* [ ] Warranty Claim Tracking
-* [ ] Calendar Integration
-* [ ] OIDC SSO Functionality
-* [ ] Advanced User/Admin Controls
-* [ ] Localization Support
+ ✅ User Authentication
+ ✅ Settings Page
+ ✅ Status Page
+ ✅ Customizable Reminders
+ ✅ Email Notifications
+ ✅ Warranty Categories via Tags
+ ✅ CSV Import/Export
+ ✅ OIDC SSO Functionality
+ [ ] Warranty Claim Tracking
+ [ ] Calendar Integration
+ [ ] Advanced User/Admin Controls
+ [ ] Localization Support
 
 ## Setup
 
