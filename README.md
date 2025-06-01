@@ -102,6 +102,40 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ## 🐋Pull Docker
 
+```
+services:
+  warracker:
+    image: ghcr.io/sassanix/warracker/main:latest
+    ports:
+      - "8005:80"
+    volumes:
+      - warracker_uploads:/data/uploads
+    env_file:
+      - .env
+# or instead use environment:
+    depends_on:
+      warrackerdb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  warrackerdb:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  warracker_uploads:
+```
+
 To get the docker compose file and .env example please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
 ## Usage
