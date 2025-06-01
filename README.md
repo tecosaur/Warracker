@@ -99,88 +99,10 @@ The essential features are reliable and ready for everyday use. Development is o
 ### Prerequisites
 
 *   Docker and Docker Compose installed on your system.
-*   Git (for cloning the repository).
-
-### Fresh Installation 
-1. Clone the repository:
-   ```
-   git clone https://github.com/sassanix/Warracker.git
-   ```
-2. Navigate to the project directory:
-   ```
-   cd Warracker
-   ```
-3. Start the application using Docker:
-   ```
-   docker compose up
-   ```
-
-### Updating from a Previous Version
-1. Pull the latest changes:
-   ```
-   git pull origin main
-   ```
-2. Rebuild and restart the containers:
-   ```
-   docker compose down
-   docker compose up --build
-   ```
-3.  **Access the Application:**
-
-    Open your browser and navigate to `http://localhost:8005`.
-
 
 ## 🐋Pull Docker
 
-
-```
-services:
-  warracker:
-    image: ghcr.io/sassanix/warracker/main:latest
-    ports:
-      - "8005:80"
-    volumes:
-      - warracker_uploads:/data/uploads
-    environment:
-      - DB_HOST=warrackerdb
-      - DB_NAME=warranty_db
-      - DB_USER=warranty_user
-      - DB_PASSWORD=${DB_PASSWORD:-warranty_password}
-      - SMTP_HOST=smtp.email.com
-      - SMTP_PORT=465
-      - SMTP_USERNAME=youremail@email.com
-      - SMTP_PASSWORD=password
-      - SECRET_KEY=${APP_SECRET_KEY:-your_strong_default_secret_key_here} 
-      - MAX_UPLOAD_MB=32 # Example: Set max upload size to 32MB 
-      - NGINX_MAX_BODY_SIZE_VALUE=32M # For Nginx, ensure this matches MAX_UPLOAD_MB in concept (e.g., 32M)
-    # - FLASK_DEBUG=0
-    depends_on:
-      warrackerdb:
-        condition: service_healthy
-    restart: unless-stopped
-  
-  warrackerdb:
-    image: postgres:15-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=warranty_db
-      - POSTGRES_USER=warranty_user
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-warranty_password}
-    restart: unless-stopped
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-  warracker_uploads:
-```
-
-To get the docker compose file please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
+To get the docker compose file and .env example please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
 ## Usage
 
