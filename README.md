@@ -46,7 +46,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 * **Customizable Settings**: Adjust currency symbols and date formats.
 * **Tagging**: Organize warranties with flexible tags.
 * **Password Reset**: Secure, token-based account recovery.
-* **OIDC Single Sign-On (SSO)**: Log in using external identity providers (Google, GitHub, Keycloak, etc.) via OIDC.
+* **OIDC Single Sign-On (SSO)**: Seamlessly log in using identity providers like Google, GitHub, or Keycloak.
 
 ## Project Status
 
