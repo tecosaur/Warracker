@@ -43,6 +43,17 @@ const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
 const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
+
+// OIDC Settings DOM Elements
+const oidcEnabledToggle = document.getElementById('oidcEnabled');
+const oidcProviderNameInput = document.getElementById('oidcProviderName');
+const oidcClientIdInput = document.getElementById('oidcClientId');
+const oidcClientSecretInput = document.getElementById('oidcClientSecret');
+const oidcIssuerUrlInput = document.getElementById('oidcIssuerUrl');
+const oidcScopeInput = document.getElementById('oidcScope');
+const saveOidcSettingsBtn = document.getElementById('saveOidcSettingsBtn');
+const oidcRestartMessage = document.getElementById('oidcRestartMessage');
+
 const currencySymbolInput = document.getElementById('currencySymbol');
 const currencySymbolSelect = document.getElementById('currencySymbolSelect');
 const currencySymbolCustom = document.getElementById('currencySymbolCustom');
@@ -346,14 +357,7 @@ async function loadUserData() {
             if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || 'N/A';
             // --- END UPDATE ---
 
-            // Check if user is admin and show admin section
-            if (currentUser.is_admin) {
-                if (adminSection) adminSection.style.display = 'block';
-                if (adminSection && adminSection.style.display === 'block') {
-                     if (usersTableBody) loadUsers();
-                     if (registrationEnabled) loadSiteSettings();
-                }
-            }
+            // Admin section visibility will be determined after API call
         }
 
         // Fetch fresh user data from API
@@ -384,13 +388,24 @@ async function loadUserData() {
                  if (userEmailDisplay) userEmailDisplay.textContent = userData.email || 'N/A';
                 // --- END UPDATE ---
 
-                // Show admin section if user is admin
+                // Show admin section if user is admin and load admin-specific data
                 if (userData.is_admin) {
-                     if (adminSection) adminSection.style.display = 'block';
-                     if (adminSection && adminSection.style.display === 'block') {
-                         if (usersTableBody) loadUsers();
-                         if (registrationEnabled) loadSiteSettings();
+                     if (adminSection) {
+                        adminSection.style.display = 'block';
+                        // Ensure admin-specific data is loaded AFTER section is visible
+                        if (usersTableBody) loadUsers();
+                        // Check for site settings elements directly to avoid cache timing issues
+                        const hasRegistrationToggle = document.getElementById('registrationEnabled');
+                        const hasOidcToggle = document.getElementById('oidcEnabled');
+                        if (hasRegistrationToggle || hasOidcToggle) {
+                            console.log('Admin settings elements found, loading site settings...');
+                            loadSiteSettings();
+                        } else {
+                            console.warn('Admin settings elements not found - this might be a timing/cache issue');
+                        }
                      }
+                } else {
+                    if (adminSection) adminSection.style.display = 'none';
                 }
 
                 // Update localStorage ONLY if data has changed
@@ -666,27 +681,23 @@ function setupEventListeners() {
     console.log('Setting up event listeners');
     
     // Set up user menu button click handler
-    const userMenuBtn = document.getElementById('userMenuBtn');
-    const userMenuDropdown = document.getElementById('userMenuDropdown');
-    
-    if (userMenuBtn && userMenuDropdown) {
-        console.log('Setting up user menu button click handler');
-        
-        // Toggle dropdown when user button is clicked
-        userMenuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            userMenuDropdown.classList.toggle('active');
-        });
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (userMenuDropdown.classList.contains('active') && 
-                !userMenuDropdown.contains(e.target) && 
-                !userMenuBtn.contains(e.target)) {
-                userMenuDropdown.classList.remove('active');
-            }
-        });
-    }
+    // const userMenuBtn = document.getElementById('userMenuBtn'); // REMOVE/COMMENT OUT
+    // const userMenuDropdown = document.getElementById('userMenuDropdown'); // REMOVE/COMMENT OUT
+
+    // if (userMenuBtn && userMenuDropdown) { // REMOVE/COMMENT OUT THIS ENTIRE BLOCK
+    //     console.log('Setting up user menu button click handler');
+    //     userMenuBtn.addEventListener('click', function(e) {
+    //         e.stopPropagation();
+    //         userMenuDropdown.classList.toggle('active');
+    //     });
+    //     document.addEventListener('click', function(e) {
+    //         if (userMenuDropdown.classList.contains('active') &&
+    //             !userMenuDropdown.contains(e.target) &&
+    //             !userMenuBtn.contains(e.target)) {
+    //             userMenuDropdown.classList.remove('active');
+    //         }
+    //     });
+    // }
     
     // Dark mode toggle in header (no longer exists)
     if (darkModeToggle) {
@@ -807,7 +818,14 @@ function setupEventListeners() {
     // Site settings save button
     if (saveSiteSettingsBtn) {
         saveSiteSettingsBtn.addEventListener('click', function() {
-            saveSiteSettings();
+            saveSiteSettings(); // This will now also handle non-OIDC site settings
+        });
+    }
+
+    // Save OIDC settings button
+    if (saveOidcSettingsBtn) {
+        saveOidcSettingsBtn.addEventListener('click', function() {
+            saveOidcSettings();
         });
     }
     
@@ -2374,17 +2392,27 @@ function closeAllModals() {
  */
 async function loadSiteSettings() {
     console.log('Loading site settings...');
-    const adminSection = document.getElementById('adminSection');
-    const registrationToggle = document.getElementById('registrationEnabled');
-    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Correct variable name
+    
+    // Enhanced debugging for element availability
+    console.log('[SiteSettings Debug] DOM readiness check:');
+    console.log('  - document.readyState:', document.readyState);
+    console.log('  - adminSection exists:', !!document.getElementById('adminSection'));
+    console.log('  - registrationEnabled exists:', !!document.getElementById('registrationEnabled'));
+    console.log('  - oidcEnabled exists:', !!document.getElementById('oidcEnabled'));
+    console.log('  - oidcProviderName exists:', !!document.getElementById('oidcProviderName'));
+    console.log('  - oidcClientId exists:', !!document.getElementById('oidcClientId'));
+    
+    // Query elements locally within this function scope for population
+    const registrationToggleElem = document.getElementById('registrationEnabled');
+    const emailBaseUrlFieldElem = document.getElementById('emailBaseUrl');
+    const oidcEnabledToggleElem = document.getElementById('oidcEnabled');
+    const oidcProviderNameInputElem = document.getElementById('oidcProviderName');
+    const oidcClientIdInputElem = document.getElementById('oidcClientId');
+    const oidcClientSecretInputElem = document.getElementById('oidcClientSecret');
+    const oidcIssuerUrlInputElem = document.getElementById('oidcIssuerUrl');
+    const oidcScopeInputElem = document.getElementById('oidcScope');
 
-    // // Check if admin section exists
-    // if (!adminSection) {
-    //     console.log('Admin section not found, skipping site settings load');
-    //     return;
-    // }
-
-    try { // Correct structure: try block starts
+    try {
         showLoading();
         
         const response = await fetch('/api/admin/settings', {
@@ -2400,79 +2428,182 @@ async function loadSiteSettings() {
         }
         
         const settings = await response.json();
+        console.log('[SiteSettings] Raw settings received from API:', settings);
         
-        if (registrationToggle) {
-            registrationToggle.checked = settings.registration_enabled === 'true';
+        if (registrationToggleElem) {
+            registrationToggleElem.checked = settings.registration_enabled === 'true';
+        } else {
+            console.error('[SiteSettings] registrationEnabled element NOT FOUND locally.');
         }
         
-        if (emailBaseUrlField) { // Use correct variable name
-            emailBaseUrlField.value = settings.email_base_url || 'http://localhost:8080'; // Set the value
+        if (emailBaseUrlFieldElem) { 
+            emailBaseUrlFieldElem.value = settings.email_base_url || 'http://localhost:8080'; 
+        } else {
+            console.error('[SiteSettings] emailBaseUrl element NOT FOUND locally.');
+        }
+
+        // Populate OIDC settings using locally-scoped element variables
+        if (oidcEnabledToggleElem) {
+            console.log('[OIDC Settings] Found oidcEnabledToggleElem. Setting checked to:', settings.oidc_enabled === 'true');
+            oidcEnabledToggleElem.checked = settings.oidc_enabled === 'true';
+        } else {
+            console.error('[OIDC Settings] oidcEnabledToggleElem element NOT FOUND locally.');
+        }
+
+        if (oidcProviderNameInputElem) {
+            console.log('[OIDC Settings] Found oidcProviderNameInputElem. Setting value to:', settings.oidc_provider_name || 'oidc');
+            oidcProviderNameInputElem.value = settings.oidc_provider_name || 'oidc';
+        } else {
+            console.error('[OIDC Settings] oidcProviderNameInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcClientIdInputElem) {
+            console.log('[OIDC Settings] Found oidcClientIdInputElem. Setting value to:', settings.oidc_client_id || '');
+            oidcClientIdInputElem.value = settings.oidc_client_id || '';
+        } else {
+            console.error('[OIDC Settings] oidcClientIdInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcClientSecretInputElem) {
+            console.log('[OIDC Settings] Found oidcClientSecretInputElem. Setting placeholder based on oidc_client_secret_set:', settings.oidc_client_secret_set);
+            oidcClientSecretInputElem.value = ''; // Always clear on load
+            oidcClientSecretInputElem.placeholder = settings.oidc_client_secret_set ? '******** (Set - Enter new to change)' : 'Enter OIDC Client Secret';
+        } else {
+            console.error('[OIDC Settings] oidcClientSecretInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcIssuerUrlInputElem) {
+            console.log('[OIDC Settings] Found oidcIssuerUrlInputElem. Setting value to:', settings.oidc_issuer_url || '');
+            oidcIssuerUrlInputElem.value = settings.oidc_issuer_url || '';
+        } else {
+            console.error('[OIDC Settings] oidcIssuerUrlInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcScopeInputElem) {
+            console.log('[OIDC Settings] Found oidcScopeInputElem. Setting value to:', settings.oidc_scope || 'openid email profile');
+            oidcScopeInputElem.value = settings.oidc_scope || 'openid email profile';
+        } else {
+            console.error('[OIDC Settings] oidcScopeInputElem element NOT FOUND locally.');
         }
         
-        console.log('Site settings loaded successfully', settings);
+        console.log('Site and OIDC settings loaded and population attempted using locally queried elements.');
         
-    } catch (error) { // Correct structure: catch block follows try
-        console.error('Error loading site settings:', error);
+    } catch (error) { 
+        console.error('Error loading or populating site settings:', error);
         showToast('Failed to load site settings. Please try again.', 'error');
-    } finally { // Correct structure: finally block follows catch
+    } finally { 
         hideLoading();
     }
 }
 
 /**
- * Save site settings
+ * Save site settings (non-OIDC part)
  */
 async function saveSiteSettings() {
-    console.log('Saving site settings...');
+    console.log('Saving site settings (non-OIDC)...');
     const registrationToggle = document.getElementById('registrationEnabled');
-    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Get the new field
+    const emailBaseUrlField = document.getElementById('emailBaseUrl'); 
 
-    const settings = {};
+    const settingsToSave = {};
     
     if (registrationToggle) {
-        settings.registration_enabled = registrationToggle.checked; // Boolean value will be converted to string in backend
+        settingsToSave.registration_enabled = registrationToggle.checked; 
     }
 
     if (emailBaseUrlField) {
         let baseUrl = emailBaseUrlField.value.trim();
-        // Basic validation: check if it looks somewhat like a URL
         if (baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://'))) {
-             // Remove trailing slash if present
             if (baseUrl.endsWith('/')) {
                 baseUrl = baseUrl.slice(0, -1);
             }
-            settings.email_base_url = baseUrl;
+            settingsToSave.email_base_url = baseUrl;
         } else if (baseUrl) {
             showToast('Invalid Email Base URL format. It should start with http:// or https://', 'error');
-            return; // Stop saving if format is invalid
+            return; 
         } else {
-             settings.email_base_url = 'http://localhost:8080'; // Use default if empty
-             emailBaseUrlField.value = settings.email_base_url; // Update field with default
+             settingsToSave.email_base_url = 'http://localhost:8080'; 
+             emailBaseUrlField.value = settingsToSave.email_base_url; 
         }
     }
-
+    
+    if (Object.keys(settingsToSave).length === 0) {
+        showToast('No site settings to save.', 'info');
+        return;
+    }
     
     try {
         showLoading();
-
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${window.auth.getToken()}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(settings)
+            body: JSON.stringify(settingsToSave)
         });
         
+        const result = await response.json();
         if (response.ok) {
-            showToast('Site settings saved successfully', 'success');
+            showToast(result.message || 'Site settings saved successfully', 'success');
         } else {
-            const errorData = await response.json();
-            showToast(errorData.message || 'Failed to save site settings', 'error');
+            showToast(result.message || 'Failed to save site settings', 'error');
         }
     } catch (error) {
         console.error('Error saving site settings:', error);
         showToast('Failed to save site settings. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+
+/**
+ * Save OIDC settings
+ */
+async function saveOidcSettings() {
+    console.log('Saving OIDC settings...');
+    const oidcSettingsPayload = {
+        oidc_enabled: oidcEnabledToggle ? oidcEnabledToggle.checked : false,
+        oidc_provider_name: oidcProviderNameInput ? oidcProviderNameInput.value.trim() : 'oidc',
+        oidc_client_id: oidcClientIdInput ? oidcClientIdInput.value.trim() : '',
+        oidc_issuer_url: oidcIssuerUrlInput ? oidcIssuerUrlInput.value.trim() : '',
+        oidc_scope: oidcScopeInput ? oidcScopeInput.value.trim() : 'openid email profile',
+    };
+
+    // Only include client_secret if a new value is entered
+    if (oidcClientSecretInput && oidcClientSecretInput.value) {
+        oidcSettingsPayload.oidc_client_secret = oidcClientSecretInput.value;
+    }
+
+    try {
+        showLoading();
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(oidcSettingsPayload)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            showToast(result.message || 'OIDC settings saved successfully.', 'success');
+            if (result.message && result.message.includes("restart is required")) {
+                if(oidcRestartMessage) oidcRestartMessage.style.display = 'block';
+            } else {
+                if(oidcRestartMessage) oidcRestartMessage.style.display = 'none';
+            }
+            // Clear the secret field after attempting to save
+            if (oidcClientSecretInput) oidcClientSecretInput.value = '';
+            // Reload settings to get the oidc_client_secret_set flag updated
+            loadSiteSettings(); 
+        } else {
+            showToast(result.message || 'Failed to save OIDC settings.', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving OIDC settings:', error);
+        showToast('Failed to save OIDC settings. Please try again.', 'error');
     } finally {
         hideLoading();
     }

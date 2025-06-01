@@ -116,7 +116,7 @@
                     </a>
                 </div>
                 <div id="userMenu" class="user-menu" style="display: none;">
-                    <button id="userBtn" class="user-btn">
+                    <button id="userMenuBtn" class="user-btn">
                         <i class="fas fa-user-circle"></i>
                         <span id="userDisplayName">User</span>
                     </button>
@@ -336,6 +336,21 @@
                                     </div>
                                     <!-- End Lifetime Checkbox -->
                                     
+                                    <!-- Warranty Entry Method Selection -->
+                                    <div class="form-group" id="warrantyEntryMethod">
+                                        <label>Warranty Entry Method</label>
+                                        <div class="warranty-method-options">
+                                            <label class="radio-option">
+                                                <input type="radio" id="durationMethod" name="warranty_method" value="duration" checked>
+                                                <span>Warranty Duration</span>
+                                            </label>
+                                            <label class="radio-option">
+                                                <input type="radio" id="exactDateMethod" name="warranty_method" value="exact_date">
+                                                <span>Exact Expiration Date</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
                                     <div id="warrantyDurationFields">
                                         <div class="form-group">
                                             <label for="warrantyDurationYears">Warranty Period</label>
@@ -353,6 +368,13 @@
                                                     <small>Days</small>
                                                 </div>
                                             </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="exactExpirationField" style="display: none;">
+                                        <div class="form-group">
+                                            <label for="exactExpirationDate">Expiration Date</label>
+                                            <input type="date" id="exactExpirationDate" name="exact_expiration_date" class="form-control">
                                         </div>
                                     </div>
                                     
@@ -580,6 +602,21 @@
                         </div>
                         <!-- End Lifetime Checkbox -->
                         
+                        <!-- Warranty Entry Method Selection -->
+                        <div class="form-group" id="editWarrantyEntryMethod">
+                            <label>Warranty Entry Method</label>
+                            <div class="warranty-method-options">
+                                <label class="radio-option">
+                                    <input type="radio" id="editDurationMethod" name="edit_warranty_method" value="duration" checked>
+                                    <span>Warranty Duration</span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" id="editExactDateMethod" name="edit_warranty_method" value="exact_date">
+                                    <span>Exact Expiration Date</span>
+                                </label>
+                            </div>
+                        </div>
+                        
                         <div id="editWarrantyDurationFields">
                             <div class="form-group">
                                 <label for="editWarrantyDurationYears">Warranty Period</label>
@@ -597,6 +634,13 @@
                                         <small>Days</small>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <div id="editExactExpirationField" style="display: none;">
+                            <div class="form-group">
+                                <label for="editExactExpirationDate">Expiration Date</label>
+                                <input type="date" id="editExactExpirationDate" name="exact_expiration_date" class="form-control">
                             </div>
                         </div>
                         
@@ -740,7 +784,51 @@
     </div>
     
     <script src="auth.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=20250529004"></script>
+
+    <!-- Powered by Warracker Footer -->
+    <footer class="warracker-footer" id="warrackerFooter">
+        <p>Powered by <a href="https://github.com/sassanix/warracker" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+    </footer>
+
+    <script>
+        // Apply footer styles based on theme
+        function applyFooterStyles() {
+            const footer = document.getElementById('warrackerFooter');
+            const link = document.getElementById('warrackerFooterLink');
+            const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' || 
+                              document.documentElement.classList.contains('dark-mode') ||
+                              document.body.classList.contains('dark-mode');
+            
+            if (footer) {
+                if (isDarkMode) {
+                    // Dark mode styles - using same background as header (#2d2d2d)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #444; background-color: #2d2d2d; color: #e0e0e0; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #4dabf7; text-decoration: none; font-weight: 500;';
+                } else {
+                    // Light mode styles - using same background as header (#ffffff)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0; background-color: #ffffff; color: #333333; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #3498db; text-decoration: none; font-weight: 500;';
+                }
+            }
+        }
+        
+        // Apply styles when page loads
+        document.addEventListener('DOMContentLoaded', applyFooterStyles);
+        
+        // Watch for theme changes
+        const observer = new MutationObserver(applyFooterStyles);
+        observer.observe(document.documentElement, { 
+            attributes: true, 
+            attributeFilter: ['data-theme', 'class'] 
+        });
+        
+        // Also watch body for theme changes
+        observer.observe(document.body, { 
+            attributes: true, 
+            attributeFilter: ['class'] 
+        });
+    </script>
 
 </body>
 </html>

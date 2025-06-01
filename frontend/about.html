@@ -25,22 +25,6 @@
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
     <script src="include-auth-new.js"></script> <!-- Handles auth state display -->
     <script src="fix-auth-buttons-loader.js"></script> <!-- Fixes auth button display timing -->
-    <script src="auth.js"></script> <!-- Load auth.js early for authentication check -->
-
-    <!-- Authentication Check -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Check if user is authenticated
-            const authToken = localStorage.getItem('auth_token');
-            const userInfo = localStorage.getItem('user_info');
-            
-            if (!authToken || !userInfo) {
-                // User is not authenticated, redirect to login page
-                window.location.href = 'login.html';
-                return;
-            }
-        });
-    </script>
 
 </head>
 <body>
@@ -71,7 +55,7 @@
                     </a>
                 </div>
                 <div id="userMenu" class="user-menu" style="display: none;">
-                    <button id="userBtn" class="user-btn">
+                    <button id="userMenuBtn" class="user-btn">
                         <i class="fas fa-user-circle"></i>
                         <span id="userDisplayName">User</span>
                     </button>
@@ -106,7 +90,7 @@
             <div class="about-container" style="background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box;"> 
                 <h1 style="color: var(--primary-color); margin-bottom: 20px;">About Warracker</h1>
 
-                <p><strong>Version:</strong> v0.9.9.8</p>
+                <p><strong>Version:</strong> v0.9.9.9</p>
 
                 <div id="versionTracker" style="margin-bottom: 20px;">
                     <p><strong>Update Status:</strong> <span id="updateStatus">Checking for updates...</span></p>
@@ -160,19 +144,223 @@
     </div> 
 
     <!-- Scripts loaded at the end of body -->
-    <script src="auth.js"></script> <!-- Added for user menu and other auth interactions -->
+    <script src="auth.js?v=2"></script> <!-- Added for user menu and other auth interactions -->
     <script src="script.js"></script> <!-- Include main site script, might contain helpers -->
     <script src="version-checker.js"></script> <!-- Version checker script -->
 
     <!-- Explicitly call setupUIEventListeners for this page -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('About page: DOMContentLoaded triggered');
+            
+            // Add safe loading functions for about page
+            window.showLoading = function() {
+                const loadingContainer = document.getElementById('loadingContainer');
+                if (loadingContainer && loadingContainer.classList) {
+                    loadingContainer.classList.add('active');
+                    console.log('About page: Loading spinner shown');
+                } else {
+                    console.log('About page: Loading container not found or unavailable');
+                }
+            };
+            
+            window.hideLoading = function() {
+                const loadingContainer = document.getElementById('loadingContainer');
+                if (loadingContainer && loadingContainer.classList) {
+                    loadingContainer.classList.remove('active');
+                    console.log('About page: Loading spinner hidden');
+                } else {
+                    console.log('About page: Loading container not found or unavailable');
+                }
+            };
+            
             // Keep theme initialization here if needed for specific timing
             if (typeof initializeTheme === 'function') {
                 console.log('About page: Calling initializeTheme');
                 initializeTheme(); // Call theme initialization if it exists
             }
+
+            // Add specific debugging for user menu elements
+            setTimeout(() => {
+                const userMenuBtn = document.getElementById('userMenuBtn');
+                const userMenuDropdown = document.getElementById('userMenuDropdown');
+                
+                console.log('About page: User menu debug info:', {
+                    userMenuBtn: !!userMenuBtn,
+                    userMenuDropdown: !!userMenuDropdown,
+                    userMenuBtnId: userMenuBtn ? userMenuBtn.id : 'not found',
+                    dropdownId: userMenuDropdown ? userMenuDropdown.id : 'not found',
+                    authModuleAvailable: !!window.auth,
+                    isAuthenticated: window.auth ? window.auth.isAuthenticated() : 'auth not available'
+                });
+                
+                if (userMenuBtn) {
+                    console.log('About page: userMenuBtn element:', userMenuBtn);
+                    console.log('About page: userMenuBtn element found, proceeding with backup handler setup');
+                }
+                
+                // Add a backup user menu handler specifically for about page
+                if (userMenuBtn && userMenuDropdown) {
+                    console.log('About page: Setting up backup user menu handler');
+                    console.log('About page: Current dropdown classes:', userMenuDropdown.className);
+                    console.log('About page: Current dropdown active state:', userMenuDropdown.classList.contains('active'));
+                    
+                    // Test CSS rules by temporarily adding/removing active class
+                    console.log('About page: Testing CSS rules...');
+                    userMenuDropdown.classList.add('active');
+                    const testDisplayActive = window.getComputedStyle(userMenuDropdown).display;
+                    userMenuDropdown.classList.remove('active');
+                    const testDisplayInactive = window.getComputedStyle(userMenuDropdown).display;
+                    console.log('About page: CSS test results:', {
+                        displayWhenActive: testDisplayActive,
+                        displayWhenInactive: testDisplayInactive
+                    });
+                    
+                    // Remove any existing click listeners and add our own
+                    const newUserMenuBtn = userMenuBtn.cloneNode(true);
+                    userMenuBtn.parentNode.replaceChild(newUserMenuBtn, userMenuBtn);
+                    
+                    newUserMenuBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('About page: Backup user menu clicked');
+                        console.log('About page: Dropdown before toggle:', {
+                            classes: userMenuDropdown.className,
+                            hasActive: userMenuDropdown.classList.contains('active'),
+                            style: userMenuDropdown.style.display
+                        });
+                        
+                        const isCurrentlyActive = userMenuDropdown.classList.contains('active');
+                        
+                        if (isCurrentlyActive) {
+                            userMenuDropdown.classList.remove('active');
+                            console.log('About page: User menu closed');
+                        } else {
+                            userMenuDropdown.classList.add('active');
+                            console.log('About page: User menu opened');
+                        }
+                        
+                        // Double-check the state after toggle
+                        console.log('About page: Dropdown after toggle:', {
+                            classes: userMenuDropdown.className,
+                            hasActive: userMenuDropdown.classList.contains('active'),
+                            computedStyle: window.getComputedStyle(userMenuDropdown).display
+                        });
+                    });
+                    
+                    // Add global click listener to close menu when clicking outside
+                    const outsideClickHandler = (e) => {
+                        if (userMenuDropdown.classList.contains('active') &&
+                            !userMenuDropdown.contains(e.target) &&
+                            !newUserMenuBtn.contains(e.target)) {
+                            userMenuDropdown.classList.remove('active');
+                            console.log('About page: User menu closed by outside click');
+                        }
+                    };
+                    
+                    // Use setTimeout to ensure this listener is added after any others
+                    setTimeout(() => {
+                        document.addEventListener('click', outsideClickHandler);
+                        console.log('About page: Outside click handler added');
+                    }, 10);
+                    
+                    console.log('About page: Backup user menu handler set up successfully');
+                    
+                    // Add specific logout handler for the about page
+                    const logoutMenuItem = document.getElementById('logoutMenuItem');
+                    if (logoutMenuItem) {
+                        // Clone the logout menu item to remove any existing listeners
+                        const newLogoutMenuItem = logoutMenuItem.cloneNode(true);
+                        logoutMenuItem.parentNode.replaceChild(newLogoutMenuItem, logoutMenuItem);
+                        
+                        newLogoutMenuItem.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('About page: Logout clicked (backup handler)');
+                            
+                            // Close the user menu
+                            userMenuDropdown.classList.remove('active');
+                            
+                            try {
+                                // Clear auth data manually since showLoading might fail
+                                localStorage.removeItem('auth_token');
+                                localStorage.removeItem('user_info');
+                                
+                                // Try to call the auth manager logout if available
+                                if (window.auth && typeof window.auth.logout === 'function') {
+                                    console.log('About page: Calling auth.logout()');
+                                    await window.auth.logout();
+                                } else {
+                                    console.log('About page: Auth manager not available, redirecting manually');
+                                    // Redirect manually if auth manager fails
+                                    window.location.href = 'login.html';
+                                }
+                            } catch (error) {
+                                console.error('About page: Logout error, falling back to manual redirect:', error);
+                                // Clear auth data and redirect as fallback
+                                localStorage.removeItem('auth_token');
+                                localStorage.removeItem('user_info');
+                                window.location.href = 'login.html';
+                            }
+                        });
+                        
+                        console.log('About page: Backup logout handler set up');
+                    }
+                } else {
+                    console.error('About page: User menu elements not found!', {
+                        userMenuBtn: !!userMenuBtn,
+                        userMenuDropdown: !!userMenuDropdown
+                    });
+                }
+            }, 200); // Delay to allow auth.js to complete setup
+
+            // Move authentication check here, after auth.js has had time to set up
+            setTimeout(() => {
+                // Check if user is authenticated (with a small delay to allow auth.js to process)
+                const authToken = localStorage.getItem('auth_token');
+                const userInfo = localStorage.getItem('user_info');
+                
+                if (!authToken || !userInfo) {
+                    // User is not authenticated, redirect to login page
+                    console.log('About page: User not authenticated, redirecting to login');
+                    window.location.href = 'login.html';
+                    return;
+                }
+            }, 100); // Small delay to allow auth.js to complete setup
         });
+    </script>
+
+    <!-- Loading Spinner -->
+    <div class="loading-container" id="loadingContainer">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Powered by Warracker Footer -->
+    <footer class="warracker-footer" id="warrackerFooter">
+        <p>Powered by <a href="https://github.com/sassanix/warracker" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+    </footer>
+
+    <script>
+        function applyFooterStyles() {
+            const footer = document.getElementById('warrackerFooter');
+            const link = document.getElementById('warrackerFooterLink');
+            const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark-mode') || document.body.classList.contains('dark-mode');
+            if (footer) {
+                if (isDarkMode) {
+                    // Dark mode styles - using same background as header (#2d2d2d)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #444; background-color: #2d2d2d; color: #e0e0e0; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #4dabf7; text-decoration: none; font-weight: 500;';
+                } else {
+                    // Light mode styles - using same background as header (#ffffff)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0; background-color: #ffffff; color: #333333; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #3498db; text-decoration: none; font-weight: 500;';
+                }
+            }
+        }
+        document.addEventListener('DOMContentLoaded', applyFooterStyles);
+        const obs = new MutationObserver(applyFooterStyles);
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     </script>
 
 </body>

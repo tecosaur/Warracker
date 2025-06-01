@@ -1,5 +1,7 @@
-// alert('script.js loaded!'); // Remove alert after confirming script loads
+console.log('[SCRIPT VERSION] 20250529-004 - Fixed warranty method persistence in edit modal');
 console.log('[DEBUG] script.js loaded and running');
+
+// alert('script.js loaded!'); // Remove alert after confirming script loads
 
 // Global variables
 let warranties = [];
@@ -83,6 +85,17 @@ const editWarrantyDurationFields = document.getElementById('editWarrantyDuration
 const editWarrantyDurationYearsInput = document.getElementById('editWarrantyDurationYears');
 const editWarrantyDurationMonthsInput = document.getElementById('editWarrantyDurationMonths');
 const editWarrantyDurationDaysInput = document.getElementById('editWarrantyDurationDays');
+
+// Warranty method selection elements
+const durationMethodRadio = document.getElementById('durationMethod');
+const exactDateMethodRadio = document.getElementById('exactDateMethod');
+const exactExpirationField = document.getElementById('exactExpirationField');
+const exactExpirationDateInput = document.getElementById('exactExpirationDate');
+
+const editDurationMethodRadio = document.getElementById('editDurationMethod');
+const editExactDateMethodRadio = document.getElementById('editExactDateMethod');
+const editExactExpirationField = document.getElementById('editExactExpirationField');
+const editExactExpirationDateInput = document.getElementById('editExactExpirationDate');
 
 // Add near other DOM Element declarations
 const showAddWarrantyBtn = document.getElementById('showAddWarrantyBtn');
@@ -271,34 +284,63 @@ document.addEventListener('DOMContentLoaded', function() {
         handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
     }
 
-    // --- LOAD WARRANTIES AFTER AUTH --- 
-    // Listen for an event from auth.js indicating authentication is complete and user context is ready.
-    // ** IMPORTANT: Replace 'authStateReady' with the actual event name fired by auth.js **
-    window.addEventListener('authStateReady', async function handleAuthReady() { // <-- Make handler async
-        console.log('[DEBUG] authStateReady handler called');
-        console.log("Auth state ready event received. Preparing preferences and warranties...");
-        // Ensure this listener runs only once
-        window.removeEventListener('authStateReady', handleAuthReady);
+    // Initialize warranty method selection handlers
+    if (durationMethodRadio && exactDateMethodRadio) {
+        durationMethodRadio.addEventListener('change', handleWarrantyMethodChange);
+        exactDateMethodRadio.addEventListener('change', handleWarrantyMethodChange);
+        handleWarrantyMethodChange(); // Initial setup
+    }
+
+    if (editDurationMethodRadio && editExactDateMethodRadio) {
+        editDurationMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        handleEditWarrantyMethodChange(); // Initial setup for edit form
+    }
+
+    // --- LOAD WARRANTIES AFTER AUTH ---
+    let authStateHandled = false;
+
+    async function runAuthenticatedTasks(isAuthenticated) { // Added isAuthenticated parameter
+        if (!isAuthenticated) {
+            console.log('[DEBUG] runAuthenticatedTasks: Called with isAuthenticated = false. Not running tasks yet.');
+            // Do not set authStateHandled = true here, allow a subsequent call with true.
+            return;
+        }
+        // If we reach here, isAuthenticated is true.
+        if (authStateHandled) {
+            console.log('[DEBUG] runAuthenticatedTasks: Tasks already handled (or in progress by another call).');
+            return;
+        }
+        authStateHandled = true; // Set flag only when tasks are actually starting with isAuthenticated = true.
+        console.log('[DEBUG] runAuthenticatedTasks: Executing with isAuthenticated = true.');
 
         // Set prefix
         userPreferencePrefix = getPreferenceKeyPrefix();
-        console.log(`[authStateReady] Determined and stored global prefix: ${userPreferencePrefix}`);
+        console.log(`[runAuthenticatedTasks] Determined and stored global prefix: ${userPreferencePrefix}`);
 
-        // Load preferences
-        await loadAndApplyUserPreferences();
-        await loadTags(); // Ensure all available tags are loaded after authentication
+        // Re-check auth status just before critical data loads
+        const currentAuthStatus = window.auth && window.auth.isAuthenticated();
+        console.log(`[runAuthenticatedTasks] Current auth status before loading prefs/warranties: ${currentAuthStatus}`);
 
-        // Load warranty data (fetches, processes, populates global array)
-        if (document.getElementById('warrantiesList')) {
-            console.log("[authStateReady] Loading warranty data...");
-            await loadWarranties(); // Waits for fetch/process
-            console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+        if (currentAuthStatus) {
+            await loadAndApplyUserPreferences(true); // Pass true, as we've confirmed auth
+            await loadTags(); // Ensure all available tags are loaded
+
+            if (document.getElementById('warrantiesList')) {
+                console.log("[runAuthenticatedTasks] Loading warranty data...");
+                await loadWarranties(true); // Pass true
+                console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+            } else {
+                console.log("[runAuthenticatedTasks] Warranties list element not found.");
+            }
         } else {
-            console.log("[authStateReady] Warranties list element not found.");
+            console.warn("[runAuthenticatedTasks] Auth status became false before loading data. Aborting data load.");
+            // Optionally, reset authStateHandled if we want to allow another attempt
+            // authStateHandled = false; 
         }
 
         // Now that data and preferences are ready, apply view/currency and render via applyFilters
-        console.log("[authStateReady] Applying preferences and rendering...");
+        console.log("[runAuthenticatedTasks] Applying preferences and rendering...");
         loadViewPreference(); // Sets currentView and UI classes/buttons
         updateCurrencySymbols(); // Update symbols
         
@@ -306,8 +348,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.getElementById('warrantiesList')) { 
             applyFilters(); 
         }
+    }
 
-    }, { once: true }); // Use { once: true } as a fallback if removeEventListener isn't reliable across scripts
+    // Listener for the 'authStateReady' event
+    window.addEventListener('authStateReady', async function handleAuthEvent(event) {
+        console.log('[DEBUG] authStateReady event received in script.js. Detail:', event.detail);
+        // Pass the isAuthenticated status from the event detail to runAuthenticatedTasks
+        await runAuthenticatedTasks(event.detail && event.detail.isAuthenticated);
+    }); // Removed { once: true } to allow re-evaluation if auth state changes
+
+    // Proactive check after a brief delay to allow auth.js to initialize
+    setTimeout(async () => {
+        console.log('[DEBUG] Proactive auth check in script.js (after timeout).');
+        if (window.auth) {
+            // Pass the current authentication status to runAuthenticatedTasks
+            await runAuthenticatedTasks(window.auth.isAuthenticated());
+        } else {
+            console.log('[DEBUG] Proactive check: window.auth not available. Event listener should handle it.');
+            // Call with false if auth module isn't ready, to avoid tasks running prematurely.
+            await runAuthenticatedTasks(false);
+        }
+    }, 500); // Delay
     // --- END LOAD WARRANTIES AFTER AUTH ---
 
     // updateCurrencySymbols(); // Call removed, rely on loadWarranties triggering render with correct symbol
@@ -369,6 +430,17 @@ let formTabs = []; // Changed from const to let, initialized as empty
                     formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
                     formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
                     formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
+                    
+                    // If all duration fields are 0 but we have an expiration date, this was created with exact date method
+                    const isExactDateWarranty = (notesModalWarrantyObj.warranty_duration_years || 0) === 0 &&
+                                              (notesModalWarrantyObj.warranty_duration_months || 0) === 0 &&
+                                              (notesModalWarrantyObj.warranty_duration_days || 0) === 0 &&
+                                              notesModalWarrantyObj.expiration_date;
+                    
+                    if (isExactDateWarranty) {
+                        // For exact date warranties, send the expiration date as exact_expiration_date
+                        formData.append('exact_expiration_date', notesModalWarrantyObj.expiration_date.split('T')[0]);
+                    }
                 }
                 if (notesModalWarrantyObj.product_url) {
                     formData.append('product_url', notesModalWarrantyObj.product_url);
@@ -1128,11 +1200,23 @@ function addSerialNumberInput(container = serialNumbersContainer) {
 
 // Functions
 function showLoading() {
-    loadingContainer.classList.add('active');
+    let localLoadingContainer = window.loadingContainer || document.getElementById('loadingContainer');
+    if (localLoadingContainer) {
+        localLoadingContainer.classList.add('active');
+        window.loadingContainer = localLoadingContainer; // Update global reference if found
+    } else {
+        console.error('WarrackerDebug: loadingContainer element not found by showLoading(). Ensure it exists in the HTML and script.js is loaded after it.');
+    }
 }
 
 function hideLoading() {
-    loadingContainer.classList.remove('active');
+    let localLoadingContainer = window.loadingContainer || document.getElementById('loadingContainer');
+    if (localLoadingContainer) {
+        localLoadingContainer.classList.remove('active');
+        window.loadingContainer = localLoadingContainer; // Update global reference if found
+    } else {
+        console.error('WarrackerDebug: loadingContainer element not found by hideLoading().');
+    }
 }
 
 function showToast(message, type = 'info') {
@@ -1258,6 +1342,43 @@ function processWarrantyData(warranty) {
             processedWarranty.status = 'active';
             processedWarranty.statusText = `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
         }
+        
+        // Preserve original duration values to detect input method
+        const originalYears = processedWarranty.warranty_duration_years || 0;
+        const originalMonths = processedWarranty.warranty_duration_months || 0;
+        const originalDays = processedWarranty.warranty_duration_days || 0;
+        
+        // Track the original input method based on duration values
+        const wasExactDateMethod = originalYears === 0 && originalMonths === 0 && originalDays === 0;
+        processedWarranty.original_input_method = wasExactDateMethod ? 'exact_date' : 'duration';
+        
+        // Calculate duration from dates if all duration components are 0 (exact date method was used)
+        const hasNoDuration = originalYears === 0 && originalMonths === 0 && originalDays === 0;
+        
+        if (hasNoDuration && purchaseDateObj && processedWarranty.expirationDate) {
+            console.log('[DEBUG] Calculating duration from dates for exact date warranty');
+            const calculatedDuration = calculateDurationFromDates(
+                purchaseDateObj.toISOString().split('T')[0], 
+                processedWarranty.expirationDate.toISOString().split('T')[0]
+            );
+            if (calculatedDuration) {
+                // Store calculated duration for display purposes
+                processedWarranty.display_duration_years = calculatedDuration.years;
+                processedWarranty.display_duration_months = calculatedDuration.months;
+                processedWarranty.display_duration_days = calculatedDuration.days;
+                console.log('[DEBUG] Calculated duration:', calculatedDuration);
+                
+                // Keep original values at 0 to preserve input method detection
+                processedWarranty.warranty_duration_years = 0;
+                processedWarranty.warranty_duration_months = 0;
+                processedWarranty.warranty_duration_days = 0;
+            }
+        } else {
+            // Use original duration values for display
+            processedWarranty.display_duration_years = originalYears;
+            processedWarranty.display_duration_months = originalMonths;
+            processedWarranty.display_duration_days = originalDays;
+        }
     } else {
         processedWarranty.status = 'unknown';
         processedWarranty.statusText = 'Unknown Status';
@@ -1277,13 +1398,13 @@ function processAllWarranties() {
     console.log('Processed warranties:', warranties);
 }
 
-async function loadWarranties() {
+async function loadWarranties(isAuthenticated) { // Added isAuthenticated parameter
     // +++ REMOVED: Ensure Preferences are loaded FIRST (Now handled by authStateReady) +++
     // await loadAndApplyUserPreferences(); 
     // +++ Preferences Loaded +++
     
     try {
-        console.log('[DEBUG] Entered loadWarranties');
+        console.log('[DEBUG] Entered loadWarranties, isAuthenticated:', isAuthenticated);
         showLoading();
         
         // Fetch user preferences (including date format) before loading warranties
@@ -1354,9 +1475,9 @@ async function loadWarranties() {
         // Use the full URL to avoid path issues
         const apiUrl = window.location.origin + '/api/warranties';
         
-        // Check if auth is available and user is authenticated
-        if (!window.auth || !window.auth.isAuthenticated()) {
-            console.log('[DEBUG] Early return: User not authenticated');
+        // Check if auth is available and user is authenticated using the passed parameter
+        if (!isAuthenticated) {
+            console.log('[DEBUG] loadWarranties: Early return - User not authenticated based on passed parameter.');
             renderEmptyState('Please log in to view your warranties.');
             hideLoading();
             return;
@@ -1556,15 +1677,32 @@ async function renderWarranties(warrantiesToRender) {
         if (isLifetime) {
             warrantyDurationText = 'Lifetime';
         } else {
-            const years = warranty.warranty_duration_years || 0;
-            const months = warranty.warranty_duration_months || 0;
-            const days = warranty.warranty_duration_days || 0;
-            let parts = [];
-            if (years > 0) parts.push(`${years} year${years !== 1 ? 's' : ''}`);
-            if (months > 0) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
-            if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
-            if (parts.length > 0) {
-                warrantyDurationText = parts.join(', ');
+            // Use display_duration values if available, otherwise fall back to warranty_duration values
+            const years = warranty.display_duration_years !== undefined ? warranty.display_duration_years : (warranty.warranty_duration_years || 0);
+            const months = warranty.display_duration_months !== undefined ? warranty.display_duration_months : (warranty.warranty_duration_months || 0);
+            const days = warranty.display_duration_days !== undefined ? warranty.display_duration_days : (warranty.warranty_duration_days || 0);
+            
+            // If all duration fields are 0 but we have expiration date, calculate from dates
+            if (years === 0 && months === 0 && days === 0 && warranty.expiration_date && warranty.purchase_date) {
+                const calculatedDuration = calculateDurationFromDates(warranty.purchase_date, warranty.expiration_date);
+                if (calculatedDuration) {
+                    let parts = [];
+                    if (calculatedDuration.years > 0) parts.push(`${calculatedDuration.years} year${calculatedDuration.years !== 1 ? 's' : ''}`);
+                    if (calculatedDuration.months > 0) parts.push(`${calculatedDuration.months} month${calculatedDuration.months !== 1 ? 's' : ''}`);
+                    if (calculatedDuration.days > 0) parts.push(`${calculatedDuration.days} day${calculatedDuration.days !== 1 ? 's' : ''}`);
+                    if (parts.length > 0) {
+                        warrantyDurationText = parts.join(', ');
+                    }
+                }
+            } else {
+                // Use the stored/calculated duration fields
+                let parts = [];
+                if (years > 0) parts.push(`${years} year${years !== 1 ? 's' : ''}`);
+                if (months > 0) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
+                if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+                if (parts.length > 0) {
+                    warrantyDurationText = parts.join(', ');
+                }
             }
         }
         const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
@@ -1598,7 +1736,7 @@ async function renderWarranties(warrantiesToRender) {
             // Grid view HTML structure
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
                         <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
                             <i class="fas fa-edit"></i>
@@ -1656,7 +1794,7 @@ async function renderWarranties(warrantiesToRender) {
             // List view HTML structure
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
                         <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
                             <i class="fas fa-edit"></i>
@@ -1714,7 +1852,7 @@ async function renderWarranties(warrantiesToRender) {
             // Table view HTML structure
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
                         <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
                             <i class="fas fa-edit"></i>
@@ -1764,7 +1902,15 @@ async function renderWarranties(warrantiesToRender) {
         
         // Edit button event listener
         cardElement.querySelector('.edit-btn').addEventListener('click', () => {
-            openEditModal(warranty);
+            console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
+            // Find the current warranty data instead of using the potentially stale warranty object
+            const currentWarranty = warranties.find(w => w.id === warranty.id);
+            console.log('[DEBUG] Found current warranty:', currentWarranty ? 'Yes' : 'No', currentWarranty?.notes);
+            if (currentWarranty) {
+                openEditModal(currentWarranty);
+            } else {
+                showToast('Warranty not found. Please refresh the page.', 'error');
+            }
         });
         
         // Delete button event listener
@@ -1776,7 +1922,13 @@ async function renderWarranties(warrantiesToRender) {
         if (notesLink) {
             notesLink.addEventListener('click', (e) => {
                 e.preventDefault();
-                showNotesModal(warranty.notes, warranty);
+                // Find the current warranty data instead of using the potentially stale warranty object
+                const currentWarranty = warranties.find(w => w.id === warranty.id);
+                if (currentWarranty) {
+                    showNotesModal(currentWarranty.notes, currentWarranty);
+                } else {
+                    showToast('Warranty not found. Please refresh the page.', 'error');
+                }
             });
         }
     });
@@ -1895,7 +2047,12 @@ function applyFilters() {
 }
 
 function openEditModal(warranty) {
+    // Close any existing modals first
+    closeModals();
+    
     currentWarrantyId = warranty.id;
+    
+    console.log('[DEBUG] Opening edit modal for warranty:', warranty.id, 'with notes:', warranty.notes);
     
     // Populate form fields
     document.getElementById('editProductName').value = warranty.product_name;
@@ -2183,6 +2340,50 @@ function openEditModal(warranty) {
         console.error("Lifetime warranty elements or duration fields not found in edit form");
     }
 
+    // --- Set Warranty Method Selection ---
+    if (editDurationMethodRadio && editExactDateMethodRadio && editExactExpirationDateInput) {
+        console.log('[DEBUG Edit Modal] Warranty method detection:', {
+            originalInputMethod: warranty.original_input_method,
+            isLifetime: warranty.is_lifetime,
+            expirationDate: warranty.expiration_date,
+            warrantyDurationYears: warranty.warranty_duration_years,
+            warrantyDurationMonths: warranty.warranty_duration_months,
+            warrantyDurationDays: warranty.warranty_duration_days
+        });
+        
+        // Use the original input method if available, otherwise fall back to previous logic
+        if (!warranty.is_lifetime) {
+            if (warranty.original_input_method === 'exact_date') {
+                // Use exact date method
+                editExactDateMethodRadio.checked = true;
+                editDurationMethodRadio.checked = false;
+                editExactExpirationDateInput.value = warranty.expiration_date.split('T')[0];
+                console.log('[DEBUG Edit Modal] Selected exact date method based on original_input_method');
+            } else {
+                // Use duration method (either explicitly set or fallback)
+                editDurationMethodRadio.checked = true;
+                editExactDateMethodRadio.checked = false;
+                editExactExpirationDateInput.value = '';
+                console.log('[DEBUG Edit Modal] Selected duration method based on original_input_method or fallback');
+            }
+        }
+        
+        // Set up event listeners for warranty method change
+        editDurationMethodRadio.removeEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.removeEventListener('change', handleEditWarrantyMethodChange);
+        editDurationMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        
+        console.log('[DEBUG Edit Modal] Event listeners attached to warranty method radio buttons');
+        console.log('[DEBUG Edit Modal] Initial radio states:', {
+            durationChecked: editDurationMethodRadio.checked,
+            exactDateChecked: editExactDateMethodRadio.checked
+        });
+        
+        // Call handler to set initial state
+        handleEditWarrantyMethodChange();
+    }
+
     // Set notes
     const notesInput = document.getElementById('editNotes');
     if (notesInput) {
@@ -2250,22 +2451,47 @@ function handleFormSubmit(event) { // Renamed from submitForm
     event.preventDefault();
     
     const isLifetime = isLifetimeCheckbox.checked;
+    const isDurationMethod = durationMethodRadio && durationMethodRadio.checked;
     const years = parseInt(warrantyDurationYearsInput.value || 0);
     const months = parseInt(warrantyDurationMonthsInput.value || 0);
     const days = parseInt(warrantyDurationDaysInput.value || 0);
+    const exactDate = exactExpirationDateInput ? exactExpirationDateInput.value : '';
 
-    // --- Updated Lifetime Check ---
-    if (!isLifetime && years === 0 && months === 0 && days === 0) {
-        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
-        switchToTab(1); // Switch to warranty details tab
-        // Optionally focus the first duration input
-        if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
-        // Add invalid class to the container or individual inputs if needed
-        if (warrantyDurationFields) warrantyDurationFields.classList.add('invalid-duration'); // Example
-        return;
-    } else {
-         if (warrantyDurationFields) warrantyDurationFields.classList.remove('invalid-duration');
+    // --- Updated Lifetime and Method Check ---
+    if (!isLifetime) {
+        if (isDurationMethod) {
+            // Validate duration fields
+            if (years === 0 && months === 0 && days === 0) {
+                showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
+                switchToTab(1); // Switch to warranty details tab
+                // Optionally focus the first duration input
+                if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
+                // Add invalid class to the container or individual inputs if needed
+                if (warrantyDurationFields) warrantyDurationFields.classList.add('invalid-duration'); // Example
+                return;
+            }
+        } else {
+            // Validate exact expiration date
+            if (!exactDate) {
+                showToast('Exact expiration date is required when using the exact date method', 'error');
+                switchToTab(1); // Switch to warranty details tab
+                if (exactExpirationDateInput) exactExpirationDateInput.focus();
+                return;
+            }
+            
+            // Validate that expiration date is in the future relative to purchase date
+            const purchaseDate = document.getElementById('purchaseDate').value;
+            if (purchaseDate && exactDate <= purchaseDate) {
+                showToast('Expiration date must be after the purchase date', 'error');
+                switchToTab(1);
+                if (exactExpirationDateInput) exactExpirationDateInput.focus();
+                return;
+            }
+        }
     }
+    
+    // Remove invalid duration class if validation passes
+    if (warrantyDurationFields) warrantyDurationFields.classList.remove('invalid-duration');
     
     // Validate all tabs
     for (let i = 0; i < tabContents.length; i++) {
@@ -2322,6 +2548,15 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // We need to explicitly add 'false' if it's not checked.
     if (!isLifetimeCheckbox.checked) {
         formData.append('is_lifetime', 'false');
+        
+        // Add warranty method and exact expiration date if using exact date method
+        if (!isDurationMethod && exactDate) {
+            formData.append('exact_expiration_date', exactDate);
+            // Ensure duration fields are 0 when using exact date
+            formData.set('warranty_duration_years', '0');
+            formData.set('warranty_duration_months', '0');
+            formData.set('warranty_duration_days', '0');
+        }
     } else {
         // Ensure duration fields are 0 if lifetime is checked
         formData.set('warranty_duration_years', '0');
@@ -2365,7 +2600,7 @@ function handleFormSubmit(event) { // Renamed from submitForm
         resetAddWarrantyWizard(); // Reset the wizard form
         // --- End modification ---
 
-        loadWarranties().then(() => {
+        loadWarranties(true).then(() => {
             applyFilters();
         }); // Reload the list and update UI
     })
@@ -2507,13 +2742,7 @@ function validateEditTab(tabId) {
 
 // Add this function for secure file access
 function openSecureFile(filePath) {
-    if (!filePath || filePath === 'null') {
-        console.error('Invalid file path:', filePath);
-        showToast('Invalid file path', 'error');
-        return false;
-    }
-    
-    console.log('Opening secure file:', filePath);
+    console.log(`[openSecureFile] Opening file: ${filePath}`);
     
     // Get the file name from the path, handling both uploads/ prefix and direct filenames
     let fileName = filePath;
@@ -2523,42 +2752,121 @@ function openSecureFile(filePath) {
         fileName = filePath.substring(9); // Remove '/uploads/' prefix
     }
     
-    // Get auth token
-    const token = window.auth.getToken();
+    console.log(`[openSecureFile] Processed filename: ${fileName}`);
+    
+    const token = auth.getToken();
+    
     if (!token) {
-        showToast('Authentication error. Please log in again.', 'error');
+        showToast('Please log in to access files', 'error');
         return false;
     }
-    
-    // Use fetch with proper authorization header
-    fetch(`/api/secure-file/${fileName}`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('File not found. It may have been deleted or moved.');
-            } else if (response.status === 401) {
-                throw new Error('Authentication error. Please log in again.');
-            } else {
-                throw new Error(`Error: ${response.status} ${response.statusText}`);
+
+    // Enhanced fetch with retry logic and better error handling
+    const fetchWithRetry = async (url, options, retries = 2) => {
+        for (let i = 0; i <= retries; i++) {
+            try {
+                console.log(`[openSecureFile] Attempt ${i + 1} to fetch: ${url}`);
+                const response = await fetch(url, options);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Authentication error. Please log in again.');
+                    } else if (response.status === 403) {
+                        throw new Error('You are not authorized to access this file.');
+                    } else if (response.status === 404) {
+                        throw new Error('File not found. It may have been deleted.');
+                    } else {
+                        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                    }
+                }
+                
+                // Check if response has content-length header
+                const contentLength = response.headers.get('content-length');
+                console.log(`[openSecureFile] Response Content-Length: ${contentLength}`);
+                
+                // Convert to blob with error handling
+                const blob = await response.blob();
+                console.log(`[openSecureFile] Blob size: ${blob.size} bytes`);
+                
+                // Verify blob size matches content-length if available
+                if (contentLength && parseInt(contentLength) !== blob.size) {
+                    console.warn(`[openSecureFile] Content-Length mismatch: header=${contentLength}, blob=${blob.size}`);
+                    if (i < retries) {
+                        console.log(`[openSecureFile] Retrying due to content-length mismatch...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                        continue;
+                    } else {
+                        console.error(`[openSecureFile] Final attempt failed with content-length mismatch`);
+                    }
+                }
+                
+                return blob;
+                
+            } catch (error) {
+                console.error(`[openSecureFile] Attempt ${i + 1} failed:`, error);
+                
+                // If this is a content-length mismatch or network error, retry
+                if (i < retries && (
+                    error.message.includes('content-length') ||
+                    error.message.includes('Failed to fetch') ||
+                    error.name === 'TypeError'
+                )) {
+                    console.log(`[openSecureFile] Retrying after error: ${error.message}`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+                    continue;
+                }
+                
+                throw error;
             }
         }
-        return response.blob();
+    };
+
+    fetchWithRetry(`/api/secure-file/${fileName}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+        }
     })
     .then(blob => {
+        console.log(`[openSecureFile] Successfully received blob of size: ${blob.size}`);
+        
         // Create a URL for the blob
         const blobUrl = window.URL.createObjectURL(blob);
         
         // Open in new tab
-        window.open(blobUrl, '_blank');
+        const newWindow = window.open(blobUrl, '_blank');
+        
+        // Clean up the blob URL after a delay to prevent memory leaks
+        setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+        }, 10000); // Clean up after 10 seconds
+        
+        // Check if window was blocked by popup blocker
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            showToast('Popup blocked. Please allow popups for this site and try again.', 'warning');
+            window.URL.revokeObjectURL(blobUrl); // Clean up immediately if blocked
+        }
     })
     .catch(error => {
         console.error('Error fetching file:', error);
-        showToast('Error opening file: ' + error.message, 'error');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Error opening file';
+        if (error.message.includes('Authentication')) {
+            errorMessage = 'Authentication error. Please refresh and try again.';
+        } else if (error.message.includes('authorized')) {
+            errorMessage = 'You are not authorized to access this file.';
+        } else if (error.message.includes('not found')) {
+            errorMessage = 'File not found. It may have been deleted.';
+        } else if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+            errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+            errorMessage = `Error opening file: ${error.message}`;
+        }
+        
+        showToast(errorMessage, 'error');
     });
     
     return false;
@@ -2926,10 +3234,27 @@ function renderEditSelectedTags() {
 // Update createTag to return a Promise
 function createTag(name) {
     return new Promise((resolve, reject) => {
-        const token = localStorage.getItem('auth_token');
+        // Enhanced auth manager availability check
+        if (!window.auth) {
+            console.error('[createTag] Auth manager not available');
+            reject(new Error('Authentication system not ready. Please try again.'));
+            return;
+        }
+        
+        // Use auth manager's getToken method instead of directly accessing localStorage
+        const token = window.auth.getToken();
+        console.log('[createTag] Debug info:', {
+            hasToken: !!token,
+            tokenLength: token ? token.length : 0,
+            hasUserInfo: !!localStorage.getItem('user_info'),
+            authManagerAvailable: !!window.auth,
+            isAuthenticated: window.auth.isAuthenticated(),
+            tokenSource: 'auth.getToken()'
+        });
+        
         if (!token) {
-            console.error('No authentication token found');
-            reject(new Error('No authentication token found'));
+            console.error('[createTag] No authentication token found');
+            reject(new Error('No authentication token found. Please try logging in again.'));
             return;
         }
         // Generate a random color for the tag
@@ -2947,12 +3272,34 @@ function createTag(name) {
         })
         .then(response => {
             if (!response.ok) {
-                if (response.status === 409) {
-                    reject(new Error('A tag with this name already exists'));
-                    return;
-                }
-                reject(new Error('Failed to create tag'));
-                return;
+                // Enhanced error handling to capture specific error details
+                return response.json().then(errorData => {
+                    console.error('[createTag] API Error Response:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorData: errorData
+                    });
+                    
+                    if (response.status === 409) {
+                        reject(new Error('A tag with this name already exists'));
+                        return;
+                    }
+                    if (response.status === 401) {
+                        reject(new Error('Authentication failed. Please try logging in again.'));
+                        return;
+                    }
+                    if (response.status === 403) {
+                        reject(new Error('Permission denied. You may not have access to create tags.'));
+                        return;
+                    }
+                    
+                    const errorMsg = errorData?.error || errorData?.message || 'Failed to create tag';
+                    reject(new Error(errorMsg));
+                }).catch(() => {
+                    // If response body is not JSON or is empty
+                    console.error('[createTag] Non-JSON error response:', response.status, response.statusText);
+                    reject(new Error(`Failed to create tag (${response.status})`));
+                });
             }
             return response.json();
         })
@@ -3096,7 +3443,7 @@ function editTag(tag) {
 
 // Update a tag
 function updateTag(id, name, color) {
-    const token = localStorage.getItem('auth_token');
+    const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
     if (!token) {
         console.error('No authentication token found');
         return;
@@ -3502,10 +3849,12 @@ function saveWarranty() {
     const productName = document.getElementById('editProductName').value.trim();
     const purchaseDate = document.getElementById('editPurchaseDate').value;
     const isLifetime = document.getElementById('editIsLifetime').checked;
+    const isDurationMethod = editDurationMethodRadio && editDurationMethodRadio.checked;
     // Get new duration values
     const years = parseInt(document.getElementById('editWarrantyDurationYears').value || 0);
     const months = parseInt(document.getElementById('editWarrantyDurationMonths').value || 0);
     const days = parseInt(document.getElementById('editWarrantyDurationDays').value || 0);
+    const exactDate = editExactExpirationDateInput ? editExactExpirationDateInput.value : '';
     
     // Basic validation
     if (!productName) {
@@ -3519,19 +3868,39 @@ function saveWarranty() {
     }
     
     // --- Updated Validation ---
-    if (!isLifetime && years === 0 && months === 0 && days === 0) {
-        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
-        // Optional: focus the years input again
-        const yearsInput = document.getElementById('editWarrantyDurationYears');
-        if (yearsInput) { // Check if element exists
-            yearsInput.focus();
-            // Add invalid class to container or inputs
-            if (editWarrantyDurationFields) editWarrantyDurationFields.classList.add('invalid-duration');
+    if (!isLifetime) {
+        if (isDurationMethod) {
+            // Validate duration fields
+            if (years === 0 && months === 0 && days === 0) {
+                showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
+                // Optional: focus the years input again
+                const yearsInput = document.getElementById('editWarrantyDurationYears');
+                if (yearsInput) { // Check if element exists
+                    yearsInput.focus();
+                    // Add invalid class to container or inputs
+                    if (editWarrantyDurationFields) editWarrantyDurationFields.classList.add('invalid-duration');
+                }
+                return;
+            }
+        } else {
+            // Validate exact expiration date
+            if (!exactDate) {
+                showToast('Exact expiration date is required when using the exact date method', 'error');
+                if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
+                return;
+            }
+            
+            // Validate that expiration date is in the future relative to purchase date
+            if (purchaseDate && exactDate <= purchaseDate) {
+                showToast('Expiration date must be after the purchase date', 'error');
+                if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
+                return;
+            }
         }
-        return;
-    } else {
-         if (editWarrantyDurationFields) editWarrantyDurationFields.classList.remove('invalid-duration');
     }
+    
+    // Remove invalid duration class if validation passes
+    if (editWarrantyDurationFields) editWarrantyDurationFields.classList.remove('invalid-duration');
     // --- End Updated Validation ---
     
     // Create form data
@@ -3605,9 +3974,18 @@ function saveWarranty() {
     // --- Append is_lifetime and duration components ---
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
-        formData.append('warranty_duration_years', years);
-        formData.append('warranty_duration_months', months);
-        formData.append('warranty_duration_days', days);
+        if (isDurationMethod) {
+            formData.append('warranty_duration_years', years);
+            formData.append('warranty_duration_months', months);
+            formData.append('warranty_duration_days', days);
+        } else {
+            // Using exact date method
+            formData.append('exact_expiration_date', exactDate);
+            // Ensure duration fields are 0 when using exact date
+            formData.append('warranty_duration_years', 0);
+            formData.append('warranty_duration_months', 0);
+            formData.append('warranty_duration_days', 0);
+        }
     } else {
         // Ensure duration is 0 if lifetime
         formData.append('warranty_duration_years', 0);
@@ -3626,6 +4004,18 @@ function saveWarranty() {
     // Add vendor/retailer to form data
     const editVendorInput = document.getElementById('editVendor'); // Use the correct ID
     formData.append('vendor', editVendorInput ? editVendorInput.value.trim() : ''); // Use the correct variable
+    
+    // DEBUG: Log what we're sending to the backend
+    console.log('[DEBUG saveWarranty] Form data being sent:');
+    console.log('[DEBUG saveWarranty] isLifetime:', isLifetime);
+    console.log('[DEBUG saveWarranty] isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG saveWarranty] exactDate:', exactDate);
+    console.log('[DEBUG saveWarranty] years/months/days:', years, months, days);
+    
+    // Log all form data entries
+    for (let [key, value] of formData.entries()) {
+        console.log(`[DEBUG saveWarranty] FormData: ${key} = ${value}`);
+    }
     
     // Get auth token
     const token = localStorage.getItem('auth_token');
@@ -3656,71 +4046,89 @@ function saveWarranty() {
         hideLoadingSpinner();
         showToast('Warranty updated successfully', 'success');
         closeModals();
-        // Instantly reload and re-render the warranties list
-        loadWarranties().then(() => {
+        
+        // Update warranty in local array immediately instead of reloading from server
+        const warrantyIndex = warranties.findIndex(w => w.id === currentWarrantyId);
+        if (warrantyIndex !== -1) {
+            // Update the local warranty object with form values
+            const updatedWarranty = { ...warranties[warrantyIndex] };
+            
+            // Update with new values from form
+            updatedWarranty.product_name = document.getElementById('editProductName').value.trim();
+            updatedWarranty.product_url = document.getElementById('editProductUrl').value.trim();
+            updatedWarranty.purchase_date = document.getElementById('editPurchaseDate').value;
+            updatedWarranty.is_lifetime = isLifetime;
+            updatedWarranty.purchase_price = document.getElementById('editPurchasePrice').value;
+            updatedWarranty.vendor = document.getElementById('editVendor').value.trim();
+            updatedWarranty.notes = document.getElementById('editNotes').value;
+            
+            // Update warranty duration and expiration date
+            if (isLifetime) {
+                updatedWarranty.warranty_duration_years = 0;
+                updatedWarranty.warranty_duration_months = 0;
+                updatedWarranty.warranty_duration_days = 0;
+                updatedWarranty.expiration_date = null;
+            } else {
+                if (isDurationMethod) {
+                    updatedWarranty.warranty_duration_years = years;
+                    updatedWarranty.warranty_duration_months = months;
+                    updatedWarranty.warranty_duration_days = days;
+                    // Calculate expiration date from duration using more robust method
+                    const purchaseDate = new Date(updatedWarranty.purchase_date);
+                    const expirationDate = new Date(purchaseDate);
+                    
+                    // Add years first
+                    expirationDate.setFullYear(expirationDate.getFullYear() + years);
+                    
+                    // Add months (handles month overflow correctly)
+                    expirationDate.setMonth(expirationDate.getMonth() + months);
+                    
+                    // Add days
+                    expirationDate.setDate(expirationDate.getDate() + days);
+                    
+                    updatedWarranty.expiration_date = expirationDate.toISOString().split('T')[0];
+                } else {
+                    // Using exact date method
+                    updatedWarranty.warranty_duration_years = 0;
+                    updatedWarranty.warranty_duration_months = 0;
+                    updatedWarranty.warranty_duration_days = 0;
+                    updatedWarranty.expiration_date = exactDate;
+                }
+            }
+            
+            // Update serial numbers
+            const serialInputs = document.querySelectorAll('#editSerialNumbersContainer input[name="serial_numbers[]"]');
+            updatedWarranty.serial_numbers = Array.from(serialInputs)
+                .map(input => input.value.trim())
+                .filter(sn => sn !== '');
+            
+            // Update tags
+            updatedWarranty.tags = editSelectedTags ? [...editSelectedTags] : [];
+            
+            // Update the warranty in the local array
+            warranties[warrantyIndex] = updatedWarranty;
+            
+            // Process warranty data (status, etc.) to ensure all derived fields are updated
+            const processedWarranty = processWarrantyData(updatedWarranty);
+            warranties[warrantyIndex] = processedWarranty;
+            
+            // Re-render warranties with updated data
             applyFilters();
+            
             // Always close the notes modal if open, to ensure UI is in sync
             const notesModal = document.getElementById('notesModal');
             if (notesModal && notesModal.style.display === 'block') {
                 notesModal.style.display = 'none';
             }
-
-            // --- NEW: Refresh expanded details row if open and keep it open ---
-            // Find the row with details-expanded class (if any)
-            let expandedWarrantyId = null;
-            const expandedRow = document.querySelector('tr.details-expanded');
-            if (expandedRow) {
-                // Try to get the warranty id from the row (assume data-warranty-id or from first cell if needed)
-                expandedWarrantyId = expandedRow.dataset.warrantyId;
-                if (!expandedWarrantyId) {
-                    // Fallback: try to get from first cell if id is rendered there
-                    const firstCell = expandedRow.querySelector('td');
-                    if (firstCell && firstCell.dataset && firstCell.dataset.warrantyId) {
-                        expandedWarrantyId = firstCell.dataset.warrantyId;
-                    }
-                }
-                // If still not found, try to match by product name and purchase date (less robust)
-                if (!expandedWarrantyId && typeof allWarranties !== 'undefined') {
-                    const productName = expandedRow.cells[0]?.textContent?.trim();
-                    const purchaseDate = expandedRow.cells[1]?.textContent?.trim();
-                    const match = allWarranties.find(w => w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
-                    if (match) expandedWarrantyId = match.id;
-                }
-            }
-
-            // After re-render, re-expand the row for the same warranty ID
-            if (expandedWarrantyId) {
-                // Wait for DOM update (next tick)
-                setTimeout(() => {
-                    // Find the new row for this warranty ID
-                    // Try by data-warranty-id attribute
-                    let newRow = document.querySelector(`tr[data-warranty-id="${expandedWarrantyId}"]`);
-                    // If not found, try to match by product name and purchase date (fallback)
-                    if (!newRow) {
-                        const allRows = document.querySelectorAll('tr');
-                        for (const row of allRows) {
-                            const productName = row.cells?.[0]?.textContent?.trim();
-                            const purchaseDate = row.cells?.[1]?.textContent?.trim();
-                            const match = allWarranties.find(w => w.id == expandedWarrantyId && w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
-                            if (match) {
-                                newRow = row;
-                                break;
-                            }
-                        }
-                    }
-                    if (newRow) {
-                        // Expand the details for this row
-                        if (typeof window.toggleWarrantyDetails === 'function') {
-                            window.toggleWarrantyDetails(expandedWarrantyId, newRow);
-                        } else if (typeof toggleWarrantyDetails === 'function') {
-                            toggleWarrantyDetails(expandedWarrantyId, newRow);
-                        }
-                        newRow.classList.add('details-expanded');
-                    }
-                }, 0);
-            }
-            // --- END NEW ---
-        });
+            
+            console.log('Warranty updated immediately in UI');
+        } else {
+            // Fallback: reload from server if warranty not found in local array
+            console.warn('Warranty not found in local array, reloading from server');
+            loadWarranties(true).then(() => {
+                applyFilters();
+            }); // Reload the list and update UI
+        }
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -3810,6 +4218,7 @@ function handleLifetimeChange(event) {
     const yearsInput = warrantyDurationYearsInput;
     const monthsInput = warrantyDurationMonthsInput;
     const daysInput = warrantyDurationDaysInput;
+    const warrantyEntryMethod = document.getElementById('warrantyEntryMethod');
 
     if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
         console.error("Lifetime or duration elements not found in add form");
@@ -3817,21 +4226,25 @@ function handleLifetimeChange(event) {
     }
 
     if (checkbox.checked) {
+        // Hide warranty method selection and both input methods
+        if (warrantyEntryMethod) warrantyEntryMethod.style.display = 'none';
         durationFields.style.display = 'none';
-        // Clear and make duration fields not required
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        
+        // Clear and make fields not required
         yearsInput.required = false;
         monthsInput.required = false;
         daysInput.required = false;
         yearsInput.value = '';
         monthsInput.value = '';
         daysInput.value = '';
+        if (exactExpirationDateInput) exactExpirationDateInput.value = '';
     } else {
-        durationFields.style.display = 'block';
-        // Make duration fields required (or handle validation differently)
-        // Note: Backend validation ensures at least one is > 0 if not lifetime
-        yearsInput.required = false; // Let backend handle combined validation
-        monthsInput.required = false;
-        daysInput.required = false;
+        // Show warranty method selection
+        if (warrantyEntryMethod) warrantyEntryMethod.style.display = 'block';
+        
+        // Call method change handler to show appropriate fields
+        handleWarrantyMethodChange();
     }
 }
 
@@ -3842,6 +4255,7 @@ function handleEditLifetimeChange(event) {
     const yearsInput = editWarrantyDurationYearsInput;
     const monthsInput = editWarrantyDurationMonthsInput;
     const daysInput = editWarrantyDurationDaysInput;
+    const editWarrantyEntryMethod = document.getElementById('editWarrantyEntryMethod');
 
     if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
         console.error("Lifetime or duration elements not found in edit form");
@@ -3849,20 +4263,25 @@ function handleEditLifetimeChange(event) {
     }
 
     if (checkbox.checked) {
+        // Hide warranty method selection and both input methods
+        if (editWarrantyEntryMethod) editWarrantyEntryMethod.style.display = 'none';
         durationFields.style.display = 'none';
-        // Clear and make duration fields not required
+        if (editExactExpirationField) editExactExpirationField.style.display = 'none';
+        
+        // Clear and make fields not required
         yearsInput.required = false;
         monthsInput.required = false;
         daysInput.required = false;
         yearsInput.value = '';
         monthsInput.value = '';
         daysInput.value = '';
+        if (editExactExpirationDateInput) editExactExpirationDateInput.value = '';
     } else {
-        durationFields.style.display = 'block';
-        // Make duration fields required (or handle validation differently)
-        yearsInput.required = false; // Let backend handle combined validation
-        monthsInput.required = false;
-        daysInput.required = false;
+        // Show warranty method selection
+        if (editWarrantyEntryMethod) editWarrantyEntryMethod.style.display = 'block';
+        
+        // Call method change handler to show appropriate fields
+        handleEditWarrantyMethodChange();
     }
 }
 
@@ -4059,7 +4478,7 @@ async function handleImport(file) {
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Await the warranties load to ensure UI is updated
-            await loadWarranties();
+            await loadWarranties(true);
             
             // Force a UI refresh by reapplying filters
             applyFilters();
@@ -4149,7 +4568,8 @@ if (!document.getElementById('notesModal')) {
                 <textarea id="notesModalTextarea" style="display:none;width:100%;min-height:100px;"></textarea>
             </div>
             <div class="modal-footer" id="notesModalFooter">
-                <button class="btn btn-secondary" id="editNotesBtn">Edit</button>
+                <button class="btn btn-secondary" id="editNotesBtn">Edit Notes</button>
+                <button class="btn btn-info" id="editWarrantyBtn">Edit Warranty</button>
                 <button class="btn btn-primary" id="saveNotesBtn" style="display:none;">Save</button>
                 <button class="btn btn-danger" id="cancelEditNotesBtn" style="display:none;">Cancel</button>
             </div>
@@ -4158,6 +4578,21 @@ if (!document.getElementById('notesModal')) {
     document.body.appendChild(notesModal);
     document.getElementById('closeNotesModal').addEventListener('click', () => {
         notesModal.classList.remove('active');
+    });
+    
+    // Add event listener for Edit Warranty button
+    document.getElementById('editWarrantyBtn').addEventListener('click', () => {
+        // Find the current warranty data from the global array
+        const currentWarranty = warranties.find(w => w.id === notesModalWarrantyId);
+        if (currentWarranty) {
+            console.log('[DEBUG] Edit Warranty button clicked, opening edit modal with warranty:', currentWarranty.id, 'notes:', currentWarranty.notes);
+            // Close the notes modal first
+            notesModal.classList.remove('active');
+            // Open the edit modal with current data
+            openEditModal(currentWarranty);
+        } else {
+            showToast('Warranty not found. Please refresh the page.', 'error');
+        }
     });
 }
 
@@ -4195,7 +4630,8 @@ function showNotesModal(notes, warrantyOrId = null) {
     editBtn.onclick = function() {
         notesModalContent.style.display = 'none';
         notesModalTextarea.style.display = '';
-        notesModalTextarea.value = notes;
+        // Use the current content from the modal display instead of the stale notes parameter
+        notesModalTextarea.value = notesModalContent.textContent;
         editBtn.style.display = 'none';
         saveBtn.style.display = '';
         cancelBtn.style.display = '';
@@ -4213,7 +4649,8 @@ function showNotesModal(notes, warrantyOrId = null) {
         if (!notesModalWarrantyObj.is_lifetime &&
             (parseInt(notesModalWarrantyObj.warranty_duration_years) || 0) === 0 &&
             (parseInt(notesModalWarrantyObj.warranty_duration_months) || 0) === 0 &&
-            (parseInt(notesModalWarrantyObj.warranty_duration_days) || 0) === 0) {
+            (parseInt(notesModalWarrantyObj.warranty_duration_days) || 0) === 0 &&
+            !notesModalWarrantyObj.expiration_date) {
             showToast('Cannot save notes: The warranty has an invalid duration. Please edit the full warranty details to set a valid duration first.', 'error', 7000); // Longer toast duration
             return; // Prevent API call
         }
@@ -4232,6 +4669,17 @@ function showNotesModal(notes, warrantyOrId = null) {
                 formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
                 formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
                 formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
+                
+                // If all duration fields are 0 but we have an expiration date, this was created with exact date method
+                const isExactDateWarranty = (notesModalWarrantyObj.warranty_duration_years || 0) === 0 &&
+                                          (notesModalWarrantyObj.warranty_duration_months || 0) === 0 &&
+                                          (notesModalWarrantyObj.warranty_duration_days || 0) === 0 &&
+                                          notesModalWarrantyObj.expiration_date;
+                
+                if (isExactDateWarranty) {
+                    // For exact date warranties, send the expiration date as exact_expiration_date
+                    formData.append('exact_expiration_date', notesModalWarrantyObj.expiration_date.split('T')[0]);
+                }
             }
             if (notesModalWarrantyObj.product_url) {
                 formData.append('product_url', notesModalWarrantyObj.product_url);
@@ -4284,6 +4732,12 @@ function showNotesModal(notes, warrantyOrId = null) {
             hideLoadingSpinner();
             showToast('Note updated', 'success');
 
+            // Update the warranty in the global warranties array immediately
+            const warrantyIndex = warranties.findIndex(w => w.id === notesModalWarrantyId);
+            if (warrantyIndex !== -1) {
+                warranties[warrantyIndex].notes = newNote;
+            }
+
             // --- Updated UI logic ---
              if (newNote === '') {
                 // If the note is now empty, close the modal
@@ -4304,7 +4758,7 @@ function showNotesModal(notes, warrantyOrId = null) {
              // --- End Updated UI logic ---
 
             // Refresh warranties list and THEN update UI
-            await loadWarranties(); // Wait for data refresh
+            await loadWarranties(true); // Wait for data refresh
             applyFilters(); // Re-render the list with updated data
 
         } catch (e) {
@@ -4389,7 +4843,7 @@ window.addEventListener('storage', function(e) {
 });
 
 // +++ NEW FUNCTION TO LOAD PREFS AND SAVE TO LOCALSTORAGE +++
-async function loadAndApplyUserPreferences() {
+async function loadAndApplyUserPreferences(isAuthenticated) { // Added isAuthenticated parameter
     // Use the global prefix determined after auth ready
     let prefix = userPreferencePrefix; // <<< CHANGED const to let
     if (!prefix) {
@@ -4399,16 +4853,17 @@ async function loadAndApplyUserPreferences() {
          // For now, let's try defaulting, but this might need review.
          prefix = 'user_'; 
     }
-    console.log(`[Prefs Loader] Attempting to load preferences using prefix: ${prefix}`);
+    console.log(`[Prefs Loader] Attempting to load preferences using prefix: ${prefix}, isAuthenticated: ${isAuthenticated}`);
     
-    if (window.auth && window.auth.isAuthenticated()) {
-        const token = window.auth.getToken();
+    if (isAuthenticated && window.auth) { // Use passed isAuthenticated and check if window.auth exists
+        const token = window.auth.getToken(); // Still need token for the API call
         if (!token) {
-            console.error('[Prefs Loader] Cannot load preferences: No auth token found.');
+            console.error('[Prefs Loader] Cannot load preferences: No auth token found, even though isAuthenticated was true.');
             return; // Exit if no token
         }
         
         try {
+            console.log('[Prefs Loader] Fetching /api/auth/preferences with token.');
             const response = await fetch('/api/auth/preferences', {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -4467,3 +4922,128 @@ async function loadAndApplyUserPreferences() {
     }
 }
 // +++ END NEW FUNCTION +++
+
+// Warranty method change handlers
+function handleWarrantyMethodChange() {
+    console.log('[DEBUG] handleWarrantyMethodChange called');
+    const isLifetime = isLifetimeCheckbox && isLifetimeCheckbox.checked;
+    const isDurationMethod = durationMethodRadio && durationMethodRadio.checked;
+    
+    console.log('[DEBUG] isLifetime:', isLifetime, 'isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG] Elements found:', {
+        warrantyDurationFields: !!warrantyDurationFields,
+        exactExpirationField: !!exactExpirationField,
+        exactExpirationDateInput: !!exactExpirationDateInput
+    });
+    
+    if (isLifetime) {
+        // Hide both methods when lifetime is selected
+        console.log('[DEBUG] Lifetime selected, hiding both methods');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'none';
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        return;
+    }
+    
+    if (isDurationMethod) {
+        console.log('[DEBUG] Duration method selected');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'block';
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        // Clear exact date when switching to duration
+        if (exactExpirationDateInput) exactExpirationDateInput.value = '';
+    } else {
+        console.log('[DEBUG] Exact date method selected');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'none';
+        if (exactExpirationField) exactExpirationField.style.display = 'block';
+        // Clear duration fields when switching to exact date
+        if (warrantyDurationYearsInput) warrantyDurationYearsInput.value = '';
+        if (warrantyDurationMonthsInput) warrantyDurationMonthsInput.value = '';
+        if (warrantyDurationDaysInput) warrantyDurationDaysInput.value = '';
+    }
+}
+
+function handleEditWarrantyMethodChange() {
+    console.log('[DEBUG] handleEditWarrantyMethodChange called');
+    const isLifetime = editIsLifetimeCheckbox && editIsLifetimeCheckbox.checked;
+    const isDurationMethod = editDurationMethodRadio && editDurationMethodRadio.checked;
+    
+    console.log('[DEBUG Edit] isLifetime:', isLifetime, 'isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG Edit] Radio button states:', {
+        editDurationMethodRadio: editDurationMethodRadio ? editDurationMethodRadio.checked : 'element not found',
+        editExactDateMethodRadio: editExactDateMethodRadio ? editExactDateMethodRadio.checked : 'element not found'
+    });
+    console.log('[DEBUG Edit] Elements found:', {
+        editWarrantyDurationFields: !!editWarrantyDurationFields,
+        editExactExpirationField: !!editExactExpirationField,
+        editExactExpirationDateInput: !!editExactExpirationDateInput
+    });
+    
+    if (isLifetime) {
+        // Hide both methods when lifetime is selected
+        console.log('[DEBUG Edit] Lifetime selected, hiding both methods');
+        if (editWarrantyDurationFields) editWarrantyDurationFields.style.display = 'none';
+        if (editExactExpirationField) editExactExpirationField.style.display = 'none';
+        return;
+    }
+    
+    if (isDurationMethod) {
+        console.log('[DEBUG Edit] Duration method selected');
+        if (editWarrantyDurationFields) {
+            editWarrantyDurationFields.style.display = 'block';
+            console.log('[DEBUG Edit] Set duration fields to block');
+        }
+        if (editExactExpirationField) {
+            editExactExpirationField.style.display = 'none';
+            console.log('[DEBUG Edit] Set exact date field to none');
+        }
+        // Clear exact date when switching to duration
+        if (editExactExpirationDateInput) editExactExpirationDateInput.value = '';
+    } else {
+        console.log('[DEBUG Edit] Exact date method selected');
+        if (editWarrantyDurationFields) {
+            editWarrantyDurationFields.style.display = 'none';
+            console.log('[DEBUG Edit] Set duration fields to none');
+        }
+        if (editExactExpirationField) {
+            editExactExpirationField.style.display = 'block';
+            console.log('[DEBUG Edit] Set exact date field to block');
+        }
+        // Clear duration fields when switching to exact date
+        if (editWarrantyDurationYearsInput) editWarrantyDurationYearsInput.value = '';
+        if (editWarrantyDurationMonthsInput) editWarrantyDurationMonthsInput.value = '';
+        if (editWarrantyDurationDaysInput) editWarrantyDurationDaysInput.value = '';
+    }
+}
+
+// Function to calculate duration between two dates
+function calculateDurationFromDates(startDate, endDate) {
+    if (!startDate || !endDate) return null;
+    
+    try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        
+        let years = end.getFullYear() - start.getFullYear();
+        let months = end.getMonth() - start.getMonth();
+        let days = end.getDate() - start.getDate();
+        
+        // Adjust for negative days
+        if (days < 0) {
+            months--;
+            const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+            days += prevMonth.getDate();
+        }
+        
+        // Adjust for negative months
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        
+        return { years, months, days };
+    } catch (error) {
+        console.error('Error calculating duration:', error);
+        return null;
+    }
+}

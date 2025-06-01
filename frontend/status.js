@@ -325,7 +325,7 @@
             row.className = statusClass;
 
             row.innerHTML = `
-                <td>${escapeHTML(warranty.product_name)}</td>
+                <td title="${escapeHTML(warranty.product_name)}">${escapeHTML(warranty.product_name)}</td>
                 <td>${warranty.purchase_date ? formatDateYYYYMMDD(new Date(warranty.purchase_date)) : 'N/A'}</td>
                 <td>${warranty.is_lifetime ? 'Lifetime' : (warranty.expiration_date ? formatDateYYYYMMDD(new Date(warranty.expiration_date)) : 'N/A')}</td>
                 <td><span class="${statusClass}">${statusText}</span></td>

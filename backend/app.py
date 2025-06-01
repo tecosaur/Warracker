@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for
-import psycopg2
-from psycopg2 import pool
+from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for, Response
+from backend.extensions import oauth
+from backend.db_handler import init_db_pool, get_db_connection, release_db_connection
+import psycopg2 # Added import
 import os
 from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
@@ -25,18 +26,51 @@ import json
 import csv  # Added for CSV import
 import io   # Added for CSV import
 from dateutil.relativedelta import relativedelta
+import mimetypes
 
 app = Flask(__name__)
+
+# Memory optimization configurations
+app.config['JSON_SORT_KEYS'] = False  # Disable JSON key sorting to save CPU/memory
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False  # Disable pretty printing in production
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # Cache static files for 1 year
+app.config['PROPAGATE_EXCEPTIONS'] = True  # Better error handling
+
+# Configure Flask to use less memory for sessions
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session timeout
+
+# Optimize request handling
+app.config['MAX_COOKIE_SIZE'] = 4093  # Slightly under 4KB limit
+app.config['USE_X_SENDFILE'] = True  # Let nginx handle file serving
+
+# CORS configuration
 CORS(app, supports_credentials=True)  # Enable CORS with credentials
 bcrypt = Bcrypt(app)
+
+oauth.init_app(app) # Initialize Authlib OAuth with the app instance
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set a secret key for session and JWT
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_secret_key_change_in_production')
-app.config['JWT_EXPIRATION_DELTA'] = timedelta(days=7)  # Token expiration time
+# App configurations
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_default_secret_key_please_change_in_prod')
+app.config['JWT_EXPIRATION_DELTA'] = timedelta(hours=int(os.environ.get('JWT_EXPIRATION_HOURS', '24')))
+
+if app.config['SECRET_KEY'] == 'your_default_secret_key_please_change_in_prod':
+    logger.warning("SECURITY WARNING: Using default SECRET_KEY. Please set a strong SECRET_KEY environment variable in production.")
+
+# Initialize DB Pool (this will set the global connection_pool in db_handler.py)
+try:
+    init_db_pool() # Call the function from db_handler
+    logger.info("Database connection pool initialization attempted from app.py.")
+except Exception as e:
+    logger.critical(f"CRITICAL: Failed to initialize database pool on startup: {e}. Application might not function correctly.")
+    # Depending on your requirements, you might want to exit or attempt to run in a degraded mode.
+    # For now, we log critical and continue, but subsequent DB calls will likely fail.
 
 # Email change token settings
 EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS = 24 # Token valid for 24 hours
@@ -70,51 +104,259 @@ DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
 DB_ADMIN_USER = os.environ.get('DB_ADMIN_USER', 'warracker_admin')
 DB_ADMIN_PASSWORD = os.environ.get('DB_ADMIN_PASSWORD', 'change_this_password_in_production')
 
-# Add connection retry logic
-def create_db_pool(max_retries=5, retry_delay=5):
-    attempt = 0
-    last_exception = None
-    
-    while attempt < max_retries:
-        try:
-            logger.info(f"Attempting to connect to database (attempt {attempt+1}/{max_retries})")
-            connection_pool = pool.SimpleConnectionPool(
-                1, 10,  # min, max connections
-                host=DB_HOST,
-                database=DB_NAME,
-                user=DB_USER,
-                password=DB_PASSWORD
+# Create a connection pool with retry logic
+# This block is now moved earlier, before get_db_connection is defined.
+# The actual initialization of the global 'connection_pool' variable
+# and the call to 'init_oidc_client' will happen after all necessary
+# function definitions.
+
+# Old position of create_db_pool, get_db_connection, release_db_connection
+# and the try/except block for connection_pool and init_oidc_client call.
+# These are now defined *before* this spot.
+
+# Function to initialize OIDC client based on settings
+def init_oidc_client(current_app_instance, db_conn_func, db_release_func): # Keep parameters
+    logger.info("[APP.PY OIDC_INIT] Attempting to initialize OIDC client...")
+    conn = None
+    oidc_db_settings = {}
+    try:
+        conn = db_conn_func() # USE THE PASSED-IN FUNCTION
+        if conn:
+            with conn.cursor() as cur:
+                # Your logic to fetch OIDC settings from site_settings table
+                cur.execute("SELECT key, value FROM site_settings WHERE key LIKE 'oidc_%%'")
+                for row in cur.fetchall():
+                    oidc_db_settings[row[0]] = row[1]
+                logger.info(f"[APP.PY OIDC_INIT] Fetched OIDC settings from DB: {oidc_db_settings}")
+        else:
+            logger.error("[APP.PY OIDC_INIT] Database connection failed via db_conn_func, cannot fetch OIDC settings from DB.")
+    except Exception as e:
+        logger.error(f"[APP.PY OIDC_INIT] Error fetching OIDC settings from DB: {e}. Proceeding without DB settings.")
+    finally:
+        if conn:
+            db_release_func(conn)
+
+    oidc_enabled_from_db = oidc_db_settings.get('oidc_enabled')
+    oidc_enabled_str = oidc_enabled_from_db if oidc_enabled_from_db is not None else os.environ.get('OIDC_ENABLED', 'false')
+    is_enabled = oidc_enabled_str.lower() == 'true'
+    current_app_instance.config['OIDC_ENABLED'] = is_enabled
+    logger.info(f"[APP.PY OIDC_INIT] OIDC enabled status: {is_enabled}")
+
+    if is_enabled:
+        provider_name = oidc_db_settings.get('oidc_provider_name', os.environ.get('OIDC_PROVIDER_NAME', 'oidc'))
+        client_id = oidc_db_settings.get('oidc_client_id', os.environ.get('OIDC_CLIENT_ID'))
+        client_secret = oidc_db_settings.get('oidc_client_secret', os.environ.get('OIDC_CLIENT_SECRET'))
+        issuer_url = oidc_db_settings.get('oidc_issuer_url', os.environ.get('OIDC_ISSUER_URL'))
+        scope = oidc_db_settings.get('oidc_scope', os.environ.get('OIDC_SCOPE', 'openid email profile'))
+
+        current_app_instance.config['OIDC_PROVIDER_NAME'] = provider_name
+
+        if client_id and client_secret and issuer_url:
+            logger.info(f"[APP.PY OIDC_INIT] Registering OIDC client '{provider_name}' with Authlib.")
+            oauth.register( # This uses the oauth instance from backend.extensions
+                name=provider_name,
+                client_id=client_id,
+                client_secret=client_secret,
+                server_metadata_url=f"{issuer_url.rstrip('/')}/.well-known/openid-configuration",
+                client_kwargs={'scope': scope},
+                override=True # Allow re-registration
             )
-            logger.info("Database connection successful")
-            return connection_pool
-        except Exception as e:
-            last_exception = e
-            logger.error(f"Database connection error: {e}")
-            logger.info(f"Retrying in {retry_delay} seconds...")
-            time.sleep(retry_delay)
-            attempt += 1
-    
-    # If we got here, all connection attempts failed
-    logger.error(f"Failed to connect to database after {max_retries} attempts")
-    raise last_exception
+            logger.info(f"[APP.PY OIDC_INIT] OIDC client '{provider_name}' registered successfully.")
+        else:
+            logger.warning("[APP.PY OIDC_INIT] OIDC is enabled, but critical parameters (client_id, client_secret, or issuer_url) are missing. OIDC login will be unavailable.")
+            current_app_instance.config['OIDC_ENABLED'] = False # Correctly disable if params missing
+    else:
+        current_app_instance.config['OIDC_PROVIDER_NAME'] = None
+        logger.info("[APP.PY OIDC_INIT] OIDC is disabled.")
+
+# Initialize DB Pool and then OIDC client (this is the new placement for the try/except block)
+with app.app_context(): # Ensure app context is available for url_for, etc. if used by init_oidc_client indirectly
+    init_oidc_client(app, get_db_connection, release_db_connection) # Pass the actual DB functions
+
+# Initialize database (definition of init_db, not the call)
+def init_db():
+    """Initialize the database with required tables"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Create users table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        # CREATE TABLE IF NOT EXISTS users (
+        #     id SERIAL PRIMARY KEY,
+        #     username VARCHAR(50) UNIQUE NOT NULL,
+        #     email VARCHAR(100) UNIQUE NOT NULL,
+        #     password_hash VARCHAR(255) NOT NULL,
+        #     first_name VARCHAR(50),
+        #     last_name VARCHAR(50),
+        #     is_active BOOLEAN DEFAULT TRUE,
+        #     is_admin BOOLEAN DEFAULT FALSE,
+        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        # )
+        # """)
+        
+        # Create user_preferences table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        # CREATE TABLE IF NOT EXISTS user_preferences (
+        #     id SERIAL PRIMARY KEY,
+        #     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        #     email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
+        #     default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
+        #     theme VARCHAR(10) NOT NULL DEFAULT 'light',
+        #     expiring_soon_days INTEGER NOT NULL DEFAULT 30,
+        #     notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
+        #     notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #     UNIQUE(user_id)
+        # )
+        # """)
+        
+        # Check if timezone column exists and add if it doesn't - Handled by migrations (e.g., 008_add_timezone_column.sql)
+        # cur.execute("""
+        # DO $$
+        # BEGIN
+        #     IF NOT EXISTS (
+        #         SELECT column_name
+        #         FROM information_schema.columns
+        #         WHERE table_name = 'user_preferences' AND column_name = 'timezone'
+        #     ) THEN
+        #         ALTER TABLE user_preferences
+        #         ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
+        #         RAISE NOTICE 'Added timezone column to user_preferences table';
+        #     END IF;
+        # END $$;
+        # """)
+        
+        # Create warranties table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        #     CREATE TABLE IF NOT EXISTS warranties (
+        #         id SERIAL PRIMARY KEY,
+        #         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        #         item_name VARCHAR(100) NOT NULL,
+        #         purchase_date DATE NOT NULL,
+        #         expiration_date DATE NOT NULL,
+        #         purchase_price DECIMAL(10,2),
+        #         serial_number VARCHAR(100),
+        #         category VARCHAR(50),
+        #         notes TEXT,
+        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        #         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        #     )
+        # """)
+        
+        # Create warranty_documents table if it doesn't exist - Handled by migrations
+        # cur.execute("""
+        #     CREATE TABLE IF NOT EXISTS warranty_documents (
+        #         id INTEGER PRIMARY KEY,
+        #         warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
+        #         file_name VARCHAR(255) NOT NULL,
+        #         file_path VARCHAR(255) NOT NULL,
+        #     )
+        # """)
+        
+        conn.commit() # Commit any changes if init_db did anything
+        cur.close()
+    except Exception as e:
+        logger.error(f"Database initialization error in init_db: {str(e)}")
+        # Decide if to raise, for now, just log as per original short init_db
+    finally:
+        if conn: # conn might not be defined if get_db_connection failed
+            release_db_connection(conn)
+
+
+# Authentication helper functions
+# ... (generate_token, decode_token, token_required, admin_required, etc. remain the same)
+# They use get_db_connection, which should now work.
+
+# --- Ensure create_db_pool was defined before this point ---
+# The following is the original position of the try-except block that initialized connection_pool
+# and called init_oidc_client. It has been moved up.
+
+# Original try-except block for connection_pool and init_oidc_client:
+# try:
+#    connection_pool = create_db_pool()
+#    # Initialize OIDC client after app and DB pool are available
+#    # This ensures DB can be queried for settings.
+#    if connection_pool: # Only if DB connection is likely
+#        with app.app_context(): # Needed if get_db_connection uses app context implicitly or for safety
+#             init_oidc_client(app, get_db_connection, release_db_connection)
+#    else:
+#        logger.error("Database connection pool not available. OIDC client initialization might be incomplete or use defaults/env vars only.")
+#        # Fallback or minimal OIDC init if DB is not available at startup
+#        with app.app_context():
+#            init_oidc_client(app, lambda: None, lambda conn: None) # Pass dummy DB funcs
+#
+# except Exception as e:
+#    logger.error(f"Fatal database connection error during startup: {e}")
+#    connection_pool = None
+#    logger.warning("Database connection pool failed. OIDC client initialization might be incomplete or use defaults/env vars only.")
+#    with app.app_context():
+#        init_oidc_client(app, lambda: None, lambda conn: None)
+
+
+# def get_db_connection(): # Original position, now moved up
+# ...
+
+# def release_db_connection(conn): # Original position, now moved up
+# ...
+
+# def allowed_file(filename): # Original position, can stay or move with other helpers
+# ...
+
+# def init_db(): # Original position, now moved up (definition)
+# ... (rest of the file)
+# The actual call to init_db() for production is at the end of the file, that's fine.
+# Example of where create_db_pool was defined:
+# def create_db_pool(max_retries=5, retry_delay=5):
+#    attempt = 0
+#    last_exception = None
+#    
+#    while attempt < max_retries:
+#        try:
+#            logger.info(f"Attempting to connect to database (attempt {attempt+1}/{max_retries})")
+#            connection_pool = pool.SimpleConnectionPool(
+#                1, 10,  # min, max connections
+#                host=DB_HOST,
+#                database=DB_NAME,
+#                user=DB_USER,
+#                password=DB_PASSWORD
+#            )
+#            logger.info("Database connection successful")
+#            return connection_pool
+#        except Exception as e:
+#            last_exception = e
+#            logger.error(f"Database connection error: {e}")
+#            logger.info(f"Retrying in {retry_delay} seconds...")
+#            time.sleep(retry_delay)
+#            attempt += 1
+#    
+#    # If we got here, all connection attempts failed
+#    logger.error(f"Failed to connect to database after {max_retries} attempts")
+#    raise last_exception
 
 # Create a connection pool with retry logic
-try:
-    connection_pool = create_db_pool()
-except Exception as e:
-    logger.error(f"Fatal database connection error: {e}")
-    # Allow the app to start even if DB connection fails
-    # This lets us serve static files while DB is unavailable
-    connection_pool = None
+# try:
+#    connection_pool = create_db_pool()
+#    # Initialize OIDC client after app and DB pool are available
+#    # This ensures DB can be queried for settings.
+#    if connection_pool: # Only if DB connection is likely
+#        with app.app_context(): # Needed if get_db_connection uses app context implicitly or for safety
+#             init_oidc_client(app, get_db_connection, release_db_connection)
+#    else:
+#        logger.error("Database connection pool not available. OIDC client initialization might be incomplete or use defaults/env vars only.")
+#        # Fallback or minimal OIDC init if DB is not available at startup
+#        with app.app_context():
+#            init_oidc_client(app, lambda: None, lambda conn: None) # Pass dummy DB funcs
+#
+# except Exception as e:
+#    logger.error(f"Fatal database connection error during startup: {e}")
+#    connection_pool = None
+#    logger.warning("Database connection pool failed. OIDC client initialization might be incomplete or use defaults/env vars only.")
+#    with app.app_context():
+#        init_oidc_client(app, lambda: None, lambda conn: None)
 
-def get_db_connection():
-    try:
-        if connection_pool is None:
-            raise Exception("Database connection pool not initialized")
-        return connection_pool.getconn()
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        raise
 
 def get_admin_db_connection():
     """Get a database connection with admin privileges for user management"""
@@ -130,9 +372,6 @@ def get_admin_db_connection():
     except Exception as e:
         logger.error(f"Admin database connection error: {e}")
         raise
-
-def release_db_connection(conn):
-    connection_pool.putconn(conn)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -217,37 +456,17 @@ def init_db():
         #         warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
         #         file_name VARCHAR(255) NOT NULL,
         #         file_path VARCHAR(255) NOT NULL,
-        #         file_type VARCHAR(50),
-        #         file_size INTEGER,
-        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         #     )
         # """)
         
-        # Create sequence if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        #     DO $$
-        #     BEGIN
-        #         IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'warranty_documents_id_seq') THEN
-        #             CREATE SEQUENCE warranty_documents_id_seq;
-        #         END IF;
-        #     END $$;
-        # """)
-        
-        # Alter table to use the sequence - Handled by migrations
-        # cur.execute("""
-        #     ALTER TABLE warranty_documents
-        #     ALTER COLUMN id SET DEFAULT nextval('warranty_documents_id_seq');
-        # """)
-        
-        # We might still need to commit if other operations were performed before the commented blocks
-        conn.commit()
+        conn.commit() # Commit any changes if init_db did anything
         cur.close()
-        conn.close()
-        logger.info("Database initialized successfully")
-        
     except Exception as e:
-        logger.error(f"Database initialization error: {str(e)}")
-        raise
+        logger.error(f"Database initialization error in init_db: {str(e)}")
+        # Decide if to raise, for now, just log as per original short init_db
+    finally:
+        if conn: # conn might not be defined if get_db_connection failed
+            release_db_connection(conn)
 
 # Authentication helper functions
 def generate_token(user_id):
@@ -386,6 +605,211 @@ def convert_decimals(obj):
     else:
         return obj
 
+# OIDC Routes
+# These routes are now handled by the oidc_bp Blueprint in backend/oidc_handler.py
+
+# @app.route('/api/oidc/login')
+# def oidc_login():
+#     if not app.config.get('OIDC_ENABLED'):
+#         logger.warning("OIDC login attempt while OIDC is disabled in settings.")
+#         # Optionally redirect to login with a message, or just return an error
+#         return jsonify({'message': 'OIDC (SSO) login is not enabled.'}), 403 # Forbidden or 503 Service Unavailable
+# 
+#     oidc_provider_name_from_config = app.config.get('OIDC_PROVIDER_NAME')
+#     if not oidc_provider_name_from_config:
+#         logger.error("OIDC is enabled but provider name not configured in app.config.")
+#         return jsonify({'message': 'OIDC provider not configured correctly.'}), 500
+# 
+#     # Construct the redirect_uri. Ensure your OIDC provider has this exact URI whitelisted.
+#     # It should point to your backend's callback endpoint.
+#     # For local development, this might be http://localhost:5000/api/oidc/callback
+#     # For production, it will be your production URL.
+#     # Using url_for with _external=True helps generate the full URL.
+#     # The frontend will redirect to this /api/oidc/login, which then redirects to the IdP.
+#     redirect_uri = url_for('oidc_callback', _external=True) # This would refer to the callback in this file if not removed
+#     
+#     # Ensure the redirect_uri uses HTTPS in production if your app is served over HTTPS
+#     # This might require checking request.scheme or an environment variable.
+#     if os.environ.get('FLASK_ENV') == 'production' and not redirect_uri.startswith('https'):
+#         redirect_uri = redirect_uri.replace('http://', 'https://', 1)
+#         
+#     logger.info(f"OIDC login redirect_uri: {redirect_uri}")
+#     return oauth.create_client(oidc_provider_name_from_config).authorize_redirect(redirect_uri)
+
+# @app.route('/api/oidc/callback')
+# def oidc_callback():
+#    if not app.config.get('OIDC_ENABLED'):
+#        logger.warning("OIDC callback received while OIDC is disabled in settings.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=oidc_disabled")
+
+    oidc_provider_name_from_config = app.config.get('OIDC_PROVIDER_NAME')
+    if not oidc_provider_name_from_config:
+        logger.error("OIDC is enabled but provider name not configured in app.config for callback.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=oidc_misconfigured")
+        
+    client = oauth.create_client(oidc_provider_name_from_config)
+    try:
+        token = client.authorize_access_token()
+    except Exception as e:
+        logger.error(f"OIDC callback error authorizing access token: {e}")
+        # Redirect to frontend login page with error
+        # This URL should be configurable or a known frontend path
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=token_exchange_failed")
+
+    if not token:
+        logger.error("OIDC callback: Failed to retrieve access token.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=token_missing")
+
+    userinfo = token.get('userinfo')
+    if not userinfo:
+        # If userinfo is not directly in the token, try fetching it
+        try:
+            userinfo = client.userinfo(token=token) # Authlib 0.15+
+        except Exception as e:
+            logger.error(f"OIDC callback error fetching userinfo: {e}")
+            frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+            return redirect(f"{frontend_login_url}?oidc_error=userinfo_fetch_failed")
+            
+    if not userinfo:
+        logger.error("OIDC callback: Failed to retrieve userinfo.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=userinfo_missing")
+
+    # --- User Provisioning/Login Logic ---
+    # This is a critical part and needs careful implementation.
+    # 1. Extract OIDC subject (sub) and issuer (iss) from userinfo or token.
+    #    These uniquely identify the user at the OIDC provider.
+    oidc_subject = userinfo.get('sub')
+    oidc_issuer = userinfo.get('iss') # Or from token['iss'] if available
+
+    if not oidc_subject:
+        logger.error("OIDC callback: 'sub' (subject) missing in userinfo.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=subject_missing")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if a user with this OIDC subject and issuer already exists
+            # You'll need to add oidc_sub and oidc_issuer columns to your users table.
+            # For now, we'll assume these columns exist.
+            # A migration will be needed for this.
+            cur.execute("SELECT id, username, email, is_admin FROM users WHERE oidc_sub = %s AND oidc_issuer = %s AND is_active = TRUE", 
+                        (oidc_subject, oidc_issuer))
+            user_db_data = cur.fetchone()
+            
+            user_id = None
+            is_new_user = False
+
+            if user_db_data:
+                user_id = user_db_data[0]
+                logger.info(f"OIDC Login: Existing user found with ID {user_id} for sub {oidc_subject}")
+            else:
+                # User does not exist, provision a new one
+                is_new_user = True
+                email = userinfo.get('email')
+                if not email:
+                    logger.error("OIDC callback: 'email' missing in userinfo for new user.")
+                    frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+                    return redirect(f"{frontend_login_url}?oidc_error=email_missing_for_new_user")
+
+                # Check if email is already in use by a non-OIDC account
+                cur.execute("SELECT id FROM users WHERE email = %s AND (oidc_sub IS NULL OR oidc_issuer IS NULL)", (email,))
+                existing_local_user = cur.fetchone()
+                if existing_local_user:
+                    logger.warning(f"OIDC Signup: Email {email} already exists for a local account. OIDC user cannot be created.")
+                    # This is a conflict. Decide how to handle:
+                    # - Ask user to link accounts (complex)
+                    # - Deny OIDC signup
+                    frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+                    return redirect(f"{frontend_login_url}?oidc_error=email_conflict_local_account")
+
+                username = userinfo.get('preferred_username') or userinfo.get('name') or email.split('@')[0]
+                # Ensure username is unique if your system requires it
+                # This might involve appending a random string if a conflict occurs
+                
+                # Check if username already exists
+                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                if cur.fetchone():
+                    username = f"{username}_{str(uuid.uuid4())[:8]}" # Append random chars for uniqueness
+
+                first_name = userinfo.get('given_name', '')
+                last_name = userinfo.get('family_name', '')
+                
+                # For OIDC users, we don't store a local password_hash, or store a placeholder.
+                # The 'password_hash' column in 'users' table must allow NULL or have a default.
+                # Or, add a flag 'is_oidc_user' to users table.
+                # For now, let's assume password_hash can be NULL.
+                
+                # Check if this is the first user (who will be an admin)
+                cur.execute('SELECT COUNT(*) FROM users')
+                user_count = cur.fetchone()[0]
+                is_admin = user_count == 0
+
+                cur.execute(
+                    """INSERT INTO users (username, email, first_name, last_name, is_admin, oidc_sub, oidc_issuer, is_active) 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id""",
+                    (username, email, first_name, last_name, is_admin, oidc_subject, oidc_issuer)
+                )
+                user_id = cur.fetchone()[0]
+                logger.info(f"OIDC Signup: New user created with ID {user_id} for sub {oidc_subject}")
+            
+            if user_id:
+                # Generate your application's session token
+                app_token = generate_token(user_id)
+                
+                # Update last login
+                cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
+                
+                # Store session info (optional, if you use user_sessions table for OIDC too)
+                ip_address = request.remote_addr
+                user_agent = request.headers.get('User-Agent', '')
+                session_token_uuid = str(uuid.uuid4()) # Different from app_token
+                expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
+                
+                cur.execute(
+                    'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
+                    (user_id, session_token_uuid, expires_at, ip_address, user_agent, 'oidc')
+                )
+                
+                conn.commit()
+
+                # Redirect to frontend with the token.
+                # The frontend should then store this token and use it for API calls.
+                frontend_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/')
+                # A dedicated redirect handler page on the frontend is good practice.
+                redirect_target = f"{frontend_url}/auth-redirect.html?token={app_token}"
+                if is_new_user:
+                    redirect_target += "&new_user=true"
+                
+                logger.info(f"[OIDC_CALLBACK] Attempting to redirect to frontend target: {redirect_target}")
+                return redirect(redirect_target)
+            else:
+                logger.error("[OIDC_CALLBACK] User ID not established after DB operations.")
+                frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+                return redirect(f"{frontend_login_url}?oidc_error=user_processing_failed")
+
+    except psycopg2.Error as db_err:
+        logger.error(f"OIDC callback: Database error: {db_err}")
+        if conn:
+            conn.rollback()
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=db_error")
+    except Exception as e:
+        logger.error(f"OIDC callback: General error: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=internal_error")
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 # Authentication routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -478,8 +902,8 @@ def register():
             expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
             
             cur.execute(
-                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (%s, %s, %s, %s, %s)',
-                (user_id, session_token, expires_at, ip_address, user_agent)
+                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
+                (user_id, session_token, expires_at, ip_address, user_agent, 'local')
             )
             
             conn.commit()
@@ -543,8 +967,8 @@ def login():
             expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
             
             cur.execute(
-                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent) VALUES (%s, %s, %s, %s, %s)',
-                (user_id, session_token, expires_at, ip_address, user_agent)
+                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
+                (user_id, session_token, expires_at, ip_address, user_agent, 'local')
             )
             
             conn.commit()
@@ -827,31 +1251,47 @@ def add_warranty():
         warranty_duration_days = 0
 
         if not is_lifetime:
-            try:
-                # Handle empty strings explicitly, default to 0
-                years_str = request.form.get('warranty_duration_years', '0')
-                months_str = request.form.get('warranty_duration_months', '0')
-                days_str = request.form.get('warranty_duration_days', '0')
-                
-                warranty_duration_years = int(years_str) if years_str else 0
-                warranty_duration_months = int(months_str) if months_str else 0
-                warranty_duration_days = int(days_str) if days_str else 0
-
-                if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
-                    return jsonify({"error": "Warranty duration components cannot be negative."}), 400
-                if warranty_duration_months >= 12:
-                    return jsonify({"error": "Warranty months must be less than 12."}), 400
-                # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
-                if warranty_duration_days >= 366: # A bit more than a typical month
-                    return jsonify({"error": "Warranty days seem too high."}), 400
-                if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
-                    return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
-                if warranty_duration_years > 100: # Keep a reasonable upper limit for years
-                     return jsonify({"error": "Warranty years must be 100 or less"}), 400
-
-            except ValueError:
-                return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
+            # Check if exact expiration date is provided
+            exact_expiration_date = request.form.get('exact_expiration_date')
             
+            if exact_expiration_date:
+                # Use exact expiration date provided by user
+                try:
+                    expiration_date = datetime.strptime(exact_expiration_date, '%Y-%m-%d').date()
+                    logger.info(f"Using exact expiration date: {expiration_date}")
+                    # Set duration fields to 0 when using exact date
+                    warranty_duration_years = 0
+                    warranty_duration_months = 0
+                    warranty_duration_days = 0
+                except ValueError:
+                    return jsonify({"error": "Invalid exact expiration date format. Use YYYY-MM-DD"}), 400
+            else:
+                # Use duration-based calculation (existing logic)
+                try:
+                    # Handle empty strings explicitly, default to 0
+                    years_str = request.form.get('warranty_duration_years', '0')
+                    months_str = request.form.get('warranty_duration_months', '0')
+                    days_str = request.form.get('warranty_duration_days', '0')
+                    
+                    warranty_duration_years = int(years_str) if years_str else 0
+                    warranty_duration_months = int(months_str) if months_str else 0
+                    warranty_duration_days = int(days_str) if days_str else 0
+
+                    if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
+                        return jsonify({"error": "Warranty duration components cannot be negative."}), 400
+                    if warranty_duration_months >= 12:
+                        return jsonify({"error": "Warranty months must be less than 12."}), 400
+                    # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
+                    if warranty_duration_days >= 366: # A bit more than a typical month
+                        return jsonify({"error": "Warranty days seem too high."}), 400
+                    if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
+                        return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
+                    if warranty_duration_years > 100: # Keep a reasonable upper limit for years
+                         return jsonify({"error": "Warranty years must be 100 or less"}), 400
+
+                except ValueError:
+                    return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
+        
         # Process the data
         product_name = request.form['product_name']
         purchase_date_str = request.form['purchase_date']
@@ -888,7 +1328,18 @@ def add_warranty():
             
         # Calculate expiration date only if not lifetime
         if not is_lifetime:
-            if warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+            # Check if exact expiration date is provided
+            exact_expiration_date = request.form.get('exact_expiration_date')
+            
+            if exact_expiration_date:
+                # Use exact expiration date provided by user
+                try:
+                    expiration_date = datetime.strptime(exact_expiration_date, '%Y-%m-%d').date()
+                    logger.info(f"Using exact expiration date: {expiration_date}")
+                except ValueError:
+                    return jsonify({"error": "Invalid exact expiration date format. Use YYYY-MM-DD"}), 400
+            elif warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+                # Use duration-based calculation
                 try:
                     expiration_date = purchase_date + relativedelta(
                         years=warranty_duration_years,
@@ -899,8 +1350,9 @@ def add_warranty():
                 except Exception as calc_err:
                     logger.error(f"Error calculating expiration date: {calc_err}")
                     return jsonify({"error": "Failed to calculate expiration date from duration components"}), 500
-            else: # Should have been caught by earlier validation
-                return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
+            else:
+                # Neither exact date nor duration provided
+                return jsonify({"error": "Either exact expiration date or warranty duration must be specified for non-lifetime warranties."}), 400
         
         # Handle invoice file upload
         db_invoice_path = None
@@ -1133,38 +1585,62 @@ def update_warranty(warranty_id):
             warranty_duration_days = 0
 
             if not is_lifetime:
-                try:
-                    # Handle empty strings explicitly, default to 0
-                    years_str = request.form.get('warranty_duration_years', '0')
-                    months_str = request.form.get('warranty_duration_months', '0')
-                    days_str = request.form.get('warranty_duration_days', '0')
+                # Check if exact expiration date is provided
+                exact_expiration_date = request.form.get('exact_expiration_date')
+                
+                if exact_expiration_date:
+                    # Use exact expiration date provided by user
+                    try:
+                        expiration_date = datetime.strptime(exact_expiration_date, '%Y-%m-%d').date()
+                        logger.info(f"Using exact expiration date: {expiration_date}")
+                        # Set duration fields to 0 when using exact date
+                        warranty_duration_years = 0
+                        warranty_duration_months = 0
+                        warranty_duration_days = 0
+                    except ValueError:
+                        return jsonify({"error": "Invalid exact expiration date format. Use YYYY-MM-DD"}), 400
+                else:
+                    # Use duration-based calculation (existing logic)
+                    try:
+                        # Handle empty strings explicitly, default to 0
+                        years_str = request.form.get('warranty_duration_years', '0')
+                        months_str = request.form.get('warranty_duration_months', '0')
+                        days_str = request.form.get('warranty_duration_days', '0')
+                        
+                        warranty_duration_years = int(years_str) if years_str else 0
+                        warranty_duration_months = int(months_str) if months_str else 0
+                        warranty_duration_days = int(days_str) if days_str else 0
 
-                    warranty_duration_years = int(years_str) if years_str else 0
-                    warranty_duration_months = int(months_str) if months_str else 0
-                    warranty_duration_days = int(days_str) if days_str else 0
+                        if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
+                            return jsonify({"error": "Warranty duration components cannot be negative."}), 400
+                        if warranty_duration_months >= 12:
+                            return jsonify({"error": "Warranty months must be less than 12."}), 400
+                        # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
+                        if warranty_duration_days >= 366: # A bit more than a typical month
+                            return jsonify({"error": "Warranty days seem too high."}), 400
+                        if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
+                            return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
+                        if warranty_duration_years > 100: # Keep a reasonable upper limit for years
+                             return jsonify({"error": "Warranty years must be 100 or less"}), 400
 
-                    if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
-                        return jsonify({"error": "Warranty duration components cannot be negative."}), 400
-                    if warranty_duration_months >= 12:
-                        return jsonify({"error": "Warranty months must be less than 12."}), 400
-                    if warranty_duration_days >= 366:
-                         return jsonify({"error": "Warranty days seem too high."}), 400
-                    if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
-                        return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
-                    if warranty_duration_years > 100:
-                         return jsonify({"error": "Warranty years must be 100 or less"}), 400
-                    
-                    expiration_date = purchase_date + relativedelta(
-                        years=warranty_duration_years,
-                        months=warranty_duration_months,
-                        days=warranty_duration_days
-                    )
-                    logger.info(f"Calculated expiration date: {expiration_date} from years={warranty_duration_years}, months={warranty_duration_months}, days={warranty_duration_days}")
-                except ValueError:
-                    return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
-                except Exception as calc_err:
-                    logger.error(f"Error calculating expiration date: {calc_err}")
-                    return jsonify({"error": "Failed to calculate expiration date from duration components"}), 500
+                    except ValueError:
+                        return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
+                
+                # Calculate expiration date based on duration only if exact date wasn't provided
+                if not exact_expiration_date:
+                    if warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+                        try:
+                            expiration_date = purchase_date + relativedelta(
+                                years=warranty_duration_years,
+                                months=warranty_duration_months,
+                                days=warranty_duration_days
+                            )
+                            logger.info(f"Calculated expiration date: {expiration_date} from years={warranty_duration_years}, months={warranty_duration_months}, days={warranty_duration_days}")
+                        except Exception as calc_err:
+                            logger.error(f"Error calculating expiration date: {calc_err}")
+                            return jsonify({"error": "Failed to calculate expiration date from duration components"}), 500
+                    else:
+                        return jsonify({"error": "Either exact expiration date or warranty duration must be specified for non-lifetime warranties."}), 400
             
             logger.info(f"Calculated values: Y={warranty_duration_years}, M={warranty_duration_months}, D={warranty_duration_days}, expiration_date={expiration_date}")
             product_name = request.form['product_name']
@@ -2255,28 +2731,48 @@ def get_site_settings():
             
             # Get all settings
             cur.execute('SELECT key, value FROM site_settings')
-            settings = {row[0]: row[1] for row in cur.fetchall()}
+            raw_settings = {row[0]: row[1] for row in cur.fetchall()}
             
-            # Set default values if not present
-            if 'registration_enabled' not in settings:
-                settings['registration_enabled'] = 'true'
-                cur.execute(
-                    'INSERT INTO site_settings (key, value) VALUES (%s, %s)',
-                    ('registration_enabled', 'true')
-                )
-                conn.commit()
+            # Define default values for all settings managed here
+            # OIDC Client Secret is write-only from admin UI, not directly exposed via GET
+            default_site_settings = {
+                'registration_enabled': 'true',
+                'email_base_url': os.environ.get('APP_BASE_URL', 'http://localhost:8080'), # Default to APP_BASE_URL
+                'oidc_enabled': 'false',
+                'oidc_provider_name': 'oidc',
+                'oidc_client_id': '',
+                # 'oidc_client_secret': '', # Not returned
+                'oidc_issuer_url': '',
+                'oidc_scope': 'openid email profile'
+            }
 
-            # Default email base URL if not set
-            if 'email_base_url' not in settings:
-                default_base_url = 'http://localhost:8080' # Default value
-                settings['email_base_url'] = default_base_url
-                cur.execute(
-                    'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
-                    ('email_base_url', default_base_url)
-                )
+            settings_to_return = {}
+            needs_commit = False
+
+            for key, default_value in default_site_settings.items():
+                if key not in raw_settings:
+                    settings_to_return[key] = default_value
+                    # Insert default if missing (except for secret)
+                    if key != 'oidc_client_secret': # Avoid writing default empty secret if not present
+                        cur.execute(
+                            'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
+                            (key, default_value)
+                        )
+                        needs_commit = True
+                else:
+                    # For boolean-like string settings, ensure they are 'true' or 'false'
+                    if key in ['registration_enabled', 'oidc_enabled']:
+                        settings_to_return[key] = 'true' if raw_settings[key].lower() == 'true' else 'false'
+                    else:
+                        settings_to_return[key] = raw_settings[key]
+            
+            # Indicate if OIDC client secret is set without revealing it
+            settings_to_return['oidc_client_secret_set'] = bool(raw_settings.get('oidc_client_secret'))
+
+            if needs_commit:
                 conn.commit()
             
-            return jsonify(settings), 200
+            return jsonify(settings_to_return), 200
     except Exception as e:
         logger.error(f"Error retrieving site settings: {e}")
         return jsonify({"message": "Failed to retrieve site settings"}), 500
@@ -2314,21 +2810,53 @@ def update_site_settings():
                 """)
             
             # Update settings
+            updated_keys = []
+            requires_restart = False
             for key, value in data.items():
-                # Convert boolean to string
-                if isinstance(value, bool):
-                    value = str(value).lower()
+                # Sanitize boolean-like string values
+                if key in ['registration_enabled', 'oidc_enabled']:
+                    value = 'true' if str(value).lower() == 'true' else 'false'
                 
+                # Check if it's an OIDC related key that requires restart
+                if key.startswith('oidc_'):
+                    requires_restart = True
+                
+                # For oidc_client_secret, only update if a non-empty value is provided
+                # An empty string could mean "clear" or "no change" - admin UI should clarify
+                # For now, if key is 'oidc_client_secret' and value is empty, we skip update to avoid accidental clearing.
+                # The admin UI should send a specific placeholder if they intend to clear it, or not send the key.
+                if key == 'oidc_client_secret' and not value: # If an empty secret is passed, don't update
+                    logger.info(f"Skipping update for oidc_client_secret as value is empty.")
+                    continue
+
+
                 cur.execute("""
                     INSERT INTO site_settings (key, value, updated_at) 
                     VALUES (%s, %s, CURRENT_TIMESTAMP)
                     ON CONFLICT (key) 
-                    DO UPDATE SET value = %s, updated_at = CURRENT_TIMESTAMP
-                """, (key, value, value))
+                    DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+                """, (key, str(value))) # Ensure value is string
+                updated_keys.append(key)
             
             conn.commit()
             
-            return jsonify({"message": "Settings updated successfully"}), 200
+            response_message = "Settings updated successfully."
+            oidc_settings_changed = any(k.startswith('oidc_') for k in updated_keys)
+
+            if oidc_settings_changed:
+                logger.info("OIDC related settings changed, re-initializing OIDC client...")
+                try:
+                    with app.app_context(): # Ensure app context for init_oidc_client
+                        init_oidc_client(app, get_db_connection, release_db_connection)
+                    logger.info("OIDC client re-initialized successfully after settings update.")
+                    response_message = "Settings updated successfully. OIDC configuration has been re-applied."
+                except Exception as oidc_reinit_err:
+                    logger.error(f"Error re-initializing OIDC client after settings update: {oidc_reinit_err}")
+                    response_message = "Settings updated, but OIDC re-configuration failed. A manual restart might be needed for OIDC changes to take effect."
+            elif requires_restart: # This case might be redundant if all oidc_ keys trigger the above
+                response_message += " An application restart is required for some settings to take full effect."
+            
+            return jsonify({"message": response_message}), 200
     except Exception as e:
         logger.error(f"Error updating site settings: {e}")
         if conn:
@@ -2400,7 +2928,7 @@ def serve_file(filename):
 @app.route('/api/secure-file/<path:filename>', methods=['GET', 'POST'])
 @token_required
 def secure_file_access(filename):
-    """Enhanced secure file serving with authorization checks."""
+    """Enhanced secure file serving with authorization checks and improved reliability."""
     try:
         # ADD EXTRA LOGGING HERE
         logger.info(f"[SECURE_FILE] Raw filename from route: '{filename}' (len: {len(filename)})")
@@ -2444,25 +2972,87 @@ def secure_file_access(filename):
                 
                 logger.info(f"[SECURE_FILE] User {user_id} authorized for file '{filename}'. Attempting to serve from /data/uploads.")
                 
-                # Log the exact path that will be checked by send_from_directory
-                # and perform an explicit os.path.isfile check here for comparison
+                # Construct the full file path
                 target_file_path_for_send = os.path.join('/data/uploads', filename)
-                logger.info(f"[SECURE_FILE] Path for os.path.isfile check (constructed for send_from_directory): '{target_file_path_for_send}' (repr: {repr(target_file_path_for_send)})")
+                logger.info(f"[SECURE_FILE] Path for verification: '{target_file_path_for_send}' (repr: {repr(target_file_path_for_send)})")
                 
-                is_file_check_result = os.path.isfile(target_file_path_for_send)
-                logger.info(f"[SECURE_FILE] os.path.isfile('{target_file_path_for_send}') result: {is_file_check_result}")
-                
-                if not is_file_check_result:
-                    logger.error(f"[SECURE_FILE] File '{target_file_path_for_send}' not found or not a file by os.path.isfile, despite authorization. This will likely lead to a 404 from send_from_directory.")
-                    # Listing directory contents for debugging if file not found
+                # Enhanced file existence and readability checks
+                if not os.path.exists(target_file_path_for_send):
+                    logger.error(f"[SECURE_FILE] File '{target_file_path_for_send}' does not exist")
                     try:
                         dir_contents = os.listdir('/data/uploads')
                         logger.info(f"[SECURE_FILE] Contents of /data/uploads: {dir_contents}")
                     except Exception as list_err:
                         logger.error(f"[SECURE_FILE] Error listing /data/uploads: {list_err}")
-
-
-                return send_from_directory('/data/uploads', filename)
+                    return jsonify({"message": "File not found"}), 404
+                
+                if not os.path.isfile(target_file_path_for_send):
+                    logger.error(f"[SECURE_FILE] Path '{target_file_path_for_send}' exists but is not a file")
+                    return jsonify({"message": "Invalid file"}), 400
+                
+                # Check file size and readability
+                try:
+                    file_size = os.path.getsize(target_file_path_for_send)
+                    logger.info(f"[SECURE_FILE] File size: {file_size} bytes")
+                    
+                    # Verify we can read the file
+                    with open(target_file_path_for_send, 'rb') as f:
+                        # Try to read first byte to ensure file is readable
+                        f.read(1)
+                        f.seek(0)  # Reset file pointer
+                        
+                except (OSError, IOError) as e:
+                    logger.error(f"[SECURE_FILE] Cannot read file '{target_file_path_for_send}': {e}")
+                    return jsonify({"message": "File read error"}), 500
+                
+                # Use Flask's send_from_directory with enhanced error handling
+                try:
+                    # Get MIME type
+                    mimetype, _ = mimetypes.guess_type(target_file_path_for_send)
+                    if not mimetype:
+                        mimetype = 'application/octet-stream'
+                    
+                    logger.info(f"[SECURE_FILE] Serving file with size {file_size} bytes, mimetype: {mimetype}")
+                    
+                    # Use streaming for ALL files to prevent Content-Length mismatches
+                    logger.info(f"[SECURE_FILE] Using streaming response for file: {filename}")
+                    
+                    def generate():
+                        try:
+                            with open(target_file_path_for_send, 'rb') as f:
+                                chunk_size = 4096  # 4KB chunks
+                                total_sent = 0
+                                while True:
+                                    chunk = f.read(chunk_size)
+                                    if not chunk:
+                                        break
+                                    total_sent += len(chunk)
+                                    logger.debug(f"[SECURE_FILE] Streaming chunk: {len(chunk)} bytes, total sent: {total_sent}/{file_size}")
+                                    yield chunk
+                                logger.info(f"[SECURE_FILE] Streaming completed: {total_sent}/{file_size} bytes sent")
+                        except Exception as e:
+                            logger.error(f"[SECURE_FILE] Error during streaming: {e}")
+                            raise
+                    
+                    response = Response(
+                        generate(),
+                        mimetype=mimetype,
+                        headers={
+                            'Content-Length': str(file_size),
+                            'Content-Disposition': f'inline; filename="{os.path.basename(filename)}"',
+                            'Accept-Ranges': 'bytes',
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0',
+                            'X-Content-Type-Options': 'nosniff',
+                            'Connection': 'close'
+                        }
+                    )
+                    return response
+                except Exception as send_error:
+                    logger.error(f"[SECURE_FILE] Error serving file: {send_error}")
+                    return jsonify({"message": "Error serving file"}), 500
+                    
         finally:
             release_db_connection(conn)
     except Exception as e:
@@ -2973,12 +3563,6 @@ if __name__ != '__main__':  # Only for production
         logger.info("Database initialized during application startup")
     except Exception as e:
         logger.error(f"Database initialization error during startup: {e}")
-
-if __name__ == '__main__':
-    try:
-        app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1', host='0.0.0.0')
-    except Exception as e:
-        logger.error(f"Application startup error: {e}")
 
 @app.route('/api/admin/send-notifications', methods=['POST'])
 @admin_required
@@ -4071,3 +4655,59 @@ def verify_email_change():
         if conn:
             cur.close()
             release_db_connection(conn)
+
+@app.route('/api/settings/oidc-status', methods=['GET'])
+def get_oidc_status():
+    """Public endpoint to check if OIDC is enabled."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM site_settings WHERE key = 'oidc_enabled'")
+            result = cur.fetchone()
+            oidc_enabled = False
+            if result and result[0].lower() == 'true':
+                oidc_enabled = True
+            
+            # Also check app.config as a fallback, though DB should be primary
+            if not result and app.config.get('OIDC_ENABLED'):
+                 oidc_enabled = True
+
+            return jsonify({'oidc_enabled': oidc_enabled}), 200
+    except Exception as e:
+        logger.error(f"Error fetching OIDC status: {e}")
+        # Fallback to app.config or default to false if DB error
+        return jsonify({'oidc_enabled': app.config.get('OIDC_ENABLED', False)}), 200
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+# Register Blueprints
+from backend.oidc_handler import oidc_bp
+app.register_blueprint(oidc_bp, url_prefix='/api')
+
+# SCHEDULER SETUP
+if should_run_scheduler():
+    scheduler = BackgroundScheduler(daemon=True)
+    # Schedule the job to run daily at a specific time (e.g., 2 AM server time)
+    # The actual notification time for users will be based on their preference + timezone.
+    scheduler.add_job(send_expiration_notifications, 'cron', hour=2, minute=0)
+    scheduler.start()
+    logger.info("Background scheduler started for expiration notifications.")
+    # Ensure the scheduler shuts down when the app exits
+    atexit.register(lambda: scheduler.shutdown())
+else:
+    logger.info("Scheduler not started. API calls will be needed to trigger notifications.")
+
+
+if __name__ == '__main__':
+    # Call init_db to ensure tables are created before app starts in standalone mode.
+    # In production with Gunicorn/multiple workers, this should ideally be handled by a startup script/migration tool.
+    # For simplicity in development or single-worker setups, it's here.
+    logger.info("Running in __main__, attempting to initialize database...")
+    try:
+        init_db() # Initialize the DB schema if needed
+    except Exception as e:
+        logger.error(f"Error during init_db() in __main__: {e}. Continuing without guaranteed DB init.")
+
+    app.run(host='0.0.0.0', port=int(os.environ.get("FLASK_RUN_PORT", 5000)), debug=os.environ.get("FLASK_DEBUG", "true").lower() == "true")

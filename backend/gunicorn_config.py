@@ -3,20 +3,58 @@
 
 """
 Gunicorn configuration file for Warracker application.
-This ensures scheduler only runs in one worker process.
+Optimized for memory efficiency with configurable modes.
 """
 
 import os
 import multiprocessing
 
-# Server configurations
+# Server configurations - Dynamic based on memory mode
 bind = "0.0.0.0:5000"
-workers = 4
-worker_class = "sync" 
+
+# Check memory mode from environment variable
+memory_mode = os.environ.get('WARRACKER_MEMORY_MODE', 'optimized').lower()
+
+if memory_mode == 'ultra-light':
+    # Ultra-lightweight configuration for very memory-constrained environments
+    workers = 1  # Single worker for minimal memory usage (~40-50MB total)
+    worker_class = "sync"  # Sync worker for lowest memory overhead
+    worker_connections = 50  # Reduced connections
+    max_requests = 500  # More frequent worker restarts to prevent memory leaks
+    worker_rlimit_as = 67108864  # 64MB per worker limit
+    print("Using ULTRA-LIGHT memory mode - minimal RAM usage, lower concurrency")
+elif memory_mode == 'performance':
+    # High-performance configuration for servers with plenty of RAM
+    workers = 4  # Original worker count for maximum concurrency
+    worker_class = "gevent"  # Efficient async I/O handling
+    worker_connections = 200  # Higher connection limit per worker
+    max_requests = 2000  # Less frequent restarts for better performance
+    worker_rlimit_as = 268435456  # 256MB per worker limit
+    print("Using PERFORMANCE memory mode - maximum concurrency and performance")
+else:
+    # Default optimized configuration for balanced performance and memory usage
+    workers = 2  # Reduced from 4 to save ~75MB RAM
+    worker_class = "gevent"  # More memory efficient than sync workers
+    worker_connections = 100  # Limit concurrent connections per worker
+    max_requests = 1000  # Restart workers after handling requests to prevent memory leaks
+    worker_rlimit_as = 134217728  # 128MB per worker limit
+    print("Using OPTIMIZED memory mode - balanced RAM usage and performance")
+
+# Common settings for both modes
 timeout = 120
 keepalive = 5
+max_requests_jitter = 50  # Add randomness to prevent thundering herd
 
-# Set worker environment variables
+# Enhanced settings for file handling to prevent Content-Length mismatches
+limit_request_line = 8190  # Increase request line limit
+limit_request_fields = 200  # Increase header fields limit
+limit_request_field_size = 8190  # Increase header field size limit
+
+# Memory management (common to both modes)
+preload_app = True  # Share memory between workers (saves RAM)
+worker_tmp_dir = "/dev/shm"  # Use RAM disk for worker temporary files
+
+# Process management callbacks
 def worker_int(worker):
     """Called just after a worker exited on SIGINT or SIGQUIT."""
     print(f"Worker {worker.pid} received SIGINT/SIGQUIT")
@@ -31,18 +69,24 @@ def worker_exit(server, worker):
 
 def on_starting(server):
     """Called just before the master process is initialized."""
-    print("Server is starting")
+    print("Server is starting with memory-optimized configuration")
 
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
-    os.environ["GUNICORN_WORKER_ID"] = str(worker.age - 1)  # Worker ID starts at 0
+    os.environ["GUNICORN_WORKER_ID"] = str(worker.age - 1)
     os.environ["GUNICORN_WORKER_PROCESS_NAME"] = f"worker-{worker.age - 1}"
     os.environ["GUNICORN_WORKER_CLASS"] = worker_class
     
-    print(f"Worker {worker.pid} (ID: {worker.age - 1}) forked")
+    print(f"Worker {worker.pid} (ID: {worker.age - 1}) forked with memory optimization")
 
 def pre_fork(server, worker):
     """Called just before a worker is forked."""
     print(f"Forking worker #{worker.age}")
 
-print(f"Gunicorn configuration loaded with {workers} workers") 
+print(f"Gunicorn configuration loaded: {workers} {worker_class} workers in {memory_mode.upper()} mode")
+print(f"Memory limit per worker: {worker_rlimit_as // 1024 // 1024}MB, Max connections: {worker_connections if 'worker_connections' in locals() else 'N/A'}")
+
+# To switch memory modes, set WARRACKER_MEMORY_MODE environment variable:
+# - "optimized" (default): 2 gevent workers, balanced performance and memory usage (~60-80MB)
+# - "ultra-light": 1 sync worker, minimal memory usage (~40-50MB, lower concurrency)
+# - "performance": 4 gevent workers, high-performance mode (~200MB) 

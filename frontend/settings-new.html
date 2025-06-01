@@ -445,6 +445,61 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- OIDC SSO Configuration Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>OIDC SSO Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="oidcSettingsForm">
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label for="oidcEnabled">Enable OIDC SSO</label>
+                                        <p class="text-muted">Allow users to log in via an OIDC provider.</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="oidcEnabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="oidcProviderName">OIDC Provider Name</label>
+                                <input type="text" id="oidcProviderName" class="form-control" placeholder="e.g., oidc, keycloak, google">
+                                <small class="text-muted">Internal name for the OIDC client (e.g., 'oidc').</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="oidcClientId">Client ID</label>
+                                <input type="text" id="oidcClientId" class="form-control" placeholder="Enter OIDC Client ID">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="oidcClientSecret">Client Secret</label>
+                                <input type="password" id="oidcClientSecret" class="form-control" placeholder="Enter new secret or leave blank to keep existing">
+                                <small class="text-muted">Sensitive value. Stored in the database. An application restart is required for changes to take effect.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="oidcIssuerUrl">Issuer URL</label>
+                                <input type="url" id="oidcIssuerUrl" class="form-control" placeholder="e.g., https://your-provider.com/realms/your-realm">
+                                <small class="text-muted">The base URL of your OIDC provider.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="oidcScope">Scope</label>
+                                <input type="text" id="oidcScope" class="form-control" placeholder="e.g., openid email profile">
+                                <small class="text-muted">Space-separated OIDC scopes.</small>
+                            </div>
+                            
+                            <button type="button" id="saveOidcSettingsBtn" class="btn btn-primary">Save OIDC Settings</button>
+                            <p id="oidcRestartMessage" class="text-muted" style="margin-top: 10px; display: none;">Application restart is required for OIDC settings to take full effect.</p>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -617,7 +672,36 @@
     <div id="toastContainer" class="toast-container"></div>
     
     <!-- Scripts -->
-    <script src="auth.js"></script>
-    <script src="settings-new.js"></script>
+    <script src="auth.js?v=4"></script>
+    <script src="settings-new.js?v=20250529001"></script>
+
+    <!-- Powered by Warracker Footer -->
+    <footer class="warracker-footer" id="warrackerFooter">
+        <p>Powered by <a href="https://github.com/sassanix/warracker" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+    </footer>
+
+    <script>
+        function applyFooterStyles() {
+            const footer = document.getElementById('warrackerFooter');
+            const link = document.getElementById('warrackerFooterLink');
+            const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark-mode') || document.body.classList.contains('dark-mode');
+            if (footer) {
+                if (isDarkMode) {
+                    // Dark mode styles - using same background as header (#2d2d2d)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #444; background-color: #2d2d2d; color: #e0e0e0; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #4dabf7; text-decoration: none; font-weight: 500;';
+                } else {
+                    // Light mode styles - using same background as header (#ffffff)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0; background-color: #ffffff; color: #333333; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #3498db; text-decoration: none; font-weight: 500;';
+                }
+            }
+        }
+        document.addEventListener('DOMContentLoaded', applyFooterStyles);
+        const obs = new MutationObserver(applyFooterStyles);
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    </script>
+
 </body>
 </html>

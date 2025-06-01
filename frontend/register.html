@@ -228,7 +228,7 @@
     </style>
     
     <!-- Registration status check script -->
-    <script src="registration-status.js"></script>
+    <script src="registration-status.js?v=20250529001"></script>
     <script>
         // Additional handling for the register page
         document.addEventListener('DOMContentLoaded', function() {
@@ -602,6 +602,34 @@
 
         // Initialize theme when page loads
         document.addEventListener('DOMContentLoaded', initializeTheme);
+    </script>
+
+    <!-- Powered by Warracker Footer -->
+    <footer class="warracker-footer" id="warrackerFooter">
+        <p>Powered by <a href="https://github.com/sassanix/warracker" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+    </footer>
+
+    <script>
+        function applyFooterStyles() {
+            const footer = document.getElementById('warrackerFooter');
+            const link = document.getElementById('warrackerFooterLink');
+            const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark-mode') || document.body.classList.contains('dark-mode');
+            if (footer) {
+                if (isDarkMode) {
+                    // Dark mode styles - using same background as header (#2d2d2d)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #444; background-color: #2d2d2d; color: #e0e0e0; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #4dabf7; text-decoration: none; font-weight: 500;';
+                } else {
+                    // Light mode styles - using same background as header (#ffffff)
+                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0; background-color: #ffffff; color: #333333; font-size: 0.9rem;';
+                    if (link) link.style.cssText = 'color: #3498db; text-decoration: none; font-weight: 500;';
+                }
+            }
+        }
+        document.addEventListener('DOMContentLoaded', applyFooterStyles);
+        const obs = new MutationObserver(applyFooterStyles);
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     </script>
 </body>
 </html>

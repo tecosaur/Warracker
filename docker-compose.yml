@@ -19,7 +19,21 @@ services:
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_USERNAME=${SMTP_USERNAME:-notifications@warracker.com}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SECRET_KEY=${SECRET_KEY:-your_very_secret_flask_key_change_me} # For Flask session and JWT
+      # OIDC SSO Configuration (User needs to set these based on their OIDC provider)
+      - OIDC_PROVIDER_NAME=${OIDC_PROVIDER_NAME:-oidc}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-} # e.g., your_oidc_client_id
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-} # e.g., your_oidc_client_secret
+      - OIDC_ISSUER_URL=${OIDC_ISSUER_URL:-} # e.g., https://your-oidc-provider.com/auth/realms/your-realm
+      - OIDC_SCOPE=${OIDC_SCOPE:-openid email profile}
+      # URL settings (Important for redirects and email links)
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8005} # Public URL of the frontend (matching the port mapping)
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8005} # Public base URL of the application for links
       - PYTHONUNBUFFERED=1
+      # Memory optimization settings
+      - WARRACKER_MEMORY_MODE=${WARRACKER_MEMORY_MODE:-optimized} # Options: optimized (default), ultra-light, performance
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-16} # Reduced from 32MB default for memory efficiency
+      - NGINX_MAX_BODY_SIZE_VALUE=${NGINX_MAX_BODY_SIZE_VALUE:-16M} # Match upload limit
     depends_on:
       warrackerdb:
         condition: service_healthy

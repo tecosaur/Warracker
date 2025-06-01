@@ -1,5 +1,165 @@
 # Changelog
 
+
+## 0.9.9.9 - 2025-06-01
+
+### Added
+- **OIDC SSO (Single Sign-On) Integration:**
+  - Implemented OpenID Connect (OIDC) authentication flow using Authlib, allowing users to log in via external OIDC providers (e.g., Google, Keycloak).
+  - **Backend (`app.py`):**
+    - OIDC client configuration (Client ID, Secret, Issuer URL, Scope, Provider Name) is dynamically loaded from the `site_settings` database table at application startup.
+    - OIDC feature can be enabled/disabled globally via the `oidc_enabled` setting in the database.
+    - Added OIDC-specific routes: `/api/oidc/login` (initiates login) and `/api/oidc/callback` (handles redirect from IdP).
+    - User provisioning: If an OIDC user doesn't exist locally, a new user account is created. Existing OIDC users are logged in.
+    - Updated Admin Settings API (`/api/admin/settings`) to manage these OIDC parameters.
+    - Database migration `023_add_oidc_columns_to_users.sql` adds `oidc_sub`, `oidc_issuer` to `users` table and `login_method` to `user_sessions` table for linking local users to OIDC identities.
+  - **Frontend:**
+    - **Login Page (`login.html`, `auth.js`):** Added an "Login with SSO Provider" button that initiates the OIDC flow.
+    - **Admin Settings Page (`settings-new.html`, `settings-new.js`):** New "OIDC SSO Configuration" section for admins to enable/disable OIDC and configure provider details.
+    - **Auth Redirect Page (`auth-redirect.html`):** Handles the token received from the `/api/oidc/callback` and logs the user in.
+  - **Dependencies (`requirements.txt`):** Added `Authlib` and `requests`.
+  - _Files: `backend/app.py`, `backend/migrations/023_add_oidc_columns_to_users.sql`, `backend/requirements.txt`, `frontend/login.html`, `frontend/auth.js`, `frontend/settings-new.html`, `frontend/settings-new.js`, `frontend/auth-redirect.html`_
+- **SSO Registration Control:** When the site's registration setting is disabled, new users cannot register via SSO. Only existing users who already have accounts can use SSO to log in. This provides administrators with granular control over user registration while maintaining SSO functionality for existing users.
+  - **Backend:** Enhanced OIDC callback handler to check the `registration_enabled` site setting before creating new user accounts via SSO.
+  - **Frontend:** Added appropriate error message for users when SSO registration is blocked due to disabled registrations.
+  - First user registration via SSO is still allowed regardless of the setting (same as regular registration).
+  - _Files: `backend/oidc_handler.py`, `frontend/auth-redirect.html`_
+- **Provider-Specific SSO Button Branding:** Enhanced the SSO login button to show provider-specific branding and icons for well-known OIDC providers.
+  - **Supported Providers:** Google, GitHub, Microsoft/Azure, Facebook, Twitter, LinkedIn, Apple, Discord, GitLab, Bitbucket, Keycloak, and Okta.
+  - **Dynamic Button Text:** Shows "Login with Google", "Login with GitHub", etc., based on the configured `OIDC_PROVIDER_NAME`.
+  - **Provider Icons:** Uses appropriate Font Awesome icons for each provider (e.g., Google logo for Google, GitHub logo for GitHub).
+  - **Brand Colors:** Each provider button uses authentic brand colors with proper hover effects.
+  - **Fallback Support:** Unknown providers display the generic "Login with SSO Provider" button with default styling.
+  - **Environment Integration:** Works automatically with the `OIDC_PROVIDER_NAME` environment variable and database settings.
+  - _Files: `frontend/login.html`, `backend/oidc_handler.py`_
+- **Exact Expiration Date Input:** Enhanced warranty entry to support exact expiration dates as an alternative to duration-based input.
+  - **New Warranty Input Method:** Users can now choose between "Warranty Duration" (years/months/days) and "Exact Expiration Date" options when adding or editing warranties.
+  - **UI Enhancements:** Added radio button selection for warranty entry method with smooth form field transitions and validation.
+  - **Backend Support:** Both `add_warranty` and `update_warranty` API endpoints now handle `exact_expiration_date` parameter alongside duration fields.
+  - **Smart Duration Display:** Warranty cards automatically calculate and display duration text even when using exact expiration dates, eliminating "N/A" values.
+  - **Form Validation:** Enhanced validation ensures either exact date or duration is provided for non-lifetime warranties, with appropriate error messages.
+  - **Date Calculation:** Added robust date calculation helper function that properly handles different month lengths, leap years, and edge cases.
+  - _Files: `frontend/index.html`, `frontend/script.js`, `frontend/style.css`, `backend/app.py`_
+- **Complete Field Updates:** All warranty fields (product info, dates, serial numbers, tags, documents) update immediately in the interface.
+  - **Fallback Safety:** Maintains fallback to server reload if local update fails, ensuring data consistency.
+  - _Files: `frontend/script.js`_
+- **Memory Usage Optimization:** Significantly reduced RAM consumption for better performance on resource-constrained servers.
+  - **Dynamic Memory Modes:** Configurable via `WARRACKER_MEMORY_MODE` environment variable with "optimized" (default), "ultra-light", and "performance" options.
+  - **Optimized Mode:** 2 gevent workers with 128MB memory limits (~60-80MB total RAM usage).
+  - **Ultra-Light Mode:** 1 sync worker with 64MB memory limit (~40-50MB total RAM usage for minimal servers).
+  - **Performance Mode:** 4 gevent workers with 256MB memory limits (~150-200MB total RAM usage for high-performance servers).
+  - **Worker Configuration:** Added memory limits per worker, connection pooling optimization, and preload_app for memory sharing.
+  - **Database Pool:** Optimized connection pool from 10 to 4 maximum connections with memory-conscious settings.
+  - **Flask Configuration:** Added memory-efficient settings including disabled JSON sorting, optimized session handling, and file serving optimizations.
+  - **Dependency Addition:** Added gevent for more efficient async request handling compared to sync workers.
+  - **Expected Reduction:** RAM usage configurable from ~40MB (ultra-light) to ~200MB (performance) based on server specifications.
+  - _Files: `backend/gunicorn_config.py`, `backend/requirements.txt`, `backend/app.py`, `backend/db_handler.py`, `docker-compose.yml`_
+
+### Changed
+- **Environment Variables for OIDC (Docker):** While OIDC configuration is primarily managed via the database through the admin UI, the `docker-compose.yml` can include placeholder environment variables for initial setup or documentation:
+  - `OIDC_ENABLED` (e.g., `true` or `false`)
+  - `OIDC_PROVIDER_NAME` (e.g., `google`, `keycloak`)
+  - `OIDC_CLIENT_ID`
+  - `OIDC_CLIENT_SECRET`
+  - `OIDC_ISSUER_URL`
+  - `OIDC_SCOPE` (e.g., `openid email profile`)
+- **`FRONTEND_URL` Environment Variable:** Emphasized the importance of correctly setting the `FRONTEND_URL` environment variable for the backend service in `docker-compose.yml` to ensure correct OIDC callback redirects.
+  - _Files: `docker-compose.yml`, `Docker/docker-compose.yml`_
+
+### Fixed
+- Resolved various startup and runtime errors related to OIDC client initialization in a multi-worker (Gunicorn) environment, particularly concerning database connection pool stability and consistent loading of OIDC settings.
+- Corrected OIDC metadata fetching by ensuring the proper Issuer URL is used (e.g., `https://accounts.google.com` for Google).
+- Resolved `TypeError: Cannot read properties of null (reading 'classList')` during logout on `about.html` by ensuring the `loadingContainer` element is present and accessible to `script.js`'s `showLoading()` function. Modified `showLoading()` and `hideLoading()` to dynamically find the container if not initially available.
+- Fixed `SyntaxError: Identifier 'AuthManager' has already been declared` on `about.html` by removing a duplicate import of `auth.js` from the `<head>`, ensuring it is loaded only once at the end of the `<body>`.
+- Standardized the user menu dropdown button ID to `userMenuBtn` across `index.html`, `status.html`, and `about.html`. Consolidated user menu JavaScript logic into `auth.js`, removing redundant code from `settings-new.js` and `fix-auth-buttons.js` to ensure consistent dropdown behavior.
+  - _Files: `backend/app.py`, `frontend/about.html`, `frontend/script.js`, `frontend/index.html`, `frontend/status.html`, `frontend/auth.js`, `frontend/settings-new.js`, `frontend/fix-auth-buttons.js`_
+- **SSO Warranty Display Issue:** Fixed a critical timing problem where SSO users would see a blank warranty list after login. The issue was caused by a race condition where user preferences were loaded before user authentication was fully established.
+  - Enhanced `auth-redirect.html` to fetch and store user information immediately after SSO login, ensuring `user_info` is available when the main application loads.
+  - Fixed preference key prefix calculation to prevent mismatched user preference keys for SSO users.
+  - _Files: `frontend/auth-redirect.html`, `frontend/auth.js`, `frontend/script.js`_
+- **SSO Tag Creation Issue:** Resolved an issue where SSO users could not create new tags due to authentication token handling problems.
+  - Updated tag creation functions (`createTag`, `updateTag`, `deleteTag`) to use `window.auth.getToken()` instead of directly accessing localStorage.
+  - Added enhanced error handling and debugging for tag creation API calls.
+  - Ensured consistent token management across all tag-related operations.
+  - _Files: `frontend/script.js`_
+- **Database Tag Constraint Issue:** Fixed database constraint violation that prevented users from creating tags with names that already existed for other users.
+  - Created migration `024_fix_tags_constraint.sql` to update the database schema.
+  - Dropped the old `tags_name_key` unique constraint that only considered tag names.
+  - Added new `tags_name_user_id_key` constraint allowing the same tag name for different users.
+  - Added proper user_id foreign key constraint and performance index.
+  - _Files: `backend/migrations/024_fix_tags_constraint.sql`_
+- **About Page User Menu Issue:** Fixed user menu dropdown not functioning on the about page for SSO users.
+  - Resolved script loading order conflicts that prevented user menu event listeners from being attached.
+  - Moved inline authentication check from head to body to prevent timing conflicts with `auth.js`.
+  - Added backup user menu handler specifically for the about page with enhanced debugging.
+  - Fixed JavaScript error caused by `getEventListeners` function not being available in all browsers.
+  - _Files: `frontend/about.html`, `frontend/auth.js`_
+- **About Page Logout Issue:** Resolved logout functionality errors on the about page.
+  - Added safe loading spinner functions specifically for the about page to prevent `TypeError: Cannot read properties of null (reading 'classList')` error.
+  - Implemented backup logout handler with multiple fallback levels for reliability.
+  - Ensured logout works even when main auth system encounters errors.
+  - _Files: `frontend/about.html`, `frontend/script.js`_
+- **Immediate Warranty Updates:** Optimized warranty editing for instant UI updates without server reloads.
+  - **Performance Improvement:** Warranty changes now appear immediately in the UI instead of waiting for server data reload.
+  - **Local Data Sync:** Edit modal updates local warranty data instantly upon successful save, eliminating loading delays.
+  - **Robust Date Handling:** Enhanced date arithmetic for duration-based warranties with proper month/year overflow handling.
+  - **Complete Field Updates:** All warranty fields (product info, dates, serial numbers, tags, documents) update immediately in the interface.
+  - **Fallback Safety:** Maintains fallback to server reload if local update fails, ensuring data consistency.
+  - _Files: `frontend/script.js`_
+- **Warranty Entry Method Persistence:** Fixed warranty entry method selection not being remembered correctly in edit modal.
+  - **Issue:** When editing warranties that were created using "Exact Expiration Date" method, the edit modal would incorrectly switch to "Warranty Duration" method.
+  - **Root Cause:** Display logic was overwriting original duration values (0,0,0 for exact date method), making method detection impossible.
+  - **Solution:** Added `original_input_method` tracking to preserve the user's original warranty entry method choice.
+  - **Data Separation:** Implemented separate `display_duration_*` fields for warranty card display while preserving original duration values for method detection.
+  - **Enhanced Detection:** Edit modal now directly checks `original_input_method` field instead of guessing from duration data.
+  - **Result:** Users can now edit warranties and the modal correctly remembers whether they originally used "Warranty Duration" or "Exact Expiration Date" method.
+  - _Files: `frontend/script.js`_
+- **Notes Modal and Edit Modal Integration:** Fixed issues with notes editing workflow and seamless transition to warranty editing.
+  - **Notes Editing for Exact Date Warranties:** Resolved issue where warranties created with exact expiration dates couldn't have their notes edited via the notes-link modal due to invalid duration validation.
+  - **Stale Notes in Edit Modal:** Fixed problem where editing a warranty immediately after saving notes via the notes modal would show old note content instead of the newly saved content.
+  - **Notes Modal UI Issues:** Fixed "Edit Notes" button showing outdated note content when clicked after saving new notes in the same modal session.
+  - **Enhanced Notes Modal:** Added "Edit Warranty" button directly in the notes modal footer for seamless transition to full warranty editing without modal layering conflicts.
+  - **Immediate Data Sync:** Enhanced notes saving to immediately update the global warranties array, ensuring edit modal always shows current data.
+  - **Modal State Management:** Improved modal closing behavior when opening edit modal from notes modal to prevent UI conflicts.
+  - _Files: `frontend/script.js`_
+- **Status Page Edit Modal Consistency:** Fixed inconsistency between edit warranty modals on index.html and status.html pages.
+  - **Missing Warranty Entry Method Selection:** Added the "Warranty Entry Method" radio button selection to the status.html edit modal, allowing users to choose between "Warranty Duration" and "Exact Expiration Date" methods.
+  - **Missing Exact Expiration Field:** Added the hidden "Exact Expiration Date" input field that appears when the exact date method is selected.
+  - **Feature Parity:** The edit warranty modal on status.html now has identical functionality to the one on index.html, ensuring consistent user experience across both pages.
+  - **Complete Modal Structure:** All tabs (Product, Warranty, Documents, Tags), form fields, and functionality now match exactly between both pages.
+  - _Files: `frontend/status.html`_
+
+### Dependencies
+- **Updated Python Dependencies:** Resolved `pkg_resources` deprecation warning by updating backend dependencies to modern versions.
+  - **Gunicorn:** Updated from `20.1.0` to `23.0.0` - eliminates `pkg_resources` deprecation warning by using `importlib.metadata` instead.
+  - **Flask:** Updated from `2.0.1` to `3.0.3` - includes security patches and improved compatibility.
+  - **Werkzeug:** Updated from `2.0.1` to `3.0.3` - maintains compatibility with Flask 3.x.
+  - **Other Dependencies:** Updated `flask-cors`, `Flask-Login`, `PyJWT`, `email-validator`, `python-dateutil`, `Authlib`, `requests`, and `gevent` to latest stable versions.
+  - **Setuptools Protection:** Added `setuptools<81` pin to prevent future compatibility issues.
+  - _Files: `backend/requirements.txt`_
+
+### Frontend
+- **Chart.js Compatibility Fix:** Resolved "Chart is not defined" error on status page by replacing ES module version with UMD version.
+  - **Issue:** Status page charts failed to load with `ReferenceError: Chart is not defined` because the local `chart.js` file was in ES module format.
+  - **Root Cause:** ES modules require `<script type="module">` tags but the HTML was using regular `<script>` tags.
+  - **Solution:** Replaced ES module version with locally downloaded UMD (Universal Module Definition) version from Chart.js v4.4.9, eliminating CDN dependency.
+  - **Result:** Chart.js now loads properly with regular script tags and status page charts display correctly using the local file.
+  - _Files: `frontend/chart.js`_
+- **Product Name Hover Tooltips:** Added hover tooltips to display full product names when they are truncated with ellipsis.
+  - **Enhancement:** Long product names that get cut off with "..." now show the complete product name in a tooltip when hovered over.
+  - **Coverage:** Works across all warranty display modes (grid view, list view, table view) on the main warranties page and the status page table.
+  - **Implementation:** Added `title` attributes to warranty titles and product name cells using escaped HTML for security.
+  - **Result:** Users can now see full product names without having to edit or expand warranty details.
+  - _Files: `frontend/script.js`, `frontend/status.js`_
+- **Powered by Warracker Footer:** Added branded footer to all pages with dynamic theme support and GitHub repository link.
+  - **Feature:** Added "Powered by Warracker" footer to all application pages linking to the GitHub repository.
+  - **Theme Support:** Implemented JavaScript-based dynamic styling that automatically adapts to light/dark mode changes.
+  - **Light Mode:** Light gray background (`#f5f5f5`), dark text (`#333333`), blue links (`#3498db`) matching the logo.
+  - **Dark Mode:** Dark background (`#1a1a1a`), light text (`#e0e0e0`), light blue links (`#4dabf7`).
+  - **Real-time Updates:** Uses MutationObserver to detect theme changes and update footer styling automatically.
+  - **Cross-domain Compatibility:** Includes fallback inline styles and direct color values to ensure consistent display across different hosting environments.
+  - _Files: All frontend HTML pages, `frontend/style.css`_
+
 ## [0.9.9.8] - 2025-05-24
 
 

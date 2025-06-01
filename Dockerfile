@@ -28,9 +28,19 @@ RUN pip install --no-cache-dir --upgrade pip
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Copy main application and config files to /app
 COPY backend/app.py .
 COPY backend/gunicorn_config.py .
+
+# Create the backend package directory in /app and copy modules into it
+RUN mkdir -p /app/backend
+COPY backend/__init__.py /app/backend/
+COPY backend/auth_utils.py /app/backend/
+COPY backend/db_handler.py /app/backend/
+COPY backend/extensions.py /app/backend/
+COPY backend/oidc_handler.py /app/backend/
+
+# Copy other utility scripts and migrations
 COPY backend/fix_permissions.py .
 COPY backend/fix_permissions.sql .
 COPY backend/migrations/ /app/migrations/
@@ -39,6 +49,7 @@ COPY backend/migrations/ /app/migrations/
 COPY frontend/*.html /var/www/html/
 COPY frontend/*.js /var/www/html/
 COPY frontend/*.css /var/www/html/
+COPY frontend/manifest.json /var/www/html/manifest.json
 # Add favicon and images
 COPY frontend/favicon.ico /var/www/html/
 COPY frontend/img/ /var/www/html/img/
