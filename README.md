@@ -19,7 +19,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 ![GitHub last commit](https://img.shields.io/github/last-commit/sassanix/Warracker)
 ![GitHub release](https://img.shields.io/github/v/release/sassanix/Warracker)
 ![GitHub contributors](https://img.shields.io/github/contributors/sassanix/Warracker)
-![](https://dcbadge.limes.pink/api/server/https://discord.gg/PGxVS3U2Nw?style=plastic)
+[![](https://dcbadge.limes.pink/api/server/PGxVS3U2Nw?style=plastic)](https://discord.gg/PGxVS3U2Nw)
 
 <p align="center">
   <img src="images/demo.gif" alt="Warracker Demo" width="600">
