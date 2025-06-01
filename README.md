@@ -46,7 +46,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 * **Customizable Settings**: Adjust currency symbols and date formats.
 * **Tagging**: Organize warranties with flexible tags.
 * **Password Reset**: Secure, token-based account recovery.
-
+* **OIDC Single Sign-On (SSO)**: Log in using external identity providers (Google, GitHub, Keycloak, etc.) via OIDC.
 
 ## Project Status
 
@@ -81,18 +81,18 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ## Roadmap
 
- ✅ User Authentication
- ✅ Settings Page
- ✅ Status Page
- ✅ Customizable Reminders
- ✅ Email Notifications
- ✅ Warranty Categories via Tags
- ✅ CSV Import/Export
- ✅ OIDC SSO Functionality
- [ ] Warranty Claim Tracking
- [ ] Calendar Integration
- [ ] Advanced User/Admin Controls
- [ ] Localization Support
+* ✅ User Authentication
+* ✅ Settings Page
+* ✅ Status Page
+* ✅ Customizable Reminders
+* ✅ Email Notifications
+* ✅ Warranty Categories via Tags
+* ✅ CSV Import/Export
+* ✅ OIDC SSO Functionality
+* [ ] Warranty Claim Tracking
+* [ ] Calendar Integration
+* [ ] Advanced User/Admin Controls
+* [ ] Localization Support
 
 ## Setup
 
