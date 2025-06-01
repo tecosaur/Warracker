@@ -112,7 +112,6 @@ services:
       - warracker_uploads:/data/uploads
     env_file:
       - .env
-# or instead use environment:
     depends_on:
       warrackerdb:
         condition: service_healthy
@@ -136,7 +135,7 @@ volumes:
   warracker_uploads:
 ```
 
-To get the docker compose file and .env example please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
+To get the docker compose file with environemts and .env example for warracker and the warrackerdb please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
 ## Usage
 
