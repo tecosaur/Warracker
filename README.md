@@ -218,6 +218,8 @@ We welcome contributions and appreciate your interest in improving this project!
 
 [![Support Warracker](https://img.shields.io/badge/Support-Warracker-red?style=for-the-badge&logo=github-sponsors)](https://buymeacoffee.com/sassanix)
 
+Join our Discord server: [![](https://dcbadge.limes.pink/api/server/PGxVS3U2Nw?style=flat)](https://discord.gg/PGxVS3U2Nw)
+
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
