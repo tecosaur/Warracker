@@ -28,7 +28,7 @@ services:
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8005} 
       - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8005}
       # Memory optimization settings
-      - WARRACKER_MEMORY_MODE=${WARRACKER_MEMORY_MODE:-optimized} # Options: optimized (default), ultra-light
+      - WARRACKER_MEMORY_MODE=${WARRACKER_MEMORY_MODE:-optimized} # Options: optimized (default), performance, ultra-light
       - PYTHONUNBUFFERED=1
     # - FLASK_DEBUG=0
     depends_on:
