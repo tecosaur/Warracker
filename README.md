@@ -219,7 +219,11 @@ We welcome contributions and appreciate your interest in improving this project!
 [![Support Warracker](https://img.shields.io/badge/Support-Warracker-red?style=for-the-badge&logo=github-sponsors)](https://buymeacoffee.com/sassanix)
 
 
-[![](https://invidget.switchblade.xyz/PGxVS3U2Nw )
+## Join Our Community
+
+[![Join our Discord server!](https://invidget.switchblade.xyz/PGxVS3U2Nw)](https://discord.gg/PGxVS3U2Nw)
+
+Want to discuss the project or need help? Join our Discord community!
 
 ## License
 
