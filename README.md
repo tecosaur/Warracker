@@ -136,20 +136,6 @@ To get the docker compose file and .env example please go [here](https://github.
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
 
 
-## Development
-
-### Local Development Environment
-
-1.  Clone the repository.
-2.  Make your changes.
-3.  Build and run with Docker Compose:
-
-    ```bash
-    docker-compose build
-    docker-compose up -d
-    ```
-
-
 ## Why I Built This
 
 Warracker was born from personal frustration with warranty confusion. When my father’s dishwasher broke, we had the invoice and assumed it was under warranty, only to find out we were referencing the wrong one, and the warranty had ended by a couple of months.
