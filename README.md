@@ -72,7 +72,7 @@ The essential features are reliable and ready for everyday use. Development is o
 
 ![image](https://github.com/user-attachments/assets/4c938b33-d6be-4787-a2d9-9153b0234ee2)
 
-## Technology Stack
+## 🛠️Technology Stack
 
 *   **Frontend**: HTML, CSS, JavaScript
 *   **Backend**: Python with Flask
