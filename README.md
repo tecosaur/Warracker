@@ -59,7 +59,7 @@ The essential features are reliable and ready for everyday use. Development is o
 * ⚒️ Advanced enhancements are still being worked on
 * ✍️ Your feedback and bug reports help shape the future of the app
 
-## Screenshots
+## 📸Screenshots
 
 **Home Page**
 
@@ -80,7 +80,7 @@ The essential features are reliable and ready for everyday use. Development is o
 *   **Containerization**: Docker and Docker Compose
 *   **Web Server**: Nginx
 
-## Roadmap
+## 🗺️Roadmap
 
 * ✅ User Authentication
 * ✅ Settings Page
@@ -95,7 +95,7 @@ The essential features are reliable and ready for everyday use. Development is o
 * [ ] Advanced User/Admin Controls
 * [ ] Localization Support
 
-## Setup
+## 🚀Setup
 
 ### Prerequisites
 
@@ -138,7 +138,7 @@ volumes:
 
 To get the docker compose file with environemts and .env example for warracker and the warrackerdb please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
-## Usage
+## 📝Usage
 
 ### Adding a Warranty
 
@@ -195,7 +195,7 @@ We welcome contributions and appreciate your interest in improving this project!
    `git push origin feature/amazing-feature`
 5. **Open a Pull Request** with a clear explanation of your changes.
 
-### Contribution Guidelines
+### 📌Contribution Guidelines
 
 * **Start with an issue**: Before submitting a Pull Request, ensure the change has been discussed in an issue.
 * **Help is welcome**: Check the [issues](../../issues) for open discussions or areas where help is needed.
@@ -203,13 +203,13 @@ We welcome contributions and appreciate your interest in improving this project!
 * **Follow project style**: Match the project's code style and naming conventions.
 * **Be respectful**: We value inclusive and constructive collaboration.
 
-### 🤝 Contributors:  
+### 🤝Contributors:  
 
 [<img src="https://avatars.githubusercontent.com/u/39465071?s=50&v=4" width="50"/>](https://github.com/sassanix)
 [<img src="https://avatars.githubusercontent.com/u/1223625?s=50&v=4" width="50"/>](https://github.com/humrochagf)
 [<img src="https://avatars.githubusercontent.com/u/5875512?s=50&v=4" width="50"/>](https://github.com/clmcavaney)
 
-### ❤️ Supporters:
+### ❤️Supporters:
 
 [<img src="https://avatars.githubusercontent.com/u/8194208?u=7ee82feed0044f85bcfc39f001643fe81a188f66&v=4&s=50" width="50"/>](https://github.com/SirSpidey)
 [<img src="https://avatars.githubusercontent.com/u/6196195?v=4&s=50" width="50"/>](https://github.com/keithellis74)
@@ -225,11 +225,11 @@ We welcome contributions and appreciate your interest in improving this project!
 
 Want to discuss the project or need help? Join our Discord community!
 
-## License
+## 📜License
 
 This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
+## 🙏Acknowledgements
 
 *   Flask
 *   PostgreSQL
@@ -237,7 +237,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   Chart.js
 
 
-## Star History
+## ⭐Star History
 <a href="https://star-history.com/#sassanix/Warracker&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sassanix/Warracker&type=Date&theme=dark" />
