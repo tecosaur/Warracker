@@ -1116,39 +1116,34 @@ async function changePassword() {
     showLoading();
     
     try {
-        try {
-            const response = await fetch('/api/auth/password/change', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${window.auth.getToken()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    current_password: currentPasswordInput.value,
-                    new_password: newPasswordInput.value
-                })
-            });
+        const response = await fetch('/api/auth/password/change', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                current_password: currentPasswordInput.value,
+                new_password: newPasswordInput.value
+            })
+        });
+        
+        if (response.ok) {
+            // Reset form and hide it
+            resetPasswordForm();
+            passwordChangeForm.style.display = 'none';
+            changePasswordBtn.style.display = 'block';
             
-            if (response.ok) {
-                // Reset form and hide it
-                resetPasswordForm();
-                passwordChangeForm.style.display = 'none';
-                changePasswordBtn.style.display = 'block';
-                
-                // Show success modal
-                openModal(passwordSuccessModal);
-            } else {
-                // Handle error
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to change password');
-            }
-        } catch (apiError) {
-            console.warn('API error, showing offline message:', apiError);
-            showToast('Password cannot be changed in offline mode', 'warning');
+            // Show success modal
+            openModal(passwordSuccessModal);
+        } else {
+            // Handle error
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            throw new Error(errorData.message || 'Failed to change password');
         }
     } catch (error) {
         console.error('Error changing password:', error);
-        showToast('Failed to change password. Please try again.', 'error');
+        showToast(`Failed to change password: ${error.message}`, 'error');
     } finally {
         hideLoading();
     }

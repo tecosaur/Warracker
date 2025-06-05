@@ -1003,7 +1003,7 @@ async function exportWarranties() {
 }
 
 // Switch view of warranties list
-async function switchView(viewType) { // Added async
+async function switchView(viewType, saveToApi = true) { // Added saveToApi parameter with default true
     console.log(`Switching to view: ${viewType}`);
     currentView = viewType;
 
@@ -1022,8 +1022,8 @@ async function switchView(viewType) { // Added async
         console.log(`View preference (${viewKey}) already set to ${viewType} in localStorage.`);
     }
 
-    // --- BEGIN ADDED: Save preference to API --- 
-    if (window.auth && window.auth.isAuthenticated()) {
+    // --- MODIFIED: Only save preference to API if saveToApi is true --- 
+    if (saveToApi && window.auth && window.auth.isAuthenticated()) {
         const token = window.auth.getToken();
         if (token) {
             try {
@@ -1053,10 +1053,12 @@ async function switchView(viewType) { // Added async
         } else {
             console.warn('Cannot save view preference to API: No auth token found.');
         }
+    } else if (!saveToApi) {
+        console.log('Skipping API save as saveToApi is false (likely called from loadViewPreference).');
     } else {
         console.warn('Cannot save view preference to API: User not authenticated or auth module not loaded.');
     }
-    // --- END ADDED: Save preference to API ---
+    // --- END MODIFIED: Save preference to API ---
 
     // Make sure warrantiesList exists before modifying classes
     if (warrantiesList) {
@@ -1112,10 +1114,10 @@ function loadViewPreference() {
     // Default to grid view if no preference is saved
     savedView = savedView || 'grid';
 
-    console.log(`Applying view preference: ${savedView}`);
+    console.log(`Applying view preference from loadViewPreference: ${savedView}`);
     // Switch view only if view buttons exist (implying it's the main page)
     if (gridViewBtn || listViewBtn || tableViewBtn) {
-        switchView(savedView);
+        switchView(savedView, false); // Pass false to prevent API save on initial load
     }
 }
 
@@ -4505,23 +4507,23 @@ async function handleImport(file) {
 
 // --- Add Storage Event Listener for Real-time Sync ---
 window.addEventListener('storage', (event) => {
-    const prefix = getPreferenceKeyPrefix();
-    const viewKeys = [
-        `${prefix}defaultView`,
+    const currentPrefix = getPreferenceKeyPrefix(); // Re-calculate prefix
+    const viewKeysToWatch = [
+        `${currentPrefix}defaultView`,
         'viewPreference',
-        `${prefix}warrantyView`,
-        // Add `${prefix}viewPreference` if still used/relevant
-        `${prefix}viewPreference` 
+        `${currentPrefix}warrantyView`,
+        // Add `${currentPrefix}viewPreference` if still used/relevant
+        `${currentPrefix}viewPreference` 
     ];
 
     // Check for view preference changes
-    if (viewKeys.includes(event.key) && event.newValue) {
+    if (viewKeysToWatch.includes(event.key) && event.newValue) {
         console.log(`Storage event detected for view preference (${event.key}). New value: ${event.newValue}`);
         // Check if the new value is different from the current view to avoid loops
         if (event.newValue !== currentView) {
              // Ensure view buttons exist before switching (we're on the main page)
              if (gridViewBtn || listViewBtn || tableViewBtn) {
-                 switchView(event.newValue);
+                 switchView(event.newValue, false); // Apply change, don't re-save to API
              }
         } else {
              console.log('Storage event value matches current view, ignoring.');
@@ -4540,8 +4542,8 @@ window.addEventListener('storage', (event) => {
     // --- End Added Check ---
 
     // --- Added: Check for currency symbol changes ---
-    if (event.key === `${prefix}currencySymbol` && event.newValue) {
-        console.log(`Storage event detected for ${prefix}currencySymbol. New value: ${event.newValue}`);
+    if (event.key === `${currentPrefix}currencySymbol` && event.newValue) {
+        console.log(`Storage event detected for ${currentPrefix}currencySymbol. New value: ${event.newValue}`);
         if (warrantiesList) { // Only apply if on the main page
             updateCurrencySymbols(); // Update symbols outside cards (e.g., in forms if they exist)
             applyFilters(); // Re-render cards to update symbols inside them

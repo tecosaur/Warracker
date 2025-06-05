@@ -1,5 +1,40 @@
 # Changelog
 
+##  0.10.0.0 - 2025-06-4
+
+### Fixed
+- **View Preference Persistence Issue:** Fixed user view preferences (Grid, List, Table) not consistently persisting across logins.
+  - **Backend (`backend/app.py`):** Modified `/api/auth/login` endpoint to include `is_admin` flag in the returned user object, ensuring proper view preference key prefix calculation immediately after login.
+  - **Frontend (`frontend/script.js`):** 
+    - Enhanced `switchView()` function with `saveToApi` parameter to control when view preferences are saved to the API, preventing unintended overwrites during initialization.
+    - Modified `loadViewPreference()` to call `switchView` with `saveToApi = false` to prevent overwriting user's actual preferences with defaults.
+    - Updated storage event listener for cross-tab synchronization to prevent redundant API saves when syncing view preferences between browser tabs.
+  - **Root Cause:** Missing `is_admin` flag caused incorrect localStorage prefix usage and race conditions where preferences were saved with wrong prefix then not found when correct prefix was established.
+  - **Result:** View preferences now properly persist across logins and synchronize between browser tabs for both admin and regular users.
+- **Password Management Issues:** Fixed critical password change and reset functionality problems.
+  - **Missing Password Change Endpoint (`backend/app.py`):** Implemented `/api/auth/password/change` endpoint to allow logged-in users to change their passwords through the Settings page. The endpoint validates current password, checks new password strength, and securely updates the user's password hash.
+  - **Frontend Error Handling (`frontend/settings-new.js`):** Fixed misleading "Password cannot be changed in offline mode" error by removing nested try-catch block that was masking real API error messages. Now properly displays specific backend error messages.
+  - **Password Reset Link Issue (`frontend/reset-password.html`):** Fixed "Invalid or Expired Link" error by removing premature token verification that was calling a non-existent `/api/auth/password/verify-token` endpoint. Token validity is now properly checked only during form submission.
+  - **Root Cause:** Backend endpoint was missing entirely, frontend had incorrect error handling, and reset page was making unnecessary token verification calls.
+  - **Result:** Users can now successfully change passwords while logged in and use password reset links without encountering false error messages.
+- **SMTP Port 587 (STARTTLS) Functionality:** Enhanced email sending to support both port 465 (SMTPS/SSL) and port 587 (STARTTLS) configurations.
+  - **Enhanced SMTP Connection Logic (`backend/app.py`):** Updated `send_password_reset_email()`, `send_expiration_notifications()`, and `send_email_change_verification_email()` functions with robust port-based SMTP logic.
+    - **Port 465:** Uses `smtplib.SMTP_SSL()` for direct SSL connection
+    - **Port 587:** Uses `smtplib.SMTP()` followed by `starttls()` for STARTTLS encryption  
+    - **Other Ports:** Respects `SMTP_USE_TLS` environment variable for explicit STARTTLS control
+  - **Environment Variable Support:** Added intelligent defaults where `SMTP_USE_TLS` defaults to true for port 587 unless explicitly set to false, ensuring proper STARTTLS behavior.
+  - **Root Cause:** Previous logic used restrictive hostname-based conditions (`if smtp_host != 'localhost'`) instead of proper port-based SMTP configuration, causing STARTTLS failures with external SMTP servers on port 587.
+  - **Result:** Email sending now works reliably with both common SMTP configurations, supporting major email providers like Gmail, Office 365, and other services using port 587.
+- **Header Appearance Standardization (`frontend/reset-password-request.html`, `frontend/reset-password.html`):** Standardized headers to match consistent appearance across all pages.
+  - **Missing CSS Includes:** Added `header-fix.css` and `fix-auth-buttons-loader.js` to ensure consistent header styling and behavior.
+  - **Clickable Title:** Made "Warracker" title a clickable link to `index.html` for consistent navigation, matching other auth pages like `login.html` and `register.html`.
+  - **Registration Status Script:** Added `registration-status.js` for consistent functionality across auth pages.
+  - **Root Cause:** Pages were missing key CSS files and scripts that ensure header consistency, and the title was not a link unlike other pages.
+  - **Result:** Headers now have identical appearance, dimensions, and responsive behavior as other application pages, providing consistent user experience.
+### Enhanced  
+- **Footer Links:** Updated all "Powered by Warracker" footer links across the application to point to `https://warracker.com` instead of the GitHub repository, providing users with direct access to the official website.
+  - **Files Updated:** `index.html`, `login.html`, `register.html`, `reset-password.html`, `reset-password-request.html`, `settings-new.html`, `status.html`, `auth-redirect.html`, and `about.html`
+  - **Result:** Consistent branding and improved user experience with direct access to the official Warracker website.
 
 ## 0.9.9.9 - 2025-06-01
 
@@ -161,7 +196,6 @@
   - _Files: All frontend HTML pages, `frontend/style.css`_
 
 ## [0.9.9.8] - 2025-05-24
-
 
 ### Added
 - **Account Email Change:** Users can now change the email address associated with their account from the Settings page.

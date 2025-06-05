@@ -942,8 +942,8 @@ def login():
         
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if user exists
-            cur.execute('SELECT id, username, email, password_hash, is_active FROM users WHERE username = %s OR email = %s', (username, username))
+            # Check if user exists - include is_admin in the query
+            cur.execute('SELECT id, username, email, password_hash, is_active, is_admin FROM users WHERE username = %s OR email = %s', (username, username))
             user = cur.fetchone()
             
             if not user or not bcrypt.check_password_hash(user[3], password):
@@ -979,7 +979,8 @@ def login():
                 'user': {
                     'id': user_id,
                     'username': user[1],
-                    'email': user[2]
+                    'email': user[2],
+                    'is_admin': user[5]  # Include is_admin flag
                 }
             }), 200
     except Exception as e:
@@ -3248,6 +3249,10 @@ The Warracker Team
     # Use SMTP_USERNAME as sender if available, otherwise a default
     sender_email = smtp_username or 'noreply@warracker.local' 
 
+    # Explicit SMTP_USE_TLS from environment, defaulting to true if port is 587
+    # and not explicitly set to false.
+    smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
+
     if not smtp_username:
          logger.warning("SMTP_USERNAME environment variable not set. Using default sender address.")
 
@@ -3264,27 +3269,43 @@ The Warracker Team
     msg.attach(part2)
 
     # Connect to SMTP server and send
+    server = None
     try:
-        server = None # Initialize server to None
+        logger.info(f"Attempting SMTP connection to {smtp_host}:{smtp_port}")
         if smtp_port == 465:
-            logger.info(f"Using SMTP_SSL connection for port 465 to host {smtp_host}")
-            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) # Add timeout
+            logger.info("Using SMTP_SSL for port 465.")
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
         else:
-            logger.info(f"Using standard SMTP connection for port {smtp_port} to host {smtp_host}")
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10) # Add timeout
-            # Start TLS for security if not local debug server and not using SSL
-            # Check if host suggests a non-local environment
-            if smtp_host != 'localhost' and not smtp_host.startswith('127.'): 
-                logger.info("Attempting to start TLS")
+            logger.info(f"Using SMTP for port {smtp_port}.")
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            # For port 587, STARTTLS is standard.
+            # For other ports, allow SMTP_USE_TLS to explicitly enable/disable it.
+            # If SMTP_USE_TLS is 'not_set', default to True for port 587.
+            should_use_starttls = False
+            if smtp_port == 587:
+                should_use_starttls = (smtp_use_tls_env != 'false') # True unless explicitly 'false'
+                logger.info(f"Port is 587. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+            elif smtp_use_tls_env == 'true':
+                should_use_starttls = True
+                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS explicitly 'true'. should_use_starttls: {should_use_starttls}")
+            else:
+                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+
+            if should_use_starttls:
+                logger.info("Attempting to start TLS (server.starttls()).")
                 server.starttls()
+                logger.info("STARTTLS successful.")
+            else:
+                logger.info("Not using STARTTLS based on port and SMTP_USE_TLS setting.")
         
         # Login if credentials are provided
         if smtp_username and smtp_password:
             logger.info(f"Logging in with username: {smtp_username}")
             server.login(smtp_username, smtp_password)
+            logger.info("SMTP login successful.")
         
         # Send email
-        logger.info(f"Sending email via {smtp_host}:{smtp_port} from {sender_email}")
+        logger.info(f"Sending email via {smtp_host}:{smtp_port} from {sender_email} to {recipient_email}")
         server.sendmail(sender_email, recipient_email, msg.as_string())
         logger.info(f"Password reset email successfully sent to {recipient_email}")
         
@@ -3292,8 +3313,12 @@ The Warracker Team
         logger.error(f"SMTP Authentication Error sending email to {recipient_email}: {e}")
         # Re-raise a more generic exception or handle appropriately
         raise Exception(f"SMTP Authentication failed for {smtp_username}") from e
+    except smtplib.SMTPException as e: # Catch more generic SMTP exceptions
+        logger.error(f"SMTP Error sending email to {recipient_email}: {e}")
+        logger.error(f"SMTP details used - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}, Sender: {sender_email}")
+        raise Exception(f"SMTP error occurred: {str(e)}") from e
     except Exception as e:
-        logger.error(f"Failed to send password reset email to {recipient_email}: {e}")
+        logger.error(f"General error sending email to {recipient_email}: {e}")
         logger.error(f"SMTP details used - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}, Sender: {sender_email}")
         # Raise an exception to be caught by the calling function
         raise Exception("Failed to send password reset email") from e
@@ -3459,22 +3484,44 @@ def send_expiration_notifications(manual_trigger=False):
         smtp_username = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
         smtp_password = os.environ.get('SMTP_PASSWORD', '')
         
+        # Explicit SMTP_USE_TLS from environment, defaulting to true if port is 587
+        # and not explicitly set to false.
+        smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
+        
         # Connect to SMTP server
         try:
-            # Use SMTP_SSL for port 465, regular SMTP for other ports
+            logger.info(f"Attempting SMTP connection to {smtp_host}:{smtp_port}")
             if smtp_port == 465:
-                logger.info(f"Using SMTP_SSL connection for port 465")
-                server = smtplib.SMTP_SSL(smtp_host, smtp_port)
+                logger.info("Using SMTP_SSL for port 465.")
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
             else:
-                server = smtplib.SMTP(smtp_host, smtp_port)
-                # Start TLS for security if not local debug server and not using SSL
-                if smtp_host != 'localhost':
+                logger.info(f"Using SMTP for port {smtp_port}.")
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+                # For port 587, STARTTLS is standard.
+                # For other ports, allow SMTP_USE_TLS to explicitly enable/disable it.
+                # If SMTP_USE_TLS is 'not_set', default to True for port 587.
+                should_use_starttls = False
+                if smtp_port == 587:
+                    should_use_starttls = (smtp_use_tls_env != 'false') # True unless explicitly 'false'
+                    logger.info(f"Port is 587. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+                elif smtp_use_tls_env == 'true':
+                    should_use_starttls = True
+                    logger.info(f"Port is {smtp_port}. SMTP_USE_TLS explicitly 'true'. should_use_starttls: {should_use_starttls}")
+                else:
+                    logger.info(f"Port is {smtp_port}. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+
+                if should_use_starttls:
+                    logger.info("Attempting to start TLS (server.starttls()).")
                     server.starttls()
+                    logger.info("STARTTLS successful.")
+                else:
+                    logger.info("Not using STARTTLS based on port and SMTP_USE_TLS setting.")
             
             # Login if credentials are provided
             if smtp_username and smtp_password:
                 logger.info(f"Logging in with username: {smtp_username}")
                 server.login(smtp_username, smtp_password)
+                logger.info("SMTP login successful.")
 
             # Send emails to each user
             utc_now = datetime.utcnow()
@@ -4413,6 +4460,59 @@ def reset_password():
         if conn:
             release_db_connection(conn)
 
+@app.route('/api/auth/password/change', methods=['POST'])
+@token_required
+def change_password():
+    """Allow logged-in users to change their password"""
+    conn = None
+    try:
+        data = request.get_json()
+        
+        if not data.get('current_password') or not data.get('new_password'):
+            return jsonify({'message': 'Current password and new password are required!'}), 400
+        
+        current_password = data['current_password']
+        new_password = data['new_password']
+        user_id = request.user['id']  # Get user ID from the token_required decorator
+        
+        # Validate new password strength
+        if not is_valid_password(new_password):
+            return jsonify({'message': 'New password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get the user's current password hash
+            cur.execute('SELECT password_hash FROM users WHERE id = %s', (user_id,))
+            user_data = cur.fetchone()
+            
+            if not user_data:
+                return jsonify({'message': 'User not found!'}), 404
+            
+            current_password_hash = user_data[0]
+            
+            # Verify the current password
+            if not bcrypt.check_password_hash(current_password_hash, current_password):
+                return jsonify({'message': 'Incorrect current password!'}), 401
+            
+            # Hash the new password
+            new_password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+            
+            # Update the password in the database
+            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (new_password_hash, user_id))
+            
+            conn.commit()
+            
+            return jsonify({'message': 'Password changed successfully!'}), 200
+            
+    except Exception as e:
+        logger.error(f"Password change error: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({'message': 'Failed to change password!'}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 def send_email_change_verification_email(recipient_email, verification_link_path_with_token):
     """Sends an email with a link to verify the new email address."""
     try:
@@ -4424,6 +4524,10 @@ def send_email_change_verification_email(recipient_email, verification_link_path
         smtp_use_ssl = os.environ.get('SMTP_USE_SSL', 'false').lower() == 'true'
         sender_email = os.environ.get('SMTP_SENDER_EMAIL', 'noreply@warracker.com')
         app_name = "Warracker" # Or get from config
+        
+        # Explicit SMTP_USE_TLS from environment, defaulting to true if port is 587
+        # and not explicitly set to false.
+        smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
         
         subject = f"Confirm Your New Email Address - {app_name}"
         
@@ -4460,15 +4564,38 @@ def send_email_change_verification_email(recipient_email, verification_link_path
 
         logger.info(f"Attempting to send email change verification to {recipient_email} via {smtp_host}:{smtp_port}")
 
-        if smtp_use_ssl:
+        server = None
+        logger.info(f"Attempting SMTP connection to {smtp_host}:{smtp_port}")
+        if smtp_port == 465:
+            logger.info("Using SMTP_SSL for port 465.")
             server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
         else:
+            logger.info(f"Using SMTP for port {smtp_port}.")
             server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-            if smtp_use_tls:
+            # For port 587, STARTTLS is standard.
+            # For other ports, allow SMTP_USE_TLS to explicitly enable/disable it.
+            # If SMTP_USE_TLS is 'not_set', default to True for port 587.
+            should_use_starttls = False
+            if smtp_port == 587:
+                should_use_starttls = (smtp_use_tls_env != 'false') # True unless explicitly 'false'
+                logger.info(f"Port is 587. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+            elif smtp_use_tls_env == 'true':
+                should_use_starttls = True
+                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS explicitly 'true'. should_use_starttls: {should_use_starttls}")
+            else:
+                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+
+            if should_use_starttls:
+                logger.info("Attempting to start TLS (server.starttls()).")
                 server.starttls()
+                logger.info("STARTTLS successful.")
+            else:
+                logger.info("Not using STARTTLS based on port and SMTP_USE_TLS setting.")
         
         if smtp_username and smtp_password:
+            logger.info(f"Logging in with username: {smtp_username}")
             server.login(smtp_username, smtp_password)
+            logger.info("SMTP login successful.")
             
         server.sendmail(sender_email, recipient_email, msg.as_string())
         server.quit()
