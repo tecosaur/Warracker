@@ -55,7 +55,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 * **Password Reset**: Secure, token-based account recovery system.
 * **OIDC Single Sign-On (SSO)**: Seamlessly log in using identity providers like Google, GitHub, or Keycloak.
 * **Status Dashboard with Global View**: Monitor warranty statistics and analytics for your account or all users (for eligible roles), with charts and detailed tables.
-* **Responsive and Enhanced UI**: Modern, mobile-friendly interfaces with improved tooltips, admin controls, and consistent branding linking directly to the official Warracker website.
+* **Responsive and Enhanced UI**: Modern, mobile-friendly interfaces with improved tooltips, admin controls.
 
 
 ## Project Status
