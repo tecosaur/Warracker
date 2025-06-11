@@ -39,20 +39,24 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 
 **Warracker** is a web-based application that simplifies the management of product warranties. It allows users to organize warranty information, monitor expiration dates, and securely store related documents.
 
+
 ## Features
 
 * **Centralized Management**: Track all your product warranties in one place.
-* **Detailed Records**: Store purchase dates, durations, and notes.
-* **Document Storage**: Upload receipts, invoices, and manuals.
-* **Proactive Alerts**: Receive notifications for upcoming expirations.
-* **Quick Search and Filter**: Find warranties by product name, serial number, vendor, tags, or notes.
-* **Multi-User Support**: Create multiple user accounts with admin controls.
-* **Data Export/Import**: Export to CSV or import from CSV files.
-* **Email Notifications**: Get timely reminders about expirations.
-* **Customizable Settings**: Adjust currency symbols and date formats.
-* **Tagging**: Organize warranties with flexible tags.
-* **Password Reset**: Secure, token-based account recovery.
+* **Detailed Records**: Store purchase dates, durations, notes, and product photos with thumbnail previews.
+* **Document Storage**: Upload receipts, invoices, and manuals securely.
+* **Proactive Alerts**: Receive configurable notifications for upcoming expirations via email and 100+ push notification services (e.g., Discord, Slack, Telegram) powered by Apprise integration.
+* **Quick Search and Filter**: Find warranties by product name, serial number, vendor, tags, warranty type, or notes with case-insensitive filtering and real-time sorting.
+* **Global Warranty View**: All authenticated users can now view warranties across the entire user base with appropriate read-only or edit permissions; admins retain full control.
+* **Multi-User Support**: Create multiple user accounts with advanced admin controls, including toggles for site-wide global view access.
+* **Data Export/Import**: Export to CSV or import from CSV files for easy data portability.
+* **Customizable Settings**: Adjust currency symbols, date formats, and notification preferences including notification timing and branding.
+* **Tagging**: Organize warranties flexibly with tags for easy categorization.
+* **Password Reset**: Secure, token-based account recovery system.
 * **OIDC Single Sign-On (SSO)**: Seamlessly log in using identity providers like Google, GitHub, or Keycloak.
+* **Status Dashboard with Global View**: Monitor warranty statistics and analytics for your account or all users (for eligible roles), with charts and detailed tables.
+* **Responsive and Enhanced UI**: Modern, mobile-friendly interfaces with improved tooltips, admin controls, and consistent branding linking directly to the official Warracker website.
+
 
 ## Project Status
 
