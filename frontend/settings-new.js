@@ -2,15 +2,17 @@
 const darkModeToggle = document.getElementById('darkModeToggle');
 const darkModeToggleSetting = document.getElementById('darkModeToggleSetting');
 const defaultViewSelect = document.getElementById('defaultView');
-const emailNotificationsToggle = document.getElementById('emailNotifications');
 const expiringSoonDaysInput = document.getElementById('expiringSoonDays');
+const notificationChannel = document.getElementById('notificationChannel');
 const notificationFrequencySelect = document.getElementById('notificationFrequency');
 const notificationTimeInput = document.getElementById('notificationTime');
 const timezoneSelect = document.getElementById('timezone');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const savePreferencesBtn = document.getElementById('savePreferencesBtn');
-const saveEmailSettingsBtn = document.getElementById('saveEmailSettingsBtn');
+const saveNotificationSettingsBtn = document.getElementById('saveNotificationSettingsBtn');
 const changePasswordBtn = document.getElementById('changePasswordBtn');
+const emailSettingsContainer = document.getElementById('emailSettingsContainer');
+const appriseSettingsContainer = document.getElementById('appriseSettingsContainer');
 const passwordChangeForm = document.getElementById('passwordChangeForm');
 const savePasswordBtn = document.getElementById('savePasswordBtn');
 const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
@@ -40,6 +42,7 @@ const checkAdminBtn = document.getElementById('checkAdminBtn');
 const showUsersBtn = document.getElementById('showUsersBtn');
 const testApiBtn = document.getElementById('testApiBtn');
 const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn');
+const schedulerStatusBtn = document.getElementById('schedulerStatusBtn');
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
 const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
@@ -53,6 +56,26 @@ const oidcIssuerUrlInput = document.getElementById('oidcIssuerUrl');
 const oidcScopeInput = document.getElementById('oidcScope');
 const saveOidcSettingsBtn = document.getElementById('saveOidcSettingsBtn');
 const oidcRestartMessage = document.getElementById('oidcRestartMessage');
+
+// Apprise Settings DOM Elements
+const appriseEnabledToggle = document.getElementById('appriseEnabled');
+const appriseUrlsTextarea = document.getElementById('appriseUrls');
+const appriseExpirationDaysInput = document.getElementById('appriseExpirationDays');
+const appriseNotificationTimeInput = document.getElementById('appriseNotificationTime');
+const appriseTimezoneSelect = document.getElementById('appriseTimezone');
+const appriseNotificationFrequency = document.getElementById('appriseNotificationFrequency');
+const appriseTitlePrefixInput = document.getElementById('appriseTitlePrefix');
+const appriseTestUrlInput = document.getElementById('appriseTestUrl');
+const saveAppriseSettingsBtn = document.getElementById('saveAppriseSettingsBtn');
+const testAppriseBtn = document.getElementById('testAppriseBtn');
+const validateAppriseUrlBtn = document.getElementById('validateAppriseUrlBtn');
+const triggerAppriseNotificationsBtn = document.getElementById('triggerAppriseNotificationsBtn');
+const appriseStatusBadge = document.getElementById('appriseStatusBadge');
+const appriseUrlsCount = document.getElementById('appriseUrlsCount');
+const currentAppriseExpirationDays = document.getElementById('currentAppriseExpirationDays');
+const currentAppriseNotificationTime = document.getElementById('currentAppriseNotificationTime');
+const viewSupportedServicesBtn = document.getElementById('viewSupportedServicesBtn');
+const appriseNotAvailable = document.getElementById('appriseNotAvailable');
 
 const currencySymbolInput = document.getElementById('currencySymbol');
 const currencySymbolSelect = document.getElementById('currencySymbolSelect');
@@ -181,6 +204,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- ADD THIS LINE TO INITIALIZE MODALS ---
     initModals();
+    
+    // Initialize collapsible cards
+    initCollapsibleCards();
+    
+    // Load admin-only settings if user is admin
+    // Note: These will also be loaded later in loadUserData() with proper checks
+    // This is a redundant call that should be conditional
+    const currentUser = window.auth && window.auth.getCurrentUser ? window.auth.getCurrentUser() : null;
+    if (currentUser && currentUser.is_admin) {
+        // Load site settings (for admins) - includes OIDC settings
+        loadSiteSettings();
+        
+        // Load Apprise settings
+        loadAppriseSettings();
+        
+        // Load Apprise site settings (also loads overall Apprise settings)
+        loadAppriseSiteSettings();
+    } else {
+        console.log('User is not admin, skipping admin-only settings load during initialization');
+    }
+    
+    // Setup Apprise event listeners
+    setupAppriseEventListeners();
+    
+    // Initialize delete button handling
+    setupDeleteButton();
 });
 
 /**
@@ -481,17 +530,27 @@ function getPreferenceKeyPrefix() {
     return getUserType() === 'admin' ? 'admin_' : 'user_';
 }
 
+// Prevent multiple simultaneous preference loads
+let isLoadingPreferences = false;
+
 /**
  * Load user preferences
  */
 async function loadPreferences() {
+    // Prevent multiple simultaneous loads
+    if (isLoadingPreferences) {
+        console.log('Preferences already loading, skipping duplicate call');
+        return;
+    }
+    
+    isLoadingPreferences = true;
     console.log('Loading preferences...');
     const prefix = getPreferenceKeyPrefix();
     console.log('Loading preferences with prefix:', prefix);
 
-    let darkModeFromAPI = null;
     let apiPrefs = null;
-    // Try to load preferences from backend if authenticated
+    
+    // FIXED: Load all preferences from API first, then apply to UI
     if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
         try {
             const response = await fetch('/api/auth/preferences', {
@@ -501,19 +560,41 @@ async function loadPreferences() {
             });
             if (response.ok) {
                 apiPrefs = await response.json();
+                console.log('API preferences loaded:', apiPrefs);
+                
+                // Apply theme from API immediately (highest priority)
                 if (apiPrefs && apiPrefs.theme) {
-                    darkModeFromAPI = apiPrefs.theme === 'dark';
-                    setTheme(darkModeFromAPI);
-                    // Sync localStorage
-                    localStorage.setItem('darkMode', darkModeFromAPI);
+                    const isDark = apiPrefs.theme === 'dark';
+                    console.log('Applying theme from API:', apiPrefs.theme, 'isDark:', isDark);
+                    setTheme(isDark);
+                    // Sync localStorage to match API
+                    localStorage.setItem('darkMode', isDark);
+                    // Ensure the dark mode toggle reflects the API setting
+                    if (darkModeToggleSetting) {
+                        darkModeToggleSetting.checked = isDark;
+                        console.log('Synced dark mode toggle to API value:', isDark);
+                    }
+                } else {
+                    console.log('No theme in API preferences, using localStorage fallback');
+                    const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+                    setTheme(storedDarkMode);
+                    if (darkModeToggleSetting) {
+                        darkModeToggleSetting.checked = storedDarkMode;
+                    }
                 }
+            } else {
+                console.warn('API preferences request failed, using localStorage');
+                const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+                setTheme(storedDarkMode);
             }
         } catch (e) {
             console.warn('Failed to load preferences from backend:', e);
+            // Fallback to localStorage
+            const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+            setTheme(storedDarkMode);
         }
-    }
-    // Fallback: use localStorage if not authenticated or API fails
-    if (darkModeFromAPI === null) {
+    } else {
+        console.log('Not authenticated, using localStorage for theme');
         const storedDarkMode = localStorage.getItem('darkMode') === 'true';
         setTheme(storedDarkMode);
     }
@@ -574,19 +655,9 @@ async function loadPreferences() {
         console.log(`${prefix}expiringSoonDays not found, defaulting to 30`);
     }
 
-    // Now, try fetching preferences from API to override/confirm
-    if (window.auth && window.auth.isAuthenticated()) {
-        try {
-            const token = window.auth.getToken();
-            const response = await fetch('/api/auth/preferences', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (response.ok) {
-                const apiPrefs = await response.json();
-                console.log('Preferences loaded from API:', apiPrefs);
+    // Apply API preferences to form elements (apiPrefs already loaded above)
+    if (apiPrefs) {
+        console.log('Applying API preferences to form elements:', apiPrefs);
 
                 // Update UI elements with API data where available
                 if (apiPrefs.default_view && defaultViewSelect) {
@@ -641,14 +712,33 @@ async function loadPreferences() {
                  // --- End Date Format Check ---
 
                 // Update Email Settings from API
-                if (emailNotificationsToggle) {
-                    emailNotificationsToggle.checked = apiPrefs.email_notifications !== false; // Default true if null/undefined
+                if (notificationChannel) {
+                    const channelValue = apiPrefs.notification_channel || 'email'; // Default to email if not present
+                    notificationChannel.value = channelValue;
+                    toggleNotificationSettings(channelValue);
+                    console.log('Set notification channel to:', channelValue);
                 }
                 if (notificationFrequencySelect && apiPrefs.notification_frequency) {
                     notificationFrequencySelect.value = apiPrefs.notification_frequency;
                 }
                 if (notificationTimeInput && apiPrefs.notification_time) {
                     notificationTimeInput.value = apiPrefs.notification_time.substring(0, 5); // HH:MM format
+                }
+                if (appriseNotificationTimeInput && apiPrefs.apprise_notification_time) {
+                    appriseNotificationTimeInput.value = apiPrefs.apprise_notification_time.substring(0, 5);
+                }
+                if (appriseTimezoneSelect && apiPrefs.apprise_timezone) {
+                    if (Array.from(appriseTimezoneSelect.options).some(option => option.value === apiPrefs.apprise_timezone)) {
+                        appriseTimezoneSelect.value = apiPrefs.apprise_timezone;
+                    } else {
+                        console.warn(`Apprise timezone '${apiPrefs.apprise_timezone}' from API not found in dropdown.`);
+                    }
+                }
+                
+                // Update Apprise timezone display
+                updateAppriseTimezoneDisplay(apiPrefs.timezone);
+                if (appriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
+                    appriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
                 }
                 // Load and set timezone from API
                 if (timezoneSelect && apiPrefs.timezone) {
@@ -657,19 +747,34 @@ async function loadPreferences() {
                     if (Array.from(timezoneSelect.options).some(option => option.value === apiPrefs.timezone)) {
                         timezoneSelect.value = apiPrefs.timezone;
                         console.log('Applied timezone from API:', timezoneSelect.value, 'Current select value:', timezoneSelect.value);
+                        
+                        // Update Apprise timezone display when timezone is loaded
+                        updateAppriseTimezoneDisplay(apiPrefs.timezone);
                     } else {
                         console.warn(`Timezone '${apiPrefs.timezone}' from API not found in dropdown.`);
                     }
                 } else {
                     console.log('No timezone preference found in API or timezone select element missing.');
                 }
+    }
+    
+    // Reset the loading flag
+    isLoadingPreferences = false;
+    console.log('Preferences loading completed');
+}
 
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.warn(`Failed to load preferences from API: ${response.status}`, errorData.message || '');
-            }
-        } catch (error) {
-            console.error('Error fetching preferences from API:', error);
+/**
+ * Update the Apprise timezone display to show which timezone will be used
+ */
+function updateAppriseTimezoneDisplay(timezone) {
+    const appriseTimezoneDisplay = document.getElementById('appriseTimezoneDisplay');
+    if (appriseTimezoneDisplay) {
+        if (timezone) {
+            appriseTimezoneDisplay.textContent = `(using timezone: ${timezone})`;
+            appriseTimezoneDisplay.style.display = 'inline';
+        } else {
+            appriseTimezoneDisplay.textContent = '(timezone not set)';
+            appriseTimezoneDisplay.style.display = 'inline';
         }
     }
 }
@@ -815,6 +920,12 @@ function setupEventListeners() {
         });
     }
     
+    if (schedulerStatusBtn) {
+        schedulerStatusBtn.addEventListener('click', function() {
+            checkSchedulerStatus();
+        });
+    }
+    
     // Site settings save button
     if (saveSiteSettingsBtn) {
         saveSiteSettingsBtn.addEventListener('click', function() {
@@ -830,8 +941,26 @@ function setupEventListeners() {
     }
     
     // Save email settings button
-    if (saveEmailSettingsBtn) {
-        saveEmailSettingsBtn.addEventListener('click', saveEmailSettings);
+    if (saveNotificationSettingsBtn) {
+        saveNotificationSettingsBtn.addEventListener('click', saveNotificationSettings);
+    }
+    
+    // Add timezone change listener to update Apprise timezone display
+    const timezoneSelect = document.getElementById('timezone');
+    if (timezoneSelect) {
+        timezoneSelect.addEventListener('change', function() {
+            updateAppriseTimezoneDisplay(this.value);
+        });
+    }
+
+    if (appriseTimezoneSelect) {
+        loadTimezonesIntoSelect(appriseTimezoneSelect);
+    }
+
+    if (notificationChannel) {
+        notificationChannel.addEventListener('change', (e) => {
+            toggleNotificationSettings(e.target.value);
+        });
     }
     
     console.log('Event listeners setup complete');
@@ -887,6 +1016,48 @@ function initModals() {
     } else {
         console.error('deleteUserModal not found in initModals');
     }
+}
+
+/**
+ * Initialize collapsible cards functionality
+ */
+function initCollapsibleCards() {
+    console.log('Initializing collapsible cards...');
+    
+    // Get all collapsible headers
+    const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
+    
+    // Retrieve saved states from localStorage
+    const savedStates = JSON.parse(localStorage.getItem('collapsibleStates') || '{}');
+    
+    collapsibleHeaders.forEach(header => {
+        const targetId = header.getAttribute('data-target');
+        const card = header.closest('.collapsible-card');
+        
+        // Apply saved state or default to expanded
+        const isCollapsed = savedStates[targetId] === true;
+        if (isCollapsed) {
+            card.classList.add('collapsed');
+        }
+        
+        // Add click event listener
+        header.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const card = this.closest('.collapsible-card');
+            
+            // Toggle collapsed state
+            card.classList.toggle('collapsed');
+            
+            // Save state to localStorage
+            const currentStates = JSON.parse(localStorage.getItem('collapsibleStates') || '{}');
+            currentStates[targetId] = card.classList.contains('collapsed');
+            localStorage.setItem('collapsibleStates', JSON.stringify(currentStates));
+            
+            console.log(`Toggled ${targetId}: ${card.classList.contains('collapsed') ? 'collapsed' : 'expanded'}`);
+        });
+    });
+    
+    console.log('Collapsible cards initialized');
 }
 
 /**
@@ -1019,12 +1190,16 @@ async function savePreferences() {
     console.log('Saving preferences...');
     const prefix = getPreferenceKeyPrefix();
 
+    // Get current UI state FIRST (before building preferencesToSave)
+    const isDark = darkModeToggleSetting ? darkModeToggleSetting.checked : false;
+    console.log(`Current dark mode UI state: ${isDark}`);
+
     // --- Prepare data to save --- Add dateFormat and dark mode
     const preferencesToSave = {
         default_view: defaultViewSelect ? defaultViewSelect.value : 'grid',
         expiring_soon_days: expiringSoonDaysInput ? parseInt(expiringSoonDaysInput.value) : 30,
         date_format: dateFormatSelect ? dateFormatSelect.value : 'MDY',
-        theme: (localStorage.getItem('darkMode') === 'true') ? 'dark' : 'light',
+        theme: isDark ? 'dark' : 'light',  // Use current UI state, not old localStorage
     };
 
     // Handle currency symbol (standard or custom)
@@ -1043,10 +1218,10 @@ async function savePreferences() {
     console.log(`[SavePrefs Debug] Currency Select Value: ${currencySymbolSelect ? currencySymbolSelect.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Custom Input Value: ${currencySymbolCustom ? currencySymbolCustom.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Final currencySymbol value determined: ${currencySymbol}`);
+    console.log(`[SavePrefs Debug] Theme being saved: ${preferencesToSave.theme} (from isDark: ${isDark})`);
     // +++ END DEBUG LOGGING +++
 
-    // Save Dark Mode separately (using the single source of truth)
-    const isDark = darkModeToggleSetting ? darkModeToggleSetting.checked : false;
+    // Apply the theme to the UI (this updates localStorage too)
     setTheme(isDark);
     console.log(`Saved dark mode: ${isDark}`);
 
@@ -1060,10 +1235,11 @@ async function savePreferences() {
     console.log(`Value of dateFormat in localStorage: ${localStorage.getItem('dateFormat')}`);
 
     // Try saving to API
-    if (window.auth && window.auth.isAuthenticated()) {
+            if (window.auth && window.auth.isAuthenticated()) {
         try {
             showLoading();
             const token = window.auth.getToken();
+            console.log('Saving preferences with token:', token ? 'present' : 'missing');
             const response = await fetch('/api/auth/preferences', {
                 method: 'PUT',
                 headers: {
@@ -1078,7 +1254,13 @@ async function savePreferences() {
                 showToast('Preferences saved successfully.', 'success');
                 console.log('Preferences successfully saved to API.');
             } else {
-                const errorData = await response.json().catch(() => ({}));
+                console.error('Preferences save failed. Response status:', response.status);
+                console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+                const errorData = await response.json().catch((e) => {
+                    console.error('Failed to parse error response as JSON:', e);
+                    return {};
+                });
+                console.error('Error response data:', errorData);
                 throw new Error(errorData.message || `Failed to save preferences to API: ${response.status}`);
             }
         } catch (error) {
@@ -1161,42 +1343,50 @@ async function deleteAccount() {
     showLoading();
     
     try {
-        try {
-            const response = await fetch('/api/auth/account', {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${window.auth.getToken()}`
-                }
-            });
-            
-            if (response.ok) {
-                // Clear auth data
-                if (window.auth.logout) {
-                    window.auth.logout();
-                } else {
-                    localStorage.removeItem('auth_token');
-                    localStorage.removeItem('user_info');
-                }
-                
-                // Show success message
-                showToast('Account deleted successfully', 'success');
-                
-                // Redirect to home page after a short delay
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
-            } else {
-                // Handle error
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to delete account');
+        const response = await fetch('/api/auth/account', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`
             }
-        } catch (apiError) {
-            console.warn('API error, showing offline message:', apiError);
-            showToast('Account cannot be deleted in offline mode', 'warning');
+        });
+        
+        if (response.ok) {
+            // Clear auth data
+            if (window.auth.logout) {
+                window.auth.logout();
+            } else {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_info');
+            }
+            
+            // Show success message
+            showToast('Account deleted successfully', 'success');
+            
+            // Redirect to home page after a short delay
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+        } else {
+            // Handle error - show the actual error message from the API
+            let errorMessage = 'Failed to delete account';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+            } catch (parseError) {
+                console.warn('Could not parse error response:', parseError);
+            }
+            
+            console.error('API error response:', errorMessage);
+            showToast(errorMessage, 'error');
         }
     } catch (error) {
-        console.error('Error deleting account:', error);
-        showToast('Failed to delete account. Please try again.', 'error');
+        console.error('Network error deleting account:', error);
+        // Only show offline message for actual network errors
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            showToast('Account cannot be deleted in offline mode', 'warning');
+        } else {
+            showToast('Failed to delete account. Please try again.', 'error');
+        }
     } finally {
         hideLoading();
         
@@ -2400,6 +2590,8 @@ async function loadSiteSettings() {
     // Query elements locally within this function scope for population
     const registrationToggleElem = document.getElementById('registrationEnabled');
     const emailBaseUrlFieldElem = document.getElementById('emailBaseUrl');
+    const globalViewToggleElem = document.getElementById('globalViewEnabled');
+    const globalViewAdminOnlyToggleElem = document.getElementById('globalViewAdminOnly');
     const oidcEnabledToggleElem = document.getElementById('oidcEnabled');
     const oidcProviderNameInputElem = document.getElementById('oidcProviderName');
     const oidcClientIdInputElem = document.getElementById('oidcClientId');
@@ -2418,6 +2610,16 @@ async function loadSiteSettings() {
             }
         });
         
+        if (response.status === 403) {
+            // User is not admin, hide admin settings sections
+            console.log('User is not admin, hiding admin settings sections');
+            const adminSection = document.getElementById('adminSection');
+            if (adminSection) {
+                adminSection.style.display = 'none';
+            }
+            return;
+        }
+        
         if (!response.ok) {
             throw new Error(`Failed to load site settings: ${response.status} ${response.statusText}`);
         }
@@ -2435,6 +2637,18 @@ async function loadSiteSettings() {
             emailBaseUrlFieldElem.value = settings.email_base_url || 'http://localhost:8080'; 
         } else {
             console.error('[SiteSettings] emailBaseUrl element NOT FOUND locally.');
+        }
+
+        if (globalViewToggleElem) {
+            globalViewToggleElem.checked = settings.global_view_enabled === 'true';
+        } else {
+            console.error('[SiteSettings] globalViewEnabled element NOT FOUND locally.');
+        }
+
+        if (globalViewAdminOnlyToggleElem) {
+            globalViewAdminOnlyToggleElem.checked = settings.global_view_admin_only === 'true';
+        } else {
+            console.error('[SiteSettings] globalViewAdminOnly element NOT FOUND locally.');
         }
 
         // Populate OIDC settings using locally-scoped element variables
@@ -2497,12 +2711,22 @@ async function loadSiteSettings() {
 async function saveSiteSettings() {
     console.log('Saving site settings (non-OIDC)...');
     const registrationToggle = document.getElementById('registrationEnabled');
-    const emailBaseUrlField = document.getElementById('emailBaseUrl'); 
+    const emailBaseUrlField = document.getElementById('emailBaseUrl');
+    const globalViewToggle = document.getElementById('globalViewEnabled');
+    const globalViewAdminOnlyToggle = document.getElementById('globalViewAdminOnly');
 
     const settingsToSave = {};
     
     if (registrationToggle) {
         settingsToSave.registration_enabled = registrationToggle.checked; 
+    }
+
+    if (globalViewToggle) {
+        settingsToSave.global_view_enabled = globalViewToggle.checked;
+    }
+
+    if (globalViewAdminOnlyToggle) {
+        settingsToSave.global_view_admin_only = globalViewAdminOnlyToggle.checked;
     }
 
     if (emailBaseUrlField) {
@@ -2528,10 +2752,13 @@ async function saveSiteSettings() {
     
     try {
         showLoading();
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving site settings with token:', token ? 'present' : 'missing');
+        
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
-                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(settingsToSave)
@@ -2572,10 +2799,13 @@ async function saveOidcSettings() {
 
     try {
         showLoading();
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving OIDC settings with token:', token ? 'present' : 'missing');
+        
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
-                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(oidcSettingsPayload)
@@ -2896,11 +3126,90 @@ async function triggerWarrantyNotifications() {
 }
 
 /**
+ * Check scheduler status (admin only)
+ */
+async function checkSchedulerStatus() {
+    console.log('Checking scheduler status...');
+    
+    try {
+        showLoading();
+        
+        const response = await fetch('/api/admin/scheduler-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
+            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const status = await response.json();
+        console.log('Scheduler status:', status);
+        
+        // Format the status information for display
+        let message = '📊 Scheduler Status Report\n\n';
+        message += `🚀 Initialized: ${status.scheduler_initialized ? '✅ Yes' : '❌ No'}\n`;
+        message += `🔄 Running: ${status.scheduler_running ? '✅ Yes' : '❌ No'}\n`;
+        message += `📋 Active Jobs: ${status.scheduler_jobs.length}\n`;
+        
+        if (status.scheduler_jobs.length > 0) {
+            message += '\n📅 Scheduled Jobs:\n';
+            status.scheduler_jobs.forEach(job => {
+                const nextRun = job.next_run_time ? 
+                    new Date(job.next_run_time).toLocaleString() : 
+                    'Not scheduled';
+                message += `• ${job.id}: ${nextRun}\n`;
+                message += `  Trigger: ${job.trigger}\n`;
+            });
+        }
+        
+        message += `\n🔧 Worker Information:\n`;
+        message += `• Worker ID: ${status.worker_info.worker_id}\n`;
+        message += `• Worker Name: ${status.worker_info.worker_name}\n`;
+        message += `• Worker Class: ${status.worker_info.worker_class}\n`;
+        message += `• Should Run Scheduler: ${status.worker_info.should_run_scheduler ? '✅ Yes' : '❌ No'}\n`;
+        
+        if (status.environment_vars && Object.keys(status.environment_vars).length > 0) {
+            message += `\n🌍 Environment Variables:\n`;
+            Object.entries(status.environment_vars).forEach(([key, value]) => {
+                message += `• ${key}: ${value}\n`;
+            });
+        }
+        
+        // Show in alert dialog
+        alert(message);
+        
+        // Also show a toast with a summary
+        const summary = status.scheduler_running ? 
+            '✅ Scheduler is running normally' : 
+            '⚠️ Scheduler is not running - notifications may not be sent automatically';
+        showToast(summary, status.scheduler_running ? 'success' : 'warning', 8000);
+        
+    } catch (error) {
+        console.error('Error checking scheduler status:', error);
+        showToast(`Error checking scheduler status: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
  * Load available timezones from the API
  * @returns {Promise} A promise that resolves when timezones are loaded
  */
 function loadTimezones() {
-    console.log('Loading timezones...');
+    return loadTimezonesIntoSelect(timezoneSelect);
+}
+
+function loadTimezonesIntoSelect(selectElement) {
+    if (!selectElement) {
+        return Promise.reject('Select element not provided to loadTimezonesIntoSelect');
+    }
+    console.log(`Loading timezones into ${selectElement.id}...`);
     return new Promise((resolve, reject) => {
         fetch('/api/timezones', {
             method: 'GET',
@@ -2917,7 +3226,7 @@ function loadTimezones() {
         })
         .then(timezoneGroups => {
             // Clear loading option
-            timezoneSelect.innerHTML = '';
+            selectElement.innerHTML = '';
             
             // Add timezone groups and their options
             timezoneGroups.forEach(group => {
@@ -2931,7 +3240,7 @@ function loadTimezones() {
                     optgroup.appendChild(option);
                 });
                 
-                timezoneSelect.appendChild(optgroup);
+                selectElement.appendChild(optgroup);
             });
             
             // Set the current timezone from preferences
@@ -2946,8 +3255,8 @@ function loadTimezones() {
             });
             
             if (savedPreferences.timezone) {
-                timezoneSelect.value = savedPreferences.timezone;
-                console.log('Set timezone select to:', savedPreferences.timezone, 'Current value:', timezoneSelect.value);
+                selectElement.value = savedPreferences.timezone;
+                console.log(`Set ${selectElement.id} to:`, savedPreferences.timezone, 'Current value:', selectElement.value);
                 resolve();
             } else {
                 // If no timezone preference found in localStorage, load from API as backup
@@ -2964,8 +3273,8 @@ function loadTimezones() {
                     // API returns preferences directly, not nested
                     if (data && data.timezone) {
                         console.log('Received timezone from API:', data.timezone);
-                        timezoneSelect.value = data.timezone;
-                        console.log('Set timezone select to:', data.timezone, 'Current value:', timezoneSelect.value);
+                        selectElement.value = data.timezone;
+                        console.log(`Set ${selectElement.id} to:`, data.timezone, 'Current value:', selectElement.value);
                     }
                     resolve();
                 })
@@ -2977,7 +3286,7 @@ function loadTimezones() {
         })
         .catch(error => {
             console.error('Error loading timezones:', error);
-            timezoneSelect.innerHTML = '<option value="UTC">UTC (Coordinated Universal Time)</option>';
+            selectElement.innerHTML = '<option value="UTC">UTC (Coordinated Universal Time)</option>';
             reject(error);
         });
     });
@@ -2986,73 +3295,51 @@ function loadTimezones() {
 /**
  * Save email settings
  */
-function saveEmailSettings() {
+function toggleNotificationSettings(channel) {
+    if (emailSettingsContainer) {
+        emailSettingsContainer.style.display = (channel === 'email' || channel === 'both') ? 'block' : 'none';
+    }
+    if (appriseSettingsContainer) {
+        appriseSettingsContainer.style.display = (channel === 'apprise' || channel === 'both') ? 'block' : 'none';
+    }
+}
+
+async function saveNotificationSettings() {
     showLoading();
     
     try {
-        // Get values
-        const emailNotifications = emailNotificationsToggle.checked;
-        const notificationFrequency = notificationFrequencySelect.value;
-        const notificationTime = notificationTimeInput.value;
-        const timezone = timezoneSelect.value;
-        
-        // Validate inputs
-        if (!timezone) {
-            showToast('Please select a timezone', 'error');
-            hideLoading();
-            return;
-        }
-        
-        // Create preferences object
         const preferences = {
-            email_notifications: emailNotifications,
-            notification_frequency: notificationFrequency,
-            notification_time: notificationTime,
-            timezone: timezone
+            notification_channel: notificationChannel.value,
+            notification_frequency: notificationFrequencySelect.value,
+            notification_time: notificationTimeInput.value,
+            apprise_notification_time: appriseNotificationTimeInput.value,
+            apprise_notification_frequency: appriseNotificationFrequency.value,
+            timezone: timezoneSelect.value,
+            apprise_timezone: appriseTimezoneSelect.value
         };
+
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving notification settings with token:', token ? 'present' : 'missing');
         
-        // Save to API
-        fetch('/api/auth/preferences', {
+        const response = await fetch('/api/auth/preferences', {
             method: 'PUT',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(preferences)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to save email settings');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Save to localStorage
-            const prefix = getPreferenceKeyPrefix();
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
-            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
-            localStorage.setItem(`${prefix}timezone`, timezone);
-            
-            showToast('Email settings saved successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error saving email settings:', error);
-            showToast('Error saving email settings', 'error');
-            
-            // Save to localStorage as fallback
-            const prefix = getPreferenceKeyPrefix();
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
-            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
-            localStorage.setItem(`${prefix}timezone`, timezone);
-        })
-        .finally(() => {
-            hideLoading();
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save notification settings');
+        }
+
+        showToast('Notification settings saved successfully', 'success');
     } catch (error) {
-        console.error('Error in saveEmailSettings:', error);
-        showToast('Error saving email settings', 'error');
+        console.error('Error saving notification settings:', error);
+        showToast(`Error saving notification settings: ${error.message}`, 'error');
+    } finally {
         hideLoading();
     }
 }
@@ -3148,3 +3435,462 @@ if (currencySymbolSelect && currencySymbolCustom) {
         }
     });
 }
+
+// =====================
+// APPRISE NOTIFICATIONS FUNCTIONALITY
+// =====================
+
+/**
+ * Load Apprise settings and status
+ */
+async function loadAppriseSettings() {
+    try {
+        // Get current Apprise status
+        const statusResponse = await fetch('/api/admin/apprise/status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (statusResponse.status === 403) {
+            // User is not admin, hide Apprise section
+            const appriseCard = document.querySelector('.card:has(#appriseStatusBadge)');
+            if (appriseCard) {
+                appriseCard.style.display = 'none';
+            }
+            return;
+        }
+
+        if (statusResponse.status === 503) {
+            // Apprise not available
+            if (appriseNotAvailable) appriseNotAvailable.style.display = 'block';
+            if (appriseStatusBadge) appriseStatusBadge.textContent = 'Not Available';
+            if (appriseStatusBadge) appriseStatusBadge.className = 'badge badge-danger';
+            return;
+        }
+
+        const statusData = await statusResponse.json();
+        
+        // Update status badge
+        if (appriseStatusBadge) {
+            if (statusData.available && statusData.enabled) {
+                appriseStatusBadge.textContent = 'Active';
+                appriseStatusBadge.className = 'badge badge-success';
+            } else if (statusData.available) {
+                appriseStatusBadge.textContent = 'Disabled';
+                appriseStatusBadge.className = 'badge badge-warning';
+            } else {
+                appriseStatusBadge.textContent = 'Not Available';
+                appriseStatusBadge.className = 'badge badge-danger';
+            }
+        }
+
+        // Update status display
+        if (appriseUrlsCount) appriseUrlsCount.textContent = statusData.urls_configured || 0;
+        if (currentAppriseExpirationDays) currentAppriseExpirationDays.textContent = statusData.expiration_days ? statusData.expiration_days.join(', ') : '-';
+        if (currentAppriseNotificationTime) currentAppriseNotificationTime.textContent = statusData.notification_time || '-';
+
+        // Load settings from site settings
+        await loadAppriseSiteSettings();
+
+    } catch (error) {
+        console.error('Error loading Apprise settings:', error);
+        if (appriseStatusBadge) {
+            appriseStatusBadge.textContent = 'Error';
+            appriseStatusBadge.className = 'badge badge-danger';
+        }
+    }
+}
+
+/**
+ * Load Apprise site settings
+ */
+async function loadAppriseSiteSettings() {
+    try {
+        console.log('📥 Loading Apprise site settings...');
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('📥 Load response status:', response.status);
+
+        if (!response.ok) {
+            console.warn('⚠️ Load response not OK, skipping settings load');
+            return;
+        }
+
+        const data = await response.json();
+        console.log('📥 Loaded settings data:', data);
+        
+        // Check if Apprise settings exist in the data
+        const appriseKeys = Object.keys(data).filter(key => key.startsWith('apprise_'));
+        console.log('📥 Found Apprise keys:', appriseKeys);
+        
+        // Update form fields
+        if (appriseEnabledToggle && data.apprise_enabled !== undefined) {
+            appriseEnabledToggle.checked = data.apprise_enabled === 'true';
+            console.log('✅ Set appriseEnabled:', data.apprise_enabled);
+            
+            // Show/hide settings container based on enabled state
+            const settingsContainer = document.getElementById('appriseSettingsContainer');
+            if (settingsContainer) {
+                settingsContainer.style.display = data.apprise_enabled === 'true' ? 'block' : 'none';
+            }
+        } else {
+            console.log('⚠️ appriseEnabled element not found or apprise_enabled data missing');
+        }
+        
+        if (appriseUrlsTextarea && data.apprise_urls) {
+            appriseUrlsTextarea.value = data.apprise_urls.replace(/,/g, '\n');
+            console.log('✅ Set appriseUrls:', data.apprise_urls);
+        } else {
+            console.log('⚠️ appriseUrlsTextarea element not found or apprise_urls data missing');
+        }
+        
+        if (appriseExpirationDaysInput && data.apprise_expiration_days) {
+            appriseExpirationDaysInput.value = data.apprise_expiration_days;
+            console.log('✅ Set appriseExpirationDays:', data.apprise_expiration_days);
+        } else {
+            console.log('⚠️ appriseExpirationDaysInput element not found or data missing');
+        }
+        
+        if (appriseNotificationTimeInput && data.apprise_notification_time) {
+            appriseNotificationTimeInput.value = data.apprise_notification_time;
+            console.log('✅ Set appriseNotificationTime:', data.apprise_notification_time);
+        } else {
+            console.log('⚠️ appriseNotificationTimeInput element not found or data missing');
+        }
+        
+        if (appriseTitlePrefixInput && data.apprise_title_prefix) {
+            appriseTitlePrefixInput.value = data.apprise_title_prefix;
+            console.log('✅ Set appriseTitlePrefix:', data.apprise_title_prefix);
+        } else {
+            console.log('⚠️ appriseTitlePrefixInput element not found or data missing');
+        }
+
+    } catch (error) {
+        console.error('❌ Error loading Apprise site settings:', error);
+    }
+}
+
+/**
+ * Save Apprise settings
+ */
+async function saveAppriseSettings() {
+    try {
+        console.log('🔍 Starting saveAppriseSettings...');
+        showLoading();
+
+        // Process URLs - convert newlines to commas and clean up
+        const urlsText = appriseUrlsTextarea ? appriseUrlsTextarea.value : '';
+        const urls = urlsText.split(/[\n,]/)
+            .map(url => url.trim())
+            .filter(url => url.length > 0)
+            .join(',');
+
+        const settings = {
+            apprise_enabled: appriseEnabledToggle ? appriseEnabledToggle.checked.toString() : 'false',
+            apprise_urls: urls,
+            apprise_expiration_days: appriseExpirationDaysInput ? appriseExpirationDaysInput.value : '7,30',
+            apprise_notification_time: appriseNotificationTimeInput ? appriseNotificationTimeInput.value : '09:00',
+            apprise_title_prefix: appriseTitlePrefixInput ? appriseTitlePrefixInput.value : '[Warracker]'
+        };
+
+        console.log('📋 Settings to save:', settings);
+
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('📡 Saving Apprise settings with token:', token ? 'present' : 'missing');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+
+        console.log('📡 Response status:', response.status);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('❌ Response error:', errorData);
+            throw new Error(errorData.message || 'Failed to save Apprise settings');
+        }
+
+        const responseData = await response.json();
+        console.log('✅ Save response:', responseData);
+
+        // Reload configuration
+        console.log('🔄 Reloading Apprise configuration...');
+        const reloadResponse = await fetch('/api/admin/apprise/reload-config', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('🔄 Reload response status:', reloadResponse.status);
+
+        showToast('Apprise settings saved successfully', 'success');
+        
+        // Reload status
+        console.log('📱 Reloading Apprise settings...');
+        await loadAppriseSettings();
+
+    } catch (error) {
+        console.error('❌ Error saving Apprise settings:', error);
+        showToast(`Error saving Apprise settings: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Send test Apprise notification
+ */
+async function sendTestAppriseNotification() {
+    try {
+        showLoading();
+
+        const testUrl = appriseTestUrlInput ? appriseTestUrlInput.value.trim() : null;
+        
+        const payload = testUrl ? { test_url: testUrl } : {};
+
+        const response = await fetch('/api/admin/apprise/test', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Test notification sent successfully', 'success');
+        } else {
+            showToast(`Failed to send test notification: ${data.message}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Error sending test notification:', error);
+        showToast(`Error sending test notification: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Validate Apprise URLs
+ */
+async function validateAppriseUrls() {
+    try {
+        showLoading();
+
+        const urlsText = appriseUrlsTextarea ? appriseUrlsTextarea.value : '';
+        const urls = urlsText.split(/[\n,]/)
+            .map(url => url.trim())
+            .filter(url => url.length > 0);
+
+        if (urls.length === 0) {
+            showToast('No URLs to validate', 'warning');
+            hideLoading();
+            return;
+        }
+
+        let validCount = 0;
+        let invalidUrls = [];
+
+        for (const url of urls) {
+            try {
+                const response = await fetch('/api/admin/apprise/validate-url', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                
+                if (data.valid) {
+                    validCount++;
+                } else {
+                    invalidUrls.push(url);
+                }
+            } catch (error) {
+                invalidUrls.push(url);
+            }
+        }
+
+        let message = `Validation complete: ${validCount}/${urls.length} URLs are valid`;
+        if (invalidUrls.length > 0) {
+            message += `\nInvalid URLs: ${invalidUrls.join(', ')}`;
+            showToast(message, 'warning');
+        } else {
+            showToast(message, 'success');
+        }
+
+    } catch (error) {
+        console.error('Error validating URLs:', error);
+        showToast(`Error validating URLs: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Trigger Apprise expiration notifications
+ */
+async function triggerAppriseExpirationNotifications() {
+    try {
+        showLoading();
+
+        const response = await fetch('/api/admin/apprise/send-expiration', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(`Failed to trigger notifications: ${data.message}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Error triggering Apprise notifications:', error);
+        showToast(`Error triggering notifications: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * View supported services
+ */
+function viewSupportedAppriseServices() {
+    window.open('https://github.com/caronc/apprise/wiki', '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Save just the Apprise enabled/disabled state
+ */
+async function saveAppriseEnabledState(enabled) {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                apprise_enabled: enabled.toString()
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save Apprise enabled state');
+        }
+
+        // Reload configuration
+        const reloadResponse = await fetch('/api/admin/apprise/reload-config', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('✅ Apprise enabled state saved:', enabled);
+        
+        // Update status badge
+        await loadAppriseSettings();
+
+    } catch (error) {
+        console.error('❌ Error saving Apprise enabled state:', error);
+        showToast(`Error updating Apprise setting: ${error.message}`, 'error');
+        
+        // Revert the toggle if save failed
+        if (appriseEnabledToggle) {
+            appriseEnabledToggle.checked = !enabled;
+        }
+    }
+}
+
+/**
+ * Setup Apprise event listeners
+ */
+function setupAppriseEventListeners() {
+    // Enable/disable toggle
+    if (appriseEnabledToggle) {
+        appriseEnabledToggle.addEventListener('change', async function() {
+            const settingsContainer = document.getElementById('appriseSettingsContainer');
+            if (settingsContainer) {
+                settingsContainer.style.display = this.checked ? 'block' : 'none';
+            }
+            
+            // Auto-save the enabled state
+            await saveAppriseEnabledState(this.checked);
+        });
+    }
+
+    // Save settings
+    if (saveAppriseSettingsBtn) {
+        saveAppriseSettingsBtn.addEventListener('click', saveAppriseSettings);
+    }
+
+    // Test notification
+    if (testAppriseBtn) {
+        testAppriseBtn.addEventListener('click', sendTestAppriseNotification);
+    }
+
+    // Validate URLs
+    if (validateAppriseUrlBtn) {
+        validateAppriseUrlBtn.addEventListener('click', validateAppriseUrls);
+    }
+
+    // Trigger expiration notifications
+    if (triggerAppriseNotificationsBtn) {
+        triggerAppriseNotificationsBtn.addEventListener('click', triggerAppriseExpirationNotifications);
+    }
+
+    // View supported services
+    if (viewSupportedServicesBtn) {
+        viewSupportedServicesBtn.addEventListener('click', viewSupportedAppriseServices);
+    }
+}
+
+// Initialize Apprise functionality
+document.addEventListener('DOMContentLoaded', function() {
+    setupAppriseEventListeners();
+    
+    // Load Apprise settings after auth is ready (admin only)
+    setTimeout(() => {
+        if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+            const currentUser = window.auth.getCurrentUser();
+            if (currentUser && currentUser.is_admin) {
+                loadAppriseSettings();
+            } else {
+                console.log('User is not admin, skipping Apprise settings load in deferred initialization');
+            }
+        }
+    }, 1000);
+});

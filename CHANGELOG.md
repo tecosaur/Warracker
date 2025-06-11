@@ -1,5 +1,215 @@
 # Changelog
 
+##  0.10.1.0 - 2025-06-10
+
+### Added
+- **Public Global Warranty View for All Users**
+  - Extended global warranty view access to all authenticated users (previously admin-only)
+  - **Regular Users**: Can view all warranties from all users but can only edit/delete their own
+  - **Admin Users**: Can edit/delete any warranty in global view, maintaining full administrative control
+  - Added read-only protection: edit/delete buttons are replaced with view-only eye icon for warranties not owned by current user (unless user is admin)
+  - Updated UI labels and tooltips to reflect the new public access model
+  - Maintains full admin functionality while providing transparency to all users
+
+- **Admin Global View Control Settings**
+  - Added admin setting to enable/disable the global view feature site-wide
+  - New "Global View Enabled" toggle in Site Settings section of admin panel
+  - New "Global View Admin Only" toggle to restrict global view access to administrators only
+  - When disabled, global view switcher is hidden from all users (including non-admins)
+  - When admin-only is enabled, only administrators can access global view feature
+  - Real-time enforcement: users automatically redirected to personal view if global view is disabled or restricted while they're using it
+  - Default enabled for backward compatibility with admin-only setting defaulted to false
+
+- **Global View for Status Dashboard**
+  - Extended global view functionality to the warranty status/analytics page
+  - Eligible users can now view warranty statistics and data from all users on the status dashboard
+  - Added view switcher (Personal/Global) to status page header with same permission controls as main page
+  - Global statistics include total counts, charts, and warranty tables from all users
+  - Owner information displayed in warranty tables when in global view mode
+  - Maintains same security model: admins can see all data, regular users see all data but with read-only access to others' warranties
+  - Seamless integration with existing global view settings and permissions
+- **Apprise Push Notifications Integration:** Comprehensive push notification system supporting 80+ services for warranty expiration alerts.
+  - **Backend Implementation:**
+    - **Apprise Handler (`backend/apprise_handler.py`):** Complete notification management system with configuration loading, URL validation, and multi-service support.
+    - **Database Migration (`backend/migrations/026_add_apprise_settings.sql`):** Added Apprise configuration settings to site_settings table.
+    - **API Endpoints (`backend/app.py`):** Full REST API for Apprise management including test notifications, URL validation, configuration reload, and manual triggers.
+    - **Scheduler Integration:** Enhanced existing notification scheduler to send both email and Apprise notifications simultaneously.
+    - **Environment Support:** Full environment variable support for Docker deployments with fallback to database configuration.
+  - **Frontend Implementation:**
+    - **Admin Settings UI (`frontend/settings-new.html`):** Complete Apprise configuration section with real-time status, URL management, and testing capabilities.
+    - **JavaScript Integration (`frontend/settings-new.js`):** Full frontend functionality for configuration management, URL validation, and notification testing.
+    - **Responsive Design (`frontend/settings-styles.css`):** Modern UI components including status badges, action grids, and mobile-responsive layouts.
+  - **Supported Services:** Discord, Slack, Telegram, Email (Gmail, Outlook), Microsoft Teams, Webhooks, Matrix, Pushover, Ntfy, Gotify, and 70+ more services.
+  - **Configuration Options:**
+    - **Multiple Notification URLs:** Support for comma-separated or line-separated notification service URLs
+    - **Flexible Timing:** Configurable notification days (e.g., 7,30 days before expiration) and daily notification time
+    - **Custom Branding:** Configurable title prefix for all notifications (e.g., "[Warracker]")
+    - **Test Functionality:** Send test notifications to verify configuration before enabling
+    - **URL Validation:** Real-time validation of Apprise notification URLs
+  - **Environment Configuration (`env.example`):** Complete example configuration file with detailed Apprise setup instructions and URL format examples.
+  - **Graceful Degradation:** System continues to function normally if Apprise is not installed, with appropriate admin notifications.
+  - _Files: `backend/apprise_handler.py`, `backend/migrations/026_add_apprise_settings.sql`, `backend/app.py`, `backend/db_handler.py`, `backend/requirements.txt`, `frontend/settings-new.html`, `frontend/settings-new.js`, `frontend/settings-styles.css`, `docker-compose.yml`, `env.example`_
+- **Warranty Type Filtering and Sorting:** Enhanced the home page with comprehensive warranty type filtering and sorting capabilities.
+  - **New Warranty Type Filter Dropdown:** Added a dedicated "Warranty Type" filter dropdown in the filter section, positioned between Vendor and Sort By filters.
+  - **Dynamic Filter Population:** The warranty type filter automatically populates with all unique warranty types found in existing warranties, sorted alphabetically.
+  - **Case-Insensitive Filtering:** Warranty type filtering works regardless of the case of the warranty type (e.g., "Standard", "standard", "STANDARD").
+  - **Sorting by Warranty Type:** Added "Warranty Type" as a sorting option in the Sort By dropdown, allowing users to sort warranties alphabetically by their warranty type.
+  - **Real-time Filtering:** Filter applies immediately when warranty type selection changes, working seamlessly with existing filters (Status, Tag, Vendor, Search).
+  - **Frontend Implementation:**
+    - Updated `frontend/index.html` to include warranty type filter dropdown and sort option
+    - Enhanced `frontend/script.js` with warranty type filtering logic, event listeners, and population function
+    - Added `populateWarrantyTypeFilter()` function to dynamically populate filter options from warranty data
+    - Integrated warranty type support into `currentFilters` object and `applyFilters()` function
+    - Added warranty type sorting logic to `renderWarranties()` function
+  - **Integration:** Works with the existing warranty type field that was previously added to add/edit forms, providing end-to-end warranty type management.
+  - _Files: `frontend/index.html`, `frontend/script.js`_
+
+- **Admin Global Warranty View:** Added a globe button for administrators to view all users' warranties alongside their own.
+  - **Backend API (`backend/app.py`):** New `/api/admin/warranties` endpoint that returns all warranties from all users with user information (username, email, display name).
+  - **Frontend UI (`frontend/index.html`):** Added admin-only "Scope" toggle with Personal/Global view buttons next to the existing view switcher.
+  - **Frontend Logic (`frontend/script.js`):** 
+    - Added `isGlobalView` state management and view switching functions
+    - Enhanced warranty rendering to show owner information when in global view
+    - Automatic admin detection and UI initialization
+    - Dynamic title updates ("Your Warranties" vs "All Users' Warranties")
+  - **Styling (`frontend/style.css`):** 
+    - Admin view switcher styling with primary color theme
+    - Owner information highlighting with colored border and background
+    - Responsive design for mobile devices
+  - **Security:** Admin-only access with proper permission checks and graceful fallbacks for non-admin users.
+  - _Files: `backend/app.py`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+- **Product Photo Thumbnails on Warranty Cards:** Enhanced warranty cards with visual product photo thumbnails for quick identification and easy access to full-size images.
+  - **Thumbnail Display:** Product photos now appear as small thumbnails in the top right corner of each warranty card, providing instant visual recognition of products.
+  - **Multi-View Support:** Photo thumbnails are displayed across all warranty viewing modes:
+    - **Grid View:** 60px thumbnails positioned elegantly in the card corner
+    - **List View:** 50px thumbnails for compact horizontal layouts
+    - **Table View:** 40px thumbnails optimized for dense data display
+  - **Interactive Photo Access:** Users can click on any product photo thumbnail to open the full-size image in a new browser tab for detailed viewing.
+  - **Secure Image Handling:** Product photos are served through secure authentication, ensuring only authorized users can view warranty images while maintaining fast loading performance.
+  - **Real-time Updates:** When users add or update product photos through the warranty edit forms, the thumbnail images immediately appear on warranty cards without requiring a page refresh.
+  - **Visual Feedback:** Photo thumbnails include hover effects and "Click to view full size image" tooltips to clearly indicate their interactive nature.
+  - **Responsive Design:** Photo thumbnails automatically scale and position appropriately across different screen sizes and device types.
+  - _Files: `frontend/script.js`, `frontend/style.css`_
+
+### Fixed
+- **Status Dashboard Chart.js Canvas Errors**
+  - Fixed "Canvas is already in use" errors on the status page that prevented charts from rendering properly
+  - **Chart Destruction**: Added proper chart destruction with error handling before creating new charts
+  - **Multiple Initialization Prevention**: Added initialization flags to prevent multiple dashboard initializations
+  - **DOM Event Protection**: Protected against duplicate DOM event handler attachments
+  - **Improved Error Handling**: Added try-catch blocks around chart creation and destruction operations
+  - **View Switching Stability**: Fixed chart recreation issues when switching between personal and global views
+  - **Result**: Status page charts now render reliably without canvas conflicts, multiple view switches work smoothly
+  - _Files: `frontend/status.js`_
+
+- **CSS Cache Busting for Domain Consistency**
+  - Added version parameters to CSS and JavaScript files across all major pages to prevent caching issues between local IP and domain access
+  - **CSS Files Updated:** `style.css?v=20250529005`, `header-fix.css?v=20250529005`, `mobile-header.css?v=20250529005`, `settings-styles.css?v=20250529005`
+  - **JavaScript Files Updated:** `script.js?v=20250529005`, `auth.js?v=20250529005`, `settings-new.js?v=20250529005`
+  - Updated Service Worker cache name to `warracker-cache-v2` and included all versioned files to force cache refresh
+  - Fixed styling inconsistencies where admin global warranty view and other features appeared differently between local IP and domain access
+  - Ensures all users get consistent styling and functionality across all pages including index, settings, and status pages
+  - _Files: `frontend/index.html`, `frontend/settings-new.html`, `frontend/status.html`, `frontend/script.js`, `frontend/sw.js`_
+- **Settings Page Admin Permission Issues:** Fixed critical database connection errors and 403 permission issues preventing regular users from accessing the settings page.
+  - **Backend Database Connection (`backend/app.py`):** Fixed inconsistent cursor variable usage in `delete_account()` function that was causing 500 errors when users attempted to delete their accounts (was using both `cursor` and `cur` variables inconsistently).
+  - **Frontend Admin Permission Checks (`frontend/settings-new.js`):** Added comprehensive admin permission checks to prevent non-admin users from triggering 403 errors:
+    - **Initial Load Protection:** Wrapped admin-only settings calls (`loadSiteSettings()`, `loadAppriseSettings()`, `loadAppriseSiteSettings()`) with user admin status checks during page initialization.
+    - **Deferred Load Protection:** Added admin checks for delayed Apprise settings loading to prevent unauthorized API calls.
+    - **Graceful 403 Handling:** Enhanced `loadSiteSettings()` function with proper 403 response handling that hides admin sections instead of showing error messages.
+  - **Improved Error Messaging:** Fixed misleading "Account cannot be deleted in offline mode" error by removing problematic nested try-catch that was masking actual API error messages. Users now see specific backend error messages instead of generic offline warnings.
+  - **Root Cause:** Settings page was unconditionally calling admin-only API endpoints for all users, causing 403 errors and confusing error messages for regular users.
+  - **Result:** Regular users can now access settings page without errors, see only relevant settings sections, and get clear error messages when actual issues occur. Admin users continue to see all settings sections as expected.
+  - _Files: `backend/app.py`, `frontend/settings-new.js`_
+
+- **Settings Persistence Critical Fixes:** Resolved major settings page persistence issues where user preferences would appear to save but revert to defaults when navigating away and returning.
+  - **Backend Settings UPDATE Logic (`backend/app.py`):** Fixed critical bug in `/api/auth/preferences` endpoint where Apprise notification settings weren't being properly saved to the database:
+    - **Column Detection Fix:** Changed condition from `if apprise_notification_time and has_apprise_notification_time_col:` to `if apprise_notification_time is not None and has_apprise_notification_time_col:` to handle empty string values properly
+    - **Complete Field Mapping:** Added missing Apprise fields (`notification_channel`, `apprise_notification_time`, `apprise_notification_frequency`, `apprise_timezone`) to SELECT query return fields
+    - **Preference Response Mapping:** Enhanced preference mapping to include all Apprise settings in API responses
+  - **Frontend Race Condition Fixes (`frontend/settings-new.js`):** Eliminated multiple simultaneous API calls that were causing preference loading conflicts:
+    - **Duplicate Request Prevention:** Fixed `loadPreferences()` being called 4 times simultaneously, causing race conditions
+    - **API Priority Logic:** Ensured API data takes precedence over localStorage when both exist
+    - **UI Synchronization:** Added proper dark mode toggle sync between API and UI state
+    - **Authentication Token Standardization:** Unified token usage pattern across all preference save functions
+  - **Root Cause:** Backend was silently failing to save Apprise settings due to strict conditional logic, while frontend race conditions were creating inconsistent data states
+  - **Result:** Settings now persist correctly across page navigations, with all notification preferences saving and loading reliably
+  - _Files: `backend/app.py`, `frontend/settings-new.js`_
+
+- **Notification System Comprehensive Overhaul:** Fixed critical timing and duplicate notification issues affecting both email and Apprise scheduled notifications.
+  - **Timing Logic Precision (`backend/notifications.py`):** Completely rewrote notification timing calculation for accurate delivery:
+    - **Precise Windows:** Changed from aggressive "send_window or next_miss_window" logic to exact "0 <= time_diff <= 2" minute windows
+    - **Post-Target Delivery:** Notifications now only send AFTER target time (not before) within 2-minute window to prevent early delivery
+    - **Enhanced Time Calculations:** Added comprehensive timezone handling with detailed debug logging showing exact time differences
+  - **Duplicate Prevention System (`backend/notifications.py`):** Implemented robust duplicate prevention using in-memory tracking:
+    - **Separate Tracking:** Independent tracking for `email_{user_id}_{date}` and `apprise_{user_id}_{date}` patterns
+    - **Daily Reset Logic:** Automatic cleanup for day rollover handling across different timezones
+    - **Collision Prevention:** Added 0.1s delay for manual triggers to prevent collision with scheduled jobs
+  - **Column Mismatch Fixes (`backend/notifications.py`):** Fixed database errors causing notification failures:
+    - **Error Handling:** Added try/catch around column unpacking at line 327 to handle schema mismatches
+    - **Variable Consistency:** Fixed missing `apprise_timezone` variable in debug logging sections
+    - **Graceful Degradation:** System continues operating even with partial database schema issues
+  - **Enhanced Debug Output (`backend/notifications.py`):** Added comprehensive logging for troubleshooting:
+    - **Time Difference Display:** Shows exact calculations like "email_time=08:20(diff:-61), apprise_time=23:28(diff:-976)"
+    - **Eligibility Reasons:** Clear logging explaining why users are/aren't eligible for notifications
+    - **Real-time Diagnostics:** Live timing calculations visible in Docker logs for debugging
+  - **Root Cause:** Overly aggressive timing windows caused duplicate emails, while backend save issues prevented Apprise settings from persisting, leading to notifications not being scheduled
+  - **Result:** Both email and Apprise notifications now work reliably with precise timing, no duplicates, and proper settings persistence
+  - _Files: `backend/notifications.py`, `backend/app.py`_
+
+
+
+#### Technical Implementation for Global View Features
+- **Backend (app.py):** 
+  - Added new `/api/warranties/global` endpoint accessible to all authenticated users (not just admins)
+  - Added `global_view_enabled` setting to site settings with default value 'true'
+  - Added `global_view_admin_only` setting to site settings with default value 'false'
+  - Added `/api/settings/global-view-status` endpoint for checking global view availability per user
+  - Enhanced `/api/warranties/global` endpoint to check both global view settings and user admin status
+  - Added new `/api/statistics/global` endpoint for global warranty statistics with user information
+- **Frontend (script.js):** 
+  - Renamed `initAdminViewControls()` to `initViewControls()` and removed admin-only restrictions
+  - Updated `switchToGlobalView()` to check global view setting before switching
+  - Added ownership and admin validation logic to conditionally render edit/delete buttons vs view-only placeholder
+  - Admins see edit/delete buttons for all warranties, regular users only for their own
+  - Modified API endpoint from `/api/admin/warranties` to `/api/warranties/global` for public access
+  - Added real-time global view status checking and automatic fallback to personal view
+- **Frontend (index.html):** Updated tooltips and labels to reflect public access
+- **Frontend (style.css):** Added styling for view-only placeholder button with eye icon
+- **Frontend (settings-new.html):** Added Global View Enabled and Global View Admin Only toggles in Site Settings section
+- **Frontend (settings-new.js):** Added loading and saving logic for both global view settings
+- **Frontend (status.html):** Added view switcher controls and owner column to warranty table for global view
+- **Frontend (status.js):** Added global view functionality with API switching, table column management, and permission checking
+
+#### Security Features
+- Backend endpoint still requires authentication (all users must be logged in)
+- Frontend validates warranty ownership and admin status before showing edit/delete buttons
+- **Regular users** can only modify warranties they own, even in global view
+- **Admin users** can modify any warranty in global view, maintaining administrative privileges
+- Maintains data privacy while providing transparency
+
+#### User Experience
+- Seamless view switching between personal and global views for all users
+- Clear visual indication (eye icon) when viewing others' warranties
+- Consistent UI patterns with existing admin functionality
+- Enhanced tooltips explaining read-only access for non-owned warranties
+
+### Enhanced  
+- **Footer Links:** Updated all "Powered by Warracker" footer links across the application to point to `https://warracker.com` instead of the GitHub repository, providing users with direct access to the official website.
+  - **Files Updated:** `index.html`, `login.html`, `register.html`, `reset-password.html`, `reset-password-request.html`, `settings-new.html`, `status.html`, `auth-redirect.html`, and `about.html`
+  - **Result:** Consistent branding and improved user experience with direct access to the official Warracker website.
+
+- **PostgreSQL Security Hardening:** Removed unnecessary SUPERUSER privileges from the application database user, significantly improving security posture.
+  - **Security Improvement:** Eliminated SUPERUSER grants that provided excessive and unnecessary privileges to the application database user
+  - **Files Modified:** 
+    - `backend/fix_permissions.sql`: Removed `ALTER ROLE %(db_user)s WITH SUPERUSER;` 
+    - `backend/migrations/011_ensure_admin_permissions.sql`: Commented out SUPERUSER grant
+    - `Dockerfile`: Removed retry loop attempting to grant SUPERUSER privileges via psql
+  - **Principle of Least Privilege:** Application now operates with only the specific database privileges required for normal operation (CREATE/DROP/ALTER on tables, sequences, functions, etc.)
+  - **Testing Verified:** Full application functionality confirmed to work correctly without SUPERUSER privileges, including migrations, user management, and all admin operations
+  - **Security Benefit:** Significantly reduces attack surface - if the application is compromised, an attacker no longer has complete database administrative control
+  - **Result:** Maintained full application functionality while eliminating unnecessary security risks
+
 ##  0.10.0.0 - 2025-06-4
 
 ### Fixed

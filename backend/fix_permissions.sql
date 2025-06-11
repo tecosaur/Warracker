@@ -1,9 +1,6 @@
 -- Script to fix PostgreSQL permissions for db_user
 
--- Grant superuser privileges
-ALTER ROLE %(db_user)s WITH SUPERUSER;
-
--- Grant role management privileges
+-- Grant role management privileges (removed SUPERUSER)
 ALTER ROLE %(db_user)s WITH CREATEROLE;
 
 -- Ensure all database objects are accessible

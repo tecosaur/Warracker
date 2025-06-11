@@ -29,6 +29,12 @@ services:
       # URL settings (Important for redirects and email links)
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8005} # Public URL of the frontend (matching the port mapping)
       - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8005} # Public base URL of the application for links
+      # Apprise Notification Configuration
+      - APPRISE_ENABLED=${APPRISE_ENABLED:-false} # Enable/disable Apprise notifications
+      - APPRISE_URLS=${APPRISE_URLS:-} # Comma-separated list of notification URLs (e.g., "mailto://user:pass@gmail.com,discord://webhook_id/webhook_token")
+      - APPRISE_EXPIRATION_DAYS=${APPRISE_EXPIRATION_DAYS:-7,30} # Days before expiration to send notifications (comma-separated)
+      - APPRISE_NOTIFICATION_TIME=${APPRISE_NOTIFICATION_TIME:-09:00} # Time of day to send notifications (HH:MM format)
+      - APPRISE_TITLE_PREFIX=${APPRISE_TITLE_PREFIX:-[Warracker]} # Prefix for notification titles
       - PYTHONUNBUFFERED=1
       # Memory optimization settings
       - WARRACKER_MEMORY_MODE=${WARRACKER_MEMORY_MODE:-optimized} # Options: optimized (default), ultra-light, performance

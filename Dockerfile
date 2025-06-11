@@ -10,7 +10,10 @@ RUN apt-get update && \
         curl \
         postgresql-client \
         supervisor \
-        gettext-base && \
+        gettext-base \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 # (build-essential = C compiler + tools)
@@ -39,6 +42,8 @@ COPY backend/auth_utils.py /app/backend/
 COPY backend/db_handler.py /app/backend/
 COPY backend/extensions.py /app/backend/
 COPY backend/oidc_handler.py /app/backend/
+COPY backend/apprise_handler.py /app/backend/
+COPY backend/notifications.py /app/backend/
 
 # Copy other utility scripts and migrations
 COPY backend/fix_permissions.py .
@@ -59,36 +64,11 @@ RUN rm /etc/nginx/sites-enabled/default
 # Copy nginx.conf as a template
 COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 
-# Create startup script with database initialization
+# Create startup script with database initialization (SUPERUSER grant removed)
 RUN echo '#!/bin/bash\n\
 set -e # Exit immediately if a command exits with a non-zero status.\n\
 echo "Running database migrations..."\n\
 python /app/migrations/apply_migrations.py\n\
-echo "Ensuring admin role has proper permissions..."\n\
-# Retry logic for granting superuser privileges\n\
-max_attempts=5\n\
-attempt=0\n\
-while [ $attempt -lt $max_attempts ]; do\n\
-  echo "Attempt $((attempt+1)) to grant superuser privileges..."\n\
-  # Ensure DB variables are set (you might pass these at runtime)\n\
-  if [ -z "$DB_PASSWORD" ] || [ -z "$DB_HOST" ] || [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then\n\
-    echo "Error: Database connection variables (DB_PASSWORD, DB_HOST, DB_USER, DB_NAME) are not set."\n\
-    exit 1\n\
-  fi\n\
-  # Use timeout to prevent indefinite hanging if DB is not ready\n\
-  if PGPASSWORD=$DB_PASSWORD psql -w -h $DB_HOST -U $DB_USER -d $DB_NAME -c "ALTER ROLE $DB_USER WITH SUPERUSER;" 2>/dev/null; then\n\
-    echo "Successfully granted superuser privileges to $DB_USER"\n\
-    break\n\
-  else\n\
-    echo "Failed to grant privileges (attempt $((attempt+1))), retrying in 5 seconds..."\n\
-    sleep 5\n\
-    attempt=$((attempt+1))\n\
-  fi\n\
-done\n\
-if [ $attempt -eq $max_attempts ]; then\n\
-  echo "Error: Failed to grant superuser privileges after $max_attempts attempts."\n\
-  exit 1 # Exit if granting fails after retries\n\
-fi\n\
 echo "Running fix permissions script..."\n\
 python /app/fix_permissions.py\n\
 echo "Setup script finished successfully."\n\

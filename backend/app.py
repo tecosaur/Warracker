@@ -1,6 +1,12 @@
 from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for, Response
-from backend.extensions import oauth
-from backend.db_handler import init_db_pool, get_db_connection, release_db_connection
+try:
+    # Try relative import for Docker environment
+    from backend.extensions import oauth
+    from backend.db_handler import init_db_pool, get_db_connection, release_db_connection
+except ImportError:
+    # Fallback to direct import for development
+    from extensions import oauth
+    from db_handler import init_db_pool, get_db_connection, release_db_connection
 import psycopg2 # Added import
 import os
 from datetime import datetime, timedelta, date
@@ -17,7 +23,7 @@ import uuid
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from apscheduler.schedulers.background import BackgroundScheduler
+from backend import notifications
 import atexit
 from pytz import timezone as pytz_timezone
 import pytz
@@ -55,6 +61,23 @@ oauth.init_app(app) # Initialize Authlib OAuth with the app instance
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Import Apprise notification handler (after logger is defined)
+try:
+    try:
+        # Try Docker environment path first
+        from backend.apprise_handler import AppriseNotificationHandler
+    except ImportError:
+        # Fallback to development path
+        from apprise_handler import AppriseNotificationHandler
+    
+    apprise_handler = AppriseNotificationHandler()
+    APPRISE_AVAILABLE = True
+    logger.info("Apprise notification handler imported successfully")
+except ImportError as e:
+    APPRISE_AVAILABLE = False
+    apprise_handler = None
+    logger.warning(f"Apprise not available: {e}. Notification features will be disabled.")
 
 # App configurations
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your_default_secret_key_please_change_in_prod')
@@ -1184,8 +1207,8 @@ def get_warranties():
             # Replaced warranty_years with warranty_duration_years, warranty_duration_months, warranty_duration_days
             cur.execute('''
                 SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
-                       purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
-                       warranty_duration_years, warranty_duration_months, warranty_duration_days
+                       purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
+                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
                 FROM warranties 
                 WHERE user_id = %s 
                 ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
@@ -1301,6 +1324,7 @@ def add_warranty():
         user_id = request.user['id']
         notes = request.form.get('notes', '')
         vendor = request.form.get('vendor', None)
+        warranty_type = request.form.get('warranty_type', None)
         
         # Get tag IDs if provided
         tag_ids = []
@@ -1417,6 +1441,27 @@ def add_warranty():
                     logger.error(f"Error saving other_document {filename} to {other_document_path_on_disk}: {e}")
                     return jsonify({"error": f"Failed to save other_document: {str(e)}"}), 500
 
+        # Handle product photo file upload
+        db_product_photo_path = None
+        if 'product_photo' in request.files:
+            product_photo = request.files['product_photo']
+            if product_photo.filename != '':
+                # Check if it's an image file
+                if not (product_photo.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif'))):
+                    return jsonify({"error": "Product photo must be an image file (PNG, JPG, JPEG, WEBP, GIF)"}), 400
+                    
+                filename = secure_filename(product_photo.filename)
+                filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_photo_{filename}"
+                product_photo_path_on_disk = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                logger.info(f"Attempting to save product_photo to: {product_photo_path_on_disk}")
+                try:
+                    product_photo.save(product_photo_path_on_disk)
+                    db_product_photo_path = os.path.join('uploads', filename)
+                    logger.info(f"Successfully saved product_photo: {db_product_photo_path}")
+                except Exception as e:
+                    logger.error(f"Error saving product_photo {filename} to {product_photo_path_on_disk}: {e}")
+                    return jsonify({"error": f"Failed to save product_photo: {str(e)}"}), 500
+
         # Save to database
         conn = get_db_connection()
         with conn.cursor() as cur:
@@ -1424,15 +1469,15 @@ def add_warranty():
             cur.execute('''
                 INSERT INTO warranties (
                     product_name, purchase_date, expiration_date, 
-                    invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor,
-                    warranty_duration_years, warranty_duration_months, warranty_duration_days
+                    invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, expiration_date,
-                db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor,
-                warranty_duration_years, warranty_duration_months, warranty_duration_days
+                db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
+                warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -1496,12 +1541,13 @@ def delete_warranty(warranty_id):
                 return jsonify({"error": "Warranty not found or you don't have permission to delete it"}), 404
             
             # First get the file paths to delete the files
-            cur.execute('SELECT invoice_path, manual_path, other_document_path FROM warranties WHERE id = %s', (warranty_id,))
+            cur.execute('SELECT invoice_path, manual_path, other_document_path, product_photo_path FROM warranties WHERE id = %s', (warranty_id,))
             result = cur.fetchone()
             
             invoice_path = result[0]
             manual_path = result[1]
             other_document_path = result[2]
+            product_photo_path = result[3]
             
             # Delete the warranty from database
             cur.execute('DELETE FROM warranties WHERE id = %s', (warranty_id,))
@@ -1523,6 +1569,12 @@ def delete_warranty(warranty_id):
             # Delete the other_document file if it exists
             if other_document_path:
                 full_path = os.path.join('/data', other_document_path)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+            
+            # Delete the product photo file if it exists
+            if product_photo_path:
+                full_path = os.path.join('/data', product_photo_path)
                 if os.path.exists(full_path):
                     os.remove(full_path)
 
@@ -1649,6 +1701,7 @@ def update_warranty(warranty_id):
             product_url = request.form.get('product_url', '')
             notes = request.form.get('notes', None)
             vendor = request.form.get('vendor', None)
+            warranty_type = request.form.get('warranty_type', None)
             tag_ids = []
             if request.form.get('tag_ids'):
                 try:
@@ -1784,6 +1837,51 @@ def update_warranty(warranty_id):
                             logger.error(f"Error deleting other_document (delete request): {e}")
                 db_other_document_path = None # Set to None to clear in DB
 
+            # Handle product photo file upload
+            db_product_photo_path = None
+            if 'product_photo' in request.files:
+                product_photo = request.files['product_photo']
+                if product_photo.filename != '':
+                    # Check if it's an image file
+                    if not (product_photo.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif'))):
+                        return jsonify({"error": "Product photo must be an image file (PNG, JPG, JPEG, WEBP, GIF)"}), 400
+                    
+                    # Delete old photo if it exists
+                    cur.execute('SELECT product_photo_path FROM warranties WHERE id = %s', (warranty_id,))
+                    old_product_photo_path = cur.fetchone()[0]
+                    if old_product_photo_path:
+                        full_path = os.path.join('/data', old_product_photo_path)
+                        if os.path.exists(full_path):
+                            try:
+                                os.remove(full_path)
+                                logger.info(f"Deleted old product_photo: {full_path}")
+                            except Exception as e:
+                                logger.error(f"Error deleting old product_photo: {e}")
+                    
+                    filename = secure_filename(product_photo.filename)
+                    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_photo_{filename}"
+                    product_photo_path_on_disk = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    logger.info(f"Attempting to save updated product_photo to: {product_photo_path_on_disk}")
+                    try:
+                        product_photo.save(product_photo_path_on_disk)
+                        db_product_photo_path = os.path.join('uploads', filename)
+                        logger.info(f"Successfully saved updated product_photo: {db_product_photo_path}")
+                    except Exception as e:
+                        logger.error(f"Error saving updated product_photo {filename} to {product_photo_path_on_disk}: {e}")
+                        return jsonify({"error": f"Failed to save updated product_photo: {str(e)}"}), 500
+            elif request.form.get('delete_product_photo', 'false').lower() == 'true':
+                cur.execute('SELECT product_photo_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_product_photo_path = cur.fetchone()[0]
+                if old_product_photo_path:
+                    full_path = os.path.join('/data', old_product_photo_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted product_photo (delete request): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting product_photo (delete request): {e}")
+                db_product_photo_path = None  # Set to None to clear in DB
+
             update_params = {
                 'product_name': product_name,
                 'purchase_date': purchase_date,
@@ -1794,7 +1892,8 @@ def update_warranty(warranty_id):
                 'expiration_date': expiration_date, # Will be None if lifetime
                 'product_url': product_url,
                 'purchase_price': purchase_price,
-                'vendor': vendor
+                'vendor': vendor,
+                'warranty_type': warranty_type
             }
             sql_fields = []
             sql_values = []
@@ -1819,6 +1918,11 @@ def update_warranty(warranty_id):
                 sql_values.append(db_other_document_path)
             elif 'delete_other_document' in request.form and request.form.get('delete_other_document', 'false').lower() == 'true':
                 sql_fields.append("other_document_path = NULL")
+            if db_product_photo_path is not None:
+                sql_fields.append("product_photo_path = %s")
+                sql_values.append(db_product_photo_path)
+            elif 'delete_product_photo' in request.form and request.form.get('delete_product_photo', 'false').lower() == 'true':
+                sql_fields.append("product_photo_path = NULL")
 
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
             sql_values.append(warranty_id)
@@ -2043,6 +2147,215 @@ def get_statistics():
         if conn:
             release_db_connection(conn)
 
+@app.route('/api/statistics/global', methods=['GET'])
+@token_required
+def get_global_statistics():
+    """Get global warranty statistics for all users (with proper permissions check)"""
+    conn = None
+    try:
+        # Check if global view is enabled for this user
+        user_is_admin = request.user.get('is_admin', False)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get both global view settings
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+            
+            # Check if global view is enabled at all
+            global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+            if not global_view_enabled:
+                return jsonify({"error": "Global view is disabled by administrator"}), 403
+            
+            # Check if global view is restricted to admins only
+            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+            if admin_only and not user_is_admin:
+                return jsonify({"error": "Global view is restricted to administrators only"}), 403
+        
+        # Release the connection since we'll get a new one below
+        release_db_connection(conn)
+        conn = None
+
+        # Get user's expiring soon days preference (for consistency)
+        user_id = request.user['id']
+        expiring_soon_days = 30  # Default value
+        
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT expiring_soon_days FROM user_preferences WHERE user_id = %s", (user_id,))
+                result = cur.fetchone()
+                if result and result[0] is not None:
+                    expiring_soon_days = result[0]
+        except Exception as pref_err:
+            logger.error(f"Error fetching expiring_soon_days preference for user {user_id}: {pref_err}. Using default 30 days.")
+
+        today = date.today()
+        expiring_soon_date = today + timedelta(days=expiring_soon_days)
+        ninety_days_later = today + timedelta(days=90)
+        
+        with conn.cursor() as cur:
+            # Global statistics query - all warranties from all users
+            
+            # Get total count
+            cur.execute("SELECT COUNT(*) FROM warranties w")
+            total_count = cur.fetchone()[0]
+            
+            # Get active count (includes lifetime)
+            cur.execute("SELECT COUNT(*) FROM warranties w WHERE w.is_lifetime = TRUE OR w.expiration_date > %s", (today,))
+            active_count = cur.fetchone()[0]
+            
+            # Get expired count (excludes lifetime)
+            cur.execute("SELECT COUNT(*) FROM warranties w WHERE w.is_lifetime = FALSE AND w.expiration_date <= %s", (today,))
+            expired_count = cur.fetchone()[0]
+            
+            # Get expiring soon count (excludes lifetime)
+            cur.execute("""SELECT COUNT(*) FROM warranties w WHERE
+                          w.is_lifetime = FALSE AND w.expiration_date > %s AND w.expiration_date <= %s""",
+                      (today, expiring_soon_date))
+            expiring_soon_count = cur.fetchone()[0]
+            
+            # Get expiration timeline (next 90 days, excluding lifetime)
+            cur.execute("""
+                SELECT 
+                    EXTRACT(YEAR FROM expiration_date) as year,
+                    EXTRACT(MONTH FROM expiration_date) as month,
+                    COUNT(*) as count
+                FROM warranties w 
+                WHERE w.is_lifetime = FALSE AND w.expiration_date > %s AND w.expiration_date <= %s
+                GROUP BY EXTRACT(YEAR FROM expiration_date), EXTRACT(MONTH FROM expiration_date)
+                ORDER BY year, month
+            """, (today, ninety_days_later))
+            
+            timeline = []
+            for row in cur.fetchall():
+                year = int(row[0])
+                month = int(row[1])
+                count = row[2]
+                timeline.append({
+                    "year": year,
+                    "month": month,
+                    "count": count
+                })
+            
+            # Get recent expiring warranties with user information
+            days_ago_for_recent = today - timedelta(days=expiring_soon_days)
+            days_later_for_recent = expiring_soon_date
+            cur.execute("""
+                SELECT
+                    w.id, w.product_name, w.purchase_date, 
+                    w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days,
+                    w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                    w.product_url, w.purchase_price, w.is_lifetime,
+                    u.username, u.email, u.first_name, u.last_name
+                FROM warranties w
+                JOIN users u ON w.user_id = u.id
+                WHERE w.is_lifetime = FALSE AND w.expiration_date >= %s AND w.expiration_date <= %s
+                ORDER BY w.expiration_date
+                LIMIT 10
+            """, (days_ago_for_recent, days_later_for_recent))
+            
+            columns = [desc[0] for desc in cur.description]
+            recent_warranties = []
+            
+            for row in cur.fetchall():
+                warranty = dict(zip(columns, row))
+                
+                # Convert dates to string format
+                if warranty['purchase_date']:
+                    warranty['purchase_date'] = warranty['purchase_date'].isoformat()
+                if warranty['expiration_date']:
+                    warranty['expiration_date'] = warranty['expiration_date'].isoformat()
+                
+                # Convert Decimal objects to float for JSON serialization
+                if warranty.get('purchase_price') and isinstance(warranty['purchase_price'], Decimal):
+                    warranty['purchase_price'] = float(warranty['purchase_price'])
+                
+                # Add user display information
+                first_name = warranty.get('first_name', '').strip() if warranty.get('first_name') else ''
+                last_name = warranty.get('last_name', '').strip() if warranty.get('last_name') else ''
+                username = warranty.get('username', '').strip() if warranty.get('username') else ''
+                
+                if first_name and last_name:
+                    display_name = f"{first_name} {last_name}"
+                elif first_name:
+                    display_name = first_name
+                elif username:
+                    display_name = username
+                else:
+                    display_name = 'Unknown User'
+                
+                warranty['user_display_name'] = display_name
+                    
+                recent_warranties.append(warranty)
+            
+            # Get all warranties with user information
+            cur.execute("""
+                SELECT
+                    w.id, w.product_name, w.purchase_date, 
+                    w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days,
+                    w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                    w.product_url, w.purchase_price, w.is_lifetime,
+                    u.username, u.email, u.first_name, u.last_name
+                FROM warranties w
+                JOIN users u ON w.user_id = u.id
+                ORDER BY w.expiration_date DESC
+            """)
+
+            all_columns = [desc[0] for desc in cur.description]
+            all_warranties_list = []
+
+            for row in cur.fetchall():
+                warranty = dict(zip(all_columns, row))
+                
+                # Convert dates to string format
+                if warranty.get('purchase_date') and isinstance(warranty['purchase_date'], date):
+                    warranty['purchase_date'] = warranty['purchase_date'].isoformat()
+                if warranty.get('expiration_date') and isinstance(warranty['expiration_date'], date):
+                    warranty['expiration_date'] = warranty['expiration_date'].isoformat()
+                
+                # Convert Decimal objects to float for JSON serialization
+                if warranty.get('purchase_price') and isinstance(warranty['purchase_price'], Decimal):
+                    warranty['purchase_price'] = float(warranty['purchase_price'])
+                
+                # Add user display name for better UI
+                first_name = warranty.get('first_name', '').strip() if warranty.get('first_name') else ''
+                last_name = warranty.get('last_name', '').strip() if warranty.get('last_name') else ''
+                username = warranty.get('username', '').strip() if warranty.get('username') else ''
+                
+                if first_name and last_name:
+                    display_name = f"{first_name} {last_name}"
+                elif first_name:
+                    display_name = first_name
+                elif username:
+                    display_name = username
+                else:
+                    display_name = 'Unknown User'
+                
+                warranty['user_display_name'] = display_name
+                    
+                all_warranties_list.append(warranty)
+
+            statistics = {
+                'total': total_count,
+                'active': active_count,
+                'expired': expired_count,
+                'expiring_soon': expiring_soon_count,
+                'timeline': timeline,
+                'recent_warranties': recent_warranties,
+                'all_warranties': all_warranties_list
+            }
+            
+            return jsonify(convert_decimals(statistics))
+    
+    except Exception as e:
+        logger.error(f"Error getting global warranty statistics: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 @app.route('/api/test', methods=['GET'])
 def test_endpoint():
     """Simple test endpoint to check if the API is responding."""
@@ -2096,7 +2409,7 @@ def update_profile():
 
                 # Check if the new email is different from the current one
                 cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
-                current_email_tuple = cursor.fetchone()
+                current_email_tuple = cur.fetchone()
                 if not current_email_tuple:
                     conn.rollback()
                     return jsonify({'message': 'User not found while fetching current email.'}), 404
@@ -2171,12 +2484,12 @@ def delete_account():
             cursor.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
             
             # Delete user's sessions if any
-            cur.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
-            sessions_deleted = cur.rowcount
+            cursor.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
+            sessions_deleted = cursor.rowcount
             logger.info(f"Deleted {sessions_deleted} sessions belonging to user {user_id}")
 
             # Delete user's tags
-            cur.execute('DELETE FROM tags WHERE user_id = %s', (user_id,))
+            cursor.execute('DELETE FROM tags WHERE user_id = %s', (user_id,))
             tags_deleted = cur.rowcount
             logger.info(f"Deleted {tags_deleted} tags belonging to user {user_id}")
 
@@ -2210,6 +2523,14 @@ def get_preferences():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
+            # Check for notification columns
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name='user_preferences' 
+                AND column_name IN ('notification_channel', 'apprise_notification_time', 'apprise_notification_frequency', 'apprise_timezone')
+            """)
+            existing_columns = [row[0] for row in cursor.fetchall()]
+            
             cursor.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -2245,8 +2566,22 @@ def get_preferences():
             cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='user_preferences' AND column_name='date_format'")
             has_date_format_col = cursor.fetchone() is not None
 
+            has_notification_channel = 'notification_channel' in existing_columns
+            has_apprise_notification_time = 'apprise_notification_time' in existing_columns
+            has_apprise_notification_frequency = 'apprise_notification_frequency' in existing_columns
+
             # Build select list dynamically
             select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+            if has_notification_channel:
+                select_fields_list.append("notification_channel")
+            has_apprise_notification_time = 'apprise_notification_time' in existing_columns
+            if has_apprise_notification_time:
+                select_fields_list.append("apprise_notification_time")
+            if 'apprise_timezone' in existing_columns:
+                select_fields_list.append("apprise_timezone")
+            has_apprise_notification_frequency = 'apprise_notification_frequency' in existing_columns
+            if has_apprise_notification_frequency:
+                select_fields_list.append("apprise_notification_frequency")
             if has_currency:
                 select_fields_list.append("currency_symbol")
             if has_date_format_col:
@@ -2267,6 +2602,15 @@ def get_preferences():
                 # Build insert list dynamically
                 insert_cols_list = ["user_id", "email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
                 insert_vals = [user_id, True, 'grid', 'light', 30, 'daily', '09:00', 'UTC']
+                if has_notification_channel:
+                    insert_cols_list.append("notification_channel")
+                    insert_vals.append('email')  # Default to email notifications
+                if has_apprise_notification_time:
+                    insert_cols_list.append("apprise_notification_time")
+                    insert_vals.append('09:00')
+                if has_apprise_notification_frequency:
+                    insert_cols_list.append("apprise_notification_frequency")
+                    insert_vals.append('daily')
                 if has_currency:
                     insert_cols_list.append("currency_symbol")
                     insert_vals.append('$')
@@ -2301,13 +2645,29 @@ def get_preferences():
                     'notification_frequency': preferences_data[pref_map.get('notification_frequency', 4)],
                     'notification_time': preferences_data[pref_map.get('notification_time', 5)],
                     'timezone': preferences_data[pref_map.get('timezone', 6)],
+                    'notification_channel': preferences_data[pref_map['notification_channel']] if 'notification_channel' in pref_map else 'email',
+                    'apprise_notification_time': preferences_data[pref_map['apprise_notification_time']] if 'apprise_notification_time' in pref_map else '09:00',
+                    'apprise_timezone': preferences_data[pref_map['apprise_timezone']] if 'apprise_timezone' in pref_map else 'UTC',
+                    'apprise_notification_frequency': preferences_data[pref_map['apprise_notification_frequency']] if 'apprise_notification_frequency' in pref_map else 'daily',
                     'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$', # Handle currency optionality
                     'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY' # Handle date_format optionality
                 }
             else:
                  # Fallback if even insert failed or returned nothing
-                 preferences = default_preferences.copy()
-                 preferences['date_format'] = 'MDY' # Ensure date_format is in fallback
+                 preferences = {
+                    'email_notifications': True,
+                    'default_view': 'grid',
+                    'theme': 'light',
+                    'expiring_soon_days': 30,
+                    'notification_frequency': 'daily',
+                    'notification_time': '09:00',
+                    'timezone': 'UTC',
+                    'notification_channel': 'email',
+                    'apprise_notification_time': '09:00',
+                    'apprise_notification_frequency': 'daily',
+                    'currency_symbol': '$',
+                    'date_format': 'MDY'
+                 }
 
             return jsonify(preferences), 200
         except Exception as e:
@@ -2321,7 +2681,11 @@ def get_preferences():
                 'notification_frequency': 'daily',
                 'notification_time': '09:00',
                 'timezone': 'UTC',
-                'currency_symbol': '$'
+                'notification_channel': 'email',
+                'apprise_notification_time': '09:00',
+                'apprise_notification_frequency': 'daily',
+                'currency_symbol': '$',
+                'date_format': 'MDY'
             }
             return jsonify(default_preferences), 200
         finally:
@@ -2337,7 +2701,11 @@ def get_preferences():
             'notification_frequency': 'daily',
             'notification_time': '09:00',
             'timezone': 'UTC',
-            'currency_symbol': '$'
+            'notification_channel': 'email',
+            'apprise_notification_time': '09:00',
+            'apprise_notification_frequency': 'daily',
+            'currency_symbol': '$',
+            'date_format': 'MDY'
         }
         return jsonify(default_preferences), 200
 
@@ -2349,16 +2717,27 @@ def update_preferences():
         data = request.get_json()
         if not data:
             return jsonify({'message': 'No input data provided'}), 400
-        email_notifications = data.get('email_notifications')
+        
+        # Debug logging for theme issue
+        logger.info(f"Update preferences input data: {data}")
+        
+        notification_channel = data.get('notification_channel')
         default_view = data.get('default_view')
         theme = data.get('theme')
         expiring_soon_days = data.get('expiring_soon_days')
         notification_frequency = data.get('notification_frequency')
         notification_time = data.get('notification_time')
+        apprise_notification_time = data.get('apprise_notification_time')
+        apprise_notification_frequency = data.get('apprise_notification_frequency')
         timezone = data.get('timezone')
+        apprise_timezone = data.get('apprise_timezone')
         currency_symbol = data.get('currency_symbol')
         date_format = data.get('date_format')
+        
+        logger.info(f"Update preferences parsed theme: {theme}")
 
+        if notification_channel and notification_channel not in ['none', 'email', 'apprise', 'both']:
+            return jsonify({'message': 'Invalid notification channel'}), 400
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
         if theme and theme not in ['light', 'dark']:
@@ -2376,6 +2755,8 @@ def update_preferences():
             return jsonify({'message': 'Invalid notification time format'}), 400
         if timezone and not is_valid_timezone(timezone):
             return jsonify({'message': 'Invalid timezone'}), 400
+        if apprise_timezone and not is_valid_timezone(apprise_timezone):
+            return jsonify({'message': 'Invalid Apprise timezone'}), 400
         
         # Add validation for date_format
         valid_date_formats = ['MDY', 'DMY', 'YMD', 'MDY_WORDS', 'DMY_WORDS', 'YMD_WORDS']
@@ -2385,10 +2766,23 @@ def update_preferences():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            # Check if date_format column exists first to handle dynamic schema changes
-            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='user_preferences' AND column_name='date_format'")
-            has_date_format_col = cursor.fetchone() is not None
+            # Check if columns exist first to handle dynamic schema changes
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name='user_preferences' 
+                AND column_name IN ('date_format', 'notification_channel', 'apprise_notification_time', 'apprise_notification_frequency', 'apprise_timezone')
+            """)
+            existing_cols = [row[0] for row in cursor.fetchall()]
+            has_date_format_col = 'date_format' in existing_cols
+            has_notification_channel_col = 'notification_channel' in existing_cols
+            has_apprise_notification_time_col = 'apprise_notification_time' in existing_cols
+            has_apprise_notification_frequency_col = 'apprise_notification_frequency' in existing_cols
             has_currency = has_currency_symbol_column(cursor)
+            
+            # Debug logging for Apprise settings
+            logger.info(f"Update preferences debug - apprise_notification_time: {apprise_notification_time}")
+            logger.info(f"Update preferences debug - has_apprise_notification_time_col: {has_apprise_notification_time_col}")
+            logger.info(f"Update preferences debug - existing_cols: {existing_cols}")
             
             cursor.execute(
                 "SELECT 1 FROM user_preferences WHERE user_id = %s",
@@ -2399,9 +2793,9 @@ def update_preferences():
             if preferences_exist:
                 update_fields = []
                 update_values = []
-                if email_notifications is not None:
-                    update_fields.append("email_notifications = %s")
-                    update_values.append(email_notifications)
+                if notification_channel and has_notification_channel_col:
+                    update_fields.append("notification_channel = %s")
+                    update_values.append(notification_channel)
                 if default_view:
                     update_fields.append("default_view = %s")
                     update_values.append(default_view)
@@ -2417,9 +2811,18 @@ def update_preferences():
                 if notification_time:
                     update_fields.append("notification_time = %s")
                     update_values.append(notification_time)
+                if apprise_notification_time is not None and has_apprise_notification_time_col:
+                    update_fields.append("apprise_notification_time = %s")
+                    update_values.append(apprise_notification_time)
+                if apprise_notification_frequency is not None and has_apprise_notification_frequency_col:
+                    update_fields.append("apprise_notification_frequency = %s")
+                    update_values.append(apprise_notification_frequency)
                 if timezone:
                     update_fields.append("timezone = %s")
                     update_values.append(timezone)
+                if apprise_timezone and 'apprise_timezone' in existing_cols:
+                    update_fields.append("apprise_timezone = %s")
+                    update_values.append(apprise_timezone)
                 if has_currency and currency_symbol is not None:
                     update_fields.append("currency_symbol = %s")
                     update_values.append(currency_symbol)
@@ -2430,24 +2833,51 @@ def update_preferences():
                 
                 if update_fields:
                     # Build the returning fields string dynamically based on existing columns
+                    # IMPORTANT: Always SELECT all fields, don't rely on UPDATE RETURNING subset
                     return_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+                    if has_notification_channel_col:
+                        return_fields_list.append("notification_channel")
+                    if has_apprise_notification_time_col:
+                        return_fields_list.append("apprise_notification_time")
+                    if has_apprise_notification_frequency_col:
+                        return_fields_list.append("apprise_notification_frequency")
+                    if 'apprise_timezone' in existing_cols:
+                        return_fields_list.append("apprise_timezone")
                     if has_currency:
                         return_fields_list.append("currency_symbol")
                     if has_date_format_col:
                         return_fields_list.append("date_format")
                     return_fields = ", ".join(return_fields_list)
 
+                    # First do the UPDATE
                     update_query = f"""
                         UPDATE user_preferences 
                         SET {', '.join(update_fields)}
                         WHERE user_id = %s
-                        RETURNING {return_fields}
                     """
                     cursor.execute(update_query, update_values + [user_id])
+                    
+                    # Then SELECT all fields to get complete data
+                    cursor.execute(
+                        f"""
+                        SELECT {return_fields}
+                        FROM user_preferences
+                        WHERE user_id = %s
+                        """,
+                        (user_id,)
+                    )
                     preferences_data = cursor.fetchone()
                 else:
                     # If no fields to update, select existing data
                     select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+                    if has_notification_channel_col:
+                        select_fields_list.append("notification_channel")
+                    if has_apprise_notification_time_col:
+                        select_fields_list.append("apprise_notification_time")
+                    if has_apprise_notification_frequency_col:
+                        select_fields_list.append("apprise_notification_frequency")
+                    if 'apprise_timezone' in existing_cols:
+                        select_fields_list.append("apprise_timezone")
                     if has_currency:
                         select_fields_list.append("currency_symbol")
                     if has_date_format_col:
@@ -2465,10 +2895,9 @@ def update_preferences():
                     preferences_data = cursor.fetchone()
             else: # Insert new record
                 # Build insert dynamically
-                insert_cols_list = ["user_id", "email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
+                insert_cols_list = ["user_id", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
                 insert_vals = [
                     user_id,
-                    email_notifications if email_notifications is not None else True,
                     default_view or 'grid',
                     theme or 'light',
                     expiring_soon_days if expiring_soon_days is not None else 30,
@@ -2476,6 +2905,15 @@ def update_preferences():
                     notification_time or '09:00',
                     timezone or 'UTC'
                 ]
+                if has_notification_channel_col:
+                    insert_cols_list.append("notification_channel")
+                    insert_vals.append(notification_channel or 'email')
+                if has_apprise_notification_time_col:
+                    insert_cols_list.append("apprise_notification_time")
+                    insert_vals.append(apprise_notification_time or '09:00')
+                if has_apprise_notification_frequency_col:
+                    insert_cols_list.append("apprise_notification_frequency")
+                    insert_vals.append(apprise_notification_frequency or 'daily')
                 if has_currency:
                     insert_cols_list.append("currency_symbol")
                     insert_vals.append(currency_symbol or '$')
@@ -2499,19 +2937,36 @@ def update_preferences():
             
             # Map returned data to dictionary using the dynamically determined fields
             returned_columns = [col.strip() for col in return_fields.split(',')]
-            pref_map = {col: i for i, col in enumerate(returned_columns)}
+            if preferences_data:
+                pref_map = {col: i for i, col in enumerate(returned_columns)}
+                
+                # Log debug info for theme issues
+                logger.info(f"Update preferences debug - returned_columns: {returned_columns}")
+                logger.info(f"Update preferences debug - pref_map: {pref_map}")
+                logger.info(f"Update preferences debug - preferences_data: {preferences_data}")
+                logger.info(f"Update preferences debug - theme column index: {pref_map.get('theme', 'NOT_FOUND')}")
+                
+                preferences = {
+                    'email_notifications': preferences_data[pref_map['email_notifications']] if 'email_notifications' in pref_map else True,
+                    'default_view': preferences_data[pref_map['default_view']] if 'default_view' in pref_map else 'grid',
+                    'theme': preferences_data[pref_map['theme']] if 'theme' in pref_map else 'light',
+                    'expiring_soon_days': preferences_data[pref_map['expiring_soon_days']] if 'expiring_soon_days' in pref_map else 30,
+                    'notification_frequency': preferences_data[pref_map['notification_frequency']] if 'notification_frequency' in pref_map else 'daily',
+                    'notification_time': preferences_data[pref_map['notification_time']] if 'notification_time' in pref_map else '09:00',
+                    'timezone': preferences_data[pref_map['timezone']] if 'timezone' in pref_map else 'UTC',
+                    'notification_channel': preferences_data[pref_map['notification_channel']] if 'notification_channel' in pref_map else 'email',
+                    'apprise_notification_time': preferences_data[pref_map['apprise_notification_time']] if 'apprise_notification_time' in pref_map else '09:00',
+                    'apprise_notification_frequency': preferences_data[pref_map['apprise_notification_frequency']] if 'apprise_notification_frequency' in pref_map else 'daily',
+                    'apprise_timezone': preferences_data[pref_map['apprise_timezone']] if 'apprise_timezone' in pref_map else 'UTC',
+                    'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$',
+                    'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY'
+                }
+                
+                logger.info(f"Update preferences debug - final theme value: {preferences.get('theme')}")
+            else:
+                # Fallback if no data returned
+                preferences = {}
 
-            preferences = {
-                'email_notifications': preferences_data[pref_map.get('email_notifications', 0)], # Default index 0 might be risky, but needed if column is missing
-                'default_view': preferences_data[pref_map.get('default_view', 1)],
-                'theme': preferences_data[pref_map.get('theme', 2)],
-                'expiring_soon_days': preferences_data[pref_map.get('expiring_soon_days', 3)],
-                'notification_frequency': preferences_data[pref_map.get('notification_frequency', 4)],
-                'notification_time': preferences_data[pref_map.get('notification_time', 5)],
-                'timezone': preferences_data[pref_map.get('timezone', 6)],
-                'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$', # Handle currency optionality
-                'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY' # Handle date_format optionality
-            }
 
             conn.commit()
             return jsonify(preferences), 200
@@ -2519,7 +2974,7 @@ def update_preferences():
             conn.rollback()
             logger.error(f"Database error in update_preferences: {str(e)}")
             fallback_preferences = {
-                'email_notifications': email_notifications if email_notifications is not None else True,
+                'email_notifications': True,  # Fixed: Set default value instead of undefined variable
                 'default_view': default_view or 'grid',
                 'theme': theme or 'light',
                 'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30,
@@ -2543,7 +2998,8 @@ def update_preferences():
             'notification_frequency': 'daily',
             'notification_time': '09:00',
             'timezone': 'UTC',
-            'currency_symbol': '$'
+            'currency_symbol': '$',
+            'date_format': 'MDY'  # Fixed: Added missing date_format to defaults
         }
         return jsonify(default_preferences), 200
 
@@ -2739,33 +3195,47 @@ def get_site_settings():
             default_site_settings = {
                 'registration_enabled': 'true',
                 'email_base_url': os.environ.get('APP_BASE_URL', 'http://localhost:8080'), # Default to APP_BASE_URL
+                'global_view_enabled': 'true',  # Global warranty view feature
+                'global_view_admin_only': 'false',  # Restrict global view to admins only
                 'oidc_enabled': 'false',
                 'oidc_provider_name': 'oidc',
                 'oidc_client_id': '',
                 # 'oidc_client_secret': '', # Not returned
                 'oidc_issuer_url': '',
-                'oidc_scope': 'openid email profile'
+                'oidc_scope': 'openid email profile',
+                # Apprise default settings
+                'apprise_enabled': 'false',
+                'apprise_urls': '',
+                'apprise_expiration_days': '7,30',
+                'apprise_notification_time': '09:00',
+                'apprise_title_prefix': '[Warracker]'
             }
 
             settings_to_return = {}
             needs_commit = False
 
+            # First, add all existing settings from the database
+            for key, value in raw_settings.items():
+                # Skip returning the client secret directly
+                if key == 'oidc_client_secret':
+                    continue
+                
+                # For boolean-like string settings, ensure they are 'true' or 'false'
+                if key in ['registration_enabled', 'oidc_enabled', 'apprise_enabled', 'global_view_enabled', 'global_view_admin_only']:
+                    settings_to_return[key] = 'true' if value.lower() == 'true' else 'false'
+                else:
+                    settings_to_return[key] = value
+
+            # Then, add defaults for any missing settings
             for key, default_value in default_site_settings.items():
-                if key not in raw_settings:
+                if key not in settings_to_return and key != 'oidc_client_secret':
                     settings_to_return[key] = default_value
                     # Insert default if missing (except for secret)
-                    if key != 'oidc_client_secret': # Avoid writing default empty secret if not present
-                        cur.execute(
-                            'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
-                            (key, default_value)
-                        )
-                        needs_commit = True
-                else:
-                    # For boolean-like string settings, ensure they are 'true' or 'false'
-                    if key in ['registration_enabled', 'oidc_enabled']:
-                        settings_to_return[key] = 'true' if raw_settings[key].lower() == 'true' else 'false'
-                    else:
-                        settings_to_return[key] = raw_settings[key]
+                    cur.execute(
+                        'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
+                        (key, default_value)
+                    )
+                    needs_commit = True
             
             # Indicate if OIDC client secret is set without revealing it
             settings_to_return['oidc_client_secret_set'] = bool(raw_settings.get('oidc_client_secret'))
@@ -2815,7 +3285,7 @@ def update_site_settings():
             requires_restart = False
             for key, value in data.items():
                 # Sanitize boolean-like string values
-                if key in ['registration_enabled', 'oidc_enabled']:
+                if key in ['registration_enabled', 'oidc_enabled', 'global_view_enabled', 'global_view_admin_only']:
                     value = 'true' if str(value).lower() == 'true' else 'false'
                 
                 # Check if it's an OIDC related key that requires restart
@@ -2868,6 +3338,55 @@ def update_site_settings():
             release_db_connection(conn)
 
 # Modify the register endpoint to check if registration is enabled
+@app.route('/api/settings/global-view-status', methods=['GET'])
+@token_required
+def check_global_view_status():
+    """Check if global view is enabled for the current user"""
+    conn = None
+    try:
+        user_is_admin = request.user.get('is_admin', False)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if settings table exists
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'site_settings'
+                )
+            """)
+            table_exists = cur.fetchone()[0]
+            
+            if not table_exists:
+                # If table doesn't exist, global view is enabled by default
+                return jsonify({"enabled": True}), 200
+            
+            # Get both global view settings
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+            
+            # Check if global view is enabled at all
+            global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+            if not global_view_enabled:
+                return jsonify({"enabled": False}), 200
+            
+            # Check if global view is restricted to admins only
+            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+            if admin_only and not user_is_admin:
+                return jsonify({"enabled": False}), 200
+            
+            # Global view is enabled for this user
+            return jsonify({"enabled": True}), 200
+            
+    except Exception as e:
+        logger.error(f"Error checking global view status: {e}")
+        # Default to enabled on error for admins, disabled for non-admins
+        user_is_admin = request.user.get('is_admin', False)
+        return jsonify({"enabled": user_is_admin}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 @app.route('/api/auth/registration-status', methods=['GET'])
 def check_registration_status():
     """Check if registration is enabled"""
@@ -2948,9 +3467,9 @@ def secure_file_access(filename):
                 query = """
                     SELECT w.id, w.user_id
                     FROM warranties w
-                    WHERE w.invoice_path = %s OR w.manual_path = %s OR w.other_document_path = %s
+                    WHERE w.invoice_path = %s OR w.manual_path = %s OR w.other_document_path = %s OR w.product_photo_path = %s
                 """
-                cur.execute(query, (db_search_path, db_search_path, db_search_path))
+                cur.execute(query, (db_search_path, db_search_path, db_search_path, db_search_path))
                 results = cur.fetchall()
                 logger.info(f"[SECURE_FILE] DB query results for '{db_search_path}': {results}")
 
@@ -3060,141 +3579,9 @@ def secure_file_access(filename):
         logger.error(f"[SECURE_FILE] Error in secure file access for '{filename}' (repr: {repr(filename)}): {e}", exc_info=True)
         return jsonify({"message": "Error accessing file"}), 500
 
-def get_expiring_warranties():
-    """Get warranties that are expiring soon for notification purposes"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        today = date.today()
 
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT
-                    u.id, -- Select user_id
-                    u.email,
-                    u.first_name,
-                    w.product_name,
-                    w.expiration_date,
-                    COALESCE(up.expiring_soon_days, 30) AS expiring_soon_days
-                FROM
-                    warranties w
-                JOIN
-                    users u ON w.user_id = u.id
-                LEFT JOIN
-                    user_preferences up ON u.id = up.user_id
-                WHERE
-                    w.is_lifetime = FALSE
-                    AND w.expiration_date > %s
-                    AND w.expiration_date <= (%s::date + (COALESCE(up.expiring_soon_days, 30) || ' days')::interval)::date
-                    AND u.is_active = TRUE
-                    AND COALESCE(up.email_notifications, TRUE) = TRUE;
-            """, (today, today))
 
-            expiring_warranties = []
-            for row in cur.fetchall():
-                user_id, email, first_name, product_name, expiration_date, expiring_soon_days = row # Include user_id
-                expiration_date_str = expiration_date.strftime('%Y-%m-%d')
-                expiring_warranties.append({
-                    'user_id': user_id, # Add user_id to the dict
-                    'email': email,
-                    'first_name': first_name or 'User',  # Default if first_name is NULL
-                    'product_name': product_name,
-                    'expiration_date': expiration_date_str,
-                })
 
-            return expiring_warranties
-
-    except Exception as e:
-        logger.error(f"Error retrieving expiring warranties: {e}")
-        return []  # Return an empty list on error
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-def format_expiration_email(user, warranties):
-    """
-    Format an email notification for expiring warranties.
-    Returns a MIMEMultipart email object with both text and HTML versions.
-    """
-    subject = "Warracker: Upcoming Warranty Expirations"
-    
-    # Get email base URL from settings
-    conn = None
-    email_base_url = 'http://localhost:8080' # Default fallback
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
-            result = cur.fetchone()
-            if result:
-                email_base_url = result[0]
-            else:
-                logger.warning("email_base_url setting not found, using default.")
-    except Exception as e:
-        logger.error(f"Error fetching email_base_url from settings: {e}. Using default.")
-    finally:
-        if conn:
-            release_db_connection(conn)
-    
-    # Ensure base URL doesn't end with a slash
-    email_base_url = email_base_url.rstrip('/')
-    
-    # Create both plain text and HTML versions of the email body
-    text_body = f"Hello {user['first_name']},\\n\\n"
-    text_body += "The following warranties are expiring soon:\\n\\n"
-    
-    html_body = f"""\
-    <html>
-      <head></head>
-      <body>
-        <p>Hello {user['first_name']},</p>
-        <p>The following warranties are expiring soon:</p>
-        <table border="1" style="border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th style="padding: 8px; text-align: left;">Product Name</th>
-              <th style="padding: 8px; text-align: left;">Expiration Date</th>
-            </tr>
-          </thead>
-          <tbody>
-    """
-
-    for warranty in warranties:
-        text_body += f"- {warranty['product_name']} (expires on {warranty['expiration_date']})\\n"
-        html_body += f"""\
-            <tr>
-              <td style="padding: 8px;">{warranty['product_name']}</td>
-              <td style="padding: 8px;">{warranty['expiration_date']}</td>
-            </tr>
-        """
-
-    text_body += "\\nLog in to Warracker to view details:\\n"
-    text_body += f"{email_base_url}\\n\\n" # Use configurable base URL
-    text_body += "Manage your notification settings:\\n"
-    text_body += f"{email_base_url}/settings-new.html\\n" # Use configurable base URL
-
-    html_body += f"""\
-          </tbody>
-        </table>
-        <p>Log in to <a href="{email_base_url}">Warracker</a> to view details.</p> 
-        <p>Manage your notification settings <a href="{email_base_url}/settings-new.html">here</a>.</p>
-      </body>
-    </html>
-    """
-
-    # Create a MIMEMultipart object for both text and HTML
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
-    msg['To'] = user['email']
-
-    part1 = MIMEText(text_body, 'plain')
-    part2 = MIMEText(html_body, 'html')
-
-    msg.attach(part1)
-    msg.attach(part2)
-
-    return msg
 
 def send_password_reset_email(recipient_email, reset_link):
     """Sends the password reset email."""
@@ -3330,281 +3717,28 @@ The Warracker Team
             except Exception as e:
                  logger.error(f"Error quitting SMTP connection: {e}")
 
-# Create a lock for the notification function
-notification_lock = threading.Lock()
-# Track when notifications were last sent to each user
-last_notification_sent = {}
 
-def send_expiration_notifications(manual_trigger=False):
-    """
-    Main function to send warranty expiration notifications.
-    Retrieves expiring warranties, groups them by user, and sends emails.
-    
-    Args:
-        manual_trigger (bool): Whether this function was triggered manually (vs scheduled)
-                               If True, it ignores notification frequency/time preferences
-    """
-    # Use a lock to prevent concurrent executions
-    if not notification_lock.acquire(blocking=False):
-        logger.info("Notification job already running, skipping this execution")
-        return
-        
-    try:
-        logger.info("Starting expiration notification process")
-        
-        # If not manually triggered, check if notifications should be sent today based on preferences
-        if not manual_trigger:
-            conn = None
-            try:
-                conn = get_db_connection()
-                with conn.cursor() as cur:
-                    # Get today's date and current time in UTC
-                    utc_now = datetime.utcnow()
-                    
-                    # Get user IDs that should receive notifications today
-                    eligible_users_query = """
-                        SELECT 
-                            u.id, 
-                            u.email, 
-                            u.first_name, 
-                            up.notification_time,
-                            up.timezone,
-                            up.notification_frequency
-                        FROM users u
-                        JOIN user_preferences up ON u.id = up.user_id
-                        WHERE u.is_active = TRUE 
-                        AND up.email_notifications = TRUE
-                    """
-                    cur.execute(eligible_users_query)
-                    eligible_users = cur.fetchall()
-                    
-                    if not eligible_users:
-                        logger.info("No users are eligible for notifications")
-                        return
-                    
-                    # Check if we should send notifications based on time and timezone
-                    users_to_notify_now = set() # Changed variable name and type to set
-                    for user in eligible_users:
-                        user_id, email, first_name, notification_time, timezone, frequency = user
-                        
-                        try:
-                            # Convert UTC time to user's timezone
-                            user_tz = pytz_timezone(timezone or 'UTC')
-                            user_local_time = utc_now.replace(tzinfo=pytz.UTC).astimezone(user_tz)
-                            
-                            # Check if notification should be sent based on frequency
-                            should_send = False
-                            
-                            if frequency == 'daily':
-                                should_send = True
-                            elif frequency == 'weekly' and user_local_time.weekday() == 0:  # Monday
-                                should_send = True
-                            elif frequency == 'monthly' and user_local_time.day == 1:
-                                should_send = True
-                                
-                            if should_send:
-                                # Parse notification time
-                                time_hour, time_minute = map(int, notification_time.split(':'))
-                                
-                                # Get current hour and minute in user's timezone
-                                current_hour = user_local_time.hour
-                                current_minute = user_local_time.minute
-                                
-                                # Calculate minutes difference
-                                user_minutes = time_hour * 60 + time_minute
-                                current_minutes = current_hour * 60 + current_minute
-                                
-                                # Calculate exact time difference (can be negative if current time is before notification time)
-                                time_diff = current_minutes - user_minutes
-                                
-                                # For notifications, we want to send:
-                                # 1. If current time is 0-2 minutes after scheduled time (11:27 → send between 11:27-11:29)
-                                # 2. Or, if the next scheduler run would miss the time (scheduler runs every 5 min)
-                                #    For example, if it's 11:24 and notification is set for 11:27, next run is 11:29 so we should send now
-                                send_window = time_diff >= 0 and time_diff <= 2  # 0-2 minutes after scheduled time
-                                next_miss_window = time_diff < 0 and time_diff >= -3  # 1-3 minutes before scheduled time
-                                
-                                logger.info(f"Time check for {email}: scheduled={time_hour}:{time_minute:02d}, " +
-                                            f"current={current_hour}:{current_minute:02d}, diff={time_diff} min, " +
-                                            f"send_window={send_window}, next_miss_window={next_miss_window}")
-                                
-                                if send_window or next_miss_window:
-                                    # Check if we've already sent a notification to this user recently
-                                    now_timestamp = int(utc_now.timestamp())
-                                    if email in last_notification_sent:
-                                        last_sent = last_notification_sent[email]
-                                        # Only send if it's been more than 10 minutes since the last notification
-                                        # (longer than the 5-minute scheduler interval)
-                                        if now_timestamp - last_sent > 600:
-                                            users_to_notify_now.add(user_id) # Add user_id to the set
-                                            logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
-                                        else:
-                                            logger.info(f"Skipping notification for {email} - already sent within the last 10 minutes (last sent: {datetime.fromtimestamp(last_sent).strftime('%Y-%m-%d %H:%M:%S')})")
-                                    else:
-                                        users_to_notify_now.add(user_id) # Add user_id to the set
-                                        logger.info(f"User {email} eligible for notification at their local time {notification_time} ({timezone})")
-                        
-                        except Exception as e:
-                            logger.error(f"Error processing timezone for user {email}: {e}")
-                            continue
-                    
-                    if not users_to_notify_now: # Check the set now
-                        logger.info("No users are scheduled for notifications at their local time")
-                        return
-                    
-                    logger.info(f"Found {len(users_to_notify_now)} users eligible for notifications now")
-            except Exception as e:
-                logger.error(f"Error determining notification eligibility: {e}")
-                return
-            finally:
-                if conn:
-                    release_db_connection(conn)
-        
-        expiring_warranties = get_expiring_warranties()
-        if not expiring_warranties:
-            logger.info("No expiring warranties found.")
-            return
 
-        # Group warranties by user
-        users_warranties = {}
-        for warranty in expiring_warranties:
-            user_id = warranty['user_id'] # Get user_id
-            email = warranty['email']
-            if email not in users_warranties:
-                users_warranties[email] = {
-                    'user_id': user_id, # Store user_id
-                    'first_name': warranty['first_name'],
-                    'warranties': []
-                }
-            users_warranties[email]['warranties'].append(warranty)
-        
-        # Get SMTP settings from environment variables with fallbacks
-        smtp_host = os.environ.get('SMTP_HOST', 'localhost')
-        smtp_port = int(os.environ.get('SMTP_PORT', '1025'))
-        smtp_username = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
-        smtp_password = os.environ.get('SMTP_PASSWORD', '')
-        
-        # Explicit SMTP_USE_TLS from environment, defaulting to true if port is 587
-        # and not explicitly set to false.
-        smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
-        
-        # Connect to SMTP server
-        try:
-            logger.info(f"Attempting SMTP connection to {smtp_host}:{smtp_port}")
-            if smtp_port == 465:
-                logger.info("Using SMTP_SSL for port 465.")
-                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
-            else:
-                logger.info(f"Using SMTP for port {smtp_port}.")
-                server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-                # For port 587, STARTTLS is standard.
-                # For other ports, allow SMTP_USE_TLS to explicitly enable/disable it.
-                # If SMTP_USE_TLS is 'not_set', default to True for port 587.
-                should_use_starttls = False
-                if smtp_port == 587:
-                    should_use_starttls = (smtp_use_tls_env != 'false') # True unless explicitly 'false'
-                    logger.info(f"Port is 587. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
-                elif smtp_use_tls_env == 'true':
-                    should_use_starttls = True
-                    logger.info(f"Port is {smtp_port}. SMTP_USE_TLS explicitly 'true'. should_use_starttls: {should_use_starttls}")
-                else:
-                    logger.info(f"Port is {smtp_port}. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
+# Initialize notification system
+# Set up the Apprise handler if available
+if APPRISE_AVAILABLE and apprise_handler is not None:
+    notifications.set_apprise_handler(apprise_handler)
 
-                if should_use_starttls:
-                    logger.info("Attempting to start TLS (server.starttls()).")
-                    server.starttls()
-                    logger.info("STARTTLS successful.")
-                else:
-                    logger.info("Not using STARTTLS based on port and SMTP_USE_TLS setting.")
-            
-            # Login if credentials are provided
-            if smtp_username and smtp_password:
-                logger.info(f"Logging in with username: {smtp_username}")
-                server.login(smtp_username, smtp_password)
-                logger.info("SMTP login successful.")
+# Initialize notification scheduler
+notifications.init_scheduler(get_db_connection, release_db_connection)
 
-            # Send emails to each user
-            utc_now = datetime.utcnow()
-            timestamp = int(utc_now.timestamp())
-            
-            emails_sent = 0
-            for email, user_data in users_warranties.items():
-                # ---> ADD CHECK HERE <-----
-                user_id_to_check = user_data.get('user_id')
-                if not manual_trigger and user_id_to_check not in users_to_notify_now:
-                    logger.debug(f"Skipping email for {email} (user_id: {user_id_to_check}) - not in current notification window.")
-                    continue # Skip sending if not in the set for scheduled notifications
-                
-                # For manual triggers, check if we've sent recently
-                if manual_trigger and email in last_notification_sent:
-                    last_sent = last_notification_sent[email]
-                    # Only allow manual trigger to bypass the time limit if it's been more than 2 minutes
-                    # This prevents accidental double-clicks by admins
-                    if timestamp - last_sent < 120:
-                        logger.info(f"Manual trigger: Skipping notification for {email} - already sent within the last 2 minutes")
-                        continue
-                
-                msg = format_expiration_email(
-                    {'first_name': user_data['first_name'], 'email': email},
-                    user_data['warranties']
-                )
-                try:
-                    server.sendmail(smtp_username, email, msg.as_string())
-                    # Record timestamp when we sent the notification
-                    last_notification_sent[email] = timestamp
-                    emails_sent += 1
-                    logger.info(f"Expiration notification email sent to {email} for {len(user_data['warranties'])} warranties at {datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')}")
-                except Exception as e:
-                    logger.error(f"Error sending email to {email}: {e}")
-            
-            logger.info(f"Email notification process completed. Sent {emails_sent} emails out of {len(users_warranties)} eligible users.")
-            # Close the server connection
-            server.quit()
-            
-        except Exception as e:
-            logger.error(f"Error connecting to SMTP server: {e}")
-            logger.error(f"SMTP details - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}")
-
-    except Exception as e:
-        logger.error(f"Error in send_expiration_notifications: {e}")
-    finally:
-        notification_lock.release()
-
-# Initialize scheduler
-scheduler = BackgroundScheduler(
-    job_defaults={
-        'coalesce': True,       # Combine multiple executions into one
-        'max_instances': 1,     # Only allow one instance of the job to run at a time
-        'misfire_grace_time': 300 # Allow 5 minutes for a misfired job (increased from 60 seconds)
-    }
-)
-
-# Helper to check if this is the main process that should run the scheduler
-def should_run_scheduler():
-    # For gunicorn
-    if os.environ.get('GUNICORN_WORKER_PROCESS_NAME') == 'worker-0' or \
-       (os.environ.get('GUNICORN_WORKER_CLASS') and int(os.environ.get('GUNICORN_WORKER_ID', '0')) == 0):
-        logger.info("Starting scheduler in Gunicorn worker 0")
-        return True
-    # For development server
-    elif __name__ == '__main__':
-        logger.info("Starting scheduler in development server")
-        return True
-    # Default case - don't start scheduler
-    return False
-
-# Only start the scheduler in the main process, not in workers
-if should_run_scheduler():
-    # Check for scheduled notifications every 2 minutes for more precise timing
-    scheduler.add_job(func=send_expiration_notifications, trigger="interval", minutes=2, id='notification_job')
-    scheduler.start()
-    logger.info("Email notification scheduler started - checking every 2 minutes")
-    
-    # Add a shutdown hook
-    atexit.register(lambda: scheduler.shutdown())
+# Hook to ensure scheduler is initialized on request if needed
+@app.before_request
+def ensure_scheduler_initialized():
+    """Ensure scheduler is initialized on the first request if it wasn't at startup"""
+    notifications.ensure_scheduler_initialized(get_db_connection, release_db_connection)
 
 # Initialize the database when the application starts
-if __name__ != '__main__':  # Only for production
+if __name__ == '__main__':
+    # Call init_db to ensure tables are created before app starts in standalone mode.
+    # In production with Gunicorn/multiple workers, this should ideally be handled by a startup script/migration tool.
+    # For simplicity in development or single-worker setups, it's here.
+    logger.info("Running in __main__, attempting to initialize database...")
     try:
         init_db()
         logger.info("Database initialized during application startup")
@@ -3620,12 +3754,25 @@ def trigger_notifications():
     """
     try:
         logger.info(f"Manual notification trigger requested by admin user {request.user['id']}")
-        send_expiration_notifications(manual_trigger=True)
-        return jsonify({'message': 'Notifications triggered successfully'}), 200
+        result, status_code = notifications.trigger_notifications_manually(get_db_connection, release_db_connection)
+        return jsonify(result), status_code
     except Exception as e:
         error_msg = f"Error triggering notifications: {str(e)}"
         logger.error(error_msg)
         return jsonify({'message': 'Failed to trigger notifications', 'error': error_msg}), 500
+
+@app.route('/api/admin/scheduler-status', methods=['GET'])
+@admin_required
+def get_scheduler_status():
+    """
+    Admin-only endpoint to check scheduler status and configuration.
+    """
+    try:
+        status = notifications.get_scheduler_status()
+        return jsonify(status), 200
+    except Exception as e:
+        logger.error(f"Error getting scheduler status: {e}")
+        return jsonify({'error': f'Failed to get scheduler status: {str(e)}'}), 500
 
 @app.route('/api/timezones', methods=['GET'])
 def get_timezones():
@@ -3688,15 +3835,15 @@ def debug_warranty(warranty_id):
             if is_admin:
                 cur.execute('''
                     SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
-                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
-                           warranty_duration_years, warranty_duration_months, warranty_duration_days
+                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
+                           warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
                     FROM warranties WHERE id = %s
                 ''', (warranty_id,))
             else:
                 cur.execute('''
                     SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
-                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor,
-                           warranty_duration_years, warranty_duration_months, warranty_duration_days
+                           purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
+                           warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
                     FROM warranties WHERE id = %s AND user_id = %s
                 ''', (warranty_id, user_id))
                 
@@ -4109,7 +4256,7 @@ def add_tags_to_warranty(warranty_id):
 # Updated CSV Headers for duration components
 REQUIRED_CSV_HEADERS = ['ProductName', 'PurchaseDate']
 OPTIONAL_CSV_HEADERS = [
-    'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor',
+    'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor', 'WarrantyType',
     'WarrantyDurationYears', 'WarrantyDurationMonths', 'WarrantyDurationDays'
 ]
 
@@ -4176,6 +4323,7 @@ def import_warranties():
                     product_url = row.get('ProductURL', '').strip()
                     tags_str = row.get('Tags', '').strip() # Get Tags string
                     vendor = row.get('Vendor', '').strip() # Extract Vendor
+                    warranty_type = row.get('WarrantyType', '').strip() # Extract Warranty Type
 
                     if not product_name:
                         errors.append("ProductName is required.")
@@ -4318,14 +4466,14 @@ def import_warranties():
                     cur.execute("""
                         INSERT INTO warranties (
                             product_name, purchase_date, expiration_date, 
-                            product_url, purchase_price, user_id, is_lifetime, vendor,
+                            product_url, purchase_price, user_id, is_lifetime, vendor, warranty_type,
                             warranty_duration_years, warranty_duration_months, warranty_duration_days
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         product_name, purchase_date, expiration_date,
-                        product_url, purchase_price, user_id, is_lifetime, vendor,
+                        product_url, purchase_price, user_id, is_lifetime, vendor, warranty_type,
                         warranty_duration_years, warranty_duration_months, warranty_duration_days
                     ))
                     warranty_id = cur.fetchone()[0]
@@ -4809,32 +4957,353 @@ def get_oidc_status():
         if conn:
             release_db_connection(conn)
 
+# =====================
+# APPRISE NOTIFICATION ROUTES
+# =====================
+
+@app.route('/api/admin/apprise/test', methods=['POST'])
+@admin_required
+def test_apprise_notification():
+    """Send a test Apprise notification"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'success': False, 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        data = request.get_json()
+        test_url = data.get('test_url') if data else None
+        
+        success = apprise_handler.send_test_notification(test_url)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Test notification sent successfully'}), 200
+        else:
+            return jsonify({'success': False, 'message': 'Failed to send test notification'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error sending test Apprise notification: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/validate-url', methods=['POST'])
+@admin_required
+def validate_apprise_url():
+    """Validate an Apprise notification URL"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'valid': False, 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        data = request.get_json()
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({'valid': False, 'message': 'URL is required'}), 400
+        
+        is_valid = apprise_handler.validate_url(url)
+        
+        return jsonify({
+            'valid': is_valid,
+            'message': 'URL is valid' if is_valid else 'URL is invalid or unsupported'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error validating Apprise URL: {e}")
+        return jsonify({'valid': False, 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/supported-services', methods=['GET'])
+@admin_required
+def get_supported_apprise_services():
+    """Get list of supported Apprise services"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'services': [], 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        services = apprise_handler.get_supported_services()
+        return jsonify({'services': services}), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting supported Apprise services: {e}")
+        return jsonify({'services': [], 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/send-expiration', methods=['POST'])
+@admin_required
+def trigger_apprise_expiration_notifications():
+    """Manually trigger Apprise expiration notifications"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'success': False, 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        results = apprise_handler.send_expiration_notifications()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Notifications processed: {results["sent"]} sent, {results["errors"]} errors',
+            'results': results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error triggering Apprise expiration notifications: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/reload-config', methods=['POST'])
+@admin_required
+def reload_apprise_configuration():
+    """Reload Apprise configuration from database and environment"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'success': False, 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        apprise_handler.reload_configuration()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Apprise configuration reloaded successfully',
+            'enabled': apprise_handler.enabled,
+            'urls_configured': len(apprise_handler.notification_urls)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error reloading Apprise configuration: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/send-custom', methods=['POST'])
+@admin_required
+def send_custom_apprise_notification():
+    """Send a custom Apprise notification"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({'success': False, 'message': 'Apprise notifications are not available'}), 503
+    
+    try:
+        data = request.get_json()
+        title = data.get('title')
+        message = data.get('message')
+        urls = data.get('urls')  # Optional: specific URLs to send to
+        
+        if not title or not message:
+            return jsonify({'success': False, 'message': 'Title and message are required'}), 400
+        
+        success = apprise_handler.send_custom_notification(title, message, urls)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Custom notification sent successfully'}), 200
+        else:
+            return jsonify({'success': False, 'message': 'Failed to send custom notification'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error sending custom Apprise notification: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+@app.route('/api/admin/apprise/status', methods=['GET'])
+@admin_required
+def get_apprise_status():
+    """Get current Apprise configuration status"""
+    if not APPRISE_AVAILABLE or apprise_handler is None:
+        return jsonify({
+            'available': False,
+            'enabled': False,
+            'message': 'Apprise library is not installed or not available'
+        }), 503
+    
+    try:
+        # Get detailed status from the handler
+        status = apprise_handler.get_status()
+        
+        # Add additional fields for backward compatibility
+        status.update({
+            'expiration_days': apprise_handler.expiration_days,
+            'notification_time': apprise_handler.notification_time,
+            'title_prefix': apprise_handler.title_prefix,
+            'message': 'Apprise is available and configured' if status.get('available') else status.get('error', 'Unknown error')
+        })
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting Apprise status: {e}")
+        return jsonify({
+            'available': False,
+            'enabled': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/admin/warranties', methods=['GET'])
+@admin_required
+def get_all_warranties():
+    """Get all warranties from all users (admin only)"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get all warranties from all users with user information
+            cur.execute('''
+                SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                       w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
+                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path,
+                       u.username, u.email, u.first_name, u.last_name
+                FROM warranties w
+                JOIN users u ON w.user_id = u.id
+                ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
+            ''')
+                
+            warranties = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            warranties_list = []
+            
+            for row in warranties:
+                warranty_dict = dict(zip(columns, row))
+                # Convert date objects to ISO format strings for JSON serialization
+                for key, value in warranty_dict.items():
+                    if isinstance(value, (datetime, date)):
+                        warranty_dict[key] = value.isoformat()
+                    # Convert Decimal objects to float for JSON serialization
+                    elif isinstance(value, Decimal):
+                        warranty_dict[key] = float(value)
+                
+                # Get serial numbers for this warranty
+                warranty_id = warranty_dict['id']
+                cur.execute('SELECT serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+                serial_numbers = [row[0] for row in cur.fetchall()]
+                warranty_dict['serial_numbers'] = serial_numbers
+                
+                # Get tags for this warranty
+                cur.execute('''
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN warranty_tags wt ON t.id = wt.tag_id
+                    WHERE wt.warranty_id = %s
+                    ORDER BY t.name
+                ''', (warranty_id,))
+                tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+                warranty_dict['tags'] = tags
+                
+                # Add user display name for better UI
+                first_name = warranty_dict.get('first_name', '').strip() if warranty_dict.get('first_name') else ''
+                last_name = warranty_dict.get('last_name', '').strip() if warranty_dict.get('last_name') else ''
+                username = warranty_dict.get('username', '').strip() if warranty_dict.get('username') else ''
+                
+                if first_name and last_name:
+                    warranty_dict['user_display_name'] = f"{first_name} {last_name}"
+                elif first_name:
+                    warranty_dict['user_display_name'] = first_name
+                elif username:
+                    warranty_dict['user_display_name'] = username
+                else:
+                    warranty_dict['user_display_name'] = 'Unknown User'
+                
+                warranties_list.append(warranty_dict)
+                
+            return jsonify(warranties_list)
+    except Exception as e:
+        logger.error(f"Error retrieving all warranties: {e}")
+        return jsonify({"error": "Failed to retrieve all warranties"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/warranties/global', methods=['GET'])
+@token_required
+def get_global_warranties():
+    """Get all warranties from all users (public view for all authenticated users)"""
+    conn = None
+    try:
+        # Check if global view is enabled for this user
+        user_is_admin = request.user.get('is_admin', False)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get both global view settings
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+            
+            # Check if global view is enabled at all
+            global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+            if not global_view_enabled:
+                return jsonify({"error": "Global view is disabled by administrator"}), 403
+            
+            # Check if global view is restricted to admins only
+            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+            if admin_only and not user_is_admin:
+                return jsonify({"error": "Global view is restricted to administrators only"}), 403
+        
+        # Release the connection since we'll get a new one below
+        release_db_connection(conn)
+        conn = None
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get all warranties from all users with user information
+            cur.execute('''
+                SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                       w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
+                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path,
+                       u.username, u.email, u.first_name, u.last_name
+                FROM warranties w
+                JOIN users u ON w.user_id = u.id
+                ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
+            ''')
+                
+            warranties = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            warranties_list = []
+            
+            for row in warranties:
+                warranty_dict = dict(zip(columns, row))
+                # Convert date objects to ISO format strings for JSON serialization
+                for key, value in warranty_dict.items():
+                    if isinstance(value, (datetime, date)):
+                        warranty_dict[key] = value.isoformat()
+                    # Convert Decimal objects to float for JSON serialization
+                    elif isinstance(value, Decimal):
+                        warranty_dict[key] = float(value)
+                
+                # Get serial numbers for this warranty
+                warranty_id = warranty_dict['id']
+                cur.execute('SELECT serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+                serial_numbers = [row[0] for row in cur.fetchall()]
+                warranty_dict['serial_numbers'] = serial_numbers
+                
+                # Get tags for this warranty
+                cur.execute('''
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN warranty_tags wt ON t.id = wt.tag_id
+                    WHERE wt.warranty_id = %s
+                    ORDER BY t.name
+                ''', (warranty_id,))
+                tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+                warranty_dict['tags'] = tags
+                
+                # Add user display name for better UI
+                first_name = warranty_dict.get('first_name', '').strip() if warranty_dict.get('first_name') else ''
+                last_name = warranty_dict.get('last_name', '').strip() if warranty_dict.get('last_name') else ''
+                username = warranty_dict.get('username', '').strip() if warranty_dict.get('username') else ''
+                
+                if first_name and last_name:
+                    warranty_dict['user_display_name'] = f"{first_name} {last_name}"
+                elif first_name:
+                    warranty_dict['user_display_name'] = first_name
+                elif username:
+                    warranty_dict['user_display_name'] = username
+                else:
+                    warranty_dict['user_display_name'] = 'Unknown User'
+                
+                warranties_list.append(warranty_dict)
+                
+            return jsonify(warranties_list)
+    except Exception as e:
+        logger.error(f"Error retrieving global warranties: {e}")
+        return jsonify({"error": "Failed to retrieve global warranties"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
 # Register Blueprints
-from backend.oidc_handler import oidc_bp
+try:
+    # Try Docker environment path first
+    from backend.oidc_handler import oidc_bp
+except ImportError:
+    # Fallback to development path
+    from oidc_handler import oidc_bp
+
 app.register_blueprint(oidc_bp, url_prefix='/api')
 
-# SCHEDULER SETUP
-if should_run_scheduler():
-    scheduler = BackgroundScheduler(daemon=True)
-    # Schedule the job to run daily at a specific time (e.g., 2 AM server time)
-    # The actual notification time for users will be based on their preference + timezone.
-    scheduler.add_job(send_expiration_notifications, 'cron', hour=2, minute=0)
-    scheduler.start()
-    logger.info("Background scheduler started for expiration notifications.")
-    # Ensure the scheduler shuts down when the app exits
-    atexit.register(lambda: scheduler.shutdown())
-else:
-    logger.info("Scheduler not started. API calls will be needed to trigger notifications.")
-
-
-if __name__ == '__main__':
-    # Call init_db to ensure tables are created before app starts in standalone mode.
-    # In production with Gunicorn/multiple workers, this should ideally be handled by a startup script/migration tool.
-    # For simplicity in development or single-worker setups, it's here.
-    logger.info("Running in __main__, attempting to initialize database...")
-    try:
-        init_db() # Initialize the DB schema if needed
-    except Exception as e:
-        logger.error(f"Error during init_db() in __main__: {e}. Continuing without guaranteed DB init.")
-
-    app.run(host='0.0.0.0', port=int(os.environ.get("FLASK_RUN_PORT", 5000)), debug=os.environ.get("FLASK_DEBUG", "true").lower() == "true")
+# Note: Scheduler is already set up earlier in the file with 2-minute intervals
+# The main scheduler setup is around line 3642-3655 with precise user-timezone timing
+# This duplicate scheduler setup has been removed to prevent conflicts

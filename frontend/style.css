@@ -655,6 +655,7 @@ input.invalid {
   padding: 15px;
   background-color: rgba(0, 0, 0, 0.03);
   border-bottom: 1px solid var(--border-color);
+  position: relative;
 }
 
 .warranty-title {
@@ -2278,6 +2279,102 @@ input.invalid {
   color: white;
 }
 
+/* Admin View Switcher - reuse the same styling pattern */
+.admin-view-switcher {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 120px;
+  margin-left: 15px; /* Add some spacing from the regular view switcher */
+}
+
+.admin-view-switcher .view-buttons {
+  display: flex;
+  border: 1px solid var(--primary-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.admin-view-switcher .view-btn {
+  background-color: var(--bg-color);
+  border: none;
+  color: var(--primary-color);
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+}
+
+.admin-view-switcher .view-btn:not(:last-child) {
+  border-right: 1px solid var(--primary-color);
+}
+
+.admin-view-switcher .view-btn:hover {
+  background-color: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-dark);
+}
+
+.admin-view-switcher .view-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+/* View-only placeholder for non-owned warranties in global view */
+.action-btn-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: transparent;
+  color: #666;
+  cursor: default;
+  opacity: 0.5;
+}
+
+.action-btn-placeholder:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .action-btn-placeholder {
+  border-color: #555;
+  color: #999;
+}
+
+[data-theme="dark"] .action-btn-placeholder:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* User info styling for global view */
+.warranty-info div:has(strong:contains("Owner")) {
+  background-color: rgba(var(--primary-rgb), 0.1);
+  border-left: 3px solid var(--primary-color);
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Alternative approach for better browser support */
+.warranty-info div strong:contains("Owner") {
+  color: var(--primary-color);
+}
+
+.warranty-info div:first-child:has(strong) {
+  background-color: rgba(var(--primary-rgb), 0.1);
+  border-left: 3px solid var(--primary-color);
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
 /* Grid View (Default) */
 .warranties-list.grid-view {
   display: grid;
@@ -2525,6 +2622,12 @@ input.invalid {
     width: 100%;
   }
   
+  .admin-view-switcher {
+    margin-left: 0;
+    margin-top: 10px;
+    width: 100%;
+  }
+  
   /* Convert table view to card-like view on mobile */
   .warranties-list.table-view {
     display: block;
@@ -2698,6 +2801,7 @@ input.invalid {
   display: flex;
   padding: 15px;
   flex: 1;
+  position: relative;
 }
 
 .warranty-info {
@@ -3787,5 +3891,95 @@ html.dark-mode .warracker-footer a:hover {
         margin-top: 30px;
         padding: 15px;
         font-size: 0.85rem;
+    }
+}
+
+/* ===== PRODUCT PHOTO STYLES ===== */
+.product-photo-thumbnail {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.product-photo-thumbnail img {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    object-fit: cover;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-photo-thumbnail img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.product-photo-thumbnail a {
+    display: block;
+    text-decoration: none;
+}
+
+.product-photo-thumbnail a:hover {
+    text-decoration: none;
+}
+
+.photo-preview {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.photo-preview img {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Grid view photo positioning */
+.grid-view .product-photo-thumbnail img {
+    width: 60px;
+    height: 60px;
+}
+
+/* List view photo positioning */
+.list-view .product-photo-thumbnail img {
+    width: 50px;
+    height: 50px;
+}
+
+/* Table view photo positioning */
+.table-view .product-photo-thumbnail img {
+    width: 40px;
+    height: 40px;
+}
+
+/* Dark mode adjustments */
+:root[data-theme="dark"] .product-photo-thumbnail img {
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .photo-preview img {
+    border-color: var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .grid-view .product-photo-thumbnail img,
+    .list-view .product-photo-thumbnail img {
+        width: 45px;
+        height: 45px;
+    }
+    
+    .table-view .product-photo-thumbnail img {
+        width: 35px;
+        height: 35px;
+    }
+    
+    .product-photo-thumbnail {
+        top: 6px;
+        right: 6px;
     }
 }

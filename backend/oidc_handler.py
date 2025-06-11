@@ -5,9 +5,16 @@ from datetime import datetime # Ensure timedelta is imported if used, though not
 from flask import Blueprint, jsonify, redirect, url_for, current_app, request, session
 
 # Import shared extensions and utilities
-from backend.extensions import oauth 
-from backend.db_handler import get_db_connection, release_db_connection
-from backend.auth_utils import generate_token
+try:
+    # Try relative imports (when modules are in same directory)
+    from .extensions import oauth 
+    from .db_handler import get_db_connection, release_db_connection
+    from .auth_utils import generate_token
+except ImportError:
+    # Fallback to direct imports
+    from extensions import oauth 
+    from db_handler import get_db_connection, release_db_connection
+    from auth_utils import generate_token
 
 import logging
 logger = logging.getLogger(__name__) # Or use current_app.logger inside routes

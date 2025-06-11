@@ -17,17 +17,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
     <!-- Load the main site styles first -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20250529005">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Then load settings-specific styles -->
-    <link rel="stylesheet" href="settings-styles.css">
+    <link rel="stylesheet" href="settings-styles.css?v=20250529005">
     <!-- Apply theme immediately -->
     <script src="theme-loader.js"></script> 
     <!-- Load header fix styles last to override any conflicting styles -->
-    <link rel="stylesheet" href="header-fix.css">
+    <link rel="stylesheet" href="header-fix.css?v=20250529005">
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css">
+    <link rel="stylesheet" href="mobile-header.css?v=20250529005">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
     
@@ -143,11 +143,12 @@
             <h2>Settings</h2>
             
             <!-- Account Settings -->
-            <div class="card">
-                <div class="card-header">
+            <div class="card collapsible-card">
+                <div class="card-header collapsible-header" data-target="accountSettingsContent">
                     <h3>Account Settings</h3>
+                    <i class="fas fa-chevron-down collapse-icon"></i>
                 </div>
-                <div class="card-body">
+                <div class="card-body collapsible-content" id="accountSettingsContent">
                     <div id="currentUserInfoDisplay" class="current-user-info" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color);">
                         <p style="margin: 0; font-size: 1.1rem;"><strong>Editing Profile for:</strong> <span id="currentUserNameDisplay" style="font-weight: normal;">Loading...</span></p>
                         <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: var(--text-muted);">Your email: <span id="currentUserEmailDisplay">Loading...</span></p>
@@ -174,11 +175,12 @@
             </div>
             
             <!-- Preferences -->
-            <div class="card">
-                <div class="card-header">
+            <div class="card collapsible-card">
+                <div class="card-header collapsible-header" data-target="preferencesContent">
                     <h3>Preferences</h3>
+                    <i class="fas fa-chevron-down collapse-icon"></i>
                 </div>
-                <div class="card-body">
+                <div class="card-body collapsible-content" id="preferencesContent">
                     <form id="preferencesForm">
                         <div class="form-group">
                             <div class="preference-item">
@@ -261,62 +263,68 @@
                 </div>
             </div>
 
-            <!-- Email Settings -->
-            <div class="card">
-                <div class="card-header">
-                    <h3>Email Settings</h3>
+            <!-- Notification Settings -->
+            <div class="card collapsible-card">
+                <div class="card-header collapsible-header" data-target="notificationSettingsContent">
+                    <h3>Notification Settings</h3>
+                    <i class="fas fa-chevron-down collapse-icon"></i>
                 </div>
-                <div class="card-body">
-                    <form id="emailPreferencesForm"> <!-- Consider if a separate form/save button is needed, or if settings.js handles this -->
+                <div class="card-body collapsible-content" id="notificationSettingsContent">
+                    <form id="notificationPreferencesForm">
                         <div class="form-group">
                             <div class="preference-item">
                                 <div>
-                                    <label>Email Notifications</label>
-                                    <p class="text-muted">Receive email alerts for warranty expirations</p>
+                                    <label>Notification Channel</label>
+                                    <p class="text-muted">Choose how you want to receive notifications.</p>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="emailNotifications">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <div class="preference-item">
-                                <div>
-                                    <label>Notification Frequency</label>
-                                    <p class="text-muted">How often to receive email notifications</p>
-                                </div>
-                                <select id="notificationFrequency" class="form-control">
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly">Weekly</option>
-                                    <option value="monthly">Monthly</option>
+                                <select id="notificationChannel" class="form-control">
+                                    <option value="none">Disabled</option>
+                                    <option value="email">Email</option>
+                                    <option value="apprise">Apprise</option>
+                                    <option value="both">Both</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="form-group">
-                            <div class="preference-item">
-                                <div>
-                                    <label>Notification Time</label>
-                                    <p class="text-muted">Time of day to receive notifications (in 24-hour format)</p>
+                        <div id="emailSettingsContainer" style="display: none;">
+                            <h4>Email Settings</h4>
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Notification Frequency</label>
+                                        <p class="text-muted">How often to receive email notifications</p>
+                                    </div>
+                                    <select id="notificationFrequency" class="form-control">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
                                 </div>
-                                <input type="time" id="notificationTime" class="form-control" value="09:00">
                             </div>
-                        </div>
 
-                        <div class="form-group">
-                            <div class="preference-item">
-                                <div>
-                                    <label>Timezone</label>
-                                    <p class="text-muted">Your local timezone for notifications</p>
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Notification Time</label>
+                                        <p class="text-muted">Time of day to receive notifications (in 24-hour format)</p>
+                                    </div>
+                                    <input type="time" id="notificationTime" class="form-control" value="09:00">
                                 </div>
-                                <select id="timezone" class="form-control">
-                                    <option value="">Loading timezones...</option>
-                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Timezone</label>
+                                        <p class="text-muted">Your local timezone for notifications</p>
+                                    </div>
+                                    <select id="timezone" class="form-control">
+                                        <option value="">Loading timezones...</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
-                        <button type="button" id="saveEmailSettingsBtn" class="btn btn-primary">Save Email Settings</button>
+                        <button type="button" id="saveNotificationSettingsBtn" class="btn btn-primary">Save Notification Settings</button>
                     </form>
                 </div>
             </div>
@@ -406,16 +414,21 @@
                                 <i class="fas fa-envelope"></i>
                                 <span>Send Warranty Notifications</span>
                             </button>
+                            <button id="schedulerStatusBtn" class="admin-action-btn">
+                                <i class="fas fa-clock"></i>
+                                <span>Check Scheduler Status</span>
+                            </button>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Site Settings -->
-                <div class="card">
-                    <div class="card-header">
+                <div class="card collapsible-card">
+                    <div class="card-header collapsible-header" data-target="siteSettingsContent">
                         <h3>Site Settings</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body collapsible-content" id="siteSettingsContent">
                         <form id="siteSettingsForm">
                             <div class="form-group">
                                 <div class="preference-item">
@@ -440,6 +453,34 @@
                                     <input type="text" id="emailBaseUrl" class="form-control" placeholder="http://localhost:8080">
                                 </div>
                            </div>
+
+                            <!-- Global View Setting -->
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Global View Enabled</label>
+                                        <p class="text-muted">Allow users to view all warranties from all users (read-only for non-owners)</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="globalViewEnabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Global View Admin Only Setting -->
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Global View Admin Only</label>
+                                        <p class="text-muted">Restrict global view access to administrators only (requires Global View to be enabled)</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="globalViewAdminOnly">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
                             
                             <button type="button" id="saveSiteSettingsBtn" class="btn btn-primary">Save Site Settings</button>
                         </form>
@@ -447,11 +488,12 @@
                 </div>
 
                 <!-- OIDC SSO Configuration Card -->
-                <div class="card">
-                    <div class="card-header">
+                <div class="card collapsible-card">
+                    <div class="card-header collapsible-header" data-target="oidcSettingsContent">
                         <h3>OIDC SSO Configuration</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body collapsible-content" id="oidcSettingsContent">
                         <form id="oidcSettingsForm">
                             <div class="form-group">
                                 <div class="preference-item">
@@ -497,6 +539,145 @@
                             
                             <button type="button" id="saveOidcSettingsBtn" class="btn btn-primary">Save OIDC Settings</button>
                             <p id="oidcRestartMessage" class="text-muted" style="margin-top: 10px; display: none;">Application restart is required for OIDC settings to take full effect.</p>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Apprise Notifications Configuration Card -->
+                <div class="card collapsible-card">
+                    <div class="card-header collapsible-header" data-target="appriseNotificationsContent">
+                        <h3>Apprise Notifications <span class="badge" id="appriseStatusBadge">Loading...</span></h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="card-body collapsible-content" id="appriseNotificationsContent">
+                        <div id="appriseNotAvailable" class="alert alert-warning" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>Apprise Not Available:</strong> The Apprise notification library is not installed or available. Notification features are disabled.
+                        </div>
+                        
+                        <form id="appriseSettingsForm">
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Enable Apprise Notifications</label>
+                                        <p class="text-muted">Enable or disable Apprise notifications system-wide</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="appriseEnabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="appriseSettingsContainer" style="display: none;">
+                                <h4>Apprise Settings</h4>
+                                <div class="form-group">
+                                    <label for="appriseUrls">Notification URLs</label>
+                                <textarea id="appriseUrls" class="form-control" rows="4" placeholder="Enter Apprise notification URLs, one per line or comma-separated:&#10;&#10;mailto://user:password@gmail.com&#10;discord://webhook_id/webhook_token&#10;slack://TokenA/TokenB/TokenC/Channel&#10;telegram://BotToken/ChatID"></textarea>
+                                <small class="text-muted">
+                                    Configure notification services using Apprise URL format. 
+                                    <a href="https://github.com/caronc/apprise/wiki" target="_blank" rel="noopener">View supported services and URL formats</a>
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appriseExpirationDays">Notification Days</label>
+                                <input type="text" id="appriseExpirationDays" class="form-control" placeholder="7,30" value="7,30">
+                                <small class="text-muted">Days before expiration to send notifications (comma-separated, e.g., "7,30" for 7 days and 30 days before)</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appriseNotificationTime">Notification Time</label>
+                                <input type="time" id="appriseNotificationTime" class="form-control" value="09:00">
+                                <small class="text-muted">
+                                    Time of day to send notifications (24-hour format)
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Timezone</label>
+                                        <p class="text-muted">Your local timezone for Apprise notifications</p>
+                                    </div>
+                                    <select id="appriseTimezone" class="form-control">
+                                        <option value="">Loading timezones...</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Notification Frequency</label>
+                                        <p class="text-muted">How often to receive email notifications</p>
+                                    </div>
+                                    <select id="appriseNotificationFrequency" class="form-control">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appriseTitlePrefix">Message Title Prefix</label>
+                                <input type="text" id="appriseTitlePrefix" class="form-control" placeholder="[Warracker]" value="[Warracker]">
+                                <small class="text-muted">Prefix added to notification titles (e.g., "[Warracker]" results in "[Warracker] Warranties Expiring Soon")</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="appriseTestUrl">Test URL (Optional)</label>
+                                <input type="text" id="appriseTestUrl" class="form-control" placeholder="mailto://test@example.com or discord://webhook_id/webhook_token">
+                                <small class="text-muted">Optional: URL for sending test notifications only (won't be saved to main configuration)</small>
+                            </div>
+                            
+                            <div class="apprise-actions" style="margin-top: 20px;">
+                                <button type="button" id="saveAppriseSettingsBtn" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Apprise Settings
+                                </button>
+                                <button type="button" id="testAppriseBtn" class="btn btn-secondary">
+                                    <i class="fas fa-paper-plane"></i> Send Test Notification
+                                </button>
+                                <button type="button" id="validateAppriseUrlBtn" class="btn btn-info">
+                                    <i class="fas fa-check-circle"></i> Validate URLs
+                                </button>
+                                <button type="button" id="triggerAppriseNotificationsBtn" class="btn btn-warning">
+                                    <i class="fas fa-bell"></i> Send Expiration Notifications Now
+                                </button>
+                            </div>
+
+                            <div id="appriseCurrentStatus" class="mt-3" style="margin-top: 15px;">
+                                <h4>Current Status</h4>
+                                <div class="status-grid">
+                                    <div class="status-item">
+                                        <span class="status-label">URLs Configured:</span>
+                                        <span id="appriseUrlsCount" class="status-value">0</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">Notification Days:</span>
+                                        <span id="currentAppriseExpirationDays" class="status-value">-</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">Notification Time:</span>
+                                        <span id="currentAppriseNotificationTime" class="status-value">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="appriseSupportedServices" class="mt-3" style="margin-top: 15px;">
+                                <h4>Supported Services</h4>
+                                <div class="services-info">
+                                    <p class="text-muted">
+                                        Apprise supports 80+ notification services including:
+                                        Discord, Slack, Telegram, Email (Gmail, Outlook), Webhooks, Microsoft Teams, 
+                                        Matrix, Pushover, Ntfy, Gotify, and many more.
+                                    </p>
+                                    <button type="button" id="viewSupportedServicesBtn" class="btn btn-link">
+                                        <i class="fas fa-external-link-alt"></i> View Full List of Supported Services
+                                    </button>
+                                </div>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -662,7 +843,7 @@
             </div>
         </div>
     </div>
-
+    
     <!-- Loading Container -->
     <div id="loadingContainer" class="loading-container">
         <div class="spinner"></div>
@@ -672,36 +853,19 @@
     <div id="toastContainer" class="toast-container"></div>
     
     <!-- Scripts -->
-    <script src="auth.js?v=4"></script>
-    <script src="settings-new.js?v=20250529001"></script>
+    <script src="auth.js?v=20250529005"></script>
+    <script src="settings-new.js?v=20250529005"></script>
+    
+    <!-- Footer Width Fix -->
+    <script src="footer-fix.js"></script>
+    
+    <!-- Footer Content Manager -->
+    <script src="footer-content.js"></script>
 
-    <!-- Powered by Warracker Footer -->
-    <footer class="warracker-footer" id="warrackerFooter">
-        <p>Powered by <a href="https://warracker.com" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
-    </footer>
-
-    <script>
-        function applyFooterStyles() {
-            const footer = document.getElementById('warrackerFooter');
-            const link = document.getElementById('warrackerFooterLink');
-            const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.classList.contains('dark-mode') || document.body.classList.contains('dark-mode');
-            if (footer) {
-                if (isDarkMode) {
-                    // Dark mode styles - using same background as header (#2d2d2d)
-                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #444; background-color: #2d2d2d; color: #e0e0e0; font-size: 0.9rem;';
-                    if (link) link.style.cssText = 'color: #4dabf7; text-decoration: none; font-weight: 500;';
-                } else {
-                    // Light mode styles - using same background as header (#ffffff)
-                    footer.style.cssText = 'margin-top: 50px; padding: 20px; text-align: center; border-top: 1px solid #e0e0e0; background-color: #ffffff; color: #333333; font-size: 0.9rem;';
-                    if (link) link.style.cssText = 'color: #3498db; text-decoration: none; font-weight: 500;';
-                }
-            }
-        }
-        document.addEventListener('DOMContentLoaded', applyFooterStyles);
-        const obs = new MutationObserver(applyFooterStyles);
-        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
-        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    </script>
+<!-- Powered by Warracker Footer -->
+<footer class="warracker-footer" id="warrackerFooter">
+    <!-- Content will be dynamically generated by footer-content.js -->
+</footer>
 
 </body>
 </html>

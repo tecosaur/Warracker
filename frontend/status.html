@@ -19,17 +19,18 @@
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20250529005">
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
-    <link rel="stylesheet" href="header-fix.css">
+    <link rel="stylesheet" href="header-fix.css?v=20250529005">
     <!-- Chart.js for visualizations -->
     <script src="chart.js"></script>
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
-    <script src="script.js" defer></script> <!-- Added script.js -->
+    <script src="script.js?v=20250529005" defer></script> <!-- Added script.js -->
+    <script src="status.js" defer></script> <!-- Status page specific functionality -->
     <style>
         .user-menu {
             position: relative;
@@ -160,6 +161,87 @@
                 display: none;
             }
         }
+
+        /* Dashboard header styles */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .dashboard-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* View switcher styles */
+        .view-switcher {
+            display: flex;
+            align-items: center;
+        }
+
+        .toggle-group {
+            display: flex;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-color);
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .toggle-btn:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .toggle-btn.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .toggle-btn.active:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .toggle-btn i {
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+
+            .dashboard-controls {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .toggle-btn {
+                min-width: 80px;
+                padding: 6px 12px;
+                font-size: 0.8rem;
+            }
+        }
     </style>
 
     <!-- Immediate authentication check script -->
@@ -272,10 +354,23 @@
     <div class="container">
         <div class="status-content">
             <div class="dashboard-header">
-                <h2>Warranty Status Dashboard</h2>
-                <button id="refreshDashboardBtn" class="refresh-btn" title="Refresh dashboard">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+                <h2 id="dashboardTitle">Warranty Status Dashboard</h2>
+                <div class="dashboard-controls">
+                    <!-- Global View Controls (hidden by default, shown for eligible users) -->
+                    <div id="viewSwitcher" class="view-switcher" style="display: none;">
+                        <div class="toggle-group">
+                            <button id="personalViewBtn" class="toggle-btn active">
+                                <i class="fas fa-user"></i>
+                            </button>
+                            <button id="globalViewBtn" class="toggle-btn">
+                                <i class="fas fa-globe"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button id="refreshDashboardBtn" class="refresh-btn" title="Refresh dashboard">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
             </div>
             
             <!-- Loading Indicator -->
@@ -378,11 +473,12 @@
                     <div class="table-responsive">
                         <table id="recentExpirationsTable">
                             <thead>
-                                <tr>
+                                <tr id="tableHeader">
                                     <th class="sortable" data-sort="product">Product <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="purchase">Purchase Date <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="expiration">Expiration Date <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
+                                    <th id="ownerHeader" class="sortable" data-sort="owner" style="display: none;">Owner <i class="fas fa-sort"></i></th>
                                 </tr>
                             </thead>
                             <tbody id="recentExpirationsBody">
@@ -508,6 +604,26 @@
                         </div>
                         
                         <div class="form-group">
+                            <label for="editWarrantyType">Warranty Type (Optional)</label>
+                            <select id="editWarrantyType" name="warranty_type" class="form-control">
+                                <option value="">Select warranty type...</option>
+                                <option value="Standard">Standard</option>
+                                <option value="Extended">Extended</option>
+                                <option value="Manufacturer">Manufacturer</option>
+                                <option value="Third Party">Third Party</option>
+                                <option value="Store">Store</option>
+                                <option value="Premium">Premium</option>
+                                <option value="Limited">Limited</option>
+                                <option value="Full">Full</option>
+                                <option value="Parts Only">Parts Only</option>
+                                <option value="Labor Only">Labor Only</option>
+                                <option value="International">International</option>
+                                <option value="Accidental Damage">Accidental Damage</option>
+                                <option value="other">Other (Custom)</option>
+                            </select>
+                            <input type="text" id="editWarrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
+                        </div>
+                        <div class="form-group">
                             <label for="editPurchasePrice">Purchase Price (Optional)</label>
                             <div class="price-input-wrapper">
                                 <span class="currency-symbol">$</span>
@@ -522,6 +638,21 @@
                     
                     <!-- Documents Tab -->
                     <div class="edit-tab-content" id="edit-documents">
+                        <div class="form-group">
+                            <label>Product Photo (Optional)</label>
+                            <div class="file-input-wrapper">
+                                <label for="editProductPhoto" class="file-input-label">
+                                    <i class="fas fa-upload"></i> Choose Photo
+                                </label>
+                                <input type="file" id="editProductPhoto" name="product_photo" class="file-input" accept=".png,.jpg,.jpeg,.webp">
+                            </div>
+                            <div id="editProductPhotoFileName" class="file-name"></div>
+                            <div id="editProductPhotoPreview" class="photo-preview" style="display: none;">
+                                <img id="editProductPhotoImg" src="" alt="Product Photo Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 10px;">
+                            </div>
+                            <div id="currentProductPhoto" class="mt-10"></div>
+                            <button type="button" id="deleteProductPhotoBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Photo</button>
+                        </div>
                         <div class="form-group">
                             <label>Invoice/Receipt</label>
                             <div class="file-input-wrapper">
@@ -643,12 +774,18 @@
         <div class="loading-spinner"></div>
     </div>
 
-    <script src="auth.js"></script>
+    <script src="auth.js?v=20250529005"></script>
     <script src="status.js" defer></script>
+
+    <!-- Footer Width Fix -->
+    <script src="footer-fix.js"></script>
+    
+    <!-- Footer Content Manager -->
+    <script src="footer-content.js"></script>
 
     <!-- Powered by Warracker Footer -->
     <footer class="warracker-footer" id="warrackerFooter">
-        <p>Powered by <a href="https://warracker.com" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+        <!-- Content will be dynamically generated by footer-content.js -->
     </footer>
 
     <script>

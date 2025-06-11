@@ -22,17 +22,17 @@
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20250529005">
     <script src="theme-loader.js"></script> <!-- Apply theme early -->
 
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
-    <link rel="stylesheet" href="header-fix.css">
+    <link rel="stylesheet" href="header-fix.css?v=20250529005">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css">
+    <link rel="stylesheet" href="mobile-header.css?v=20250529005">
 
     <!-- Immediate authentication check script -->
     <script>
@@ -151,7 +151,7 @@
             <div class="warranties-panel">
                 <!-- Panel Header -->
                 <div class="panel-header">
-                    <h2>Your Warranties</h2>
+                    <h2 id="warrantiesPanelTitle">Your Warranties</h2>
                     <!-- ADD BUTTON CONTAINER AND REFRESH BUTTON WRAPPER HERE -->
                     <div class="panel-header-actions">
                         <div class="add-warranty-button-container">
@@ -219,12 +219,21 @@
                         </div>
                         
                         <div class="filter-group">
+                            <label class="filter-label">Warranty Type</label>
+                            <select id="warrantyTypeFilter" class="filter-select">
+                                <option value="all">All Types</option>
+                                <!-- Warranty type options will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
                             <label class="filter-label">Sort By</label>
                             <select id="sortBy" class="filter-select">
                                 <option value="expiration">Expiration Date</option>
                                 <option value="purchase">Purchase Date</option>
                                 <option value="name">Product Name</option>
                                 <option value="vendor">Vendor</option>
+                                <option value="warranty_type">Warranty Type</option>
                             </select>
                         </div>
                         
@@ -239,6 +248,19 @@
                                 </button>
                                 <button id="tableViewBtn" class="view-btn" title="Table View">
                                     <i class="fas fa-table"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Scope View Toggle -->
+                        <div class="admin-view-switcher" id="adminViewSwitcher" style="display: none;">
+                            <label class="filter-label">Scope</label>
+                            <div class="view-buttons">
+                                <button id="personalViewBtn" class="view-btn active" title="View your warranties only">
+                                    <i class="fas fa-user"></i>
+                                </button>
+                                <button id="globalViewBtn" class="view-btn" title="View all users' warranties (read-only for others)">
+                                    <i class="fas fa-globe"></i>
                                 </button>
                             </div>
                         </div>
@@ -379,6 +401,26 @@
                                     </div>
                                     
                                     <div class="form-group">
+                                        <label for="warrantyType">Warranty Type (Optional)</label>
+                                        <select id="warrantyType" name="warranty_type" class="form-control">
+                                            <option value="">Select warranty type...</option>
+                                            <option value="Standard">Standard</option>
+                                            <option value="Extended">Extended</option>
+                                            <option value="Manufacturer">Manufacturer</option>
+                                            <option value="Third Party">Third Party</option>
+                                            <option value="Store">Store</option>
+                                            <option value="Premium">Premium</option>
+                                            <option value="Limited">Limited</option>
+                                            <option value="Full">Full</option>
+                                            <option value="Parts Only">Parts Only</option>
+                                            <option value="Labor Only">Labor Only</option>
+                                            <option value="International">International</option>
+                                            <option value="Accidental Damage">Accidental Damage</option>
+                                            <option value="other">Other (Custom)</option>
+                                        </select>
+                                        <input type="text" id="warrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
+                                    </div>
+                                    <div class="form-group">
                                         <label for="purchasePrice">Purchase Price (Optional)</label>
                                         <div class="price-input-wrapper">
                                             <span class="currency-symbol">$</span>
@@ -392,6 +434,20 @@
                                 </div>
                                 <!-- Documents Tab -->
                                 <div class="tab-content" id="documents">
+                                    <div class="form-group">
+                                        <label>Product Photo (Optional)</label>
+                                        <div class="file-input-wrapper">
+                                            <label for="productPhoto" class="file-input-label">
+                                                <i class="fas fa-camera"></i> Choose Photo
+                                            </label>
+                                            <input type="file" id="productPhoto" name="product_photo" class="file-input" accept=".png,.jpg,.jpeg,.webp">
+                                        </div>
+                                        <div id="productPhotoFileName" class="file-name"></div>
+                                        <div id="productPhotoPreview" class="photo-preview" style="display: none;">
+                                            <img id="productPhotoImg" src="" alt="Product Photo Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 10px;">
+                                        </div>
+                                    </div>
+                                    
                                     <div class="form-group">
                                         <label>Invoice/Receipt</label>
                                         <div class="file-input-wrapper">
@@ -483,12 +539,20 @@
                                                 <span id="summary-warranty-duration" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
+                                                <span class="summary-label">Warranty Type:</span>
+                                                <span id="summary-warranty-type" class="summary-value">-</span>
+                                            </div>
+                                            <div class="summary-item">
                                                 <span class="summary-label">Purchase Price:</span>
                                                 <span id="summary-purchase-price" class="summary-value">-</span>
                                             </div>
                                         </div>
                                         <div class="summary-section">
                                             <h4><i class="fas fa-file-alt"></i> Documents</h4>
+                                            <div class="summary-item">
+                                                <span class="summary-label">Product Photo:</span>
+                                                <span id="summary-product-photo" class="summary-value">-</span>
+                                            </div>
                                             <div class="summary-item">
                                                 <span class="summary-label">Invoice/Receipt:</span>
                                                 <span id="summary-invoice" class="summary-value">-</span>
@@ -645,6 +709,26 @@
                         </div>
                         
                         <div class="form-group">
+                            <label for="editWarrantyType">Warranty Type (Optional)</label>
+                            <select id="editWarrantyType" name="warranty_type" class="form-control">
+                                <option value="">Select warranty type...</option>
+                                <option value="Standard">Standard</option>
+                                <option value="Extended">Extended</option>
+                                <option value="Manufacturer">Manufacturer</option>
+                                <option value="Third Party">Third Party</option>
+                                <option value="Store">Store</option>
+                                <option value="Premium">Premium</option>
+                                <option value="Limited">Limited</option>
+                                <option value="Full">Full</option>
+                                <option value="Parts Only">Parts Only</option>
+                                <option value="Labor Only">Labor Only</option>
+                                <option value="International">International</option>
+                                <option value="Accidental Damage">Accidental Damage</option>
+                                <option value="other">Other (Custom)</option>
+                            </select>
+                            <input type="text" id="editWarrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
+                        </div>
+                        <div class="form-group">
                             <label for="editPurchasePrice">Purchase Price (Optional)</label>
                             <div class="price-input-wrapper">
                                 <span class="currency-symbol">$</span>
@@ -660,6 +744,22 @@
                     <!-- Documents Tab -->
                     <div class="edit-tab-content" id="edit-documents">
                         <div class="form-group">
+                            <label>Product Photo (Optional)</label>
+                            <div class="file-input-wrapper">
+                                <label for="editProductPhoto" class="file-input-label">
+                                    <i class="fas fa-camera"></i> Choose Photo
+                                </label>
+                                <input type="file" id="editProductPhoto" name="product_photo" class="file-input" accept=".png,.jpg,.jpeg,.webp">
+                            </div>
+                            <div id="editProductPhotoFileName" class="file-name"></div>
+                            <div id="editProductPhotoPreview" class="photo-preview" style="display: none;">
+                                <img id="editProductPhotoImg" src="" alt="Product Photo Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 10px;">
+                            </div>
+                            <div id="currentProductPhoto" class="mt-10"></div>
+                            <button type="button" id="deleteProductPhotoBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Photo</button>
+                        </div>
+                        
+                        <div class="form-group">
                             <label>Invoice/Receipt</label>
                             <div class="file-input-wrapper">
                                 <label for="editInvoice" class="file-input-label">
@@ -671,6 +771,7 @@
                             <div id="currentInvoice" class="mt-10"></div>
                             <button type="button" id="deleteInvoiceBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Invoice</button>
                         </div>
+                        
                         <div class="form-group">
                             <label>Product Manual (Optional)</label>
                             <div class="file-input-wrapper">
@@ -784,11 +885,17 @@
     </div>
     
     <script src="auth.js"></script>
-    <script src="script.js?v=20250529004"></script>
+    <script src="script.js?v=20250529005"></script>
+
+    <!-- Footer Width Fix -->
+    <script src="footer-fix.js"></script>
+    
+    <!-- Footer Content Manager -->
+    <script src="footer-content.js"></script>
 
     <!-- Powered by Warracker Footer -->
     <footer class="warracker-footer" id="warrackerFooter">
-        <p>Powered by <a href="https://warracker.com" target="_blank" rel="noopener noreferrer" id="warrackerFooterLink">Warracker</a></p>
+        <!-- Content will be dynamically generated by footer-content.js -->
     </footer>
 
     <script>

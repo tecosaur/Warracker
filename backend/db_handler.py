@@ -4,6 +4,8 @@ import psycopg2
 from psycopg2 import pool
 import logging
 import time
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -88,4 +90,160 @@ def release_db_connection(conn):
             try:
                 conn.close()
             except Exception as e:
-                logger.error(f"[DB_HANDLER] Error closing connection directly (pool was None): {e}") 
+                logger.error(f"[DB_HANDLER] Error closing connection directly (pool was None): {e}")
+
+def get_site_setting(setting_name: str, default_value: str = '') -> str:
+    """Get a site setting value from the database"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT value FROM site_settings WHERE key = %s",
+            (setting_name,)
+        )
+        result = cursor.fetchone()
+        cursor.close()
+        
+        if result:
+            return result[0] if result[0] is not None else default_value
+        return default_value
+        
+    except Exception as e:
+        logger.error(f"Error getting site setting {setting_name}: {e}")
+        return default_value
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+def get_expiring_warranties(days: int) -> List[Dict]:
+    """Get warranties expiring within the specified number of days"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Calculate the date range
+        today = datetime.now().date()
+        end_date = today + timedelta(days=days)
+        
+        # Query for non-lifetime warranties expiring within the specified days
+        # Include warranties expiring from today up to the target date
+        cursor.execute("""
+            SELECT 
+                id, product_name, expiration_date, user_id,
+                purchase_date, vendor, warranty_type, notes
+            FROM warranties 
+            WHERE is_lifetime = false 
+            AND expiration_date BETWEEN %s AND %s
+            ORDER BY user_id, expiration_date, product_name
+        """, (today, end_date))
+        
+        results = cursor.fetchall()
+        cursor.close()
+        
+        warranties = []
+        for row in results:
+            warranty = {
+                'id': row[0],
+                'product_name': row[1],
+                'expiration_date': row[2].isoformat() if row[2] else None,
+                'user_id': row[3],
+                'purchase_date': row[4].isoformat() if row[4] else None,
+                'vendor': row[5],
+                'warranty_type': row[6],
+                'notes': row[7]
+            }
+            warranties.append(warranty)
+        
+        logger.info(f"Found {len(warranties)} warranties expiring in {days} days")
+        return warranties
+        
+    except Exception as e:
+        logger.error(f"Error getting expiring warranties for {days} days: {e}")
+        return []
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+def get_all_expiring_warranties(max_days: int = 30) -> Dict[int, List[Dict]]:
+    """Get all warranties expiring within max_days, grouped by days until expiration"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        today = datetime.now().date()
+        max_date = today + timedelta(days=max_days)
+        
+        cursor.execute("""
+            SELECT 
+                id, product_name, expiration_date, user_id,
+                purchase_date, vendor, warranty_type, notes,
+                (expiration_date - %s) as days_until_expiry
+            FROM warranties 
+            WHERE is_lifetime = false 
+            AND expiration_date BETWEEN %s AND %s
+            ORDER BY expiration_date, product_name
+        """, (today, today, max_date))
+        
+        results = cursor.fetchall()
+        cursor.close()
+        
+        # Group by days until expiry
+        grouped_warranties = {}
+        for row in results:
+            days_until = row[8].days if row[8] else 0
+            
+            if days_until not in grouped_warranties:
+                grouped_warranties[days_until] = []
+            
+            warranty = {
+                'id': row[0],
+                'product_name': row[1],
+                'expiration_date': row[2].isoformat() if row[2] else None,
+                'user_id': row[3],
+                'purchase_date': row[4].isoformat() if row[4] else None,
+                'vendor': row[5],
+                'warranty_type': row[6],
+                'notes': row[7],
+                'days_until_expiry': days_until
+            }
+            grouped_warranties[days_until].append(warranty)
+        
+        return grouped_warranties
+        
+    except Exception as e:
+        logger.error(f"Error getting all expiring warranties: {e}")
+        return {}
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+def update_site_setting(setting_name: str, setting_value: str) -> bool:
+    """Update a site setting in the database"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO site_settings (key, value) 
+            VALUES (%s, %s)
+            ON CONFLICT (key) 
+            DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+        """, (setting_name, setting_value))
+        
+        conn.commit()
+        cursor.close()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error updating site setting {setting_name}: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            release_db_connection(conn) 

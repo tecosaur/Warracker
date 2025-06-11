@@ -1,9 +1,16 @@
-const CACHE_NAME = 'warracker-cache-v1';
+const CACHE_NAME = 'warracker-cache-v2';
 const urlsToCache = [
   './',
   './index.html',
-  './style.css',
-  './script.js',
+  './settings-new.html',
+  './status.html',
+  './style.css?v=20250529005',
+  './settings-styles.css?v=20250529005',
+  './header-fix.css?v=20250529005',
+  './mobile-header.css?v=20250529005',
+  './script.js?v=20250529005',
+  './auth.js?v=20250529005',
+  './settings-new.js?v=20250529005',
   './manifest.json',
   './img/favicon-16x16.png',
   './img/favicon-32x32.png',

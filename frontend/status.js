@@ -15,7 +15,9 @@
 
     // Configuration
     const STATUS_PAGE_API_BASE_URL = '/api/statistics';
+    const GLOBAL_STATUS_PAGE_API_BASE_URL = '/api/statistics/global';
     const STATISTICS_API_URL = window.location.origin + STATUS_PAGE_API_BASE_URL;
+    const GLOBAL_STATISTICS_API_URL = window.location.origin + GLOBAL_STATUS_PAGE_API_BASE_URL;
     let EXPIRING_SOON_DAYS = 30;
 
     // IIFE-local variables
@@ -26,6 +28,11 @@
     let currentStatusData = null; 
     let currentTimelineData = null; 
     let userCurrencySymbol = '$'; // Default currency symbol
+    let isGlobalView = false; // Track current view mode
+    let isViewControlsInitialized = false;
+    let isDashboardInitialized = false; // Prevent multiple initializations
+    let isDOMHandlerAttached = false; // Prevent multiple DOM handlers
+    let initDashboardPromise = null; // Track ongoing initialization
 
     function setTheme(isDark) {
         const theme = isDark ? 'dark' : 'light';
@@ -47,19 +54,25 @@
     
     function redrawChartsWithNewTheme() {
         console.log("Theme changed, redrawing charts from status.js IIFE...");
-        if (statusChart && typeof statusChart.destroy === 'function') {
-            statusChart.destroy(); 
-            statusChart = null;
-        }
-        if (timelineChart && typeof timelineChart.destroy === 'function') {
-            timelineChart.destroy(); 
-            timelineChart = null;
-        }
-        if (currentStatusData) {
-            createStatusChart(currentStatusData);
-        }
-        if (currentTimelineData) {
-            createTimelineChart(currentTimelineData);
+        try {
+            if (statusChart && typeof statusChart.destroy === 'function') {
+                statusChart.destroy(); 
+                statusChart = null;
+                console.log('Destroyed status chart for theme change');
+            }
+            if (timelineChart && typeof timelineChart.destroy === 'function') {
+                timelineChart.destroy(); 
+                timelineChart = null;
+                console.log('Destroyed timeline chart for theme change');
+            }
+            if (currentStatusData) {
+                createStatusChart(currentStatusData);
+            }
+            if (currentTimelineData) {
+                createTimelineChart(currentTimelineData);
+            }
+        } catch (e) {
+            console.error('Error redrawing charts with new theme:', e);
         }
     }
 
@@ -99,8 +112,12 @@
                 method: 'GET',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'}
             };
-            console.log('Fetching statistics from:', STATISTICS_API_URL);
-            const response = await fetch(STATISTICS_API_URL, options);
+            
+            // Choose API endpoint based on current view
+            const apiUrl = isGlobalView ? GLOBAL_STATISTICS_API_URL : STATISTICS_API_URL;
+            console.log('Fetching statistics from:', apiUrl, '(Global view:', isGlobalView, ')');
+            
+            const response = await fetch(apiUrl, options);
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to fetch statistics: ${response.status} ${errorText}`);
@@ -123,6 +140,150 @@
         setTimeout(() => { if (toast.parentElement) toast.remove(); }, 3000);
     }
 
+    // Global view functions
+    async function initViewControls() {
+        if (isViewControlsInitialized) return;
+        
+        try {
+            // Check if global view is enabled for this user
+            const token = window.auth.getToken();
+            if (!token) return;
+            
+            const response = await fetch('/api/settings/global-view-status', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.enabled) {
+                    showViewSwitcher();
+                    setupViewSwitcherListeners();
+                    isViewControlsInitialized = true;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking global view status:', error);
+            // Default to showing view switcher if error occurs (for admins)
+            if (getUserType() === 'admin') {
+                showViewSwitcher();
+                setupViewSwitcherListeners();
+                isViewControlsInitialized = true;
+            }
+        }
+    }
+
+    function getUserType() {
+        try {
+            const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+            return userInfo.is_admin ? 'admin' : 'user';
+        } catch {
+            return 'user';
+        }
+    }
+
+    function showViewSwitcher() {
+        const viewSwitcher = document.getElementById('viewSwitcher');
+        if (viewSwitcher) {
+            viewSwitcher.style.display = 'flex';
+        }
+    }
+
+    function hideViewSwitcher() {
+        const viewSwitcher = document.getElementById('viewSwitcher');
+        if (viewSwitcher) {
+            viewSwitcher.style.display = 'none';
+        }
+    }
+
+    function setupViewSwitcherListeners() {
+        const personalViewBtn = document.getElementById('personalViewBtn');
+        const globalViewBtn = document.getElementById('globalViewBtn');
+
+        if (personalViewBtn) {
+            personalViewBtn.addEventListener('click', () => switchToPersonalView());
+        }
+        if (globalViewBtn) {
+            globalViewBtn.addEventListener('click', () => switchToGlobalView());
+        }
+    }
+
+    async function switchToPersonalView() {
+        if (!isGlobalView) return; // Already in personal view
+        
+        isGlobalView = false;
+        updateViewButtons();
+        updateDashboardTitle();
+        updateTableColumns();
+        isDashboardInitialized = false; // Reset to allow refresh with new view
+        await initDashboard();
+    }
+
+    async function switchToGlobalView() {
+        if (isGlobalView) return; // Already in global view
+        
+        try {
+            // Check if global view is still available
+            const token = window.auth.getToken();
+            const response = await fetch('/api/settings/global-view-status', {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.enabled) {
+                    isGlobalView = true;
+                    updateViewButtons();
+                    updateDashboardTitle();
+                    updateTableColumns();
+                    isDashboardInitialized = false; // Reset to allow refresh with new view
+                    await initDashboard();
+                } else {
+                    showToast('Global view is not available', 'error');
+                    // Switch back to personal view if global is disabled
+                    await switchToPersonalView();
+                }
+            } else {
+                throw new Error('Failed to check global view status');
+            }
+        } catch (error) {
+            console.error('Error switching to global view:', error);
+            showToast('Unable to switch to global view', 'error');
+            // Switch back to personal view on error
+            await switchToPersonalView();
+        }
+    }
+
+    function updateViewButtons() {
+        const personalViewBtn = document.getElementById('personalViewBtn');
+        const globalViewBtn = document.getElementById('globalViewBtn');
+
+        if (personalViewBtn && globalViewBtn) {
+            if (isGlobalView) {
+                personalViewBtn.classList.remove('active');
+                globalViewBtn.classList.add('active');
+            } else {
+                personalViewBtn.classList.add('active');
+                globalViewBtn.classList.remove('active');
+            }
+        }
+    }
+
+    function updateDashboardTitle() {
+        const dashboardTitle = document.getElementById('dashboardTitle');
+        if (dashboardTitle) {
+            dashboardTitle.textContent = isGlobalView ? 'Global Warranty Status Dashboard' : 'Warranty Status Dashboard';
+        }
+    }
+
+    function updateTableColumns() {
+        const ownerHeader = document.getElementById('ownerHeader');
+        if (ownerHeader) {
+            ownerHeader.style.display = isGlobalView ? 'table-cell' : 'none';
+        }
+    }
+
     function updateSummaryCounts(statusData) {
         const totalEl = document.getElementById('totalCount');
         const activeEl = document.getElementById('activeCount');
@@ -137,26 +298,71 @@
     function createStatusChart(stats) {
         const ctxEl = document.getElementById('statusChart');
         if (!ctxEl) { console.warn("statusChart canvas not found"); return; }
+        
+        // Properly destroy existing chart
+        if (statusChart && typeof statusChart.destroy === 'function') {
+            try {
+                statusChart.destroy();
+                statusChart = null;
+                console.log('Destroyed existing status chart');
+            } catch (e) {
+                console.warn('Error destroying status chart:', e);
+                statusChart = null;
+            }
+        }
+        
+        // Additional check: Clear any Chart.js instances on this canvas
+        const chartInstance = Chart.getChart(ctxEl);
+        if (chartInstance) {
+            console.log('Found existing Chart.js instance on statusChart canvas, destroying it');
+            chartInstance.destroy();
+        }
+        
         const ctx = ctxEl.getContext('2d');
         if (!stats || typeof stats !== 'object') stats = { active: 0, expiring_soon: 0, expired: 0, total: 0 }; // Added total for safety
         const active = stats.active || 0;
         const expiringSoon = stats.expiring_soon || 0;
         const expired = stats.expired || 0;
         const trulyActive = Math.max(0, active - expiringSoon);
-        if (statusChart && typeof statusChart.destroy === 'function') statusChart.destroy();
-        statusChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Active', 'Expiring Soon', 'Expired'],
-                datasets: [{ data: [trulyActive, expiringSoon, expired], backgroundColor: ['#4CAF50', '#FF9800', '#F44336'], borderWidth: 1 }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-        });
+        
+        try {
+            statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Active', 'Expiring Soon', 'Expired'],
+                    datasets: [{ data: [trulyActive, expiringSoon, expired], backgroundColor: ['#4CAF50', '#FF9800', '#F44336'], borderWidth: 1 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
+            console.log('Created new status chart');
+        } catch (e) {
+            console.error('Error creating status chart:', e);
+        }
     }
 
     function createTimelineChart(timelineData) {
         const ctxEl = document.getElementById('timelineChart');
         if (!ctxEl) { console.warn("timelineChart canvas not found"); return; }
+        
+        // Properly destroy existing chart
+        if (timelineChart && typeof timelineChart.destroy === 'function') {
+            try {
+                timelineChart.destroy();
+                timelineChart = null;
+                console.log('Destroyed existing timeline chart');
+            } catch (e) {
+                console.warn('Error destroying timeline chart:', e);
+                timelineChart = null;
+            }
+        }
+        
+        // Additional check: Clear any Chart.js instances on this canvas
+        const chartInstance = Chart.getChart(ctxEl);
+        if (chartInstance) {
+            console.log('Found existing Chart.js instance on timelineChart canvas, destroying it');
+            chartInstance.destroy();
+        }
+        
         const ctx = ctxEl.getContext('2d');
         let labels = [];
         let counts = [];
@@ -189,15 +395,19 @@
             counts = timelineData.map(item => item.count || 0);
         }
 
-        if (timelineChart && typeof timelineChart.destroy === 'function') timelineChart.destroy();
-        timelineChart = new Chart(ctx, {
-            type: 'bar',
-            data: { 
-                labels: labels, 
-                datasets: [{ label: 'Warranties Expiring', data: counts, backgroundColor: '#3498db', borderWidth: 1 }] 
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-        });
+        try {
+            timelineChart = new Chart(ctx, {
+                type: 'bar',
+                data: { 
+                    labels: labels, 
+                    datasets: [{ label: 'Warranties Expiring', data: counts, backgroundColor: '#3498db', borderWidth: 1 }] 
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            });
+            console.log('Created new timeline chart');
+        } catch (e) {
+            console.error('Error creating timeline chart:', e);
+        }
     }
     
     function updateRecentExpirations(recentWarrantiesData) {
@@ -218,7 +428,12 @@
                 serial_numbers: warranty.serial_numbers || [],
                 notes: warranty.notes,
                 manual_path: warranty.manual_path || null,
-                other_document_path: warranty.other_document_path || null
+                other_document_path: warranty.other_document_path || null,
+                // Add user fields for global view
+                user_display_name: warranty.user_display_name,
+                username: warranty.username,
+                first_name: warranty.first_name,
+                last_name: warranty.last_name
             }));
         }
         filterAndSortWarranties(); // This will render the table
@@ -234,7 +449,8 @@
         tableBody.innerHTML = ''; 
 
         if (!allWarranties || allWarranties.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">No recently expired or expiring warranties.</td></tr>';
+            const colspan = isGlobalView ? 5 : 4;
+            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">No recently expired or expiring warranties.</td></tr>`;
             return;
         }
 
@@ -296,7 +512,8 @@
         });
 
         if (displayWarranties.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">No warranties match your search criteria.</td></tr>';
+            const colspan = isGlobalView ? 5 : 4;
+            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">No warranties match your search criteria.</td></tr>`;
             return;
         }
 
@@ -324,12 +541,21 @@
             }
             row.className = statusClass;
 
-            row.innerHTML = `
+            // Build row HTML based on current view mode
+            let rowHTML = `
                 <td title="${escapeHTML(warranty.product_name)}">${escapeHTML(warranty.product_name)}</td>
                 <td>${warranty.purchase_date ? formatDateYYYYMMDD(new Date(warranty.purchase_date)) : 'N/A'}</td>
                 <td>${warranty.is_lifetime ? 'Lifetime' : (warranty.expiration_date ? formatDateYYYYMMDD(new Date(warranty.expiration_date)) : 'N/A')}</td>
                 <td><span class="${statusClass}">${statusText}</span></td>
-            `; // Make sure escapeHTML is used on all string data from warranty
+            `;
+            
+            // Add owner column if in global view
+            if (isGlobalView) {
+                const ownerDisplay = warranty.user_display_name || warranty.username || 'Unknown User';
+                rowHTML += `<td title="${escapeHTML(ownerDisplay)}">${escapeHTML(ownerDisplay)}</td>`;
+            }
+            
+            row.innerHTML = rowHTML; // Make sure escapeHTML is used on all string data from warranty
             row.addEventListener('click', () => toggleWarrantyDetails(warranty.id, row));
         });
     }
@@ -424,7 +650,8 @@
             dHtml += '<div style="flex: 1 1 300px;"><h4>Core Information</h4>';
             dHtml += `<p><strong>Product URL:</strong> ${warrantyDetails.product_url ? `<a href="${warrantyDetails.product_url}" target="_blank" rel="noopener noreferrer">${escapeHTML(warrantyDetails.product_url)}</a>` : 'N/A'}</p>`;
             dHtml += `<p><strong>Purchase Price:</strong> ${warrantyDetails.purchase_price !== null && warrantyDetails.purchase_price !== undefined ? escapeHTML(userCurrencySymbol) + parseFloat(warrantyDetails.purchase_price).toFixed(2) : 'N/A'}</p>`;
-            dHtml += `<p><strong>Vendor:</strong> ${escapeHTML(warrantyDetails.vendor || '') || 'N/A'}</p></div>`;
+            dHtml += `<p><strong>Vendor:</strong> ${escapeHTML(warrantyDetails.vendor || '') || 'N/A'}</p>`;
+            dHtml += `<p><strong>Warranty Type:</strong> ${escapeHTML(warrantyDetails.warranty_type || '') || 'N/A'}</p></div>`;
             
             dHtml += '<div style="flex: 1 1 300px;"><h4>Documents & Files</h4>';
             if(warrantyDetails.invoice_path) dHtml += `<p><strong>Invoice:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.invoice_path)}'); return false;">View Invoice</a></p>`; else dHtml += '<p><strong>Invoice:</strong> N/A</p>';
@@ -468,6 +695,8 @@
 
     function refreshDashboard() {
         console.log("Refreshing dashboard from status.js IIFE...");
+        isDashboardInitialized = false; // Reset flag to allow refresh
+        initDashboardPromise = null; // Clear any existing promise
         if (refreshDashboardBtn) refreshDashboardBtn.classList.add('loading');
         initDashboard().finally(() => {
             if (refreshDashboardBtn) refreshDashboardBtn.classList.remove('loading');
@@ -475,115 +704,139 @@
     }
 
     async function initDashboard() {
+        // If already initialized and not being refreshed, skip
+        if (isDashboardInitialized && !initDashboardPromise) {
+            console.log('Dashboard already initialized, skipping...');
+            return;
+        }
+        
+        // If currently initializing, wait for the existing promise
+        if (initDashboardPromise) {
+            console.log('Dashboard initialization already in progress, waiting...');
+            return initDashboardPromise;
+        }
+        
         console.log('Initializing dashboard (status.js IIFE)...');
-        try {
-            showLoading();
-            await loadUserPreferences();
-            const data = await fetchStatistics();
-            hideError();
-
-            // 1. Use data.all_warranties for the main table content
-            updateRecentExpirations(data.all_warranties || []);
-
-            // 2. Construct the status_distribution object for charts and summary
-            const statusDistributionData = {
-                active: data.active || 0,
-                expiring_soon: data.expiring_soon || 0,
-                expired: data.expired || 0,
-                total: data.total || 0
-            };
-
-            if (Object.keys(statusDistributionData).length > 0 && statusDistributionData.total > 0) {
-                currentStatusData = statusDistributionData;
-                updateSummaryCounts(statusDistributionData);
-                createStatusChart(statusDistributionData);
-            } else {
-                console.warn("Status distribution data from API is incomplete or zero. Displaying empty/default chart/summary.");
-                updateSummaryCounts({});
-                createStatusChart({});
-            }
-
-            // --- BEGIN: Expiration Timeline Chart Fix ---
-            // Instead of using only API timeline, generate a comprehensive timeline from all warranties
-            let allWarrantiesForTimeline = [];
+        
+        // Create promise to track initialization
+        initDashboardPromise = (async () => {
             try {
-                // Try to fetch all warranties for a complete timeline
-                const token = window.auth && window.auth.getToken ? window.auth.getToken() : null;
-                if (token) {
-                    const allWarrantiesResponse = await fetch('/api/warranties', {
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
+                showLoading();
+                await loadUserPreferences();
+                await initViewControls(); // Initialize view controls before fetching data
+                const data = await fetchStatistics();
+                hideError();
+
+                // 1. Use data.all_warranties for the main table content
+                updateRecentExpirations(data.all_warranties || []);
+
+                // 2. Construct the status_distribution object for charts and summary
+                const statusDistributionData = {
+                    active: data.active || 0,
+                    expiring_soon: data.expiring_soon || 0,
+                    expired: data.expired || 0,
+                    total: data.total || 0
+                };
+
+                if (Object.keys(statusDistributionData).length > 0 && statusDistributionData.total > 0) {
+                    currentStatusData = statusDistributionData;
+                    updateSummaryCounts(statusDistributionData);
+                    createStatusChart(statusDistributionData);
+                } else {
+                    console.warn("Status distribution data from API is incomplete or zero. Displaying empty/default chart/summary.");
+                    updateSummaryCounts({});
+                    createStatusChart({});
+                }
+
+                // --- BEGIN: Expiration Timeline Chart Fix ---
+                // Instead of using only API timeline, generate a comprehensive timeline from all warranties
+                let allWarrantiesForTimeline = [];
+                try {
+                    // Try to fetch all warranties for a complete timeline
+                    const token = window.auth && window.auth.getToken ? window.auth.getToken() : null;
+                    if (token) {
+                        const allWarrantiesResponse = await fetch('/api/warranties', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (allWarrantiesResponse.ok) {
+                            allWarrantiesForTimeline = await allWarrantiesResponse.json();
+                        } else {
+                            console.warn('Could not fetch all warranties for timeline, falling back to data.all_warranties');
+                            allWarrantiesForTimeline = data.all_warranties || [];
                         }
-                    });
-                    if (allWarrantiesResponse.ok) {
-                        allWarrantiesForTimeline = await allWarrantiesResponse.json();
                     } else {
-                        console.warn('Could not fetch all warranties for timeline, falling back to data.all_warranties');
                         allWarrantiesForTimeline = data.all_warranties || [];
                     }
-                } else {
+                } catch (err) {
+                    console.error('Error fetching all warranties for timeline:', err);
                     allWarrantiesForTimeline = data.all_warranties || [];
                 }
-            } catch (err) {
-                console.error('Error fetching all warranties for timeline:', err);
-                allWarrantiesForTimeline = data.all_warranties || [];
-            }
 
-            // Helper: Extract timeline data from all warranties
-            function extractTimelineData(warranties) {
-                // Map: { 'YYYY-MM': count }
-                const timelineMap = {};
-                warranties.forEach(w => {
-                    if (w.is_lifetime) return; // Skip lifetime warranties
-                    if (!w.expiration_date) return;
-                    let expDate = w.expiration_date;
-                    if (typeof expDate === 'string') {
-                        // Accept both 'YYYY-MM-DD' and ISO
-                        expDate = expDate.split('T')[0];
-                        const [year, month] = expDate.split('-');
-                        if (year && month) {
+                // Helper: Extract timeline data from all warranties
+                function extractTimelineData(warranties) {
+                    // Map: { 'YYYY-MM': count }
+                    const timelineMap = {};
+                    warranties.forEach(w => {
+                        if (w.is_lifetime) return; // Skip lifetime warranties
+                        if (!w.expiration_date) return;
+                        let expDate = w.expiration_date;
+                        if (typeof expDate === 'string') {
+                            // Accept both 'YYYY-MM-DD' and ISO
+                            expDate = expDate.split('T')[0];
+                            const [year, month] = expDate.split('-');
+                            if (year && month) {
+                                const key = `${year}-${month}`;
+                                timelineMap[key] = (timelineMap[key] || 0) + 1;
+                            }
+                        } else if (expDate instanceof Date && !isNaN(expDate.getTime())) {
+                            const year = expDate.getFullYear();
+                            const month = (expDate.getMonth() + 1).toString().padStart(2, '0');
                             const key = `${year}-${month}`;
                             timelineMap[key] = (timelineMap[key] || 0) + 1;
                         }
-                    } else if (expDate instanceof Date && !isNaN(expDate.getTime())) {
-                        const year = expDate.getFullYear();
-                        const month = (expDate.getMonth() + 1).toString().padStart(2, '0');
-                        const key = `${year}-${month}`;
-                        timelineMap[key] = (timelineMap[key] || 0) + 1;
-                    }
-                });
-                // Convert to array sorted by date ascending
-                const timelineArr = Object.entries(timelineMap)
-                    .map(([key, count]) => {
-                        const [year, month] = key.split('-');
-                        return { year: parseInt(year), month: parseInt(month), count };
-                    })
-                    .sort((a, b) => (a.year !== b.year) ? a.year - b.year : a.month - b.month);
-                return timelineArr;
-            }
+                    });
+                    // Convert to array sorted by date ascending
+                    const timelineArr = Object.entries(timelineMap)
+                        .map(([key, count]) => {
+                            const [year, month] = key.split('-');
+                            return { year: parseInt(year), month: parseInt(month), count };
+                        })
+                        .sort((a, b) => (a.year !== b.year) ? a.year - b.year : a.month - b.month);
+                    return timelineArr;
+                }
 
-            let timelineData = [];
-            if (Array.isArray(allWarrantiesForTimeline) && allWarrantiesForTimeline.length > 0) {
-                timelineData = extractTimelineData(allWarrantiesForTimeline);
+                let timelineData = [];
+                if (Array.isArray(allWarrantiesForTimeline) && allWarrantiesForTimeline.length > 0) {
+                    timelineData = extractTimelineData(allWarrantiesForTimeline);
+                }
+                if (timelineData.length > 0) {
+                    currentTimelineData = timelineData;
+                    createTimelineChart(timelineData);
+                } else if (data.timeline && Array.isArray(data.timeline)) {
+                    // Fallback to API timeline if extraction fails
+                    currentTimelineData = data.timeline;
+                    createTimelineChart(data.timeline);
+                } else {
+                    createTimelineChart([]);
+                }
+                // --- END: Expiration Timeline Chart Fix ---
+                
+                isDashboardInitialized = true;
+                
+            } catch (error) {
+                console.error('Failed to initialize dashboard (status.js IIFE):', error);
+                showError('Failed to load dashboard data.', error.message);
+                isDashboardInitialized = false; // Allow retry on error
+            } finally {
+                hideLoading();
+                initDashboardPromise = null; // Clear the promise
             }
-            if (timelineData.length > 0) {
-                currentTimelineData = timelineData;
-                createTimelineChart(timelineData);
-            } else if (data.timeline && Array.isArray(data.timeline)) {
-                // Fallback to API timeline if extraction fails
-                currentTimelineData = data.timeline;
-                createTimelineChart(data.timeline);
-            } else {
-                createTimelineChart([]);
-            }
-            // --- END: Expiration Timeline Chart Fix ---
-        } catch (error) {
-            console.error('Failed to initialize dashboard (status.js IIFE):', error);
-            showError('Failed to load dashboard data.', error.message);
-        } finally {
-            hideLoading();
-        }
+        })();
+        
+        return initDashboardPromise;
     }
 
     async function loadUserPreferences() {
@@ -845,7 +1098,13 @@
     }
     
     // DOMContentLoaded listener to initialize the dashboard and event listeners
-    document.addEventListener('DOMContentLoaded', () => {
+    function initStatusPage() {
+        if (isDOMHandlerAttached) {
+            console.log('Status page DOM handler already attached, skipping...');
+            return;
+        }
+        
+        isDOMHandlerAttached = true;
         console.log('Status page DOM loaded (status.js IIFE). Initializing dashboard and listeners.');
         
         const headerDarkModeToggle = document.getElementById('darkModeToggle');
@@ -889,5 +1148,13 @@
                  console.warn(`(STATUS.JS) DOMContentLoaded/setTimeout: window.saveWarranty found, but NOT WRAPPED (flag: ${window.saveWarrantyObserverAttachedByStatus}). Observer NOT attached.`);
             }
         }, 500); // Delay by 500ms
-    });
+    }
+
+    // Add event listener with protection against multiple calls
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initStatusPage, { once: true });
+    } else {
+        // DOM is already loaded
+        setTimeout(initStatusPage, 0);
+    }
 })();

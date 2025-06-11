@@ -1,7 +1,7 @@
 -- Migration: Ensure Admin Permissions
 
--- Grant superuser privileges to db_user
-ALTER ROLE %(db_user)s WITH SUPERUSER;
+-- Grant elevated privileges to db_user (removed SUPERUSER)
+-- ALTER ROLE %(db_user)s WITH SUPERUSER;
 
 -- Ensure all tables are accessible
 GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO %(db_user)s;

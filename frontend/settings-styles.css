@@ -950,4 +950,278 @@ input:checked + .toggle-slider:before {
 
 :root[data-theme="dark"] .current-user-info strong {
      color: var(--primary-color);
-} 
+}
+
+/* Apprise Notifications Styles */
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.badge-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.badge-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.alert {
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.alert-warning {
+    color: #856404;
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+}
+
+.dark-mode .alert-warning {
+    color: #ffc107;
+    background-color: rgba(255, 193, 7, 0.1);
+    border-color: rgba(255, 193, 7, 0.3);
+}
+
+.apprise-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.apprise-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 6px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.dark-mode .status-item {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.status-label {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.status-value {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.services-info {
+    padding: 15px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 6px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.dark-mode .services-info {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.services-info p {
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+}
+
+.btn-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9rem;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    color: white;
+    border: 1px solid #17a2b8;
+}
+
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+@media (max-width: 768px) {
+    .apprise-actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .status-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+
+/* Dark mode link styling for text-muted elements */
+.dark-mode .text-muted a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.dark-mode .text-muted a:hover {
+    color: #6db4ff;
+    text-decoration: underline;
+}
+
+/* General link styling for better dark mode visibility */
+:root[data-theme="dark"] .text-muted a {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+:root[data-theme="dark"] .text-muted a:hover {
+    color: #6db4ff;
+    text-decoration: underline;
+}
+
+/* Collapsible Cards */
+.collapsible-card {
+    transition: all 0.3s ease;
+}
+
+.collapsible-header {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+    transition: background-color 0.3s ease;
+}
+
+.collapsible-header:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark-mode .collapsible-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.collapse-icon {
+    transition: transform 0.3s ease;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.collapsible-header:hover .collapse-icon {
+    opacity: 1;
+}
+
+.collapsible-card.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    max-height: 2000px; /* Large enough to show all content */
+    opacity: 1;
+}
+
+.collapsible-card.collapsed .collapsible-content {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* Ensure smooth transitions for nested elements */
+.collapsible-content * {
+    transition: none; /* Prevent nested transitions from interfering */
+}
+
+@media (max-width: 768px) {
+    .apprise-actions {
+        grid-template-columns: 1fr;
+    }
+    
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .status-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+
+/* Footer Overrides - Ensure footer spans full width */
+.warracker-footer {
+    width: 100vw !important;
+    margin-left: calc(-50vw + 50%) !important;
+    margin-right: calc(-50vw + 50%) !important;
+    max-width: none !important;
+    position: relative !important;
+    left: 0 !important;
+    right: 0 !important;
+}
+
+/* Additional mobile responsive styles if needed */
+@media (max-width: 768px) {
+    .warracker-footer {
+        width: 100vw !important;
+        margin-left: calc(-50vw + 50%) !important;
+        margin-right: calc(-50vw + 50%) !important;
+    }
+}
+

@@ -1,4 +1,4 @@
-console.log('[SCRIPT VERSION] 20250529-004 - Fixed warranty method persistence in edit modal');
+console.log('[SCRIPT VERSION] 20250529-005 - Added CSS cache busting for consistent styling across domains');
 console.log('[DEBUG] script.js loaded and running');
 
 // alert('script.js loaded!'); // Remove alert after confirming script loads
@@ -10,12 +10,14 @@ let tabContents = []; // Initialize as empty array
 let editMode = false;
 let currentWarrantyId = null;
 let userPreferencePrefix = null; // <<< ADDED GLOBAL PREFIX VARIABLE
+let isGlobalView = false; // Track if admin is viewing all users' warranties
 let currentFilters = {
     status: 'all',
     tag: 'all',
     search: '',
     sortBy: 'expiration',
-    vendor: 'all' // Added vendor filter
+    vendor: 'all', // Added vendor filter
+    warranty_type: 'all' // Added warranty type filter
 };
 
 // Tag related variables
@@ -37,11 +39,18 @@ const clearSearchBtn = document.getElementById('clearSearch');
 const statusFilter = document.getElementById('statusFilter');
 const sortBySelect = document.getElementById('sortBy');
 const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
+const warrantyTypeFilter = document.getElementById('warrantyTypeFilter'); // Added warranty type filter select
 const exportBtn = document.getElementById('exportBtn');
 const gridViewBtn = document.getElementById('gridViewBtn');
 const listViewBtn = document.getElementById('listViewBtn');
 const tableViewBtn = document.getElementById('tableViewBtn');
 const tableViewHeader = document.querySelector('.table-view-header');
+
+// Admin view controls
+const adminViewSwitcher = document.getElementById('adminViewSwitcher');
+const personalViewBtn = document.getElementById('personalViewBtn');
+const globalViewBtn = document.getElementById('globalViewBtn');
+const warrantiesPanelTitle = document.getElementById('warrantiesPanelTitle');
 const fileInput = document.getElementById('invoice');
 const fileName = document.getElementById('fileName');
 const manualInput = document.getElementById('manual');
@@ -86,6 +95,12 @@ const editWarrantyDurationYearsInput = document.getElementById('editWarrantyDura
 const editWarrantyDurationMonthsInput = document.getElementById('editWarrantyDurationMonths');
 const editWarrantyDurationDaysInput = document.getElementById('editWarrantyDurationDays');
 
+// Warranty Type DOM Elements
+const warrantyTypeInput = document.getElementById('warrantyType');
+const warrantyTypeCustomInput = document.getElementById('warrantyTypeCustom');
+const editWarrantyTypeInput = document.getElementById('editWarrantyType');
+const editWarrantyTypeCustomInput = document.getElementById('editWarrantyTypeCustom');
+
 // Warranty method selection elements
 const durationMethodRadio = document.getElementById('durationMethod');
 const exactDateMethodRadio = document.getElementById('exactDateMethod');
@@ -113,6 +128,157 @@ function getUserType() {
     } catch (e) {
         console.error('Error determining user type:', e);
         return 'user'; // Default to user if we can't determine
+    }
+}
+
+/**
+ * Initialize view controls for all authenticated users
+ */
+async function initViewControls() {
+    // Check if global view is enabled
+    try {
+        const response = await fetch('/api/settings/global-view-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.enabled && adminViewSwitcher) {
+                // Global view is enabled, show view switcher
+                adminViewSwitcher.style.display = 'flex';
+                
+                // Add event listeners for view buttons
+                if (personalViewBtn) {
+                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
+                }
+                if (globalViewBtn) {
+                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
+                }
+            } else if (adminViewSwitcher) {
+                // Global view is disabled, hide view switcher
+                adminViewSwitcher.style.display = 'none';
+                
+                // If currently in global view, switch back to personal view
+                if (isGlobalView) {
+                    isGlobalView = false;
+                    if (warrantiesPanelTitle) {
+                        warrantiesPanelTitle.textContent = 'Your Warranties';
+                    }
+                    // Reload warranties
+                    await loadWarranties(true);
+                    applyFilters();
+                }
+            }
+        } else {
+            console.error('Failed to check global view status');
+            // Default to showing view switcher if check fails
+            if (adminViewSwitcher) {
+                adminViewSwitcher.style.display = 'flex';
+                
+                // Add event listeners for view buttons
+                if (personalViewBtn) {
+                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
+                }
+                if (globalViewBtn) {
+                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error checking global view status:', error);
+        // Default to showing view switcher if check fails
+        if (adminViewSwitcher) {
+            adminViewSwitcher.style.display = 'flex';
+            
+            // Add event listeners for view buttons
+            if (personalViewBtn) {
+                personalViewBtn.addEventListener('click', () => switchToPersonalView());
+            }
+            if (globalViewBtn) {
+                globalViewBtn.addEventListener('click', () => switchToGlobalView());
+            }
+        }
+    }
+}
+
+/**
+ * Switch to personal view (user's own warranties)
+ */
+async function switchToPersonalView() {
+    if (!personalViewBtn || !globalViewBtn) return;
+    
+    isGlobalView = false;
+    personalViewBtn.classList.add('active');
+    globalViewBtn.classList.remove('active');
+    
+    // Update title
+    if (warrantiesPanelTitle) {
+        warrantiesPanelTitle.textContent = 'Your Warranties';
+    }
+    
+    // Reload warranties
+    try {
+        const token = window.auth.getToken();
+        if (token) {
+            await loadWarranties(true);
+            applyFilters();
+        }
+    } catch (error) {
+        console.error('Error switching to personal view:', error);
+        showToast('Error loading personal warranties', 'error');
+    }
+}
+
+/**
+ * Switch to global view (all users' warranties) - available to all users
+ */
+async function switchToGlobalView() {
+    if (!personalViewBtn || !globalViewBtn) return;
+    
+    // Check if global view is still enabled
+    try {
+        const response = await fetch('/api/settings/global-view-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (!result.enabled) {
+                showToast('Global view has been disabled by administrator', 'error');
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error checking global view status:', error);
+    }
+    
+    isGlobalView = true;
+    personalViewBtn.classList.remove('active');
+    globalViewBtn.classList.add('active');
+    
+    // Update title
+    if (warrantiesPanelTitle) {
+        warrantiesPanelTitle.textContent = 'All Users\' Warranties';
+    }
+    
+    // Reload warranties
+    try {
+        const token = window.auth.getToken();
+        if (token) {
+            await loadWarranties(true);
+            applyFilters();
+        }
+    } catch (error) {
+        console.error('Error switching to global view:', error);
+        showToast('Error loading global warranties', 'error');
     }
 }
 
@@ -325,6 +491,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentAuthStatus) {
             await loadAndApplyUserPreferences(true); // Pass true, as we've confirmed auth
             await loadTags(); // Ensure all available tags are loaded
+            
+            // Initialize view controls for all users
+            initViewControls();
 
             if (document.getElementById('warrantiesList')) {
                 console.log("[runAuthenticatedTasks] Loading warranty data...");
@@ -447,6 +616,12 @@ let formTabs = []; // Changed from const to let, initialized as empty
                 }
                 if (notesModalWarrantyObj.purchase_price !== null && notesModalWarrantyObj.purchase_price !== undefined) {
                     formData.append('purchase_price', notesModalWarrantyObj.purchase_price);
+                }
+                if (notesModalWarrantyObj.vendor) {
+                    formData.append('vendor', notesModalWarrantyObj.vendor);
+                }
+                if (notesModalWarrantyObj.warranty_type) {
+                    formData.append('warranty_type', notesModalWarrantyObj.warranty_type);
                 }
                 if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
                     notesModalWarrantyObj.serial_numbers.forEach(sn => {
@@ -817,6 +992,22 @@ function updateSummary() {
         }
     }
     
+    // Warranty type - handle dropdown and custom input
+    const warrantyTypeSelect = document.getElementById('warrantyType');
+    const warrantyTypeCustom = document.getElementById('warrantyTypeCustom');
+    const summaryWarrantyType = document.getElementById('summary-warranty-type');
+    if (summaryWarrantyType) {
+        let warrantyTypeText = 'Not specified';
+        if (warrantyTypeSelect && warrantyTypeSelect.value) {
+            if (warrantyTypeSelect.value === 'other' && warrantyTypeCustom && warrantyTypeCustom.value.trim()) {
+                warrantyTypeText = warrantyTypeCustom.value.trim();
+            } else if (warrantyTypeSelect.value !== 'other') {
+                warrantyTypeText = warrantyTypeSelect.value;
+            }
+        }
+        summaryWarrantyType.textContent = warrantyTypeText;
+    }
+    
     // Purchase price
     const purchasePrice = document.getElementById('purchasePrice')?.value;
     const summaryPurchasePrice = document.getElementById('summary-purchase-price');
@@ -826,6 +1017,13 @@ function updateSummary() {
     }
     
     // Documents
+    const productPhotoFile = document.getElementById('productPhoto')?.files[0];
+    const summaryProductPhoto = document.getElementById('summary-product-photo');
+    if (summaryProductPhoto) {
+        summaryProductPhoto.textContent = productPhotoFile ? 
+            productPhotoFile.name : 'No photo selected';
+    }
+    
     const invoiceFile = document.getElementById('invoice')?.files[0];
     const summaryInvoice = document.getElementById('summary-invoice');
     if (summaryInvoice) {
@@ -903,9 +1101,17 @@ function resetForm() {
     switchToTab(0);
     
     // Clear any file input displays
+    const productPhotoFileName = document.getElementById('productPhotoFileName');
+    if (productPhotoFileName) productPhotoFileName.textContent = '';
     fileName.textContent = '';
     manualFileName.textContent = '';
-    if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
+    if (otherDocumentFileName) otherDocumentFileName.textContent = '';
+    
+    // Reset photo preview
+    const productPhotoPreview = document.getElementById('productPhotoPreview');
+    if (productPhotoPreview) {
+        productPhotoPreview.style.display = 'none';
+    } 
 }
 
 async function exportWarranties() {
@@ -1246,15 +1452,32 @@ function showToast(message, type = 'info') {
 
 // Update file name display when a file is selected
 function updateFileName(event, inputId = 'invoice', outputId = 'fileName') {
-    const input = event ? event.target : document.getElementById(inputId);
+    const file = event.target.files[0];
     const output = document.getElementById(outputId);
     
-    if (!input || !output) return;
-    
-    if (input.files && input.files[0]) {
-        output.textContent = input.files[0].name;
-    } else {
+    if (file && output) {
+        output.textContent = file.name;
+    } else if (output) {
         output.textContent = '';
+    }
+    
+    // Handle photo preview for product photo
+    if (inputId === 'productPhoto' || inputId === 'editProductPhoto') {
+        const previewId = inputId === 'productPhoto' ? 'productPhotoPreview' : 'editProductPhotoPreview';
+        const imgId = inputId === 'productPhoto' ? 'productPhotoImg' : 'editProductPhotoImg';
+        const preview = document.getElementById(previewId);
+        const img = document.getElementById(imgId);
+        
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            preview.style.display = 'none';
+        }
     }
 }
 
@@ -1474,8 +1697,9 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         */
         // --- END REDUNDANT PREFERENCE FETCH ---
         
-        // Use the full URL to avoid path issues
-        const apiUrl = window.location.origin + '/api/warranties';
+        // Use the appropriate API endpoint based on view mode
+        const baseUrl = window.location.origin;
+        const apiUrl = isGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`;
         
         // Check if auth is available and user is authenticated using the passed parameter
         if (!isAuthenticated) {
@@ -1531,6 +1755,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
             // Populate tag filter dropdown with tags from warranties
             populateTagFilter();
             populateVendorFilter(); // Added call to populate vendor filter
+            populateWarrantyTypeFilter(); // Added call to populate warranty type filter
             
             // REMOVED: applyFilters(); // Now called from authStateReady after data and prefs are loaded
         }
@@ -1634,6 +1859,8 @@ async function renderWarranties(warrantiesToRender) {
                 return new Date(b.purchase_date || 0) - new Date(a.purchase_date || 0);
             case 'vendor': // Added vendor sorting
                 return (a.vendor || '').toLowerCase().localeCompare((b.vendor || '').toLowerCase());
+            case 'warranty_type': // Added warranty type sorting
+                return (a.warranty_type || '').toLowerCase().localeCompare((b.warranty_type || '').toLowerCase());
             case 'expiration':
             default:
                 const dateA = new Date(a.expiration_date || 0);
@@ -1712,6 +1939,12 @@ async function renderWarranties(warrantiesToRender) {
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
             ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
             : [];
+        // Prepare user info HTML for global view
+        let userInfoHtml = '';
+        if (isGlobalView && warranty.user_display_name) {
+            userInfoHtml = `<div><strong>Owner:</strong> <span>${warranty.user_display_name}</span></div>`;
+        }
+        
         // Prepare tags HTML
         const tagsHtml = warranty.tags && warranty.tags.length > 0 
             ? `<div class="tags-row">
@@ -1731,30 +1964,67 @@ async function renderWarranties(warrantiesToRender) {
             notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> Notes</a>`;
         }
         
+        // Get current user ID to check warranty ownership
+        const currentUserId = (() => {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return userInfo.id;
+            } catch (e) {
+                return null;
+            }
+        })();
+        
+        // Check if current user can edit/delete this warranty
+        // Allow if: not in global view, user owns the warranty, or user is admin
+        const isAdmin = getUserType() === 'admin';
+        const canEdit = !isGlobalView || (warranty.user_id === currentUserId) || isAdmin;
+        
+        // Generate action buttons HTML based on permissions
+        const actionButtonsHtml = canEdit ? `
+            <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
+                <i class="fas fa-trash"></i>
+            </button>
+        ` : `
+            <span class="action-btn-placeholder" title="View only - not your warranty">
+                <i class="fas fa-eye" style="color: #666;"></i>
+            </span>
+        `;
+
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
         
         if (currentView === 'grid') {
             // Grid view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
                     <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
+                        ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
                         <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1794,25 +2064,33 @@ async function renderWarranties(warrantiesToRender) {
             `;
         } else if (currentView === 'list') {
             // List view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
                     <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
+                        ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
                         <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                         ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
                             <div class="serial-numbers">
                                 <strong>Serial Numbers:</strong>
@@ -1852,20 +2130,27 @@ async function renderWarranties(warrantiesToRender) {
             `;
         } else if (currentView === 'table') {
             // Table view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
                     <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
+                        ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
                     </div>
@@ -1902,23 +2187,32 @@ async function renderWarranties(warrantiesToRender) {
         // Add event listeners
         warrantiesList.appendChild(cardElement);
         
-        // Edit button event listener
-        cardElement.querySelector('.edit-btn').addEventListener('click', () => {
-            console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
-            // Find the current warranty data instead of using the potentially stale warranty object
-            const currentWarranty = warranties.find(w => w.id === warranty.id);
-            console.log('[DEBUG] Found current warranty:', currentWarranty ? 'Yes' : 'No', currentWarranty?.notes);
-            if (currentWarranty) {
-                openEditModal(currentWarranty);
-            } else {
-                showToast('Warranty not found. Please refresh the page.', 'error');
+        // Add event listeners only if user can edit (buttons exist)
+        if (canEdit) {
+            // Edit button event listener
+            const editBtn = cardElement.querySelector('.edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                    console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
+                    // Find the current warranty data instead of using the potentially stale warranty object
+                    const currentWarranty = warranties.find(w => w.id === warranty.id);
+                    console.log('[DEBUG] Found current warranty:', currentWarranty ? 'Yes' : 'No', currentWarranty?.notes);
+                    if (currentWarranty) {
+                        openEditModal(currentWarranty);
+                    } else {
+                        showToast('Warranty not found. Please refresh the page.', 'error');
+                    }
+                });
             }
-        });
-        
-        // Delete button event listener
-        cardElement.querySelector('.delete-btn').addEventListener('click', () => {
-            openDeleteModal(warranty.id, warranty.product_name);
-        });
+            
+            // Delete button event listener
+            const deleteBtn = cardElement.querySelector('.delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                    openDeleteModal(warranty.id, warranty.product_name);
+                });
+            }
+        }
         // View notes button event listener
         const notesLink = cardElement.querySelector('.notes-link');
         if (notesLink) {
@@ -1934,6 +2228,9 @@ async function renderWarranties(warrantiesToRender) {
             });
         }
     });
+    
+    // Load secure images with authentication after rendering
+    setTimeout(() => loadSecureImages(), 100); // Small delay to ensure DOM is updated
 }
 
 function filterWarranties() {
@@ -2018,6 +2315,11 @@ function applyFilters() {
             return false;
         }
         
+        // Warranty type filter
+        if (currentFilters.warranty_type !== 'all' && (warranty.warranty_type || '').toLowerCase() !== currentFilters.warranty_type.toLowerCase()) {
+            return false;
+        }
+        
         // Search filter
         if (currentFilters.search) {
             const searchTerm = currentFilters.search.toLowerCase();
@@ -2067,6 +2369,31 @@ function openEditModal(warranty) {
     
     document.getElementById('editPurchasePrice').value = warranty.purchase_price || '';
     document.getElementById('editVendor').value = warranty.vendor || '';
+    
+    // Handle warranty type - check if it's a predefined option or custom
+    const editWarrantyTypeSelect = document.getElementById('editWarrantyType');
+    const editWarrantyTypeCustom = document.getElementById('editWarrantyTypeCustom');
+    if (editWarrantyTypeSelect && warranty.warranty_type) {
+        // Check if the warranty type exists as an option in the dropdown
+        const options = Array.from(editWarrantyTypeSelect.options);
+        const matchingOption = options.find(option => option.value === warranty.warranty_type);
+        
+        if (matchingOption) {
+            // It's a predefined option
+            editWarrantyTypeSelect.value = warranty.warranty_type;
+            if (editWarrantyTypeCustom) editWarrantyTypeCustom.style.display = 'none';
+        } else {
+            // It's a custom value
+            editWarrantyTypeSelect.value = 'other';
+            if (editWarrantyTypeCustom) {
+                editWarrantyTypeCustom.style.display = 'block';
+                editWarrantyTypeCustom.value = warranty.warranty_type;
+            }
+        }
+    } else if (editWarrantyTypeSelect) {
+        editWarrantyTypeSelect.value = '';
+        if (editWarrantyTypeCustom) editWarrantyTypeCustom.style.display = 'none';
+    }
     
     // Clear existing serial number inputs
     const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
@@ -2183,6 +2510,34 @@ function openEditModal(warranty) {
         };
     }
 
+    // Show current product photo if exists
+    const currentProductPhotoElement = document.getElementById('currentProductPhoto');
+    const deleteProductPhotoBtn = document.getElementById('deleteProductPhotoBtn');
+    if (currentProductPhotoElement && deleteProductPhotoBtn) {
+        if (warranty.product_photo_path && warranty.product_photo_path !== 'null') {
+            currentProductPhotoElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current photo: 
+                    <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Current Photo" class="secure-image" 
+                         style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; margin-left: 10px; border: 2px solid var(--border-color);"
+                         onerror="this.style.display='none'">
+                    <br><small>(Upload a new photo to replace)</small>
+                </span>
+            `;
+            deleteProductPhotoBtn.style.display = '';
+        } else {
+            currentProductPhotoElement.innerHTML = '<span>No photo uploaded</span>';
+            deleteProductPhotoBtn.style.display = 'none';
+        }
+        // Reset delete state
+        deleteProductPhotoBtn.dataset.delete = 'false';
+        deleteProductPhotoBtn.onclick = function() {
+            deleteProductPhotoBtn.dataset.delete = 'true';
+            currentProductPhotoElement.innerHTML = '<span class="text-danger">Photo will be deleted on save</span>';
+            deleteProductPhotoBtn.style.display = 'none';
+        };
+    }
+    
     // Show current other document if exists
     const currentOtherDocumentElement = document.getElementById('currentOtherDocument'); 
     const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
@@ -2210,14 +2565,29 @@ function openEditModal(warranty) {
     } 
     
     // Reset file inputs
+    document.getElementById('editProductPhoto').value = '';
     document.getElementById('editInvoice').value = '';
     document.getElementById('editManual').value = '';
     document.getElementById('editOtherDocument').value = ''; 
+    document.getElementById('editProductPhotoFileName').textContent = '';
     document.getElementById('editFileName').textContent = '';
     document.getElementById('editManualFileName').textContent = '';
-    document.getElementById('editOtherDocumentFileName').textContent = ''; 
+    document.getElementById('editOtherDocumentFileName').textContent = '';
+    
+    // Reset photo preview
+    const editPhotoPreview = document.getElementById('editProductPhotoPreview');
+    if (editPhotoPreview) {
+        editPhotoPreview.style.display = 'none';
+    } 
     
     // Initialize file input event listeners
+    const editProductPhotoInput = document.getElementById('editProductPhoto');
+    if (editProductPhotoInput) {
+        editProductPhotoInput.addEventListener('change', function(event) {
+            updateFileName(event, 'editProductPhoto', 'editProductPhotoFileName');
+        });
+    }
+    
     const editInvoiceInput = document.getElementById('editInvoice');
     if (editInvoiceInput) {
         editInvoiceInput.addEventListener('change', function(event) {
@@ -2391,6 +2761,9 @@ function openEditModal(warranty) {
     if (notesInput) {
         notesInput.value = warranty.notes || '';
     }
+    
+    // Load secure images with authentication for the edit modal
+    setTimeout(() => loadSecureImages(), 100); // Small delay to ensure DOM is updated
 }
 
 function openDeleteModal(warrantyId, productName) {
@@ -2507,6 +2880,20 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // Create form data object
     const formData = new FormData(warrantyForm);
     
+    // Handle warranty type - use custom value if "other" is selected
+    const warrantyTypeSelect = document.getElementById('warrantyType');
+    const warrantyTypeCustom = document.getElementById('warrantyTypeCustom');
+    if (warrantyTypeSelect && warrantyTypeSelect.value === 'other' && warrantyTypeCustom && warrantyTypeCustom.value.trim()) {
+        formData.set('warranty_type', warrantyTypeCustom.value.trim());
+    }
+    
+    // Debug: Log all form data entries
+    console.log('=== DEBUG: Form Data Contents ===');
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    console.log('=== END DEBUG ===');
+    
     // Product URL handling
     let productUrlValue = formData.get('product_url');
     if (productUrlValue && typeof productUrlValue === 'string') {
@@ -2603,7 +2990,15 @@ function handleFormSubmit(event) { // Renamed from submitForm
         // --- End modification ---
 
         loadWarranties(true).then(() => {
+            console.log('Warranties reloaded after adding new warranty');
             applyFilters();
+            // Load secure images for the new cards - additional call to ensure they load
+            setTimeout(() => {
+                console.log('Loading secure images for new warranty cards');
+                loadSecureImages();
+            }, 200); // Slightly longer delay to ensure everything is rendered
+        }).catch(error => {
+            console.error('Error reloading warranties after adding:', error);
         }); // Reload the list and update UI
     })
     .catch(error => {
@@ -2885,6 +3280,12 @@ function initWarrantyForm() {
     addSerialNumberInput();
     
     // Initialize file input display
+    if (document.getElementById('productPhoto')) {
+        document.getElementById('productPhoto').addEventListener('change', function(event) {
+            updateFileName(event, 'productPhoto', 'productPhotoFileName');
+        });
+    }
+    
     if (document.getElementById('invoice')) {
         document.getElementById('invoice').addEventListener('change', function(event) {
             updateFileName(event, 'invoice', 'fileName');
@@ -3693,6 +4094,13 @@ function setupUIEventListeners() {
         });
     }
     
+    if (warrantyTypeFilter) { // Added event listener for warranty type filter
+        warrantyTypeFilter.addEventListener('change', () => {
+            currentFilters.warranty_type = warrantyTypeFilter.value;
+            applyFilters();
+        });
+    }
+    
     if (sortBySelect) {
         sortBySelect.addEventListener('change', () => {
             currentFilters.sortBy = sortBySelect.value;
@@ -3728,6 +4136,35 @@ function setupUIEventListeners() {
     // Refresh button
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
+    
+    // Warranty Type dropdown handlers for custom option
+    if (warrantyTypeInput && warrantyTypeCustomInput) {
+        warrantyTypeInput.addEventListener('change', () => {
+            if (warrantyTypeInput.value === 'other') {
+                warrantyTypeCustomInput.style.display = 'block';
+                warrantyTypeCustomInput.focus();
+            } else {
+                warrantyTypeCustomInput.style.display = 'none';
+                warrantyTypeCustomInput.value = '';
+            }
+            updateSummary(); // Update summary when warranty type changes
+        });
+        
+        // Also update summary when custom warranty type changes
+        warrantyTypeCustomInput.addEventListener('input', updateSummary);
+    }
+    
+    if (editWarrantyTypeInput && editWarrantyTypeCustomInput) {
+        editWarrantyTypeInput.addEventListener('change', () => {
+            if (editWarrantyTypeInput.value === 'other') {
+                editWarrantyTypeCustomInput.style.display = 'block';
+                editWarrantyTypeCustomInput.focus();
+            } else {
+                editWarrantyTypeCustomInput.style.display = 'none';
+                editWarrantyTypeCustomInput.value = '';
+            }
+        });
+    }
     
     // Save warranty changes
     const saveWarrantyBtn = document.getElementById('saveWarrantyBtn');
@@ -3959,6 +4396,12 @@ function saveWarranty() {
         formData.append('other_document', otherDocumentFile); 
     } 
     
+    // Product photo
+    const productPhotoFile = document.getElementById('editProductPhoto').files[0];
+    if (productPhotoFile) {
+        formData.append('product_photo', productPhotoFile);
+    }
+    
     // Document deletion flags
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
     if (deleteInvoiceBtn && deleteInvoiceBtn.dataset.delete === 'true') {
@@ -3971,6 +4414,10 @@ function saveWarranty() {
     const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
     if (deleteOtherDocumentBtn && deleteOtherDocumentBtn.dataset.delete === 'true') { 
         formData.append('delete_other_document', 'true'); 
+    }
+    const deleteProductPhotoBtn = document.getElementById('deleteProductPhotoBtn');
+    if (deleteProductPhotoBtn && deleteProductPhotoBtn.dataset.delete === 'true') {
+        formData.append('delete_product_photo', 'true');
     } 
     
     // --- Append is_lifetime and duration components ---
@@ -4006,6 +4453,19 @@ function saveWarranty() {
     // Add vendor/retailer to form data
     const editVendorInput = document.getElementById('editVendor'); // Use the correct ID
     formData.append('vendor', editVendorInput ? editVendorInput.value.trim() : ''); // Use the correct variable
+    
+    // Add warranty type to form data - handle custom type
+    const editWarrantyTypeInput = document.getElementById('editWarrantyType');
+    const editWarrantyTypeCustomInput = document.getElementById('editWarrantyTypeCustom');
+    let warrantyTypeValue = '';
+    if (editWarrantyTypeInput) {
+        if (editWarrantyTypeInput.value === 'other' && editWarrantyTypeCustomInput && editWarrantyTypeCustomInput.value.trim()) {
+            warrantyTypeValue = editWarrantyTypeCustomInput.value.trim();
+        } else {
+            warrantyTypeValue = editWarrantyTypeInput.value.trim();
+        }
+    }
+    formData.append('warranty_type', warrantyTypeValue);
     
     // DEBUG: Log what we're sending to the backend
     console.log('[DEBUG saveWarranty] Form data being sent:');
@@ -4049,73 +4509,16 @@ function saveWarranty() {
         showToast('Warranty updated successfully', 'success');
         closeModals();
         
-        // Update warranty in local array immediately instead of reloading from server
-        const warrantyIndex = warranties.findIndex(w => w.id === currentWarrantyId);
-        if (warrantyIndex !== -1) {
-            // Update the local warranty object with form values
-            const updatedWarranty = { ...warranties[warrantyIndex] };
-            
-            // Update with new values from form
-            updatedWarranty.product_name = document.getElementById('editProductName').value.trim();
-            updatedWarranty.product_url = document.getElementById('editProductUrl').value.trim();
-            updatedWarranty.purchase_date = document.getElementById('editPurchaseDate').value;
-            updatedWarranty.is_lifetime = isLifetime;
-            updatedWarranty.purchase_price = document.getElementById('editPurchasePrice').value;
-            updatedWarranty.vendor = document.getElementById('editVendor').value.trim();
-            updatedWarranty.notes = document.getElementById('editNotes').value;
-            
-            // Update warranty duration and expiration date
-            if (isLifetime) {
-                updatedWarranty.warranty_duration_years = 0;
-                updatedWarranty.warranty_duration_months = 0;
-                updatedWarranty.warranty_duration_days = 0;
-                updatedWarranty.expiration_date = null;
-            } else {
-                if (isDurationMethod) {
-                    updatedWarranty.warranty_duration_years = years;
-                    updatedWarranty.warranty_duration_months = months;
-                    updatedWarranty.warranty_duration_days = days;
-                    // Calculate expiration date from duration using more robust method
-                    const purchaseDate = new Date(updatedWarranty.purchase_date);
-                    const expirationDate = new Date(purchaseDate);
-                    
-                    // Add years first
-                    expirationDate.setFullYear(expirationDate.getFullYear() + years);
-                    
-                    // Add months (handles month overflow correctly)
-                    expirationDate.setMonth(expirationDate.getMonth() + months);
-                    
-                    // Add days
-                    expirationDate.setDate(expirationDate.getDate() + days);
-                    
-                    updatedWarranty.expiration_date = expirationDate.toISOString().split('T')[0];
-                } else {
-                    // Using exact date method
-                    updatedWarranty.warranty_duration_years = 0;
-                    updatedWarranty.warranty_duration_months = 0;
-                    updatedWarranty.warranty_duration_days = 0;
-                    updatedWarranty.expiration_date = exactDate;
-                }
-            }
-            
-            // Update serial numbers
-            const serialInputs = document.querySelectorAll('#editSerialNumbersContainer input[name="serial_numbers[]"]');
-            updatedWarranty.serial_numbers = Array.from(serialInputs)
-                .map(input => input.value.trim())
-                .filter(sn => sn !== '');
-            
-            // Update tags
-            updatedWarranty.tags = editSelectedTags ? [...editSelectedTags] : [];
-            
-            // Update the warranty in the local array
-            warranties[warrantyIndex] = updatedWarranty;
-            
-            // Process warranty data (status, etc.) to ensure all derived fields are updated
-            const processedWarranty = processWarrantyData(updatedWarranty);
-            warranties[warrantyIndex] = processedWarranty;
-            
-            // Re-render warranties with updated data
+        // Always reload from server to ensure we get the latest data including product photo paths
+        console.log('Reloading warranties after edit to ensure latest data including product photos');
+        loadWarranties(true).then(() => {
+            console.log('Warranties reloaded after editing warranty');
             applyFilters();
+            // Load secure images for the updated cards - additional call to ensure they load
+            setTimeout(() => {
+                console.log('Loading secure images for updated warranty cards');
+                loadSecureImages();
+            }, 200); // Slightly longer delay to ensure everything is rendered
             
             // Always close the notes modal if open, to ensure UI is in sync
             const notesModal = document.getElementById('notesModal');
@@ -4123,14 +4526,10 @@ function saveWarranty() {
                 notesModal.style.display = 'none';
             }
             
-            console.log('Warranty updated immediately in UI');
-        } else {
-            // Fallback: reload from server if warranty not found in local array
-            console.warn('Warranty not found in local array, reloading from server');
-            loadWarranties(true).then(() => {
-                applyFilters();
-            }); // Reload the list and update UI
-        }
+            console.log('Warranty updated and reloaded from server');
+        }).catch(error => {
+            console.error('Error reloading warranties after edit:', error);
+        });
     })
     .catch(error => {
         hideLoadingSpinner();
@@ -4210,6 +4609,39 @@ function populateVendorFilter() {
         // Capitalize first letter for display
         option.textContent = vendor.charAt(0).toUpperCase() + vendor.slice(1);
         vendorFilterElement.appendChild(option);
+    });
+}
+
+// Function to populate warranty type filter dropdown
+function populateWarrantyTypeFilter() {
+    const warrantyTypeFilterElement = document.getElementById('warrantyTypeFilter');
+    if (!warrantyTypeFilterElement) return;
+
+    // Clear existing options (except "All Types")
+    while (warrantyTypeFilterElement.options.length > 1) {
+        warrantyTypeFilterElement.remove(1);
+    }
+
+    // Create a Set to store unique warranty types (case-insensitive)
+    const uniqueWarrantyTypes = new Set();
+
+    // Collect all unique, non-empty warranty types from warranties
+    warranties.forEach(warranty => {
+        if (warranty.warranty_type && warranty.warranty_type.trim() !== '') {
+            uniqueWarrantyTypes.add(warranty.warranty_type.trim().toLowerCase());
+        }
+    });
+
+    // Sort warranty types alphabetically
+    const sortedWarrantyTypes = Array.from(uniqueWarrantyTypes).sort((a, b) => a.localeCompare(b));
+
+    // Add options to the dropdown
+    sortedWarrantyTypes.forEach(warrantyType => {
+        const option = document.createElement('option');
+        option.value = warrantyType; // Use lowercase for value consistency
+        // Capitalize first letter for display
+        option.textContent = warrantyType.charAt(0).toUpperCase() + warrantyType.slice(1);
+        warrantyTypeFilterElement.appendChild(option);
     });
 }
 
@@ -5047,5 +5479,60 @@ function calculateDurationFromDates(startDate, endDate) {
     } catch (error) {
         console.error('Error calculating duration:', error);
         return null;
+    }
+}
+
+/**
+ * Load secure images with authentication
+ */
+async function loadSecureImages() {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        console.log('[DEBUG] No auth token available for secure image loading');
+        return;
+    }
+
+    // Also find images that may already have src but need to be refreshed
+    const secureImages = document.querySelectorAll('img.secure-image[data-secure-src]');
+    console.log(`[DEBUG] Found ${secureImages.length} secure images to load/refresh`);
+
+    for (const img of secureImages) {
+        try {
+            const secureUrl = img.getAttribute('data-secure-src');
+            console.log(`[DEBUG] Loading secure image: ${secureUrl}`);
+            
+            // Clean up existing blob URL if present
+            const existingBlobUrl = img.getAttribute('data-blob-url');
+            if (existingBlobUrl) {
+                URL.revokeObjectURL(existingBlobUrl);
+                img.removeAttribute('data-blob-url');
+            }
+            
+            const response = await fetch(secureUrl, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                img.src = blobUrl;
+                
+                // Clean up blob URL when image is removed from DOM
+                img.addEventListener('load', () => {
+                    console.log(`[DEBUG] Secure image loaded successfully: ${secureUrl}`);
+                }, { once: true });
+                
+                // Store blob URL for cleanup
+                img.setAttribute('data-blob-url', blobUrl);
+            } else {
+                console.error(`[DEBUG] Failed to load secure image: ${secureUrl}, status: ${response.status}`);
+                img.style.display = 'none';
+            }
+        } catch (error) {
+            console.error(`[DEBUG] Error loading secure image:`, error);
+            img.style.display = 'none';
+        }
     }
 }
