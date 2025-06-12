@@ -45,7 +45,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 * **Centralized Management**: Track all your product warranties in one place.
 * **Detailed Records**: Store purchase dates, durations, notes, and product photos with thumbnail previews.
 * **Document Storage**: Upload receipts, invoices, and manuals securely.
-* **Proactive Alerts**: Receive configurable notifications for upcoming expirations via email and 100+ push notification services (e.g., Discord, Slack, Telegram) powered by Apprise integration.
+* **Proactive Alerts**: Receive configurable notifications for upcoming expirations via email and/or 100+ push notification services (e.g., Discord, Slack, Telegram) powered by Apprise integration.
 * **Quick Search and Filter**: Find warranties by product name, serial number, vendor, tags, warranty type, or notes with case-insensitive filtering and real-time sorting.
 * **Global Warranty View**: All authenticated users can now view warranties across the entire user base with appropriate read-only or edit permissions; admins retain full control.
 * **Multi-User Support**: Create multiple user accounts with advanced admin controls, including toggles for site-wide global view access.
