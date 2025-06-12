@@ -72,14 +72,14 @@ The essential features are reliable and ready for everyday use. Development is o
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/fa491480-4c75-4a1a-91d0-741141ca0183)
+![image](https://github.com/user-attachments/assets/7fd27771-c6f6-4c90-9e04-fb8acb455107)
 
 
-![image](https://github.com/user-attachments/assets/67662203-b25b-46e5-920d-082537a02d42)
+![image](https://github.com/user-attachments/assets/3b4aa67a-9e2c-4f85-9f42-beea35b22814)
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/4c938b33-d6be-4787-a2d9-9153b0234ee2)
+![image](https://github.com/user-attachments/assets/0f84cbcb-e434-42b9-9874-070f6a39292e)
 
 ## 🛠️Technology Stack
 
@@ -243,6 +243,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   PostgreSQL
 *   Docker
 *   Chart.js
+*   Apprise
 
 
 ## ⭐Star History
