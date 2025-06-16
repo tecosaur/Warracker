@@ -101,6 +101,8 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ CSV Import/Export
 * ✅ OIDC SSO Functionality
 * ✅ Advanced User/Admin Controls
+* [ ] Audit trail
+* [ ] Paperless-ngx integration
 * [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
 * [ ] Localization Support
