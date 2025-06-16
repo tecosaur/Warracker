@@ -100,9 +100,9 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ Warranty Categories via Tags
 * ✅ CSV Import/Export
 * ✅ OIDC SSO Functionality
+* ✅ Advanced User/Admin Controls
 * [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
-* [ ] Advanced User/Admin Controls
 * [ ] Localization Support
 
 ## 🚀Setup
