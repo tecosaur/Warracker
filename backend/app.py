@@ -12,6 +12,7 @@ except ImportError:
     from db_handler import init_db_pool, get_db_connection, release_db_connection
     from auth_utils import generate_token, decode_token, token_required, admin_required, is_valid_email, is_valid_password
 import psycopg2 # Added import
+import psycopg2.errors
 import os
 from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
@@ -223,9 +224,24 @@ def ensure_owner_exists():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if any owner exists
-            cur.execute("SELECT COUNT(*) FROM users WHERE is_owner = TRUE")
-            owner_count = cur.fetchone()[0]
+            # First check if the is_owner column exists (handles migration timing issue)
+            try:
+                cur.execute("""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'is_owner'
+                """)
+                column_exists = cur.fetchone() is not None
+                
+                if not column_exists:
+                    logger.info("is_owner column not yet created, skipping owner check (migrations may still be running)")
+                    return
+                
+                # Check if any owner exists
+                cur.execute("SELECT COUNT(*) FROM users WHERE is_owner = TRUE")
+                owner_count = cur.fetchone()[0]
+            except psycopg2.errors.UndefinedColumn:
+                logger.info("is_owner column not yet created, skipping owner check (migrations may still be running)")
+                return
             
             if owner_count == 0:
                 logger.info("No application owner found, attempting to promote first user...")

@@ -103,7 +103,7 @@ def register():
             
             # Log owner creation for transparency
             if is_owner:
-                logger.info(f"✅ First user registered: {username} ({email}) - automatically set as admin and owner")
+                current_app.logger.info(f"✅ First user registered: {username} ({email}) - automatically set as admin and owner")
             
             # Generate token
             token = generate_token(user_id)
