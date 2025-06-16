@@ -26,6 +26,230 @@
     <script src="include-auth-new.js"></script> <!-- Handles auth state display -->
     <script src="fix-auth-buttons-loader.js"></script> <!-- Fixes auth button display timing -->
 
+    <style>
+        .about-hero {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color, #4dabf7));
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 12px;
+            margin: 20px 0;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .about-hero h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .about-hero .version {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+
+        .about-hero .description {
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+            opacity: 0.95;
+            line-height: 1.6;
+        }
+
+        .about-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .about-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid var(--border-color);
+        }
+
+        .about-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .about-card h3 {
+            color: var(--primary-color);
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .about-card h3 i {
+            font-size: 1.2rem;
+        }
+
+        .about-card p {
+            color: var(--text-color);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .social-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .social-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            text-decoration: none;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .social-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .social-link.github {
+            border-color: #333;
+            color: #333;
+        }
+
+        .social-link.github:hover {
+            background: #333;
+            color: white;
+        }
+
+        .social-link.discord {
+            border-color: #5865f2;
+            color: #5865f2;
+        }
+
+        .social-link.discord:hover {
+            background: #5865f2;
+            color: white;
+        }
+
+        .social-link.license {
+            border-color: #28a745;
+            color: #28a745;
+        }
+
+        .social-link.license:hover {
+            background: #28a745;
+            color: white;
+        }
+
+        .social-link.issues {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .social-link.issues:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        .social-link.releases {
+            border-color: #17a2b8;
+            color: #17a2b8;
+        }
+
+        .social-link.releases:hover {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .social-link i {
+            font-size: 1.1rem;
+        }
+
+        .update-status {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .update-status h4 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .coffee-section {
+            text-align: center;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 40px;
+            margin: 30px 0;
+            border: 2px dashed var(--border-color);
+        }
+
+        .coffee-section h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .coffee-section p {
+            color: var(--text-muted);
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+        }
+
+        /* Dark mode adjustments */
+        [data-theme="dark"] .social-link.github {
+            border-color: #f0f6fc;
+            color: #f0f6fc;
+        }
+
+        [data-theme="dark"] .social-link.github:hover {
+            background: #f0f6fc;
+            color: #0d1117;
+        }
+
+        @media (max-width: 768px) {
+            .about-hero h1 {
+                font-size: 2.2rem;
+            }
+
+            .about-hero .version {
+                font-size: 1rem;
+            }
+
+            .about-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .social-links {
+                justify-content: center;
+            }
+
+            .social-link {
+                flex: 1;
+                justify-content: center;
+                min-width: 140px;
+            }
+        }
+    </style>
+
 </head>
 <body>
     <!-- Standard Header (Copied from index.html) -->
@@ -42,7 +266,6 @@
                 <a href="status.html" class="nav-link">
                     <i class="fas fa-chart-pie"></i> Status
                 </a>
-                <!-- Consider adding an 'active' class to an 'About' link if created here -->
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
@@ -86,58 +309,77 @@
     <div class="container" style="padding: 0;"> 
         <div class="main-content" style="display: block;"> 
 
-            <!-- Existing About Content, now wrapped -->
-            <div class="about-container" style="background-color: var(--card-bg); color: var(--text-color); padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box;"> 
-                <h1 style="color: var(--primary-color); margin-bottom: 20px;">About Warracker</h1>
+            <!-- Hero Section -->
+            <div class="about-hero">
+                <h1><i class="fas fa-shield-alt"></i> Warracker</h1>
+                <div class="version">Version v0.10.1.1</div>
+                <p class="description">
+                    A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.
+                </p>
+            </div>
 
-                <p><strong>Version:</strong> v0.10.1.0</p>
+            <!-- Update Status Card -->
+            <div class="update-status">
+                <h4><i class="fas fa-sync-alt"></i> Update Status</h4>
+                <p id="updateStatus">Checking for updates...</p>
+                <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer" style="display: none; color: var(--primary-color); text-decoration: none;">
+                    <i class="fas fa-external-link-alt"></i> View Release Notes
+                </a>
+            </div>
 
-                <div id="versionTracker" style="margin-bottom: 20px;">
-                    <p><strong>Update Status:</strong> <span id="updateStatus">Checking for updates...</span></p>
-                    <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer" style="display: none; color: var(--link-color);">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Release Notes
-                    </a>
+            <!-- Information Cards -->
+            <div class="about-cards">
+                <!-- Project Information -->
+                <div class="about-card">
+                    <h3><i class="fas fa-info-circle"></i> Project Information</h3>
+                    <p>Warracker is an open-source warranty management system built with modern web technologies. It provides a secure and intuitive way to manage product warranties, track expiration dates, and organize important documents.</p>
+                    
+                    <div class="social-links">
+                        <a href="https://github.com/sassanix/Warracker" target="_blank" rel="noopener noreferrer" class="social-link github">
+                            <i class="fab fa-github"></i> GitHub Repository
+                        </a>
+                        <a href="https://github.com/sassanix/Warracker/releases" target="_blank" rel="noopener noreferrer" class="social-link releases">
+                            <i class="fas fa-tags"></i> Releases
+                        </a>
+                    </div>
                 </div>
 
-                <p>
-                    <strong>GitHub Repository:</strong>
-                    <a href="https://github.com/sassanix/Warracker" target="_blank" rel="noopener noreferrer" style="color: var(--link-color);">
-                        https://github.com/sassanix/Warracker
-                    </a>
-                </p>
-
-                <p>
-                    <strong>Release Notes:</strong>
-                    <a href="https://github.com/sassanix/Warracker/releases" target="_blank" rel="noopener noreferrer" style="color: var(--link-color);">
-                        View Releases
-                    </a>
-                </p>
-
-                <p>
-                    <strong>Author:</strong>
-                    <a href="https://github.com/sassanix" target="_blank" rel="noopener noreferrer" style="color: var(--link-color);">
-                        Sassanix
-                    </a>
-                </p>
-
-                <p>
-                    <strong>License:</strong>
-                    <a href="https://github.com/sassanix/Warracker/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" style="color: var(--link-color);">
-                        AGPL-3.0
-                    </a>
-                </p>
-
-                <p>
-                    <strong>Issues & Feature Requests:</strong>
-                    <a href="https://github.com/sassanix/Warracker/issues" target="_blank" rel="noopener noreferrer" style="color: var(--link-color);">
-                        Report Bugs / Request Features
-                    </a>
-                </p>
-
-                <!-- Buy Me A Coffee Button -->
-                <div style="text-align: center; margin-top: 25px;">
-                    <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="sassanix" data-color="#FFDD00" data-emoji=""  data-font="Poppins" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
+                <!-- Community & Support -->
+                <div class="about-card">
+                    <h3><i class="fas fa-users"></i> Community & Support</h3>
+                    <p>Join our community for support, discussions, and updates. Report bugs, request features, or get help from other users and contributors.</p>
+                    
+                    <div class="social-links">
+                        <a href="https://discord.gg/PGxVS3U2Nw" target="_blank" rel="noopener noreferrer" class="social-link discord">
+                            <i class="fab fa-discord"></i> Discord Community
+                        </a>
+                        <a href="https://github.com/sassanix/Warracker/issues" target="_blank" rel="noopener noreferrer" class="social-link issues">
+                            <i class="fas fa-bug"></i> Report Issues
+                        </a>
+                    </div>
                 </div>
+
+                <!-- Developer Information -->
+                <div class="about-card">
+                    <h3><i class="fas fa-code"></i> Developer Information</h3>
+                    <p>Warracker is developed and maintained by Sassanix. The project is open-source and welcomes contributions from the community.</p>
+                    
+                    <div class="social-links">
+                        <a href="https://github.com/sassanix" target="_blank" rel="noopener noreferrer" class="social-link github">
+                            <i class="fab fa-github"></i> Sassanix
+                        </a>
+                        <a href="https://github.com/sassanix/Warracker/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="social-link license">
+                            <i class="fas fa-balance-scale"></i> AGPL-3.0 License
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Support the Project -->
+            <div class="coffee-section">
+                <h3><i class="fas fa-coffee"></i> Support the Project</h3>
+                <p>If you find Warracker useful, consider supporting its development!</p>
+                <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="sassanix" data-color="#FFDD00" data-emoji=""  data-font="Poppins" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
             </div>
 
         </div> 

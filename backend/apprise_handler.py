@@ -381,5 +381,197 @@ class AppriseNotificationHandler:
         except Exception:
             return []
 
+    def send_global_expiration_notification(self, warranties: List[Dict]) -> bool:
+        """Sends a single, consolidated notification for all expiring warranties."""
+        if not self.is_available() or not warranties:
+            return False
+            
+        logger.info(f"Sending GLOBAL Apprise notification for {len(warranties)} expiring items.")
+        try:
+            # Group warranties by expiration days to send separate notifications like manual test
+            warranties_by_days = {}
+            for w in warranties:
+                # Calculate days until expiration
+                expiry_date = w.get('expiration_date')
+                if expiry_date:
+                    try:
+                        if isinstance(expiry_date, str):
+                            parsed_date = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                        else:
+                            parsed_date = expiry_date
+                        
+                        days_until_expiry = (parsed_date.date() - datetime.now().date()).days
+                        
+                        if days_until_expiry not in warranties_by_days:
+                            warranties_by_days[days_until_expiry] = []
+                        warranties_by_days[days_until_expiry].append(w)
+                    except Exception as e:
+                        logger.warning(f"Error parsing expiration date {expiry_date}: {e}")
+                        # Default to 365 days if parsing fails
+                        if 365 not in warranties_by_days:
+                            warranties_by_days[365] = []
+                        warranties_by_days[365].append(w)
+            
+            # Send separate notifications for each day group (like manual test)
+            success = True
+            for days, day_warranties in warranties_by_days.items():
+                if not self._send_global_expiration_batch(day_warranties, days):
+                    success = False
+            
+            return success
+        except Exception as e:
+            logger.error(f"Error sending global expiration notification: {e}")
+            return False
+
+    def _send_global_expiration_batch(self, warranties: List[Dict], days: int) -> bool:
+        """Send global notification for warranties expiring in X days (matches manual test format)"""
+        if not self.is_available():
+            return False
+            
+        try:
+            # Use same title format as manual test
+            if days == 1:
+                title = f"{self.title_prefix} Warranties Expiring Tomorrow!"
+                urgency = "🚨 URGENT: "
+            elif days <= 7:
+                title = f"{self.title_prefix} Warranties Expiring in {days} Days"
+                urgency = "⚠️ IMPORTANT: "
+            else:
+                title = f"{self.title_prefix} Warranties Expiring in {days} Days"
+                urgency = "📅 REMINDER: "
+
+            # Use same body format as manual test
+            body_lines = [
+                f"{urgency}You have {len(warranties)} warranty(ies) expiring in {days} day(s):",
+                ""
+            ]
+
+            for warranty in warranties[:10]:  # Limit to first 10 to avoid very long messages
+                expiry_date = warranty.get('expiration_date', 'Unknown')
+                if isinstance(expiry_date, str):
+                    try:
+                        # Parse and format date if it's a string
+                        parsed_date = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                        expiry_date = parsed_date.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                
+                body_lines.append(f"• {warranty.get('product_name', 'Unknown Product')} (expires: {expiry_date})")
+
+            if len(warranties) > 10:
+                body_lines.append(f"... and {len(warranties) - 10} more")
+
+            body_lines.extend([
+                "",
+                "Please review your warranties and take necessary action.",
+                "",
+                "Visit your Warracker dashboard to view details and manage your warranties."
+            ])
+
+            body = "\n".join(body_lines)
+
+            return self.apprise_obj.notify(title=title, body=body)
+
+        except Exception as e:
+            logger.error(f"Error sending global expiration batch notification: {e}")
+            return False
+
+    def send_individual_expiration_notification(self, user_id: int, warranties: List[Dict], get_db_connection, release_db_connection) -> bool:
+        """Sends a personalized Apprise notification to a single user."""
+        if not self.is_available() or not warranties:
+            return False
+
+        try:
+            logger.info(f"Sending INDIVIDUAL Apprise notification for {len(warranties)} items to user {user_id}.")
+            
+            # Group warranties by expiration days to send separate notifications like manual test
+            warranties_by_days = {}
+            for w in warranties:
+                # Calculate days until expiration
+                expiry_date = w.get('expiration_date')
+                if expiry_date:
+                    try:
+                        if isinstance(expiry_date, str):
+                            parsed_date = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                        else:
+                            parsed_date = expiry_date
+                        
+                        days_until_expiry = (parsed_date.date() - datetime.now().date()).days
+                        
+                        if days_until_expiry not in warranties_by_days:
+                            warranties_by_days[days_until_expiry] = []
+                        warranties_by_days[days_until_expiry].append(w)
+                    except Exception as e:
+                        logger.warning(f"Error parsing expiration date {expiry_date}: {e}")
+                        # Default to 365 days if parsing fails
+                        if 365 not in warranties_by_days:
+                            warranties_by_days[365] = []
+                        warranties_by_days[365].append(w)
+            
+            # Send separate notifications for each day group (like manual test)
+            success = True
+            for days, day_warranties in warranties_by_days.items():
+                if not self._send_individual_expiration_batch(day_warranties, days, user_id):
+                    success = False
+            
+            return success
+
+        except Exception as e:
+            logger.error(f"Error sending individual expiration notification for user {user_id}: {e}")
+            return False
+
+    def _send_individual_expiration_batch(self, warranties: List[Dict], days: int, user_id: int) -> bool:
+        """Send individual notification for warranties expiring in X days (matches manual test format)"""
+        if not self.is_available():
+            return False
+            
+        try:
+            # Use same title format as manual test
+            if days == 1:
+                title = f"{self.title_prefix} Warranties Expiring Tomorrow!"
+                urgency = "🚨 URGENT: "
+            elif days <= 7:
+                title = f"{self.title_prefix} Warranties Expiring in {days} Days"
+                urgency = "⚠️ IMPORTANT: "
+            else:
+                title = f"{self.title_prefix} Warranties Expiring in {days} Days"
+                urgency = "📅 REMINDER: "
+
+            # Use same body format as manual test
+            body_lines = [
+                f"{urgency}You have {len(warranties)} warranty(ies) expiring in {days} day(s):",
+                ""
+            ]
+
+            for warranty in warranties[:10]:  # Limit to first 10 to avoid very long messages
+                expiry_date = warranty.get('expiration_date', 'Unknown')
+                if isinstance(expiry_date, str):
+                    try:
+                        # Parse and format date if it's a string
+                        parsed_date = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                        expiry_date = parsed_date.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                
+                body_lines.append(f"• {warranty.get('product_name', 'Unknown Product')} (expires: {expiry_date})")
+
+            if len(warranties) > 10:
+                body_lines.append(f"... and {len(warranties) - 10} more")
+
+            body_lines.extend([
+                "",
+                "Please review your warranties and take necessary action.",
+                "",
+                "Visit your Warracker dashboard to view details and manage your warranties."
+            ])
+
+            body = "\n".join(body_lines)
+
+            return self.apprise_obj.notify(title=title, body=body)
+
+        except Exception as e:
+            logger.error(f"Error sending individual expiration batch notification: {e}")
+            return False
+
 # Global instance
 apprise_handler = AppriseNotificationHandler() 

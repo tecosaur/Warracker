@@ -377,11 +377,41 @@
                 .then(data => {
                     const oidcButton = document.getElementById('oidcLoginButton');
                     const orSeparator = document.querySelector('.auth-form + div[style*="text-align: center"]');
+                    const loginForm = document.getElementById('loginForm');
+                    const authLinks = document.querySelector('.auth-links');
                     
                     if (!data.oidc_enabled) {
                         if (oidcButton) oidcButton.style.display = 'none';
                         if (orSeparator) orSeparator.style.display = 'none';
                         return;
+                    }
+                    
+                    // Handle OIDC-only mode
+                    if (data.oidc_only_mode) {
+                        // Hide traditional login form and related elements
+                        if (loginForm) loginForm.style.display = 'none';
+                        if (orSeparator) orSeparator.style.display = 'none';
+                        if (authLinks) {
+                            // Hide register and forgot password links in OIDC-only mode
+                            const registerLink = authLinks.querySelector('a[href="register.html"]');
+                            const forgotPasswordLink = authLinks.querySelector('a[href="reset-password-request.html"]');
+                            if (registerLink) registerLink.style.display = 'none';
+                            if (forgotPasswordLink) forgotPasswordLink.style.display = 'none';
+                            
+                            // If all links are hidden, hide the entire auth-links section
+                            const visibleLinks = Array.from(authLinks.querySelectorAll('a')).filter(link => 
+                                link.style.display !== 'none'
+                            );
+                            if (visibleLinks.length === 0) {
+                                authLinks.style.display = 'none';
+                            }
+                        }
+                        
+                        // Update page title to reflect OIDC-only mode
+                        const authTitle = document.querySelector('.auth-title');
+                        if (authTitle) {
+                            authTitle.textContent = 'Login with SSO';
+                        }
                     }
                     
                     // Customize button based on provider

@@ -113,15 +113,24 @@
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'}
             };
             
-            // Choose API endpoint based on current view
-            const apiUrl = isGlobalView ? GLOBAL_STATISTICS_API_URL : STATISTICS_API_URL;
-            console.log('Fetching statistics from:', apiUrl, '(Global view:', isGlobalView, ')');
+            // Check saved view scope preference to determine which API endpoint to use
+            const savedScope = loadViewScopePreference();
+            const shouldUseGlobalView = savedScope === 'global';
+            
+            // Choose API endpoint based on saved preference
+            const apiUrl = shouldUseGlobalView ? GLOBAL_STATISTICS_API_URL : STATISTICS_API_URL;
+            console.log('Fetching statistics from:', apiUrl, '(Global view preference:', savedScope, ')');
             
             const response = await fetch(apiUrl, options);
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Failed to fetch statistics: ${response.status} ${errorText}`);
             }
+            
+            // Update isGlobalView to match the loaded data
+            isGlobalView = shouldUseGlobalView;
+            console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
+            
             return await response.json();
         } catch (error) {
             console.error('Error fetching statistics (status.js IIFE):', error);
@@ -159,6 +168,23 @@
                 if (result.enabled) {
                     showViewSwitcher();
                     setupViewSwitcherListeners();
+                    
+                    // Load and apply saved view scope preference
+                    const savedScope = loadViewScopePreference();
+                    if (savedScope === 'global') {
+                        // Apply global view silently without saving preference again
+                        isGlobalView = true;
+                        updateViewButtons();
+                        updateDashboardTitle();
+                        updateTableColumns();
+                    } else {
+                        // Apply personal view (default)
+                        isGlobalView = false;
+                        updateViewButtons();
+                        updateDashboardTitle();
+                        updateTableColumns();
+                    }
+                    
                     isViewControlsInitialized = true;
                 }
             }
@@ -168,6 +194,23 @@
             if (getUserType() === 'admin') {
                 showViewSwitcher();
                 setupViewSwitcherListeners();
+                
+                // Load and apply saved view scope preference
+                const savedScope = loadViewScopePreference();
+                if (savedScope === 'global') {
+                    // Apply global view silently without saving preference again
+                    isGlobalView = true;
+                    updateViewButtons();
+                    updateDashboardTitle();
+                    updateTableColumns();
+                } else {
+                    // Apply personal view (default)
+                    isGlobalView = false;
+                    updateViewButtons();
+                    updateDashboardTitle();
+                    updateTableColumns();
+                }
+                
                 isViewControlsInitialized = true;
             }
         }
@@ -179,6 +222,44 @@
             return userInfo.is_admin ? 'admin' : 'user';
         } catch {
             return 'user';
+        }
+    }
+
+    /**
+     * Get the appropriate localStorage key prefix based on user type
+     * @returns {string} The prefix to use for localStorage keys
+     */
+    function getPreferenceKeyPrefix() {
+        return getUserType() === 'admin' ? 'admin_' : 'user_';
+    }
+
+    /**
+     * Save view scope preference to localStorage
+     * @param {string} scope - 'personal' or 'global'
+     */
+    function saveViewScopePreference(scope) {
+        try {
+            const prefix = getPreferenceKeyPrefix();
+            localStorage.setItem(`${prefix}viewScope`, scope);
+            console.log(`Saved view scope preference: ${scope} with prefix: ${prefix}`);
+        } catch (error) {
+            console.error('Error saving view scope preference:', error);
+        }
+    }
+
+    /**
+     * Load view scope preference from localStorage
+     * @returns {string} The saved preference ('personal', 'global', or 'personal' as default)
+     */
+    function loadViewScopePreference() {
+        try {
+            const prefix = getPreferenceKeyPrefix();
+            const savedScope = localStorage.getItem(`${prefix}viewScope`);
+            console.log(`Loaded view scope preference: ${savedScope} with prefix: ${prefix}`);
+            return savedScope || 'personal'; // Default to personal view
+        } catch (error) {
+            console.error('Error loading view scope preference:', error);
+            return 'personal'; // Default to personal view on error
         }
     }
 
@@ -215,6 +296,10 @@
         updateViewButtons();
         updateDashboardTitle();
         updateTableColumns();
+        
+        // Save view preference
+        saveViewScopePreference('personal');
+        
         isDashboardInitialized = false; // Reset to allow refresh with new view
         await initDashboard();
     }
@@ -237,6 +322,10 @@
                     updateViewButtons();
                     updateDashboardTitle();
                     updateTableColumns();
+                    
+                    // Save view preference
+                    saveViewScopePreference('global');
+                    
                     isDashboardInitialized = false; // Reset to allow refresh with new view
                     await initDashboard();
                 } else {
@@ -1017,7 +1106,7 @@
 
                 if (typeof window.openEditModal === 'function') {
                     window.currentEditingWarrantyIdStatusPage = warrantyId; // For observer
-                    window.openEditModal(finalWarrantyForModal); 
+                    await window.openEditModal(finalWarrantyForModal); 
                 } else {
                     showToast('Edit modal functionality is not available.', 'error');
                     console.error("window.openEditModal is not a function. Ensure script.js is loaded and exposes it.");

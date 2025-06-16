@@ -13,6 +13,7 @@ const saveNotificationSettingsBtn = document.getElementById('saveNotificationSet
 const changePasswordBtn = document.getElementById('changePasswordBtn');
 const emailSettingsContainer = document.getElementById('emailSettingsContainer');
 const appriseSettingsContainer = document.getElementById('appriseSettingsContainer');
+const userAppriseSettingsContainer = document.getElementById('userAppriseSettingsContainer');
 const passwordChangeForm = document.getElementById('passwordChangeForm');
 const savePasswordBtn = document.getElementById('savePasswordBtn');
 const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
@@ -26,6 +27,14 @@ const toastContainer = document.getElementById('toastContainer');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsMenu = document.getElementById('settingsMenu');
 const usersTableBody = document.getElementById('usersTableBody');
+
+// Edit User Modal Elements
+const editUserModal = document.getElementById('editUserModal');
+const editUserId = document.getElementById('editUserId');
+const editUsername = document.getElementById('editUsername');
+const editEmail = document.getElementById('editEmail');
+const editUserActive = document.getElementById('editUserActive');
+const editUserAdmin = document.getElementById('editUserAdmin');
 
 // Form fields
 const firstNameInput = document.getElementById('firstName');
@@ -49,6 +58,7 @@ const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for 
 
 // OIDC Settings DOM Elements
 const oidcEnabledToggle = document.getElementById('oidcEnabled');
+const oidcOnlyModeToggle = document.getElementById('oidcOnlyMode');
 const oidcProviderNameInput = document.getElementById('oidcProviderName');
 const oidcClientIdInput = document.getElementById('oidcClientId');
 const oidcClientSecretInput = document.getElementById('oidcClientSecret');
@@ -59,11 +69,18 @@ const oidcRestartMessage = document.getElementById('oidcRestartMessage');
 
 // Apprise Settings DOM Elements
 const appriseEnabledToggle = document.getElementById('appriseEnabled');
+const appriseNotificationModeSelect = document.getElementById('appriseNotificationMode');
+const appriseModeDescription = document.getElementById('appriseModeDescription');
+const appriseWarrantyScopeSelect = document.getElementById('appriseWarrantyScope');
+const appriseScopeDescription = document.getElementById('appriseScopeDescription');
 const appriseUrlsTextarea = document.getElementById('appriseUrls');
 const appriseExpirationDaysInput = document.getElementById('appriseExpirationDays');
-const appriseNotificationTimeInput = document.getElementById('appriseNotificationTime');
-const appriseTimezoneSelect = document.getElementById('appriseTimezone');
 const appriseNotificationFrequency = document.getElementById('appriseNotificationFrequency');
+
+// User-specific Apprise settings (in notification settings section)
+const userAppriseNotificationTimeInput = document.getElementById('userAppriseNotificationTime');
+const userAppriseTimezoneSelect = document.getElementById('userAppriseTimezone');
+const userAppriseNotificationFrequency = document.getElementById('userAppriseNotificationFrequency');
 const appriseTitlePrefixInput = document.getElementById('appriseTitlePrefix');
 const appriseTestUrlInput = document.getElementById('appriseTestUrl');
 const saveAppriseSettingsBtn = document.getElementById('saveAppriseSettingsBtn');
@@ -73,16 +90,71 @@ const triggerAppriseNotificationsBtn = document.getElementById('triggerAppriseNo
 const appriseStatusBadge = document.getElementById('appriseStatusBadge');
 const appriseUrlsCount = document.getElementById('appriseUrlsCount');
 const currentAppriseExpirationDays = document.getElementById('currentAppriseExpirationDays');
-const currentAppriseNotificationTime = document.getElementById('currentAppriseNotificationTime');
+
 const viewSupportedServicesBtn = document.getElementById('viewSupportedServicesBtn');
 const appriseNotAvailable = document.getElementById('appriseNotAvailable');
 
 const currencySymbolInput = document.getElementById('currencySymbol');
 const currencySymbolSelect = document.getElementById('currencySymbolSelect');
 const currencySymbolCustom = document.getElementById('currencySymbolCustom');
+const currencyPositionSelect = document.getElementById('currencyPositionSelect');
 
 // Add dateFormatSelect near other DOM element declarations if not already there
 const dateFormatSelect = document.getElementById('dateFormat');
+
+// Global variable to store currencies data for currency code lookup
+let globalCurrenciesData = [];
+
+/**
+ * Load currencies from the API and populate the currency dropdown
+ */
+async function loadCurrenciesForSettings() {
+    try {
+        const response = await fetch('/api/currencies');
+        if (!response.ok) {
+            throw new Error('Failed to fetch currencies');
+        }
+        
+        const currencies = await response.json();
+        
+        // Store currencies data globally for currency code lookup
+        globalCurrenciesData = currencies;
+        
+        // Populate currency symbol dropdown
+        if (currencySymbolSelect) {
+            // Clear existing options
+            currencySymbolSelect.innerHTML = '';
+            
+            // Add currencies from API
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.symbol;
+                option.textContent = `${currency.symbol} (${currency.code} - ${currency.name})`;
+                currencySymbolSelect.appendChild(option);
+            });
+            
+            // Add "Other..." option at the end
+            const otherOption = document.createElement('option');
+            otherOption.value = 'other';
+            otherOption.textContent = 'Other...';
+            currencySymbolSelect.appendChild(otherOption);
+        }
+        
+        console.log('Currencies loaded successfully for settings page');
+    } catch (error) {
+        console.error('Error loading currencies for settings:', error);
+        // Fallback to default currencies if loading fails
+        if (currencySymbolSelect) {
+            currencySymbolSelect.innerHTML = `
+                <option value="$">$ (USD - US Dollar)</option>
+                <option value="€">€ (EUR - Euro)</option>
+                <option value="£">£ (GBP - British Pound)</option>
+                <option value="¥">¥ (JPY - Japanese Yen)</option>
+                <option value="other">Other...</option>
+            `;
+        }
+    }
+}
 
 /**
  * Set theme (dark/light) - Unified and persistent
@@ -171,6 +243,13 @@ function initDarkModeToggle() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded, initializing settings page');
     
+    // DEBUG: Check current user data
+    const debugCurrentUser = window.auth && window.auth.getCurrentUser ? window.auth.getCurrentUser() : null;
+    console.log('DEBUG: Current user data:', debugCurrentUser);
+    if (debugCurrentUser) {
+        console.log('DEBUG: User has is_owner field:', 'is_owner' in debugCurrentUser, 'Value:', debugCurrentUser.is_owner);
+    }
+    
     // Set up event listeners
     setupEventListeners(); // Ensure this doesn't also try to init settings menu
     
@@ -221,6 +300,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Load Apprise site settings (also loads overall Apprise settings)
         loadAppriseSiteSettings();
+        
+        // Initialize ownership management if user is owner
+        if (currentUser.is_owner) {
+            console.log('DEBUG: User is owner, initializing ownership management');
+            setTimeout(() => {
+                const ownershipSection = document.getElementById('ownershipSection');
+                if (ownershipSection) {
+                    ownershipSection.style.display = 'block';
+                    console.log('DEBUG: Ownership section made visible');
+                }
+                // Don't load users here - wait for modal to open
+                console.log('DEBUG: Ownership management initialized, users will load when modal opens');
+            }, 500); // Wait for DOM to be ready
+        }
     } else {
         console.log('User is not admin, skipping admin-only settings load during initialization');
     }
@@ -619,8 +712,12 @@ async function loadPreferences() {
         console.log(`${prefix}defaultView not found, defaulting view to grid`);
     }
 
-    // Currency Symbol
+    // Currency Symbol - Load stored preference first
     const storedCurrency = localStorage.getItem(`${prefix}currencySymbol`);
+    
+    // Load currencies from API and set the saved preference
+    await loadCurrenciesForSettings();
+    
     if (storedCurrency) {
         if (currencySymbolSelect) {
             // Check if the stored symbol is a standard option
@@ -628,6 +725,7 @@ async function loadPreferences() {
             if (standardOption) {
                 currencySymbolSelect.value = storedCurrency;
                 if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+                console.log(`Set currency dropdown to stored value: ${storedCurrency}`);
             } else {
                 // It's a custom symbol
                 currencySymbolSelect.value = 'other';
@@ -635,6 +733,7 @@ async function loadPreferences() {
                     currencySymbolCustom.value = storedCurrency;
                     currencySymbolCustom.style.display = 'inline-block';
                 }
+                console.log(`Set currency to custom value: ${storedCurrency}`);
             }
             console.log(`Loaded currency symbol from ${prefix}currencySymbol: ${storedCurrency}`);
         }
@@ -643,6 +742,16 @@ async function loadPreferences() {
         if (currencySymbolSelect) currencySymbolSelect.value = '$';
         if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
         console.log(`${prefix}currencySymbol not found, defaulting to $`);
+    }
+
+    // Currency Position
+    const storedCurrencyPosition = localStorage.getItem(`${prefix}currencyPosition`);
+    if (storedCurrencyPosition && currencyPositionSelect) {
+        currencyPositionSelect.value = storedCurrencyPosition;
+        console.log(`Loaded currency position from ${prefix}currencyPosition: ${storedCurrencyPosition}`);
+    } else if (currencyPositionSelect) {
+        currencyPositionSelect.value = 'left'; // Default
+        console.log(`${prefix}currencyPosition not found, defaulting to left`);
     }
 
     // Expiring Soon Days
@@ -692,6 +801,18 @@ async function loadPreferences() {
                     }
                 }
                 // --- END MODIFIED CURRENCY SYMBOL HANDLING ---
+                
+                // --- CURRENCY POSITION HANDLING ---
+                const storedCurrencyPosition = localStorage.getItem(`${prefix}currencyPosition`);
+                if (apiPrefs.currency_position && currencyPositionSelect) {
+                    if (!storedCurrencyPosition || apiPrefs.currency_position !== storedCurrencyPosition) {
+                        console.log(`API currency_position (${apiPrefs.currency_position}) differs from localStorage (${storedCurrencyPosition}). Updating UI.`);
+                        currencyPositionSelect.value = apiPrefs.currency_position;
+                    } else {
+                        console.log(`API currency_position (${apiPrefs.currency_position}) matches localStorage (${storedCurrencyPosition}). Skipping UI update.`);
+                    }
+                }
+                // --- END CURRENCY POSITION HANDLING ---
                 if (apiPrefs.expiring_soon_days && expiringSoonDaysInput) {
                      // Only update if different from localStorage value (or if localStorage was empty)
                      const storedExpiringDays = localStorage.getItem(`${prefix}expiringSoonDays`) || '30'; // Default if null
@@ -724,22 +845,28 @@ async function loadPreferences() {
                 if (notificationTimeInput && apiPrefs.notification_time) {
                     notificationTimeInput.value = apiPrefs.notification_time.substring(0, 5); // HH:MM format
                 }
-                if (appriseNotificationTimeInput && apiPrefs.apprise_notification_time) {
-                    appriseNotificationTimeInput.value = apiPrefs.apprise_notification_time.substring(0, 5);
+                // Admin Apprise settings (in Apprise card)
+                if (appriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
+                    appriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
                 }
-                if (appriseTimezoneSelect && apiPrefs.apprise_timezone) {
-                    if (Array.from(appriseTimezoneSelect.options).some(option => option.value === apiPrefs.apprise_timezone)) {
-                        appriseTimezoneSelect.value = apiPrefs.apprise_timezone;
+                
+                // User-specific Apprise settings (in notification settings section)
+                if (userAppriseNotificationTimeInput && apiPrefs.apprise_notification_time) {
+                    userAppriseNotificationTimeInput.value = apiPrefs.apprise_notification_time.substring(0, 5);
+                }
+                if (userAppriseTimezoneSelect && apiPrefs.apprise_timezone) {
+                    if (Array.from(userAppriseTimezoneSelect.options).some(option => option.value === apiPrefs.apprise_timezone)) {
+                        userAppriseTimezoneSelect.value = apiPrefs.apprise_timezone;
                     } else {
-                        console.warn(`Apprise timezone '${apiPrefs.apprise_timezone}' from API not found in dropdown.`);
+                        console.warn(`User Apprise timezone '${apiPrefs.apprise_timezone}' from API not found in dropdown.`);
                     }
+                }
+                if (userAppriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
+                    userAppriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
                 }
                 
                 // Update Apprise timezone display
                 updateAppriseTimezoneDisplay(apiPrefs.timezone);
-                if (appriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
-                    appriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
-                }
                 // Load and set timezone from API
                 if (timezoneSelect && apiPrefs.timezone) {
                     console.log('API provided timezone:', apiPrefs.timezone);
@@ -904,7 +1031,16 @@ function setupEventListeners() {
     
     if (showUsersBtn) {
         showUsersBtn.addEventListener('click', function() {
-            showUsersList();
+            console.log('Show Users List button clicked');
+            // Open the proper users modal that has crown icons and ownership management
+            const usersModal = document.getElementById('usersModal');
+            if (usersModal) {
+                openModal(usersModal);
+                loadUsers(); // This will populate the table with crown icons
+            } else {
+                console.error('usersModal not found, falling back to showUsersList');
+                showUsersList();
+            }
         });
     }
     
@@ -944,6 +1080,16 @@ function setupEventListeners() {
     if (saveNotificationSettingsBtn) {
         saveNotificationSettingsBtn.addEventListener('click', saveNotificationSettings);
     }
+
+    // Save user changes button (Edit User Modal)
+    const saveUserBtn = document.getElementById('saveUserBtn');
+    if (saveUserBtn) {
+        saveUserBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Save User button clicked');
+            saveUserChanges();
+        });
+    }
     
     // Add timezone change listener to update Apprise timezone display
     const timezoneSelect = document.getElementById('timezone');
@@ -953,8 +1099,10 @@ function setupEventListeners() {
         });
     }
 
-    if (appriseTimezoneSelect) {
-        loadTimezonesIntoSelect(appriseTimezoneSelect);
+
+    
+    if (userAppriseTimezoneSelect) {
+        loadTimezonesIntoSelect(userAppriseTimezoneSelect);
     }
 
     if (notificationChannel) {
@@ -1015,6 +1163,19 @@ function initModals() {
         });
     } else {
         console.error('deleteUserModal not found in initModals');
+    }
+    
+    // Set up transfer ownership modal close handlers
+    const transferOwnershipModal = document.getElementById('transferOwnershipModal');
+    if (transferOwnershipModal) {
+        const transferConfirmInput = document.getElementById('transferConfirmInput');
+        const confirmTransferBtn = document.getElementById('confirmTransferOwnershipBtn');
+        
+        if (transferConfirmInput && confirmTransferBtn) {
+            transferConfirmInput.addEventListener('input', function() {
+                confirmTransferBtn.disabled = this.value.toUpperCase() !== 'TRANSFER';
+            });
+        }
     }
 }
 
@@ -1204,20 +1365,37 @@ async function savePreferences() {
 
     // Handle currency symbol (standard or custom)
     let currencySymbol = '$'; // Default
+    let currencyCode = 'USD'; // Default
     if (currencySymbolSelect) {
         if (currencySymbolSelect.value === 'other' && currencySymbolCustom) {
             currencySymbol = currencySymbolCustom.value.trim() || '$'; // Use custom or default to $ if empty
+            // For custom symbols, try to derive currency code or default to USD
+            currencyCode = 'USD'; // Default for custom symbols
         } else {
             currencySymbol = currencySymbolSelect.value;
+            // Find the currency code for the selected symbol
+            const selectedCurrency = globalCurrenciesData.find(currency => currency.symbol === currencySymbol);
+            if (selectedCurrency) {
+                currencyCode = selectedCurrency.code;
+            }
         }
     }
     preferencesToSave.currency_symbol = currencySymbol;
+
+    // Handle currency position
+    let currencyPosition = 'left'; // Default
+    if (currencyPositionSelect) {
+        currencyPosition = currencyPositionSelect.value;
+    }
+    preferencesToSave.currency_position = currencyPosition;
     // --- End data preparation ---
 
     // +++ ADDED DEBUG LOGGING +++
     console.log(`[SavePrefs Debug] Currency Select Value: ${currencySymbolSelect ? currencySymbolSelect.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Custom Input Value: ${currencySymbolCustom ? currencySymbolCustom.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Final currencySymbol value determined: ${currencySymbol}`);
+    console.log(`[SavePrefs Debug] Final currencyCode value determined: ${currencyCode}`);
+    console.log(`[SavePrefs Debug] Currency Position Value: ${currencyPosition}`);
     console.log(`[SavePrefs Debug] Theme being saved: ${preferencesToSave.theme} (from isDark: ${isDark})`);
     // +++ END DEBUG LOGGING +++
 
@@ -1229,6 +1407,8 @@ async function savePreferences() {
     localStorage.setItem('dateFormat', preferencesToSave.date_format); // Added
     localStorage.setItem(`${prefix}defaultView`, preferencesToSave.default_view);
     localStorage.setItem(`${prefix}currencySymbol`, preferencesToSave.currency_symbol);
+    localStorage.setItem(`${prefix}currencyCode`, currencyCode); // Save currency code
+    localStorage.setItem(`${prefix}currencyPosition`, preferencesToSave.currency_position);
     localStorage.setItem(`${prefix}expiringSoonDays`, preferencesToSave.expiring_soon_days);
 
     console.log('Preferences saved to localStorage (prefix:', prefix, '):', preferencesToSave);
@@ -1490,60 +1670,164 @@ async function loadUsers() {
         if (response.ok) {
             const users = await response.json();
             
+            // DEBUG: Check users data
+            console.log('DEBUG: Users data from API:', users);
+            users.forEach((user, index) => {
+                console.log(`DEBUG: User ${index} (${user.username}):`, {
+                    id: user.id,
+                    is_owner: user.is_owner,
+                    is_admin: user.is_admin
+                });
+            });
+            
             // Clear table
             usersTableBody.innerHTML = '';
             
             // Add users to table
             users.forEach(user => {
                 const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid var(--border-color)';
+                row.style.transition = 'background-color 0.2s ease';
                 
-                // Username
+                // Add hover effect
+                row.addEventListener('mouseenter', () => {
+                    row.style.backgroundColor = 'var(--hover-bg, rgba(0,0,0,0.05))';
+                });
+                row.addEventListener('mouseleave', () => {
+                    row.style.backgroundColor = 'transparent';
+                });
+                
+                // ID
+                const idCell = document.createElement('td');
+                idCell.textContent = user.id;
+                idCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-weight: 500;';
+                row.appendChild(idCell);
+                
+                // Username with crown
                 const usernameCell = document.createElement('td');
-                usernameCell.textContent = user.username;
+                const crownIcon = user.is_owner ? ' <i class="fas fa-crown" title="Application Owner" style="color: #f39c12; margin-left: 5px;"></i>' : '';
+                console.log(`DEBUG: User ${user.username} (ID: ${user.id}) - is_owner: ${user.is_owner}, adding crown: ${!!user.is_owner}`);
+                usernameCell.innerHTML = user.username + crownIcon;
+                usernameCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-weight: 500;';
                 row.appendChild(usernameCell);
                 
                 // Email
                 const emailCell = document.createElement('td');
                 emailCell.textContent = user.email;
+                emailCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-size: 0.9em;';
                 row.appendChild(emailCell);
                 
                 // Name
                 const nameCell = document.createElement('td');
                 const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
                 nameCell.textContent = fullName || '-';
+                nameCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color);';
                 row.appendChild(nameCell);
-                
-                // Status
-                const statusCell = document.createElement('td');
-                const statusBadge = document.createElement('span');
-                statusBadge.className = `badge ${user.is_active ? 'badge-success' : 'badge-danger'}`;
-                statusBadge.textContent = user.is_active ? 'Active' : 'Inactive';
-                statusCell.appendChild(statusBadge);
-                row.appendChild(statusCell);
                 
                 // Admin
                 const adminCell = document.createElement('td');
                 const adminBadge = document.createElement('span');
-                adminBadge.className = `badge ${user.is_admin ? 'badge-primary' : 'badge-secondary'}`;
-                adminBadge.textContent = user.is_admin ? 'Admin' : 'User';
+                adminBadge.className = `badge ${user.is_admin ? 'badge-success' : 'badge-secondary'}`;
+                adminBadge.textContent = user.is_admin ? 'Yes' : 'No';
+                adminBadge.style.cssText = 'padding: 4px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600;';
                 adminCell.appendChild(adminBadge);
+                adminCell.style.cssText = 'padding: 12px 8px; text-align: center; border-right: 1px solid var(--border-color);';
                 row.appendChild(adminCell);
+                
+                // Active Status
+                const statusCell = document.createElement('td');
+                const statusBadge = document.createElement('span');
+                statusBadge.className = `badge ${user.is_active ? 'badge-success' : 'badge-danger'}`;
+                statusBadge.textContent = user.is_active ? 'Yes' : 'No';
+                statusBadge.style.cssText = 'padding: 4px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600;';
+                statusCell.appendChild(statusBadge);
+                statusCell.style.cssText = 'padding: 12px 8px; text-align: center; border-right: 1px solid var(--border-color);';
+                row.appendChild(statusCell);
                 
                 // Actions
                 const actionsCell = document.createElement('td');
+                actionsCell.style.cssText = 'padding: 12px 8px; text-align: center;';
+                
+                // Create button container for better spacing
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.cssText = 'display: flex; gap: 6px; justify-content: center; align-items: center;';
                 
                 // Edit button
                 const editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm btn-outline-primary mr-2';
+                editBtn.className = 'btn btn-sm';
                 editBtn.innerHTML = '<i class="fas fa-edit"></i>';
                 editBtn.title = 'Edit User';
+                editBtn.style.cssText = `
+                    padding: 8px 10px; 
+                    border-radius: 6px; 
+                    border: 1px solid var(--primary-color, #007bff);
+                    background-color: transparent;
+                    color: var(--primary-color, #007bff);
+                    transition: all 0.2s ease;
+                    cursor: pointer;
+                    min-width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                
+                // Edit button hover effects
+                editBtn.addEventListener('mouseenter', () => {
+                    if (!editBtn.disabled) {
+                        editBtn.style.backgroundColor = 'var(--primary-color, #007bff)';
+                        editBtn.style.color = 'white';
+                        editBtn.style.transform = 'translateY(-1px)';
+                        editBtn.style.boxShadow = '0 2px 4px rgba(0,123,255,0.3)';
+                    }
+                });
+                editBtn.addEventListener('mouseleave', () => {
+                    if (!editBtn.disabled) {
+                        editBtn.style.backgroundColor = 'transparent';
+                        editBtn.style.color = 'var(--primary-color, #007bff)';
+                        editBtn.style.transform = 'translateY(0)';
+                        editBtn.style.boxShadow = 'none';
+                    }
+                });
                 editBtn.addEventListener('click', () => openEditUserModal(user));
                 
                 // Delete button
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn btn-sm btn-outline-danger';
+                deleteBtn.className = 'btn btn-sm';
                 deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
                 deleteBtn.title = 'Delete User';
+                deleteBtn.style.cssText = `
+                    padding: 8px 10px; 
+                    border-radius: 6px; 
+                    border: 1px solid var(--danger-color, #dc3545);
+                    background-color: transparent;
+                    color: var(--danger-color, #dc3545);
+                    transition: all 0.2s ease;
+                    cursor: pointer;
+                    min-width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                
+                // Delete button hover effects
+                deleteBtn.addEventListener('mouseenter', () => {
+                    if (!deleteBtn.disabled) {
+                        deleteBtn.style.backgroundColor = 'var(--danger-color, #dc3545)';
+                        deleteBtn.style.color = 'white';
+                        deleteBtn.style.transform = 'translateY(-1px)';
+                        deleteBtn.style.boxShadow = '0 2px 4px rgba(220,53,69,0.3)';
+                    }
+                });
+                deleteBtn.addEventListener('mouseleave', () => {
+                    if (!deleteBtn.disabled) {
+                        deleteBtn.style.backgroundColor = 'transparent';
+                        deleteBtn.style.color = 'var(--danger-color, #dc3545)';
+                        deleteBtn.style.transform = 'translateY(0)';
+                        deleteBtn.style.boxShadow = 'none';
+                    }
+                });
                 
                 // Add multiple event handlers for redundancy
                 deleteBtn.addEventListener('click', (event) => {
@@ -1562,24 +1846,50 @@ async function loadUsers() {
                     return false;
                 };
                 
-                // Don't allow editing or deleting self
+                // Don't allow editing or deleting self, and disable actions for the owner
                 const currentUser = window.auth.getCurrentUser();
-                if (user.id === currentUser.id) {
+                const isOwner = user.is_owner;
+                const isCurrentUser = (user.id === currentUser.id);
+
+                console.log(`DEBUG: Button logic for ${user.username} - isOwner: ${isOwner}, isCurrentUser: ${isCurrentUser}, currentUser.id: ${currentUser?.id}, user.id: ${user.id}`);
+
+                if (isOwner || isCurrentUser) {
                     editBtn.disabled = true;
                     deleteBtn.disabled = true;
-                    editBtn.title = 'Cannot edit yourself';
-                    deleteBtn.title = 'Cannot delete yourself';
-                    console.log('Disabled edit/delete for current user:', currentUser.id);
+                    editBtn.title = isOwner ? 'Cannot edit the application owner' : 'Cannot edit yourself';
+                    deleteBtn.title = isOwner ? 'Cannot delete the application owner' : 'Cannot delete yourself';
+                    
+                    // Enhanced disabled styling
+                    editBtn.style.opacity = '0.4';
+                    editBtn.style.cursor = 'not-allowed';
+                    editBtn.style.border = '1px solid var(--text-muted, #6c757d)';
+                    editBtn.style.color = 'var(--text-muted, #6c757d)';
+                    
+                    deleteBtn.style.opacity = '0.4';
+                    deleteBtn.style.cursor = 'not-allowed';
+                    deleteBtn.style.border = '1px solid var(--text-muted, #6c757d)';
+                    deleteBtn.style.color = 'var(--text-muted, #6c757d)';
+                    
+                    console.log('DEBUG: Disabled edit/delete for', isOwner ? 'owner' : 'current user', ':', user.id);
+                } else {
+                    console.log('DEBUG: Buttons enabled for user:', user.id);
                 }
                 
-                actionsCell.appendChild(editBtn);
-                actionsCell.appendChild(deleteBtn);
+                // Add buttons to container
+                buttonContainer.appendChild(editBtn);
+                buttonContainer.appendChild(deleteBtn);
+                
+                // Add container to cell
+                actionsCell.appendChild(buttonContainer);
                 row.appendChild(actionsCell);
                 
                 usersTableBody.appendChild(row);
             });
             
             console.log('Users loaded successfully:', users.length);
+            
+            // Set up ownership management after loading users
+            setupOwnershipManagement(users);
         } else {
             console.error('Failed to load users:', response.status);
             showToast('Failed to load users', 'error');
@@ -1879,6 +2189,157 @@ function deleteUser() {
     }
     
     console.log('=== DELETE USER FUNCTION COMPLETED ===');
+}
+
+/**
+ * Set up ownership management functionality
+ * @param {Array} users - List of all users
+ */
+function setupOwnershipManagement(users) {
+    const currentUser = window.auth.getCurrentUser();
+    const ownershipCard = document.getElementById('ownershipCard');
+    const newOwnerSelect = document.getElementById('newOwnerSelect');
+    const transferOwnershipBtn = document.getElementById('transferOwnershipBtn');
+    
+    // DEBUG: Check ownership management setup
+    console.log('DEBUG: setupOwnershipManagement called');
+    console.log('DEBUG: currentUser:', currentUser);
+    console.log('DEBUG: currentUser.is_owner:', currentUser ? currentUser.is_owner : 'no currentUser');
+    console.log('DEBUG: ownershipCard element:', ownershipCard);
+    
+    if (!currentUser || !currentUser.is_owner) {
+        // Hide ownership section if user is not the owner
+        console.log('DEBUG: Hiding ownership section - user is not owner');
+        const ownershipSection = document.getElementById('ownershipSection');
+        if (ownershipSection) {
+            ownershipSection.style.display = 'none';
+        }
+        return;
+    }
+    
+    // Show ownership section for the owner
+    const ownershipSection = document.getElementById('ownershipSection');
+    if (ownershipSection) {
+        ownershipSection.style.display = 'block';
+    }
+    
+    // Populate the select dropdown with admin users (excluding current owner)
+    if (newOwnerSelect) {
+        newOwnerSelect.innerHTML = '<option value="">Select an admin user...</option>';
+        
+        users.forEach(user => {
+            if (user.is_admin && user.id !== currentUser.id && user.is_active && !user.is_owner) {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} (${user.email})`;
+                newOwnerSelect.appendChild(option);
+            }
+        });
+        
+        // Enable/disable transfer button based on selection
+        newOwnerSelect.addEventListener('change', function() {
+            if (transferOwnershipBtn) {
+                transferOwnershipBtn.disabled = !this.value;
+            }
+        });
+    }
+    
+    // Set up transfer button click handler
+    if (transferOwnershipBtn) {
+        transferOwnershipBtn.addEventListener('click', function() {
+            const selectedUserId = newOwnerSelect.value;
+            if (!selectedUserId) {
+                showToast('Please select a user to transfer ownership to', 'error');
+                return;
+            }
+            
+            const selectedUser = users.find(u => u.id == selectedUserId);
+            if (selectedUser) {
+                openTransferOwnershipModal(selectedUser);
+            }
+        });
+    }
+}
+
+/**
+ * Open the transfer ownership confirmation modal
+ * @param {Object} targetUser - The user to transfer ownership to
+ */
+function openTransferOwnershipModal(targetUser) {
+    const modal = document.getElementById('transferOwnershipModal');
+    const targetUsernameSpan = document.getElementById('transferTargetUsername');
+    const confirmInput = document.getElementById('transferConfirmInput');
+    const confirmBtn = document.getElementById('confirmTransferOwnershipBtn');
+    
+    if (!modal || !targetUsernameSpan || !confirmInput || !confirmBtn) {
+        showToast('Error: Transfer ownership modal elements not found', 'error');
+        return;
+    }
+    
+    // Set target username
+    targetUsernameSpan.textContent = targetUser.username;
+    
+    // Clear and set up confirm input
+    confirmInput.value = '';
+    confirmInput.addEventListener('input', function() {
+        confirmBtn.disabled = this.value.toUpperCase() !== 'TRANSFER';
+    });
+    
+    // Set up confirm button
+    confirmBtn.disabled = true;
+    confirmBtn.onclick = function() {
+        if (confirmInput.value.toUpperCase() === 'TRANSFER') {
+            performOwnershipTransfer(targetUser.id);
+        }
+    };
+    
+    // Show modal
+    modal.style.display = 'flex';
+}
+
+/**
+ * Perform the actual ownership transfer
+ * @param {number} newOwnerId - ID of the user to transfer ownership to
+ */
+async function performOwnershipTransfer(newOwnerId) {
+    const modal = document.getElementById('transferOwnershipModal');
+    
+    try {
+        showLoading();
+        
+        const response = await fetch('/api/admin/transfer-ownership', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                new_owner_id: newOwnerId
+            })
+        });
+        
+        if (response.ok) {
+            showToast('Ownership transferred successfully! Refreshing page...', 'success');
+            
+            // Close modal
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // Refresh the page after a short delay to allow the user to see the success message
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            const errorData = await response.json();
+            showToast(errorData.message || 'Failed to transfer ownership', 'error');
+        }
+    } catch (error) {
+        console.error('Error transferring ownership:', error);
+        showToast('Failed to transfer ownership. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 /**
@@ -2593,6 +3054,7 @@ async function loadSiteSettings() {
     const globalViewToggleElem = document.getElementById('globalViewEnabled');
     const globalViewAdminOnlyToggleElem = document.getElementById('globalViewAdminOnly');
     const oidcEnabledToggleElem = document.getElementById('oidcEnabled');
+    const oidcOnlyModeToggleElem = document.getElementById('oidcOnlyMode');
     const oidcProviderNameInputElem = document.getElementById('oidcProviderName');
     const oidcClientIdInputElem = document.getElementById('oidcClientId');
     const oidcClientSecretInputElem = document.getElementById('oidcClientSecret');
@@ -2657,6 +3119,13 @@ async function loadSiteSettings() {
             oidcEnabledToggleElem.checked = settings.oidc_enabled === 'true';
         } else {
             console.error('[OIDC Settings] oidcEnabledToggleElem element NOT FOUND locally.');
+        }
+
+        if (oidcOnlyModeToggleElem) {
+            console.log('[OIDC Settings] Found oidcOnlyModeToggleElem. Setting checked to:', settings.oidc_only_mode === 'true');
+            oidcOnlyModeToggleElem.checked = settings.oidc_only_mode === 'true';
+        } else {
+            console.error('[OIDC Settings] oidcOnlyModeToggleElem element NOT FOUND locally.');
         }
 
         if (oidcProviderNameInputElem) {
@@ -2786,6 +3255,7 @@ async function saveOidcSettings() {
     console.log('Saving OIDC settings...');
     const oidcSettingsPayload = {
         oidc_enabled: oidcEnabledToggle ? oidcEnabledToggle.checked : false,
+        oidc_only_mode: oidcOnlyModeToggle ? oidcOnlyModeToggle.checked : false,
         oidc_provider_name: oidcProviderNameInput ? oidcProviderNameInput.value.trim() : 'oidc',
         oidc_client_id: oidcClientIdInput ? oidcClientIdInput.value.trim() : '',
         oidc_issuer_url: oidcIssuerUrlInput ? oidcIssuerUrlInput.value.trim() : '',
@@ -3299,8 +3769,8 @@ function toggleNotificationSettings(channel) {
     if (emailSettingsContainer) {
         emailSettingsContainer.style.display = (channel === 'email' || channel === 'both') ? 'block' : 'none';
     }
-    if (appriseSettingsContainer) {
-        appriseSettingsContainer.style.display = (channel === 'apprise' || channel === 'both') ? 'block' : 'none';
+    if (userAppriseSettingsContainer) {
+        userAppriseSettingsContainer.style.display = (channel === 'apprise' || channel === 'both') ? 'block' : 'none';
     }
 }
 
@@ -3312,10 +3782,10 @@ async function saveNotificationSettings() {
             notification_channel: notificationChannel.value,
             notification_frequency: notificationFrequencySelect.value,
             notification_time: notificationTimeInput.value,
-            apprise_notification_time: appriseNotificationTimeInput.value,
-            apprise_notification_frequency: appriseNotificationFrequency.value,
+            apprise_notification_time: userAppriseNotificationTimeInput ? userAppriseNotificationTimeInput.value : '09:00',
+            apprise_notification_frequency: userAppriseNotificationFrequency ? userAppriseNotificationFrequency.value : 'daily',
             timezone: timezoneSelect.value,
-            apprise_timezone: appriseTimezoneSelect.value
+            apprise_timezone: userAppriseTimezoneSelect ? userAppriseTimezoneSelect.value : 'UTC'
         };
 
         const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
@@ -3420,6 +3890,15 @@ window.addEventListener('storage', (event) => {
         }
     }
 
+    // Add check for currencyPosition
+    if (event.key === `${prefix}currencyPosition`) {
+        console.log(`[Settings Storage Listener] ${prefix}currencyPosition changed to ${event.newValue}`);
+        if (event.newValue && currencyPositionSelect && currencyPositionSelect.value !== event.newValue) {
+            currencyPositionSelect.value = event.newValue;
+            console.log('[Settings Storage Listener] Updated settings currency position dropdown via storage event.');
+        }
+    }
+
 });
 // --- End Storage Event Listener ---
 
@@ -3490,7 +3969,6 @@ async function loadAppriseSettings() {
         // Update status display
         if (appriseUrlsCount) appriseUrlsCount.textContent = statusData.urls_configured || 0;
         if (currentAppriseExpirationDays) currentAppriseExpirationDays.textContent = statusData.expiration_days ? statusData.expiration_days.join(', ') : '-';
-        if (currentAppriseNotificationTime) currentAppriseNotificationTime.textContent = statusData.notification_time || '-';
 
         // Load settings from site settings
         await loadAppriseSiteSettings();
@@ -3560,18 +4038,39 @@ async function loadAppriseSiteSettings() {
             console.log('⚠️ appriseExpirationDaysInput element not found or data missing');
         }
         
-        if (appriseNotificationTimeInput && data.apprise_notification_time) {
-            appriseNotificationTimeInput.value = data.apprise_notification_time;
-            console.log('✅ Set appriseNotificationTime:', data.apprise_notification_time);
-        } else {
-            console.log('⚠️ appriseNotificationTimeInput element not found or data missing');
-        }
+
         
         if (appriseTitlePrefixInput && data.apprise_title_prefix) {
             appriseTitlePrefixInput.value = data.apprise_title_prefix;
             console.log('✅ Set appriseTitlePrefix:', data.apprise_title_prefix);
         } else {
             console.log('⚠️ appriseTitlePrefixInput element not found or data missing');
+        }
+        
+        if (appriseNotificationModeSelect && data.apprise_notification_mode) {
+            appriseNotificationModeSelect.value = data.apprise_notification_mode;
+            updateAppriseModeDescription(data.apprise_notification_mode);
+            console.log('✅ Set appriseNotificationMode:', data.apprise_notification_mode);
+        } else {
+            console.log('⚠️ appriseNotificationModeSelect element not found or data missing');
+            // Set default mode if not found
+            if (appriseNotificationModeSelect) {
+                appriseNotificationModeSelect.value = 'global';
+                updateAppriseModeDescription('global');
+            }
+        }
+        
+        if (appriseWarrantyScopeSelect && data.apprise_warranty_scope) {
+            appriseWarrantyScopeSelect.value = data.apprise_warranty_scope;
+            updateAppriseScopeDescription(data.apprise_warranty_scope);
+            console.log('✅ Set appriseWarrantyScope:', data.apprise_warranty_scope);
+        } else {
+            console.log('⚠️ appriseWarrantyScopeSelect element not found or data missing');
+            // Set default scope if not found
+            if (appriseWarrantyScopeSelect) {
+                appriseWarrantyScopeSelect.value = 'all';
+                updateAppriseScopeDescription('all');
+            }
         }
 
     } catch (error) {
@@ -3596,9 +4095,10 @@ async function saveAppriseSettings() {
 
         const settings = {
             apprise_enabled: appriseEnabledToggle ? appriseEnabledToggle.checked.toString() : 'false',
+            apprise_notification_mode: appriseNotificationModeSelect ? appriseNotificationModeSelect.value : 'global',
+            apprise_warranty_scope: appriseWarrantyScopeSelect ? appriseWarrantyScopeSelect.value : 'all',
             apprise_urls: urls,
             apprise_expiration_days: appriseExpirationDaysInput ? appriseExpirationDaysInput.value : '7,30',
-            apprise_notification_time: appriseNotificationTimeInput ? appriseNotificationTimeInput.value : '09:00',
             apprise_title_prefix: appriseTitlePrefixInput ? appriseTitlePrefixInput.value : '[Warracker]'
         };
 
@@ -3836,6 +4336,32 @@ async function saveAppriseEnabledState(enabled) {
 }
 
 /**
+ * Update Apprise mode description text
+ */
+function updateAppriseModeDescription(mode) {
+    if (!appriseModeDescription) return;
+    
+    if (mode === 'global') {
+        appriseModeDescription.textContent = 'A single, consolidated notification will be sent to the global Apprise channels defined below.';
+    } else if (mode === 'individual') {
+        appriseModeDescription.textContent = 'A separate notification will be sent for each user with expiring warranties. (Note: This currently uses the global channels. Per-user channels can be a future enhancement.)';
+    }
+}
+
+/**
+ * Update Apprise warranty scope description text
+ */
+function updateAppriseScopeDescription(scope) {
+    if (!appriseScopeDescription) return;
+    
+    if (scope === 'all') {
+        appriseScopeDescription.textContent = 'Notifications will include expiring warranties from all users in the system.';
+    } else if (scope === 'admin') {
+        appriseScopeDescription.textContent = 'Notifications will only include expiring warranties belonging to the admin/owner user.';
+    }
+}
+
+/**
  * Setup Apprise event listeners
  */
 function setupAppriseEventListeners() {
@@ -3849,6 +4375,20 @@ function setupAppriseEventListeners() {
             
             // Auto-save the enabled state
             await saveAppriseEnabledState(this.checked);
+        });
+    }
+
+    // Notification mode change
+    if (appriseNotificationModeSelect) {
+        appriseNotificationModeSelect.addEventListener('change', (e) => {
+            updateAppriseModeDescription(e.target.value);
+        });
+    }
+
+    // Warranty scope change
+    if (appriseWarrantyScopeSelect) {
+        appriseWarrantyScopeSelect.addEventListener('change', (e) => {
+            updateAppriseScopeDescription(e.target.value);
         });
     }
 

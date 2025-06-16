@@ -115,15 +115,20 @@ def apply_migrations():
                     with open(migration_file, 'r') as f:
                         sql = f.read()
                     
-                    cur.execute(
-                        sql,
-                        {
-                            "db_name": AsIs(DB_NAME),
-                            "db_user": AsIs(DB_USER),
-                            "db_admin_user": AsIs(DB_ADMIN_USER),
-                            "db_admin_password": AsIs(DB_ADMIN_PASSWORD),
-                        }
-                    )
+                    # Check if the SQL has placeholders before passing parameters
+                    if any(placeholder in sql for placeholder in ['%(db_name)s', '%(db_user)s', '%(db_admin_user)s', '%(db_admin_password)s']):
+                        cur.execute(
+                            sql,
+                            {
+                                "db_name": AsIs(DB_NAME),
+                                "db_user": AsIs(DB_USER),
+                                "db_admin_user": AsIs(DB_ADMIN_USER),
+                                "db_admin_password": AsIs(DB_ADMIN_PASSWORD),
+                            }
+                        )
+                    else:
+                        # No placeholders, execute directly
+                        cur.execute(sql)
                 elif migration_file.endswith('.py'):
                     # Apply Python migration
                     migration_module = load_python_migration(migration_file)

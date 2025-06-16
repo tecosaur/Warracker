@@ -231,6 +231,7 @@
                             <select id="sortBy" class="filter-select">
                                 <option value="expiration">Expiration Date</option>
                                 <option value="purchase">Purchase Date</option>
+                                <option value="age">Age</option>
                                 <option value="name">Product Name</option>
                                 <option value="vendor">Vendor</option>
                                 <option value="warranty_type">Warranty Type</option>
@@ -420,13 +421,20 @@
                                         </select>
                                         <input type="text" id="warrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
                                     </div>
-                                    <div class="form-group">
-                                        <label for="purchasePrice">Purchase Price (Optional)</label>
-                                        <div class="price-input-wrapper">
-                                            <span class="currency-symbol">$</span>
-                                            <input type="number" id="purchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
-                                        </div>
-                                    </div>
+                                                        <div class="form-group">
+                        <label for="currency">Currency</label>
+                        <select id="currency" name="currency" class="form-control">
+                            <option value="USD">USD - US Dollar ($)</option>
+                            <!-- Currency options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="purchasePrice">Purchase Price (Optional)</label>
+                        <div class="price-input-wrapper" id="addPriceInputWrapper">
+                            <span class="currency-symbol" id="addCurrencySymbol">$</span>
+                            <input type="number" id="purchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
                                     <div class="form-group">
                                         <label for="notes">Notes (Optional)</label>
                                         <textarea id="notes" name="notes" class="form-control" rows="3" placeholder="Add any notes about this warranty..."></textarea>
@@ -729,9 +737,16 @@
                             <input type="text" id="editWarrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
                         </div>
                         <div class="form-group">
+                            <label for="editCurrency">Currency</label>
+                            <select id="editCurrency" name="currency" class="form-control">
+                                <option value="USD">USD - US Dollar ($)</option>
+                                <!-- Currency options will be populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label for="editPurchasePrice">Purchase Price (Optional)</label>
-                            <div class="price-input-wrapper">
-                                <span class="currency-symbol">$</span>
+                            <div class="price-input-wrapper" id="editPriceInputWrapper">
+                                <span class="currency-symbol" id="editCurrencySymbol">$</span>
                                 <input type="number" id="editPurchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
                             </div>
                         </div>

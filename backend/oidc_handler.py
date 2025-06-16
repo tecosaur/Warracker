@@ -234,27 +234,36 @@ def get_oidc_status_route():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT value FROM site_settings WHERE key = 'oidc_enabled'")
-            result = cur.fetchone()
-            oidc_is_enabled = False
-            if result and result[0] is not None:
-                oidc_is_enabled = str(result[0]).lower() == 'true'
+            # Get OIDC settings including the new oidc_only_mode
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('oidc_enabled', 'oidc_only_mode', 'oidc_provider_name')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
             
-            cur.execute("SELECT value FROM site_settings WHERE key = 'oidc_provider_name'")
-            provider_name_result = cur.fetchone()
+            oidc_is_enabled = False
+            if settings.get('oidc_enabled') and str(settings['oidc_enabled']).lower() == 'true':
+                oidc_is_enabled = True
+            
+            oidc_only_mode = False
+            if settings.get('oidc_only_mode') and str(settings['oidc_only_mode']).lower() == 'true':
+                oidc_only_mode = True
+            
             oidc_provider_name = 'SSO Provider' # Default button text
-            if provider_name_result and provider_name_result[0]:
-                raw_name = provider_name_result[0]
+            if settings.get('oidc_provider_name'):
+                raw_name = settings['oidc_provider_name']
                 # Simple capitalization for display
                 oidc_provider_name = raw_name.capitalize() if raw_name else 'SSO Provider'
 
             return jsonify({
                 "oidc_enabled": oidc_is_enabled,
+                "oidc_only_mode": oidc_only_mode,
                 "oidc_provider_display_name": oidc_provider_name
             }), 200
     except Exception as e:
         logger.error(f"[OIDC_HANDLER] Error fetching OIDC status: {e}")
-        return jsonify({"oidc_enabled": False, "oidc_provider_display_name": "SSO Provider"}), 200 # Default to false on error
+        return jsonify({
+            "oidc_enabled": False, 
+            "oidc_only_mode": False,
+            "oidc_provider_display_name": "SSO Provider"
+        }), 200 # Default to false on error
     finally:
         if conn:
             release_db_connection(conn)

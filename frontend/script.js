@@ -115,6 +115,10 @@ const editExactExpirationDateInput = document.getElementById('editExactExpiratio
 // Add near other DOM Element declarations
 const showAddWarrantyBtn = document.getElementById('showAddWarrantyBtn');
 const addWarrantyModal = document.getElementById('addWarrantyModal');
+
+// Currency dropdown elements
+const currencySelect = document.getElementById('currency');
+const editCurrencySelect = document.getElementById('editCurrency');
 const serialNumbersContainer = document.getElementById('serialNumbersContainer'); // Ensure this is defined
 
 /**
@@ -157,6 +161,26 @@ async function initViewControls() {
                 }
                 if (globalViewBtn) {
                     globalViewBtn.addEventListener('click', () => switchToGlobalView());
+                }
+                
+                // Load and apply saved view scope preference
+                const savedScope = loadViewScopePreference();
+                if (savedScope === 'global') {
+                    // Apply global view silently without saving preference again
+                    isGlobalView = true;
+                    personalViewBtn.classList.remove('active');
+                    globalViewBtn.classList.add('active');
+                    if (warrantiesPanelTitle) {
+                        warrantiesPanelTitle.textContent = 'All Users\' Warranties';
+                    }
+                } else {
+                    // Apply personal view (default)
+                    isGlobalView = false;
+                    personalViewBtn.classList.add('active');
+                    globalViewBtn.classList.remove('active');
+                    if (warrantiesPanelTitle) {
+                        warrantiesPanelTitle.textContent = 'Your Warranties';
+                    }
                 }
             } else if (adminViewSwitcher) {
                 // Global view is disabled, hide view switcher
@@ -215,6 +239,9 @@ async function switchToPersonalView() {
     personalViewBtn.classList.add('active');
     globalViewBtn.classList.remove('active');
     
+    // Save view preference
+    saveViewScopePreference('personal');
+    
     // Update title
     if (warrantiesPanelTitle) {
         warrantiesPanelTitle.textContent = 'Your Warranties';
@@ -264,6 +291,9 @@ async function switchToGlobalView() {
     personalViewBtn.classList.remove('active');
     globalViewBtn.classList.add('active');
     
+    // Save view preference
+    saveViewScopePreference('global');
+    
     // Update title
     if (warrantiesPanelTitle) {
         warrantiesPanelTitle.textContent = 'All Users\' Warranties';
@@ -288,6 +318,36 @@ async function switchToGlobalView() {
  */
 function getPreferenceKeyPrefix() {
     return getUserType() === 'admin' ? 'admin_' : 'user_';
+}
+
+/**
+ * Save view scope preference to localStorage
+ * @param {string} scope - 'personal' or 'global'
+ */
+function saveViewScopePreference(scope) {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        localStorage.setItem(`${prefix}viewScope`, scope);
+        console.log(`Saved view scope preference: ${scope} with prefix: ${prefix}`);
+    } catch (error) {
+        console.error('Error saving view scope preference:', error);
+    }
+}
+
+/**
+ * Load view scope preference from localStorage
+ * @returns {string} The saved preference ('personal', 'global', or 'personal' as default)
+ */
+function loadViewScopePreference() {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        const savedScope = localStorage.getItem(`${prefix}viewScope`);
+        console.log(`Loaded view scope preference: ${savedScope} with prefix: ${prefix}`);
+        return savedScope || 'personal'; // Default to personal view
+    } catch (error) {
+        console.error('Error loading view scope preference:', error);
+        return 'personal'; // Default to personal view on error
+    }
 }
 
 // Theme Management - Simplified
@@ -491,6 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentAuthStatus) {
             await loadAndApplyUserPreferences(true); // Pass true, as we've confirmed auth
             await loadTags(); // Ensure all available tags are loaded
+            await loadCurrencies(); // Load currencies for dropdowns
             
             // Initialize view controls for all users
             initViewControls();
@@ -1010,10 +1071,17 @@ function updateSummary() {
     
     // Purchase price
     const purchasePrice = document.getElementById('purchasePrice')?.value;
+    const currency = document.getElementById('currency')?.value;
     const summaryPurchasePrice = document.getElementById('summary-purchase-price');
     if (summaryPurchasePrice) {
-        summaryPurchasePrice.textContent = purchasePrice ? 
-            `$${parseFloat(purchasePrice).toFixed(2)}` : 'Not specified';
+        if (purchasePrice) {
+            const symbol = getCurrencySymbol();
+            const position = getCurrencyPosition();
+            const amount = parseFloat(purchasePrice).toFixed(2);
+            summaryPurchasePrice.innerHTML = formatCurrencyHTML(amount, symbol, position);
+        } else {
+            summaryPurchasePrice.textContent = 'Not specified';
+        }
     }
     
     // Documents
@@ -1115,12 +1183,18 @@ function resetForm() {
 }
 
 async function exportWarranties() {
+    console.log('[EXPORT DEBUG] Starting export process');
+    console.log('[EXPORT DEBUG] Total warranties in memory:', warranties.length);
+    console.log('[EXPORT DEBUG] Current filters:', currentFilters);
+    
     // Get filtered warranties
     let warrantiesToExport = [...warranties];
+    console.log('[EXPORT DEBUG] Initial warranties to export:', warrantiesToExport.length);
     
     // Apply current filters
     if (currentFilters.search) {
         const searchTerm = currentFilters.search.toLowerCase();
+        console.log('[EXPORT DEBUG] Applying search filter:', searchTerm);
         warrantiesToExport = warrantiesToExport.filter(warranty => {
             // Check if product name contains search term
             const productNameMatch = warranty.product_name.toLowerCase().includes(searchTerm);
@@ -1135,22 +1209,48 @@ async function exportWarranties() {
             // Return true if either product name, tag name, or vendor name matches
             return productNameMatch || tagMatch || vendorMatch;
         });
+        console.log('[EXPORT DEBUG] After search filter:', warrantiesToExport.length);
     }
     
     if (currentFilters.status !== 'all') {
+        console.log('[EXPORT DEBUG] Applying status filter:', currentFilters.status);
         warrantiesToExport = warrantiesToExport.filter(warranty => 
             warranty.status === currentFilters.status
         );
+        console.log('[EXPORT DEBUG] After status filter:', warrantiesToExport.length);
     }
     
     // Apply tag filter
     if (currentFilters.tag !== 'all') {
         const tagId = parseInt(currentFilters.tag);
+        console.log('[EXPORT DEBUG] Applying tag filter:', tagId);
         warrantiesToExport = warrantiesToExport.filter(warranty => 
             warranty.tags && Array.isArray(warranty.tags) &&
             warranty.tags.some(tag => tag.id === tagId)
         );
+        console.log('[EXPORT DEBUG] After tag filter:', warrantiesToExport.length);
     }
+    
+    // Apply vendor filter
+    if (currentFilters.vendor !== 'all') {
+        console.log('[EXPORT DEBUG] Applying vendor filter:', currentFilters.vendor);
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            (warranty.vendor || '').toLowerCase() === currentFilters.vendor.toLowerCase()
+        );
+        console.log('[EXPORT DEBUG] After vendor filter:', warrantiesToExport.length);
+    }
+    
+    // Apply warranty type filter
+    if (currentFilters.warranty_type !== 'all') {
+        console.log('[EXPORT DEBUG] Applying warranty type filter:', currentFilters.warranty_type);
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            (warranty.warranty_type || '').toLowerCase() === currentFilters.warranty_type.toLowerCase()
+        );
+        console.log('[EXPORT DEBUG] After warranty type filter:', warrantiesToExport.length);
+    }
+    
+    console.log('[EXPORT DEBUG] Final warranties to export:', warrantiesToExport.length);
+    console.log('[EXPORT DEBUG] Warranty IDs being exported:', warrantiesToExport.map(w => w.id));
     
     // Create CSV content
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -1205,7 +1305,7 @@ async function exportWarranties() {
     document.body.removeChild(link);
     
     // Show success notification
-    showToast('Warranties exported successfully', 'success');
+    showToast(`Exported ${warrantiesToExport.length} warranties successfully`, 'success');
 }
 
 // Switch view of warranties list
@@ -1697,9 +1797,15 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         */
         // --- END REDUNDANT PREFERENCE FETCH ---
         
-        // Use the appropriate API endpoint based on view mode
+        // Check saved view scope preference to determine which API endpoint to use
+        const savedScope = loadViewScopePreference();
+        const shouldUseGlobalView = savedScope === 'global';
+        
+        // Use the appropriate API endpoint based on saved preference
         const baseUrl = window.location.origin;
-        const apiUrl = isGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`;
+        const apiUrl = shouldUseGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`;
+        
+        console.log(`[DEBUG] Using API endpoint based on saved preference '${savedScope}': ${apiUrl}`);
         
         // Check if auth is available and user is authenticated using the passed parameter
         if (!isAuthenticated) {
@@ -1738,6 +1844,10 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         if (!Array.isArray(data)) {
             console.error('[DEBUG] API did not return an array! Data:', data);
         }
+        
+        // Update isGlobalView to match the loaded data
+        isGlobalView = shouldUseGlobalView;
+        console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
         // Process each warranty to calculate status and days remaining
         warranties = Array.isArray(data) ? data.map(warranty => {
             const processed = processWarrantyData(warranty);
@@ -1745,6 +1855,8 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
             return processed;
         }) : [];
         console.log('[DEBUG] Final warranties array:', warranties);
+        console.log('[DEBUG] Total warranties loaded:', warranties.length);
+        console.log('[DEBUG] Warranty IDs loaded:', warranties.map(w => w.id));
         
         if (warranties.length === 0) {
             console.log('No warranties found, showing empty state');
@@ -1829,6 +1941,80 @@ function formatDateYYYYMMDD(date) {
     return `${year}-${month}-${day}`;
 }
 
+/**
+ * Calculate the age of a product from purchase date to now
+ * @param {string|Date} purchaseDate - The purchase date
+ * @returns {string} - Formatted age string (e.g., "2 years, 3 months", "6 months", "15 days")
+ */
+function calculateProductAge(purchaseDate) {
+    if (!purchaseDate) return 'Unknown';
+    
+    const purchase = new Date(purchaseDate);
+    const now = new Date();
+    
+    if (isNaN(purchase.getTime()) || purchase > now) {
+        return 'Unknown';
+    }
+    
+    // Calculate the difference
+    let years = now.getFullYear() - purchase.getFullYear();
+    let months = now.getMonth() - purchase.getMonth();
+    let days = now.getDate() - purchase.getDate();
+    
+    // Adjust for negative days
+    if (days < 0) {
+        months--;
+        const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += lastMonth.getDate();
+    }
+    
+    // Adjust for negative months
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    
+    // Format the result
+    const parts = [];
+    if (years > 0) {
+        parts.push(`${years} year${years !== 1 ? 's' : ''}`);
+    }
+    if (months > 0) {
+        parts.push(`${months} month${months !== 1 ? 's' : ''}`);
+    }
+    if (days > 0 && years === 0) { // Only show days if less than a year old
+        parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+    }
+    
+    if (parts.length === 0) {
+        return 'Today'; // Purchased today
+    }
+    
+    return parts.join(', ');
+}
+
+/**
+ * Calculate the age of a product in days for sorting purposes
+ * @param {string|Date} purchaseDate - The purchase date
+ * @returns {number} - Age in days (0 if invalid date)
+ */
+function calculateProductAgeInDays(purchaseDate) {
+    if (!purchaseDate) return 0;
+    
+    const purchase = new Date(purchaseDate);
+    const now = new Date();
+    
+    if (isNaN(purchase.getTime()) || purchase > now) {
+        return 0;
+    }
+    
+    // Calculate difference in milliseconds and convert to days
+    const diffTime = now.getTime() - purchase.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+}
+
 async function renderWarranties(warrantiesToRender) {
     console.log('renderWarranties called with:', warrantiesToRender);
 
@@ -1846,7 +2032,7 @@ async function renderWarranties(warrantiesToRender) {
     }
     
     const today = new Date();
-    const symbol = getCurrencySymbol(); // Get the correct symbol HERE
+    const globalSymbol = getCurrencySymbol(); // Get the global symbol as fallback
     
     warrantiesList.innerHTML = '';
     
@@ -1857,6 +2043,8 @@ async function renderWarranties(warrantiesToRender) {
                 return (a.product_name || '').toLowerCase().localeCompare((b.product_name || '').toLowerCase());
             case 'purchase':
                 return new Date(b.purchase_date || 0) - new Date(a.purchase_date || 0);
+            case 'age': // Added age sorting
+                return calculateProductAgeInDays(b.purchase_date) - calculateProductAgeInDays(a.purchase_date); // Oldest first
             case 'vendor': // Added vendor sorting
                 return (a.vendor || '').toLowerCase().localeCompare((b.vendor || '').toLowerCase());
             case 'warranty_type': // Added warranty type sorting
@@ -1935,6 +2123,10 @@ async function renderWarranties(warrantiesToRender) {
             }
         }
         const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
+        
+        // Calculate product age
+        const productAge = calculateProductAge(warranty.purchase_date);
+        
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
             ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
@@ -2002,7 +2194,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="product-photo-thumbnail">
                     <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
                         <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
-                             style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer;"
+                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer;"
                              onerror="this.style.display='none'" class="secure-image">
                     </a>
                 </div>
@@ -2020,9 +2212,10 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="warranty-info">
                         ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Age: <span>${productAge}</span></div>
                         <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
                         ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
@@ -2068,7 +2261,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="product-photo-thumbnail">
                     <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
                         <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
-                             style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
+                             style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
                              onerror="this.style.display='none'" class="secure-image">
                     </a>
                 </div>
@@ -2086,9 +2279,10 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="warranty-info">
                         ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Age: <span>${productAge}</span></div>
                         <div>Warranty: <span>${warrantyDurationText}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
+                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
                         ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
                         ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
@@ -2134,7 +2328,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="product-photo-thumbnail">
                     <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
                         <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
-                             style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer;"
+                             style="width: 55px; height: 55px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer;"
                              onerror="this.style.display='none'" class="secure-image">
                     </a>
                 </div>
@@ -2152,7 +2346,9 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="warranty-info">
                         ${userInfoHtml}
                         <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
+                        <div>Age: <span>${productAge}</span></div>
                         <div>Expires: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2192,13 +2388,13 @@ async function renderWarranties(warrantiesToRender) {
             // Edit button event listener
             const editBtn = cardElement.querySelector('.edit-btn');
             if (editBtn) {
-                editBtn.addEventListener('click', () => {
+                editBtn.addEventListener('click', async () => {
                     console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
                     // Find the current warranty data instead of using the potentially stale warranty object
                     const currentWarranty = warranties.find(w => w.id === warranty.id);
                     console.log('[DEBUG] Found current warranty:', currentWarranty ? 'Yes' : 'No', currentWarranty?.notes);
                     if (currentWarranty) {
-                        openEditModal(currentWarranty);
+                        await openEditModal(currentWarranty);
                     } else {
                         showToast('Warranty not found. Please refresh the page.', 'error');
                     }
@@ -2291,7 +2487,8 @@ function filterWarranties() {
 }
 
 function applyFilters() {
-    console.log('Applying filters with:', currentFilters);
+    console.log('[FILTER DEBUG] Applying filters with:', currentFilters);
+    console.log('[FILTER DEBUG] Total warranties before filtering:', warranties.length);
     
     // Filter warranties based on currentFilters
     const filtered = warranties.filter(warranty => {
@@ -2344,17 +2541,21 @@ function applyFilters() {
         return true;
     });
     
-    console.log('Filtered warranties:', filtered);
+    console.log('[FILTER DEBUG] Filtered warranties:', filtered.length);
+    console.log('[FILTER DEBUG] Filtered warranty IDs:', filtered.map(w => w.id));
     
     // Render the filtered warranties
     renderWarranties(filtered);
 }
 
-function openEditModal(warranty) {
+async function openEditModal(warranty) {
     // Close any existing modals first
     closeModals();
     
     currentWarrantyId = warranty.id;
+    
+    // Load currencies for the dropdown and wait for it to complete
+    await loadCurrencies();
     
     console.log('[DEBUG] Opening edit modal for warranty:', warranty.id, 'with notes:', warranty.notes);
     
@@ -2368,6 +2569,12 @@ function openEditModal(warranty) {
     document.getElementById('editWarrantyDurationDays').value = warranty.warranty_duration_days || 0;
     
     document.getElementById('editPurchasePrice').value = warranty.purchase_price || '';
+    
+    // Set currency dropdown
+    const editCurrencySelect = document.getElementById('editCurrency');
+    if (editCurrencySelect && warranty.currency) {
+        editCurrencySelect.value = warranty.currency;
+    }
     document.getElementById('editVendor').value = warranty.vendor || '';
     
     // Handle warranty type - check if it's a predefined option or custom
@@ -2761,6 +2968,29 @@ function openEditModal(warranty) {
     if (notesInput) {
         notesInput.value = warranty.notes || '';
     }
+    
+    // Update currency symbols and positioning for the edit form
+    const symbol = getCurrencySymbol();
+    const position = getCurrencyPosition();
+    updateFormCurrencyPosition(symbol, position);
+    
+    // Trigger currency positioning after modal is visible
+    setTimeout(() => {
+        if (position === 'right') {
+            const editPriceInput = document.getElementById('editPurchasePrice');
+            const editCurrencySymbol = document.getElementById('editCurrencySymbol');
+            if (editPriceInput && editCurrencySymbol) {
+                // Force update the currency position now that modal is visible
+                const wrapper = editPriceInput.closest('.price-input-wrapper');
+                if (wrapper && wrapper.classList.contains('currency-right')) {
+                    const updateEvent = new Event('focus');
+                    editPriceInput.dispatchEvent(updateEvent);
+                    const blurEvent = new Event('blur');
+                    editPriceInput.dispatchEvent(blurEvent);
+                }
+            }
+        }
+    }, 200);
     
     // Load secure images with authentication for the edit modal
     setTimeout(() => loadSecureImages(), 100); // Small delay to ensure DOM is updated
@@ -4357,8 +4587,12 @@ function saveWarranty() {
     }
     
     const purchasePrice = document.getElementById('editPurchasePrice').value;
+    const currency = document.getElementById('editCurrency').value;
     if (purchasePrice) {
         formData.append('purchase_price', purchasePrice);
+    }
+    if (currency) {
+        formData.append('currency', currency);
     }
     
     // Serial numbers (use correct name 'serial_numbers[]')
@@ -4792,6 +5026,36 @@ function setupModalTriggers() {
             addWarrantyModal.classList.add('active');
             initFormTabs(); // Initialize tabs only when modal is shown
             switchToTab(0); // Ensure the first tab content is displayed correctly after reset
+            
+            // Set currency dropdown to user's preferred currency after form reset
+            const preferredCurrencyCode = getCurrencyCode();
+            if (currencySelect && preferredCurrencyCode) {
+                currencySelect.value = preferredCurrencyCode;
+                console.log(`[Modal Open] Set currency dropdown to user preference: ${preferredCurrencyCode}`);
+            }
+            
+            // Update currency symbols and positioning for the add form
+            const symbol = getCurrencySymbol();
+            const position = getCurrencyPosition();
+            updateFormCurrencyPosition(symbol, position);
+            
+            // Trigger currency positioning after modal is visible
+            setTimeout(() => {
+                if (position === 'right') {
+                    const addPriceInput = document.getElementById('purchasePrice');
+                    const addCurrencySymbol = document.getElementById('addCurrencySymbol');
+                    if (addPriceInput && addCurrencySymbol) {
+                        // Force update the currency position now that modal is visible
+                        const wrapper = addPriceInput.closest('.price-input-wrapper');
+                        if (wrapper && wrapper.classList.contains('currency-right')) {
+                            const updateEvent = new Event('focus');
+                            addPriceInput.dispatchEvent(updateEvent);
+                            const blurEvent = new Event('blur');
+                            addPriceInput.dispatchEvent(blurEvent);
+                        }
+                    }
+                }
+            }, 200);
         });
     }
 
@@ -5015,7 +5279,7 @@ if (!document.getElementById('notesModal')) {
     });
     
     // Add event listener for Edit Warranty button
-    document.getElementById('editWarrantyBtn').addEventListener('click', () => {
+    document.getElementById('editWarrantyBtn').addEventListener('click', async () => {
         // Find the current warranty data from the global array
         const currentWarranty = warranties.find(w => w.id === notesModalWarrantyId);
         if (currentWarranty) {
@@ -5023,7 +5287,7 @@ if (!document.getElementById('notesModal')) {
             // Close the notes modal first
             notesModal.classList.remove('active');
             // Open the edit modal with current data
-            openEditModal(currentWarranty);
+            await openEditModal(currentWarranty);
         } else {
             showToast('Warranty not found. Please refresh the page.', 'error');
         }
@@ -5255,14 +5519,286 @@ function getCurrencySymbol() {
     return symbol;
 }
 
+// Function to get user's preferred currency code
+function getCurrencyCode() {
+    // Use the global prefix determined after auth ready
+    let prefix = userPreferencePrefix;
+    if (!prefix) {
+        console.warn('[getCurrencyCode] User preference prefix not set yet, defaulting prefix to user_');
+        prefix = 'user_';
+    }
+    console.log(`[getCurrencyCode] Using determined prefix: ${prefix}`);
+    
+    // Default to USD
+    let currencyCode = 'USD';
+    
+    // Try to get currency code from localStorage
+    const rawValue = localStorage.getItem(`${prefix}currencyCode`);
+    console.log(`[getCurrencyCode Debug] Raw value read from localStorage key '${prefix}currencyCode':`, rawValue);
+    
+    if (rawValue) {
+        currencyCode = rawValue;
+        console.log(`[getCurrencyCode] Loaded currency code from individual key (${prefix}currencyCode): ${currencyCode}`);
+        return currencyCode;
+    }
+    
+    // Fallback: Try to derive currency code from symbol
+    const symbol = getCurrencySymbol();
+    const symbolToCurrencyMap = {
+        '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR', '₩': 'KRW',
+        'CHF': 'CHF', 'C$': 'CAD', 'A$': 'AUD', 'kr': 'SEK', 'zł': 'PLN', 
+        'Kč': 'CZK', 'Ft': 'HUF', '₽': 'RUB', 'R$': 'BRL', '₦': 'NGN',
+        '₪': 'ILS', '₺': 'TRY', '₨': 'PKR', '৳': 'BDT', '฿': 'THB',
+        '₫': 'VND', 'RM': 'MYR', 'S$': 'SGD', 'Rp': 'IDR', '₱': 'PHP',
+        'NT$': 'TWD', 'HK$': 'HKD', '₮': 'MNT', '₸': 'KZT', '₼': 'AZN',
+        '₾': 'GEL', '₴': 'UAH', 'NZ$': 'NZD'
+    };
+    
+    if (symbolToCurrencyMap[symbol]) {
+        currencyCode = symbolToCurrencyMap[symbol];
+        console.log(`[getCurrencyCode] Derived currency code from symbol '${symbol}': ${currencyCode}`);
+    } else {
+        console.log(`[getCurrencyCode] Could not derive currency code from symbol '${symbol}', using default: ${currencyCode}`);
+    }
+    
+    return currencyCode;
+}
+
+// Function to load currencies from API and populate dropdowns
+async function loadCurrencies() {
+    try {
+        const response = await fetch('/api/currencies');
+        if (!response.ok) {
+            throw new Error('Failed to fetch currencies');
+        }
+        
+        const currencies = await response.json();
+        
+        // Get user's preferred currency code for default selection
+        const preferredCurrencyCode = getCurrencyCode();
+        
+        // Populate add warranty currency dropdown
+        if (currencySelect) {
+            currencySelect.innerHTML = '';
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.code;
+                option.textContent = `${currency.code} - ${currency.name} (${currency.symbol})`;
+                currencySelect.appendChild(option);
+            });
+            
+            // Set default selection to user's preferred currency
+            console.log(`[loadCurrencies] Preferred currency code: ${preferredCurrencyCode}`);
+            console.log(`[loadCurrencies] Available currency options:`, Array.from(currencySelect.options).map(opt => opt.value));
+            
+            if (preferredCurrencyCode) {
+                // Use setTimeout to ensure DOM is fully updated
+                setTimeout(() => {
+                    currencySelect.value = preferredCurrencyCode;
+                    console.log(`[loadCurrencies] Set add warranty currency default to: ${preferredCurrencyCode}`);
+                    console.log(`[loadCurrencies] Current selected value: ${currencySelect.value}`);
+                    
+                    // Trigger change event to update any dependent UI
+                    const changeEvent = new Event('change', { bubbles: true });
+                    currencySelect.dispatchEvent(changeEvent);
+                }, 10);
+            } else {
+                console.log(`[loadCurrencies] No preferred currency code found, keeping default USD`);
+            }
+        }
+        
+        // Populate edit warranty currency dropdown
+        if (editCurrencySelect) {
+            editCurrencySelect.innerHTML = '';
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.code;
+                option.textContent = `${currency.code} - ${currency.name} (${currency.symbol})`;
+                editCurrencySelect.appendChild(option);
+            });
+        }
+        
+        console.log('Currencies loaded successfully');
+    } catch (error) {
+        console.error('Error loading currencies:', error);
+        // Fallback to USD if loading fails
+        if (currencySelect) {
+            currencySelect.innerHTML = '<option value="USD">USD - US Dollar ($)</option>';
+        }
+        if (editCurrencySelect) {
+            editCurrencySelect.innerHTML = '<option value="USD">USD - US Dollar ($)</option>';
+        }
+    }
+}
+
+function getCurrencySymbolByCode(currencyCode) {
+    const currencyMap = {
+        'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'CNY': '¥', 'INR': '₹', 'KRW': '₩',
+        'CHF': 'CHF', 'CAD': 'C$', 'AUD': 'A$', 'SEK': 'kr', 'NOK': 'kr', 'DKK': 'kr',
+        'PLN': 'zł', 'CZK': 'Kč', 'HUF': 'Ft', 'BGN': 'лв', 'RON': 'lei', 'HRK': 'kn',
+        'RUB': '₽', 'BRL': 'R$', 'MXN': '$', 'ARS': '$', 'CLP': '$', 'COP': '$',
+        'PEN': 'S/', 'VES': 'Bs', 'ZAR': 'R', 'EGP': '£', 'NGN': '₦', 'KES': 'KSh',
+        'GHS': '₵', 'MAD': 'DH', 'TND': 'DT', 'AED': 'AED', 'SAR': 'SR', 'QAR': 'QR',
+        'KWD': 'KD', 'BHD': 'BD', 'OMR': 'OR', 'JOD': 'JD', 'LBP': 'LL', 'ILS': '₪',
+        'TRY': '₺', 'IRR': '﷼', 'PKR': '₨', 'BDT': '৳', 'LKR': 'Rs', 'NPR': 'Rs',
+        'BTN': 'Nu', 'MMK': 'K', 'THB': '฿', 'VND': '₫', 'LAK': '₭', 'KHR': '៛',
+        'MYR': 'RM', 'SGD': 'S$', 'IDR': 'Rp', 'PHP': '₱', 'TWD': 'NT$', 'HKD': 'HK$',
+        'MOP': 'MOP', 'KPW': '₩', 'MNT': '₮', 'KZT': '₸', 'UZS': 'soʻm', 'TJS': 'SM',
+        'KGS': 'с', 'TMT': 'T', 'AFN': '؋', 'AMD': '֏', 'AZN': '₼', 'GEL': '₾',
+        'MDL': 'L', 'UAH': '₴', 'BYN': 'Br', 'RSD': 'дин', 'MKD': 'ден', 'ALL': 'L',
+        'BAM': 'KM', 'ISK': 'kr', 'FJD': 'FJ$', 'PGK': 'K', 'SBD': 'SI$', 'TOP': 'T$',
+        'VUV': 'VT', 'WST': 'WS$', 'XPF': '₣', 'NZD': 'NZ$'
+    };
+    return currencyMap[currencyCode] || currencyCode;
+}
+
+function getCurrencyPosition() {
+    let prefix = userPreferencePrefix;
+    if (!prefix) {
+        console.warn('[getCurrencyPosition] User preference prefix not set yet, defaulting prefix to user_');
+        prefix = 'user_';
+    }
+    
+    let position = 'left'; // Default position
+    const rawValue = localStorage.getItem(`${prefix}currencyPosition`);
+    console.log(`[getCurrencyPosition] Raw value from localStorage (${prefix}currencyPosition):`, rawValue);
+    
+    if (rawValue) {
+        position = rawValue;
+        console.log(`[getCurrencyPosition] Loaded position from localStorage: ${position}`);
+    } else {
+        console.log(`[getCurrencyPosition] No position found, using default: ${position}`);
+    }
+    
+    return position;
+}
+
+function formatCurrencyHTML(amount, symbol, position) {
+    const formattedAmount = parseFloat(amount).toFixed(2);
+    
+    if (position === 'right') {
+        return `<span>${formattedAmount}</span><span class="currency-symbol currency-right">${symbol}</span>`;
+    } else {
+        return `<span class="currency-symbol">${symbol}</span><span>${formattedAmount}</span>`;
+    }
+}
+
 function updateCurrencySymbols() {
     const symbol = getCurrencySymbol();
-    console.log(`Updating currency symbols to: ${symbol}`); // Log the symbol being applied
+    const position = getCurrencyPosition();
+    console.log(`Updating currency symbols to: ${symbol}, position: ${position}`);
+    
+    // Update all currency symbols
     const elements = document.querySelectorAll('.currency-symbol');
-    console.log(`Found ${elements.length} elements with class 'currency-symbol'.`); // Log how many elements are found
+    console.log(`Found ${elements.length} elements with class 'currency-symbol'.`);
     elements.forEach(el => {
-        // console.log('Updating element:', el); // Optional: Log each element being updated
         el.textContent = symbol;
+    });
+    
+    // Update form currency positioning
+    updateFormCurrencyPosition(symbol, position);
+}
+
+function updateFormCurrencyPosition(symbol, position) {
+    // Handle add warranty form
+    const addPriceWrapper = document.getElementById('addPriceInputWrapper');
+    const addCurrencySymbol = document.getElementById('addCurrencySymbol');
+    const addPriceInput = document.getElementById('purchasePrice');
+    
+    if (addPriceWrapper && addCurrencySymbol) {
+        addCurrencySymbol.textContent = symbol;
+        if (position === 'right') {
+            addPriceWrapper.classList.add('currency-right');
+            // Set up dynamic positioning for right-aligned currency
+            if (addPriceInput) {
+                setupDynamicCurrencyPosition(addPriceInput, addCurrencySymbol);
+            }
+        } else {
+            addPriceWrapper.classList.remove('currency-right');
+            // Reset any dynamic positioning
+            if (addCurrencySymbol) {
+                addCurrencySymbol.style.right = '';
+            }
+        }
+        console.log(`Updated add form currency position: ${position}`);
+    }
+    
+    // Handle edit warranty form
+    const editPriceWrapper = document.getElementById('editPriceInputWrapper');
+    const editCurrencySymbol = document.getElementById('editCurrencySymbol');
+    const editPriceInput = document.getElementById('editPurchasePrice');
+    
+    if (editPriceWrapper && editCurrencySymbol) {
+        editCurrencySymbol.textContent = symbol;
+        if (position === 'right') {
+            editPriceWrapper.classList.add('currency-right');
+            // Set up dynamic positioning for right-aligned currency
+            if (editPriceInput) {
+                setupDynamicCurrencyPosition(editPriceInput, editCurrencySymbol);
+            }
+        } else {
+            editPriceWrapper.classList.remove('currency-right');
+            // Reset any dynamic positioning
+            if (editCurrencySymbol) {
+                editCurrencySymbol.style.right = '';
+            }
+        }
+        console.log(`Updated edit form currency position: ${position}`);
+    }
+}
+
+function setupDynamicCurrencyPosition(input, currencySymbol) {
+    if (!input || !currencySymbol) return;
+    
+    function updatePosition() {
+        const wrapper = input.closest('.price-input-wrapper');
+        if (!wrapper || !wrapper.classList.contains('currency-right')) return;
+        
+        // Wait for elements to be fully rendered
+        if (wrapper.offsetWidth === 0) {
+            setTimeout(updatePosition, 50);
+            return;
+        }
+        
+        // Get the input value or placeholder
+        const text = input.value || input.placeholder || '0.00';
+        
+        // Create a temporary element to measure text width
+        const tempSpan = document.createElement('span');
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+        tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+        tempSpan.style.fontWeight = window.getComputedStyle(input).fontWeight;
+        tempSpan.style.letterSpacing = window.getComputedStyle(input).letterSpacing;
+        tempSpan.textContent = text;
+        
+        document.body.appendChild(tempSpan);
+        const textWidth = tempSpan.offsetWidth;
+        document.body.removeChild(tempSpan);
+        
+        // Calculate position: input padding + text width + small gap
+        const inputPaddingLeft = parseInt(window.getComputedStyle(input).paddingLeft) || 12;
+        const gap = 4; // Small gap between text and currency symbol
+        const wrapperWidth = wrapper.offsetWidth;
+        const rightPosition = Math.max(8, wrapperWidth - inputPaddingLeft - textWidth - gap - 20);
+        
+        currencySymbol.style.right = rightPosition + 'px';
+        console.log(`[Dynamic Currency] Positioned currency symbol at ${rightPosition}px from right for text: "${text}"`);
+    }
+    
+    // Update position on various events
+    input.addEventListener('input', updatePosition);
+    input.addEventListener('focus', updatePosition);
+    input.addEventListener('blur', updatePosition);
+    
+    // Initial positioning with better timing
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+        updatePosition();
+        // Also set up additional fallback timers
+        setTimeout(updatePosition, 100);
+        setTimeout(updatePosition, 300);
     });
 }
 
@@ -5273,6 +5809,18 @@ window.addEventListener('storage', function(e) {
     if (e.key === `${prefix}preferences`) {
         console.log(`Storage event detected for ${prefix}preferences. Updating currency symbols.`);
         updateCurrencySymbols();
+    }
+    // Also update when currency position changes
+    if (e.key === `${prefix}currencyPosition`) {
+        console.log(`Storage event detected for ${prefix}currencyPosition. Re-rendering warranties to update currency position.`);
+        // Update forms immediately
+        const symbol = getCurrencySymbol();
+        const position = getCurrencyPosition();
+        updateFormCurrencyPosition(symbol, position);
+        // Re-render warranties to apply new currency position
+        if (typeof processAllWarranties === 'function') {
+            processAllWarranties();
+        }
     }
 });
 
@@ -5312,6 +5860,10 @@ async function loadAndApplyUserPreferences(isAuthenticated) { // Added isAuthent
                 if (apiPrefs.currency_symbol) {
                     localStorage.setItem(`${prefix}currencySymbol`, apiPrefs.currency_symbol);
                     console.log(`[Prefs Loader] Saved ${prefix}currencySymbol: ${apiPrefs.currency_symbol}`);
+                }
+                if (apiPrefs.currency_position) {
+                    localStorage.setItem(`${prefix}currencyPosition`, apiPrefs.currency_position);
+                    console.log(`[Prefs Loader] Saved ${prefix}currencyPosition: ${apiPrefs.currency_position}`);
                 }
                 if (apiPrefs.default_view) {
                     localStorage.setItem(`${prefix}defaultView`, apiPrefs.default_view);

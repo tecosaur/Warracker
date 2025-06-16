@@ -7,14 +7,27 @@ Optimized for memory efficiency with configurable modes.
 """
 
 import os
+
+# CRITICAL: Apply gevent monkey patching VERY EARLY to prevent SSL RecursionError
+# This must happen before any other imports that might use SSL
+memory_mode = os.environ.get('WARRACKER_MEMORY_MODE', 'optimized').lower()
+
+# Only apply monkey patching for modes that will use gevent workers
+if memory_mode in ('optimized', 'performance'):
+    try:
+        from gevent import monkey
+        monkey.patch_all()
+        print("✅ Early gevent monkey patch applied for SSL compatibility.")
+    except ImportError:
+        print("⚠️ Gevent not found, but gevent workers will be requested. This may cause issues.")
+
 import multiprocessing
 
 # Server configurations - Dynamic based on memory mode
 bind = "0.0.0.0:5000"
+forwarded_allow_ips = '*'  # Trust proxy headers from any source (safe in containerized environment)
 
-# Check memory mode from environment variable
-memory_mode = os.environ.get('WARRACKER_MEMORY_MODE', 'optimized').lower()
-
+# Determine worker class first, then apply appropriate monkey patching
 if memory_mode == 'ultra-light':
     # Ultra-lightweight configuration for very memory-constrained environments
     workers = 1  # Single worker for minimal memory usage (~40-50MB total)
@@ -39,6 +52,12 @@ else:
     max_requests = 1000  # Restart workers after handling requests to prevent memory leaks
     worker_rlimit_as = 134217728  # 128MB per worker limit
     print("Using OPTIMIZED memory mode - balanced RAM usage and performance")
+
+# Note: Gevent monkey patching was applied early at top of file for SSL compatibility
+if worker_class == "gevent":
+    print(f"ℹ️ Using gevent workers with early monkey patching applied.")
+else:
+    print(f"ℹ️ Using {worker_class} workers - no monkey patching needed.")
 
 # Common settings for both modes
 timeout = 120

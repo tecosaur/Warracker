@@ -39,6 +39,7 @@ COPY backend/gunicorn_config.py .
 RUN mkdir -p /app/backend
 COPY backend/__init__.py /app/backend/
 COPY backend/auth_utils.py /app/backend/
+COPY backend/auth_routes.py /app/backend/
 COPY backend/db_handler.py /app/backend/
 COPY backend/extensions.py /app/backend/
 COPY backend/oidc_handler.py /app/backend/

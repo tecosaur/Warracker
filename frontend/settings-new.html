@@ -17,17 +17,17 @@
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
     <!-- Load the main site styles first -->
-    <link rel="stylesheet" href="style.css?v=20250529005">
+    <link rel="stylesheet" href="style.css?v=20250529006">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Then load settings-specific styles -->
-    <link rel="stylesheet" href="settings-styles.css?v=20250529005">
+    <link rel="stylesheet" href="settings-styles.css?v=20250529006">
     <!-- Apply theme immediately -->
     <script src="theme-loader.js"></script> 
     <!-- Load header fix styles last to override any conflicting styles -->
-    <link rel="stylesheet" href="header-fix.css?v=20250529005">
+    <link rel="stylesheet" href="header-fix.css?v=20250529006">
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css?v=20250529005">
+    <link rel="stylesheet" href="mobile-header.css?v=20250529006">
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js"></script>
     
@@ -216,18 +216,22 @@
                                     <p class="text-muted">Choose the symbol to display for prices</p>
                                 </div>
                                 <select id="currencySymbolSelect" class="form-control" style="width: 120px; font-size: 1.1em;">
-                                    <option value="$">$ (USD)</option>
-                                    <option value="€">€ (EUR)</option>
-                                    <option value="£">£ (GBP)</option>
-                                    <option value="¥">¥ (JPY/CNY)</option>
-                                    <option value="₹">₹ (INR)</option>
-                                    <option value="₩">₩ (KRW)</option>
-                                    <option value="CHF">CHF (Swiss Franc)</option>
-                                    <option value="CAD">CAD (Canadian Dollar)</option>
-                                    <option value="AUD">AUD (Australian Dollar)</option>
-                                    <option value="other">Other...</option>
+                                    <option value="">Loading currencies...</option>
                                 </select>
                                 <input type="text" id="currencySymbolCustom" class="form-control" maxlength="6" style="width: 70px; text-align: center; font-size: 1.2em; display: none; margin-left: 10px;" placeholder="Custom">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="preference-item">
+                                <div>
+                                    <label>Currency Position</label>
+                                    <p class="text-muted">Choose whether currency symbol appears on the left or right of numbers</p>
+                                </div>
+                                <select id="currencyPositionSelect" class="form-control" style="width: 150px;">
+                                    <option value="left">Left ($100.00)</option>
+                                    <option value="right">Right (100.00$)</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -319,6 +323,45 @@
                                         <p class="text-muted">Your local timezone for notifications</p>
                                     </div>
                                     <select id="timezone" class="form-control">
+                                        <option value="">Loading timezones...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="userAppriseSettingsContainer" style="display: none;">
+                            <h4>Apprise Settings</h4>
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Apprise Notification Frequency</label>
+                                        <p class="text-muted">How often to receive Apprise notifications</p>
+                                    </div>
+                                    <select id="userAppriseNotificationFrequency" class="form-control">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Apprise Notification Time</label>
+                                        <p class="text-muted">Time of day to receive Apprise notifications (in 24-hour format)</p>
+                                    </div>
+                                    <input type="time" id="userAppriseNotificationTime" class="form-control" value="09:00">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Apprise Timezone</label>
+                                        <p class="text-muted">Your local timezone for Apprise notifications</p>
+                                    </div>
+                                    <select id="userAppriseTimezone" class="form-control">
                                         <option value="">Loading timezones...</option>
                                     </select>
                                 </div>
@@ -509,6 +552,19 @@
                             </div>
 
                             <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label for="oidcOnlyMode">OIDC-Only Login Mode</label>
+                                        <p class="text-muted">Hide traditional username/password login form and only allow OIDC login. <strong>Warning:</strong> Ensure OIDC is properly configured before enabling this option.</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="oidcOnlyMode">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
                                 <label for="oidcProviderName">OIDC Provider Name</label>
                                 <input type="text" id="oidcProviderName" class="form-control" placeholder="e.g., oidc, keycloak, google">
                                 <small class="text-muted">Internal name for the OIDC client (e.g., 'oidc').</small>
@@ -571,6 +627,39 @@
 
                             <div id="appriseSettingsContainer" style="display: none;">
                                 <h4>Apprise Settings</h4>
+                                
+                                <div class="form-group">
+                                    <div class="preference-item">
+                                        <div>
+                                            <label>Notification Mode</label>
+                                            <p class="text-muted">Choose how Apprise notifications are sent.</p>
+                                        </div>
+                                        <select id="appriseNotificationMode" class="form-control" style="max-width: 200px;">
+                                            <option value="global">Global Summary</option>
+                                            <option value="individual">Per User</option>
+                                        </select>
+                                    </div>
+                                    <div class="mode-description text-muted" id="appriseModeDescription" style="margin-top: 5px; padding-left: 10px; border-left: 2px solid var(--border-color);">
+                                        <!-- Description will be updated by JS -->
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <div class="preference-item">
+                                        <div>
+                                            <label>Warranty Scope</label>
+                                            <p class="text-muted">Choose which warranties to include in notifications.</p>
+                                        </div>
+                                        <select id="appriseWarrantyScope" class="form-control" style="max-width: 200px;">
+                                            <option value="all">All Users' Warranties</option>
+                                            <option value="admin">Admin's Warranties Only</option>
+                                        </select>
+                                    </div>
+                                    <div class="scope-description text-muted" id="appriseScopeDescription" style="margin-top: 5px; padding-left: 10px; border-left: 2px solid var(--border-color);">
+                                        <!-- Description will be updated by JS -->
+                                    </div>
+                                </div>
+                                
                                 <div class="form-group">
                                     <label for="appriseUrls">Notification URLs</label>
                                 <textarea id="appriseUrls" class="form-control" rows="4" placeholder="Enter Apprise notification URLs, one per line or comma-separated:&#10;&#10;mailto://user:password@gmail.com&#10;discord://webhook_id/webhook_token&#10;slack://TokenA/TokenB/TokenC/Channel&#10;telegram://BotToken/ChatID"></textarea>
@@ -587,30 +676,10 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="appriseNotificationTime">Notification Time</label>
-                                <input type="time" id="appriseNotificationTime" class="form-control" value="09:00">
-                                <small class="text-muted">
-                                    Time of day to send notifications (24-hour format)
-                                </small>
-                            </div>
-
-                            <div class="form-group">
                                 <div class="preference-item">
                                     <div>
-                                        <label>Timezone</label>
-                                        <p class="text-muted">Your local timezone for Apprise notifications</p>
-                                    </div>
-                                    <select id="appriseTimezone" class="form-control">
-                                        <option value="">Loading timezones...</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <div class="preference-item">
-                                    <div>
-                                        <label>Notification Frequency</label>
-                                        <p class="text-muted">How often to receive email notifications</p>
+                                        <label>Check Frequency</label>
+                                        <p class="text-muted">How often the system checks for expiring warranties (global setting)</p>
                                     </div>
                                     <select id="appriseNotificationFrequency" class="form-control">
                                         <option value="daily">Daily</option>
@@ -658,10 +727,7 @@
                                         <span class="status-label">Notification Days:</span>
                                         <span id="currentAppriseExpirationDays" class="status-value">-</span>
                                     </div>
-                                    <div class="status-item">
-                                        <span class="status-label">Notification Time:</span>
-                                        <span id="currentAppriseNotificationTime" class="status-value">-</span>
-                                    </div>
+
                                 </div>
                             </div>
 
@@ -681,6 +747,55 @@
                         </form>
                     </div>
                 </div>
+
+            </div>
+            
+            <!-- Ownership Management Section - Only visible to the owner -->
+            <div id="ownershipSection" class="ownership-section" style="display: none;">
+                <h2><i class="fas fa-crown" style="color: #f39c12; margin-right: 8px;"></i>Ownership Management</h2>
+                
+                <div id="ownershipCard" class="card danger-card">
+                    <div class="card-header">
+                        <h3>Transfer Ownership</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-danger"><strong>Warning:</strong> Transfer application ownership to another admin user. This action is irreversible.</p>
+                        <p>Once ownership is transferred, you will become a regular admin and the new owner will have ultimate control over the application.</p>
+                        <div class="form-group">
+                            <label for="newOwnerSelect">Select New Owner (must be an admin)</label>
+                            <select id="newOwnerSelect" class="form-control">
+                                <option value="">Select an admin user...</option>
+                            </select>
+                        </div>
+                        <button id="transferOwnershipBtn" class="btn btn-danger" disabled>Transfer Ownership</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Ownership Confirmation Modal -->
+    <div id="transferOwnershipModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-crown" style="color: #f39c12; margin-right: 8px;"></i>Transfer Ownership</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-danger"><strong>Warning: This action cannot be undone.</strong></p>
+                <p>You are about to transfer application ownership to <strong><span id="transferTargetUsername"></span></strong>.</p>
+                <p>After this transfer:</p>
+                <ul>
+                    <li>You will become a regular admin</li>
+                    <li>The new owner will have ultimate control over the application</li>
+                    <li>Only the new owner can transfer ownership again</li>
+                </ul>
+                <p>To confirm, please type <strong>"TRANSFER"</strong> in the field below:</p>
+                <input type="text" id="transferConfirmInput" class="form-control" placeholder="Type TRANSFER to confirm">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="confirmTransferOwnershipBtn" class="btn btn-danger" disabled>Transfer Ownership</button>
             </div>
         </div>
     </div>
@@ -843,6 +958,39 @@
             </div>
         </div>
     </div>
+
+    <!-- Users List Modal (Admin) -->
+    <div id="usersModal" class="modal-backdrop">
+        <div class="modal" style="max-width: 90%; width: 1000px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Users List</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; margin: 0;">
+                        <thead>
+                            <tr style="background-color: var(--card-bg); border-bottom: 2px solid var(--border-color);">
+                                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 40px;">ID</th>
+                                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 120px;">Username</th>
+                                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 180px;">Email</th>
+                                <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 120px;">Name</th>
+                                <th style="padding: 12px 8px; text-align: center; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 80px;">Admin</th>
+                                <th style="padding: 12px 8px; text-align: center; font-weight: 600; color: var(--text-color); border-right: 1px solid var(--border-color); min-width: 80px;">Active</th>
+                                <th style="padding: 12px 8px; text-align: center; font-weight: 600; color: var(--text-color); min-width: 100px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be populated here by loadUsers() -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Loading Container -->
     <div id="loadingContainer" class="loading-container">
@@ -853,8 +1001,8 @@
     <div id="toastContainer" class="toast-container"></div>
     
     <!-- Scripts -->
-    <script src="auth.js?v=20250529005"></script>
-    <script src="settings-new.js?v=20250529005"></script>
+    <script src="auth.js?v=20250529006"></script>
+    <script src="settings-new.js?v=20250529006"></script>
     
     <!-- Footer Width Fix -->
     <script src="footer-fix.js"></script>

@@ -1,12 +1,16 @@
 from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for, Response
+from werkzeug.middleware.proxy_fix import ProxyFix
 try:
     # Try relative import for Docker environment
     from backend.extensions import oauth
     from backend.db_handler import init_db_pool, get_db_connection, release_db_connection
+    # Import the NEW auth_utils instead of having helpers in app.py
+    from backend.auth_utils import generate_token, decode_token, token_required, admin_required, is_valid_email, is_valid_password
 except ImportError:
     # Fallback to direct import for development
     from extensions import oauth
     from db_handler import init_db_pool, get_db_connection, release_db_connection
+    from auth_utils import generate_token, decode_token, token_required, admin_required, is_valid_email, is_valid_password
 import psycopg2 # Added import
 import os
 from datetime import datetime, timedelta, date
@@ -35,6 +39,13 @@ from dateutil.relativedelta import relativedelta
 import mimetypes
 
 app = Flask(__name__)
+
+# Configure Flask to trust forwarded headers from reverse proxy (Nginx)
+# This middleware makes the app aware of being behind a proxy
+# It reads X-Forwarded-Proto (for https) and other headers
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
 
 # Memory optimization configurations
 app.config['JSON_SORT_KEYS'] = False  # Disable JSON key sorting to save CPU/memory
@@ -86,10 +97,10 @@ app.config['JWT_EXPIRATION_DELTA'] = timedelta(hours=int(os.environ.get('JWT_EXP
 if app.config['SECRET_KEY'] == 'your_default_secret_key_please_change_in_prod':
     logger.warning("SECURITY WARNING: Using default SECRET_KEY. Please set a strong SECRET_KEY environment variable in production.")
 
-# Initialize DB Pool (this will set the global connection_pool in db_handler.py)
+# Initialize database connection pool via db_handler
 try:
-    init_db_pool() # Call the function from db_handler
-    logger.info("Database connection pool initialization attempted from app.py.")
+    init_db_pool()
+    logger.info("Database connection pool initialized successfully.")
 except Exception as e:
     logger.critical(f"CRITICAL: Failed to initialize database pool on startup: {e}. Application might not function correctly.")
     # Depending on your requirements, you might want to exit or attempt to run in a degraded mode.
@@ -119,23 +130,11 @@ logger.info(f"Max upload file size set to: {MAX_UPLOAD_MB}MB ({MAX_CONTENT_LENGT
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-# PostgreSQL connection pool
+# Database environment variables for admin connections only
 DB_HOST = os.environ.get('DB_HOST', 'warrackerdb')
 DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
-DB_USER = os.environ.get('DB_USER', 'warranty_user')
-DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
 DB_ADMIN_USER = os.environ.get('DB_ADMIN_USER', 'warracker_admin')
 DB_ADMIN_PASSWORD = os.environ.get('DB_ADMIN_PASSWORD', 'change_this_password_in_production')
-
-# Create a connection pool with retry logic
-# This block is now moved earlier, before get_db_connection is defined.
-# The actual initialization of the global 'connection_pool' variable
-# and the call to 'init_oidc_client' will happen after all necessary
-# function definitions.
-
-# Old position of create_db_pool, get_db_connection, release_db_connection
-# and the try/except block for connection_pool and init_oidc_client call.
-# These are now defined *before* this spot.
 
 # Function to initialize OIDC client based on settings
 def init_oidc_client(current_app_instance, db_conn_func, db_release_func): # Keep parameters
@@ -192,193 +191,115 @@ def init_oidc_client(current_app_instance, db_conn_func, db_release_func): # Kee
         current_app_instance.config['OIDC_PROVIDER_NAME'] = None
         logger.info("[APP.PY OIDC_INIT] OIDC is disabled.")
 
-# Initialize DB Pool and then OIDC client (this is the new placement for the try/except block)
-with app.app_context(): # Ensure app context is available for url_for, etc. if used by init_oidc_client indirectly
-    init_oidc_client(app, get_db_connection, release_db_connection) # Pass the actual DB functions
+# Initialize OIDC client after DB handler is ready
+with app.app_context():
+    init_oidc_client(app, get_db_connection, release_db_connection)
 
-# Initialize database (definition of init_db, not the call)
 def init_db():
     """Initialize the database with required tables"""
+    # Database table creation is now handled by migration files in backend/migrations/
+    # This function is kept for compatibility but does not perform any operations
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        if conn:
+            conn.commit()
         
-        # Create users table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        # CREATE TABLE IF NOT EXISTS users (
-        #     id SERIAL PRIMARY KEY,
-        #     username VARCHAR(50) UNIQUE NOT NULL,
-        #     email VARCHAR(100) UNIQUE NOT NULL,
-        #     password_hash VARCHAR(255) NOT NULL,
-        #     first_name VARCHAR(50),
-        #     last_name VARCHAR(50),
-        #     is_active BOOLEAN DEFAULT TRUE,
-        #     is_admin BOOLEAN DEFAULT FALSE,
-        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        # )
-        # """)
+        # Ensure owner role is properly set (backup to migration)
+        ensure_owner_exists()
         
-        # Create user_preferences table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        # CREATE TABLE IF NOT EXISTS user_preferences (
-        #     id SERIAL PRIMARY KEY,
-        #     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        #     email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-        #     default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
-        #     theme VARCHAR(10) NOT NULL DEFAULT 'light',
-        #     expiring_soon_days INTEGER NOT NULL DEFAULT 30,
-        #     notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
-        #     notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
-        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     UNIQUE(user_id)
-        # )
-        # """)
-        
-        # Check if timezone column exists and add if it doesn't - Handled by migrations (e.g., 008_add_timezone_column.sql)
-        # cur.execute("""
-        # DO $$
-        # BEGIN
-        #     IF NOT EXISTS (
-        #         SELECT column_name
-        #         FROM information_schema.columns
-        #         WHERE table_name = 'user_preferences' AND column_name = 'timezone'
-        #     ) THEN
-        #         ALTER TABLE user_preferences
-        #         ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
-        #         RAISE NOTICE 'Added timezone column to user_preferences table';
-        #     END IF;
-        # END $$;
-        # """)
-        
-        # Create warranties table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        #     CREATE TABLE IF NOT EXISTS warranties (
-        #         id SERIAL PRIMARY KEY,
-        #         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        #         item_name VARCHAR(100) NOT NULL,
-        #         purchase_date DATE NOT NULL,
-        #         expiration_date DATE NOT NULL,
-        #         purchase_price DECIMAL(10,2),
-        #         serial_number VARCHAR(100),
-        #         category VARCHAR(50),
-        #         notes TEXT,
-        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        #     )
-        # """)
-        
-        # Create warranty_documents table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        #     CREATE TABLE IF NOT EXISTS warranty_documents (
-        #         id INTEGER PRIMARY KEY,
-        #         warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
-        #         file_name VARCHAR(255) NOT NULL,
-        #         file_path VARCHAR(255) NOT NULL,
-        #     )
-        # """)
-        
-        conn.commit() # Commit any changes if init_db did anything
-        cur.close()
+        logger.info("Database initialization completed - using migration system")
     except Exception as e:
-        logger.error(f"Database initialization error in init_db: {str(e)}")
-        # Decide if to raise, for now, just log as per original short init_db
+        logger.error(f"Database initialization error: {str(e)}")
     finally:
-        if conn: # conn might not be defined if get_db_connection failed
+        if conn:
+            release_db_connection(conn)
+
+def ensure_owner_exists():
+    """
+    Ensure that an application owner exists. This is a backup mechanism
+    in case the migration failed. Runs automatically on app startup.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if any owner exists
+            cur.execute("SELECT COUNT(*) FROM users WHERE is_owner = TRUE")
+            owner_count = cur.fetchone()[0]
+            
+            if owner_count == 0:
+                logger.info("No application owner found, attempting to promote first user...")
+                
+                # Find the first user using multiple strategies
+                first_user_id = None
+                
+                # Strategy 1: First user by created_at
+                try:
+                    cur.execute("""
+                        SELECT id FROM users 
+                        WHERE created_at IS NOT NULL 
+                        ORDER BY created_at ASC, id ASC 
+                        LIMIT 1
+                    """)
+                    result = cur.fetchone()
+                    if result:
+                        first_user_id = result[0]
+                except Exception as e:
+                    logger.warning(f"Strategy 1 (created_at) failed: {e}")
+                
+                # Strategy 2: First user by ID if Strategy 1 failed
+                if first_user_id is None:
+                    try:
+                        cur.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1")
+                        result = cur.fetchone()
+                        if result:
+                            first_user_id = result[0]
+                    except Exception as e:
+                        logger.warning(f"Strategy 2 (lowest ID) failed: {e}")
+                
+                # Strategy 3: First admin user if other strategies failed
+                if first_user_id is None:
+                    try:
+                        cur.execute("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id ASC LIMIT 1")
+                        result = cur.fetchone()
+                        if result:
+                            first_user_id = result[0]
+                    except Exception as e:
+                        logger.warning(f"Strategy 3 (first admin) failed: {e}")
+                
+                # Promote the user to owner if found
+                if first_user_id is not None:
+                    try:
+                        cur.execute("UPDATE users SET is_owner = TRUE WHERE id = %s", (first_user_id,))
+                        conn.commit()
+                        logger.info(f"✅ Automatically promoted user ID {first_user_id} to application owner")
+                        
+                        # Log user info for confirmation
+                        cur.execute("SELECT username, email FROM users WHERE id = %s", (first_user_id,))
+                        user_info = cur.fetchone()
+                        if user_info:
+                            logger.info(f"Owner is now: {user_info[0]} ({user_info[1]})")
+                    except Exception as e:
+                        logger.error(f"Failed to promote user {first_user_id} to owner: {e}")
+                        conn.rollback()
+                else:
+                    logger.warning("No users found in system. First registered user will become owner.")
+            else:
+                # Log current owner for confirmation
+                cur.execute("SELECT id, username, email FROM users WHERE is_owner = TRUE")
+                owners = cur.fetchall()
+                logger.info(f"Application owner(s) confirmed: {[f'{o[1]} (ID:{o[0]})' for o in owners]}")
+                
+    except Exception as e:
+        logger.error(f"Error in ensure_owner_exists: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
             release_db_connection(conn)
 
 
-# Authentication helper functions
-# ... (generate_token, decode_token, token_required, admin_required, etc. remain the same)
-# They use get_db_connection, which should now work.
-
-# --- Ensure create_db_pool was defined before this point ---
-# The following is the original position of the try-except block that initialized connection_pool
-# and called init_oidc_client. It has been moved up.
-
-# Original try-except block for connection_pool and init_oidc_client:
-# try:
-#    connection_pool = create_db_pool()
-#    # Initialize OIDC client after app and DB pool are available
-#    # This ensures DB can be queried for settings.
-#    if connection_pool: # Only if DB connection is likely
-#        with app.app_context(): # Needed if get_db_connection uses app context implicitly or for safety
-#             init_oidc_client(app, get_db_connection, release_db_connection)
-#    else:
-#        logger.error("Database connection pool not available. OIDC client initialization might be incomplete or use defaults/env vars only.")
-#        # Fallback or minimal OIDC init if DB is not available at startup
-#        with app.app_context():
-#            init_oidc_client(app, lambda: None, lambda conn: None) # Pass dummy DB funcs
-#
-# except Exception as e:
-#    logger.error(f"Fatal database connection error during startup: {e}")
-#    connection_pool = None
-#    logger.warning("Database connection pool failed. OIDC client initialization might be incomplete or use defaults/env vars only.")
-#    with app.app_context():
-#        init_oidc_client(app, lambda: None, lambda conn: None)
-
-
-# def get_db_connection(): # Original position, now moved up
-# ...
-
-# def release_db_connection(conn): # Original position, now moved up
-# ...
-
-# def allowed_file(filename): # Original position, can stay or move with other helpers
-# ...
-
-# def init_db(): # Original position, now moved up (definition)
-# ... (rest of the file)
-# The actual call to init_db() for production is at the end of the file, that's fine.
-# Example of where create_db_pool was defined:
-# def create_db_pool(max_retries=5, retry_delay=5):
-#    attempt = 0
-#    last_exception = None
-#    
-#    while attempt < max_retries:
-#        try:
-#            logger.info(f"Attempting to connect to database (attempt {attempt+1}/{max_retries})")
-#            connection_pool = pool.SimpleConnectionPool(
-#                1, 10,  # min, max connections
-#                host=DB_HOST,
-#                database=DB_NAME,
-#                user=DB_USER,
-#                password=DB_PASSWORD
-#            )
-#            logger.info("Database connection successful")
-#            return connection_pool
-#        except Exception as e:
-#            last_exception = e
-#            logger.error(f"Database connection error: {e}")
-#            logger.info(f"Retrying in {retry_delay} seconds...")
-#            time.sleep(retry_delay)
-#            attempt += 1
-#    
-#    # If we got here, all connection attempts failed
-#    logger.error(f"Failed to connect to database after {max_retries} attempts")
-#    raise last_exception
-
-# Create a connection pool with retry logic
-# try:
-#    connection_pool = create_db_pool()
-#    # Initialize OIDC client after app and DB pool are available
-#    # This ensures DB can be queried for settings.
-#    if connection_pool: # Only if DB connection is likely
-#        with app.app_context(): # Needed if get_db_connection uses app context implicitly or for safety
-#             init_oidc_client(app, get_db_connection, release_db_connection)
-#    else:
-#        logger.error("Database connection pool not available. OIDC client initialization might be incomplete or use defaults/env vars only.")
-#        # Fallback or minimal OIDC init if DB is not available at startup
-#        with app.app_context():
-#            init_oidc_client(app, lambda: None, lambda conn: None) # Pass dummy DB funcs
-#
-# except Exception as e:
-#    logger.error(f"Fatal database connection error during startup: {e}")
-#    connection_pool = None
-#    logger.warning("Database connection pool failed. OIDC client initialization might be incomplete or use defaults/env vars only.")
-#    with app.app_context():
-#        init_oidc_client(app, lambda: None, lambda conn: None)
+# Helper functions
 
 
 def get_admin_db_connection():
@@ -399,215 +320,9 @@ def get_admin_db_connection():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Initialize database
-def init_db():
-    """Initialize the database with required tables"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Create users table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        # CREATE TABLE IF NOT EXISTS users (
-        #     id SERIAL PRIMARY KEY,
-        #     username VARCHAR(50) UNIQUE NOT NULL,
-        #     email VARCHAR(100) UNIQUE NOT NULL,
-        #     password_hash VARCHAR(255) NOT NULL,
-        #     first_name VARCHAR(50),
-        #     last_name VARCHAR(50),
-        #     is_active BOOLEAN DEFAULT TRUE,
-        #     is_admin BOOLEAN DEFAULT FALSE,
-        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        # )
-        # """)
-        
-        # Create user_preferences table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        # CREATE TABLE IF NOT EXISTS user_preferences (
-        #     id SERIAL PRIMARY KEY,
-        #     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        #     email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-        #     default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
-        #     theme VARCHAR(10) NOT NULL DEFAULT 'light',
-        #     expiring_soon_days INTEGER NOT NULL DEFAULT 30,
-        #     notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
-        #     notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
-        #     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #     UNIQUE(user_id)
-        # )
-        # """)
-        
-        # Check if timezone column exists and add if it doesn't - Handled by migrations (e.g., 008_add_timezone_column.sql)
-        # cur.execute("""
-        # DO $$
-        # BEGIN
-        #     IF NOT EXISTS (
-        #         SELECT column_name
-        #         FROM information_schema.columns
-        #         WHERE table_name = 'user_preferences' AND column_name = 'timezone'
-        #     ) THEN
-        #         ALTER TABLE user_preferences
-        #         ADD COLUMN timezone VARCHAR(50) NOT NULL DEFAULT 'UTC';
-        #         RAISE NOTICE 'Added timezone column to user_preferences table';
-        #     END IF;
-        # END $$;
-        # """)
-        
-        # Create warranties table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        #     CREATE TABLE IF NOT EXISTS warranties (
-        #         id SERIAL PRIMARY KEY,
-        #         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        #         item_name VARCHAR(100) NOT NULL,
-        #         purchase_date DATE NOT NULL,
-        #         expiration_date DATE NOT NULL,
-        #         purchase_price DECIMAL(10,2),
-        #         serial_number VARCHAR(100),
-        #         category VARCHAR(50),
-        #         notes TEXT,
-        #         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        #         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        #     )
-        # """)
-        
-        # Create warranty_documents table if it doesn't exist - Handled by migrations
-        # cur.execute("""
-        #     CREATE TABLE IF NOT EXISTS warranty_documents (
-        #         id INTEGER PRIMARY KEY,
-        #         warranty_id INTEGER NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
-        #         file_name VARCHAR(255) NOT NULL,
-        #         file_path VARCHAR(255) NOT NULL,
-        #     )
-        # """)
-        
-        conn.commit() # Commit any changes if init_db did anything
-        cur.close()
-    except Exception as e:
-        logger.error(f"Database initialization error in init_db: {str(e)}")
-        # Decide if to raise, for now, just log as per original short init_db
-    finally:
-        if conn: # conn might not be defined if get_db_connection failed
-            release_db_connection(conn)
 
-# Authentication helper functions
-def generate_token(user_id):
-    """Generate a JWT token for the user"""
-    payload = {
-        'exp': datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA'],
-        'iat': datetime.utcnow(),
-        'sub': user_id
-    }
-    return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
 
-def decode_token(token):
-    """Decode a JWT token and return the user_id"""
-    try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        return payload['sub']
-    except jwt.ExpiredSignatureError:
-        return None  # Token has expired
-    except jwt.InvalidTokenError:
-        return None  # Invalid token
-
-def token_required(f):
-    """Decorator to protect routes that require authentication"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        
-        # Get token from Authorization header
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-        
-        # If no token in header, check form data for POST requests
-        if not token and request.method == 'POST':
-            token = request.form.get('auth_token')  # Check form data
-        
-        # If still no token, check URL query parameters
-        if not token:
-            token = request.args.get('token')  # Check query parameters
-            
-        # If no token is provided
-        if not token:
-            logger.warning(f"Authentication attempt without token: {request.path}")
-            return jsonify({'message': 'Authentication token is missing!'}), 401
-        
-        # Decode the token
-        user_id = decode_token(token)
-        if not user_id:
-            logger.warning(f"Invalid token used for: {request.path}")
-            return jsonify({'message': 'Invalid or expired token!'}), 401
-        
-        # Check if user exists
-        conn = None
-        try:
-            conn = get_db_connection()
-            with conn.cursor() as cur:
-                cur.execute('SELECT id, username, email, is_admin FROM users WHERE id = %s AND is_active = TRUE', (user_id,))
-                user = cur.fetchone()
-                
-                if not user:
-                    return jsonify({'message': 'User not found or inactive!'}), 401
-                
-                # Add user info to request context
-                request.user = {
-                    'id': user[0],
-                    'username': user[1],
-                    'email': user[2],
-                    'is_admin': user[3]
-                }
-                
-                return f(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Authentication error: {e}")
-            return jsonify({'message': 'Authentication error!'}), 500
-        finally:
-            if conn:
-                release_db_connection(conn)
-    
-    return decorated
-
-def admin_required(f):
-    """Decorator to protect routes that require admin privileges"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        logger.info("Admin required check started")
-        token_required_result = token_required(lambda: None)()
-        
-        if isinstance(token_required_result, tuple) and token_required_result[1] != 200:
-            logger.error(f"Token validation failed: {token_required_result}")
-            return token_required_result
-        
-        logger.info(f"User info: {request.user}")
-        if not request.user.get('is_admin', False):
-            logger.error(f"User {request.user.get('username')} is not an admin")
-            return jsonify({'message': 'Admin privileges required!'}), 403
-        
-        logger.info(f"Admin check passed for user {request.user.get('username')}")
-        return f(*args, **kwargs)
-    
-    return decorated
-
-def is_valid_email(email):
-    """Validate email format"""
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
-
-def is_valid_password(password):
-    """Validate password strength"""
-    # At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-    if len(password) < 8:
-        return False
-    if not re.search(r'[A-Z]', password):
-        return False
-    if not re.search(r'[a-z]', password):
-        return False
-    if not re.search(r'[0-9]', password):
-        return False
-    return True
+# Authentication helper functions moved to auth_utils.py
 
 def is_valid_timezone(tz):
     """Validate if a timezone string is valid"""
@@ -628,569 +343,7 @@ def convert_decimals(obj):
     else:
         return obj
 
-# OIDC Routes
-# These routes are now handled by the oidc_bp Blueprint in backend/oidc_handler.py
-
-# @app.route('/api/oidc/login')
-# def oidc_login():
-#     if not app.config.get('OIDC_ENABLED'):
-#         logger.warning("OIDC login attempt while OIDC is disabled in settings.")
-#         # Optionally redirect to login with a message, or just return an error
-#         return jsonify({'message': 'OIDC (SSO) login is not enabled.'}), 403 # Forbidden or 503 Service Unavailable
-# 
-#     oidc_provider_name_from_config = app.config.get('OIDC_PROVIDER_NAME')
-#     if not oidc_provider_name_from_config:
-#         logger.error("OIDC is enabled but provider name not configured in app.config.")
-#         return jsonify({'message': 'OIDC provider not configured correctly.'}), 500
-# 
-#     # Construct the redirect_uri. Ensure your OIDC provider has this exact URI whitelisted.
-#     # It should point to your backend's callback endpoint.
-#     # For local development, this might be http://localhost:5000/api/oidc/callback
-#     # For production, it will be your production URL.
-#     # Using url_for with _external=True helps generate the full URL.
-#     # The frontend will redirect to this /api/oidc/login, which then redirects to the IdP.
-#     redirect_uri = url_for('oidc_callback', _external=True) # This would refer to the callback in this file if not removed
-#     
-#     # Ensure the redirect_uri uses HTTPS in production if your app is served over HTTPS
-#     # This might require checking request.scheme or an environment variable.
-#     if os.environ.get('FLASK_ENV') == 'production' and not redirect_uri.startswith('https'):
-#         redirect_uri = redirect_uri.replace('http://', 'https://', 1)
-#         
-#     logger.info(f"OIDC login redirect_uri: {redirect_uri}")
-#     return oauth.create_client(oidc_provider_name_from_config).authorize_redirect(redirect_uri)
-
-# @app.route('/api/oidc/callback')
-# def oidc_callback():
-#    if not app.config.get('OIDC_ENABLED'):
-#        logger.warning("OIDC callback received while OIDC is disabled in settings.")
-        frontend_login_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=oidc_disabled")
-
-    oidc_provider_name_from_config = app.config.get('OIDC_PROVIDER_NAME')
-    if not oidc_provider_name_from_config:
-        logger.error("OIDC is enabled but provider name not configured in app.config for callback.")
-        frontend_login_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=oidc_misconfigured")
-        
-    client = oauth.create_client(oidc_provider_name_from_config)
-    try:
-        token = client.authorize_access_token()
-    except Exception as e:
-        logger.error(f"OIDC callback error authorizing access token: {e}")
-        # Redirect to frontend login page with error
-        # This URL should be configurable or a known frontend path
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=token_exchange_failed")
-
-    if not token:
-        logger.error("OIDC callback: Failed to retrieve access token.")
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=token_missing")
-
-    userinfo = token.get('userinfo')
-    if not userinfo:
-        # If userinfo is not directly in the token, try fetching it
-        try:
-            userinfo = client.userinfo(token=token) # Authlib 0.15+
-        except Exception as e:
-            logger.error(f"OIDC callback error fetching userinfo: {e}")
-            frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-            return redirect(f"{frontend_login_url}?oidc_error=userinfo_fetch_failed")
-            
-    if not userinfo:
-        logger.error("OIDC callback: Failed to retrieve userinfo.")
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=userinfo_missing")
-
-    # --- User Provisioning/Login Logic ---
-    # This is a critical part and needs careful implementation.
-    # 1. Extract OIDC subject (sub) and issuer (iss) from userinfo or token.
-    #    These uniquely identify the user at the OIDC provider.
-    oidc_subject = userinfo.get('sub')
-    oidc_issuer = userinfo.get('iss') # Or from token['iss'] if available
-
-    if not oidc_subject:
-        logger.error("OIDC callback: 'sub' (subject) missing in userinfo.")
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=subject_missing")
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if a user with this OIDC subject and issuer already exists
-            # You'll need to add oidc_sub and oidc_issuer columns to your users table.
-            # For now, we'll assume these columns exist.
-            # A migration will be needed for this.
-            cur.execute("SELECT id, username, email, is_admin FROM users WHERE oidc_sub = %s AND oidc_issuer = %s AND is_active = TRUE", 
-                        (oidc_subject, oidc_issuer))
-            user_db_data = cur.fetchone()
-            
-            user_id = None
-            is_new_user = False
-
-            if user_db_data:
-                user_id = user_db_data[0]
-                logger.info(f"OIDC Login: Existing user found with ID {user_id} for sub {oidc_subject}")
-            else:
-                # User does not exist, provision a new one
-                is_new_user = True
-                email = userinfo.get('email')
-                if not email:
-                    logger.error("OIDC callback: 'email' missing in userinfo for new user.")
-                    frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-                    return redirect(f"{frontend_login_url}?oidc_error=email_missing_for_new_user")
-
-                # Check if email is already in use by a non-OIDC account
-                cur.execute("SELECT id FROM users WHERE email = %s AND (oidc_sub IS NULL OR oidc_issuer IS NULL)", (email,))
-                existing_local_user = cur.fetchone()
-                if existing_local_user:
-                    logger.warning(f"OIDC Signup: Email {email} already exists for a local account. OIDC user cannot be created.")
-                    # This is a conflict. Decide how to handle:
-                    # - Ask user to link accounts (complex)
-                    # - Deny OIDC signup
-                    frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-                    return redirect(f"{frontend_login_url}?oidc_error=email_conflict_local_account")
-
-                username = userinfo.get('preferred_username') or userinfo.get('name') or email.split('@')[0]
-                # Ensure username is unique if your system requires it
-                # This might involve appending a random string if a conflict occurs
-                
-                # Check if username already exists
-                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-                if cur.fetchone():
-                    username = f"{username}_{str(uuid.uuid4())[:8]}" # Append random chars for uniqueness
-
-                first_name = userinfo.get('given_name', '')
-                last_name = userinfo.get('family_name', '')
-                
-                # For OIDC users, we don't store a local password_hash, or store a placeholder.
-                # The 'password_hash' column in 'users' table must allow NULL or have a default.
-                # Or, add a flag 'is_oidc_user' to users table.
-                # For now, let's assume password_hash can be NULL.
-                
-                # Check if this is the first user (who will be an admin)
-                cur.execute('SELECT COUNT(*) FROM users')
-                user_count = cur.fetchone()[0]
-                is_admin = user_count == 0
-
-                cur.execute(
-                    """INSERT INTO users (username, email, first_name, last_name, is_admin, oidc_sub, oidc_issuer, is_active) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id""",
-                    (username, email, first_name, last_name, is_admin, oidc_subject, oidc_issuer)
-                )
-                user_id = cur.fetchone()[0]
-                logger.info(f"OIDC Signup: New user created with ID {user_id} for sub {oidc_subject}")
-            
-            if user_id:
-                # Generate your application's session token
-                app_token = generate_token(user_id)
-                
-                # Update last login
-                cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
-                
-                # Store session info (optional, if you use user_sessions table for OIDC too)
-                ip_address = request.remote_addr
-                user_agent = request.headers.get('User-Agent', '')
-                session_token_uuid = str(uuid.uuid4()) # Different from app_token
-                expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
-                
-                cur.execute(
-                    'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
-                    (user_id, session_token_uuid, expires_at, ip_address, user_agent, 'oidc')
-                )
-                
-                conn.commit()
-
-                # Redirect to frontend with the token.
-                # The frontend should then store this token and use it for API calls.
-                frontend_url = os.environ.get('FRONTEND_URL', app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/')
-                # A dedicated redirect handler page on the frontend is good practice.
-                redirect_target = f"{frontend_url}/auth-redirect.html?token={app_token}"
-                if is_new_user:
-                    redirect_target += "&new_user=true"
-                
-                logger.info(f"[OIDC_CALLBACK] Attempting to redirect to frontend target: {redirect_target}")
-                return redirect(redirect_target)
-            else:
-                logger.error("[OIDC_CALLBACK] User ID not established after DB operations.")
-                frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-                return redirect(f"{frontend_login_url}?oidc_error=user_processing_failed")
-
-    except psycopg2.Error as db_err:
-        logger.error(f"OIDC callback: Database error: {db_err}")
-        if conn:
-            conn.rollback()
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=db_error")
-    except Exception as e:
-        logger.error(f"OIDC callback: General error: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-        return redirect(f"{frontend_login_url}?oidc_error=internal_error")
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-# Authentication routes
-@app.route('/api/auth/register', methods=['POST'])
-def register():
-    conn = None
-    try:
-        data = request.get_json()
-        
-        # Check if registration is enabled
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if settings table exists
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'site_settings'
-                )
-            """)
-            table_exists = cur.fetchone()[0]
-            
-            registration_enabled = True
-            if table_exists:
-                # Get registration_enabled setting
-                cur.execute("SELECT value FROM site_settings WHERE key = 'registration_enabled'")
-                result = cur.fetchone()
-                
-                if result:
-                    registration_enabled = result[0].lower() == 'true'
-            
-            # Check if there are any users (first user can register regardless of setting)
-            cur.execute('SELECT COUNT(*) FROM users')
-            user_count = cur.fetchone()[0]
-            
-            # If registration is disabled and this is not the first user, return error
-            if not registration_enabled and user_count > 0:
-                return jsonify({'message': 'Registration is currently disabled!'}), 403
-        
-        # Validate required fields
-        required_fields = ['username', 'email', 'password']
-        for field in required_fields:
-            if field not in data or not data[field]:
-                return jsonify({'message': f'{field} is required!'}), 400
-        
-        username = data['username']
-        email = data['email']
-        password = data['password']
-        first_name = data.get('first_name', '')
-        last_name = data.get('last_name', '')
-        
-        # Validate email format
-        if not is_valid_email(email):
-            return jsonify({'message': 'Invalid email format!'}), 400
-        
-        # Validate password strength
-        if not is_valid_password(password):
-            return jsonify({'message': 'Password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
-        
-        # Hash the password
-        password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        
-        with conn.cursor() as cur:
-            # Check if username or email already exists
-            cur.execute('SELECT id FROM users WHERE username = %s OR email = %s', (username, email))
-            existing_user = cur.fetchone()
-            
-            if existing_user:
-                return jsonify({'message': 'Username or email already exists!'}), 409
-            
-            # Check if this is the first user (who will be an admin)
-            cur.execute('SELECT COUNT(*) FROM users')
-            user_count = cur.fetchone()[0]
-            is_admin = user_count == 0
-            
-            # Insert new user
-            cur.execute(
-                'INSERT INTO users (username, email, password_hash, first_name, last_name, is_admin) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id',
-                (username, email, password_hash, first_name, last_name, is_admin)
-            )
-            user_id = cur.fetchone()[0]
-            
-            # Generate token
-            token = generate_token(user_id)
-            
-            # Update last login
-            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
-            
-            # Store session info
-            ip_address = request.remote_addr
-            user_agent = request.headers.get('User-Agent', '')
-            session_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
-            
-            cur.execute(
-                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
-                (user_id, session_token, expires_at, ip_address, user_agent, 'local')
-            )
-            
-            conn.commit()
-            
-            return jsonify({
-                'message': 'User registered successfully!',
-                'token': token,
-                'user': {
-                    'id': user_id,
-                    'username': username,
-                    'email': email,
-                    'is_admin': is_admin
-                }
-            }), 201
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Registration failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    conn = None
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        if not data.get('username') or not data.get('password'):
-            return jsonify({'message': 'Username and password are required!'}), 400
-        
-        username = data['username']
-        password = data['password']
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if user exists - include is_admin in the query
-            cur.execute('SELECT id, username, email, password_hash, is_active, is_admin FROM users WHERE username = %s OR email = %s', (username, username))
-            user = cur.fetchone()
-            
-            if not user or not bcrypt.check_password_hash(user[3], password):
-                return jsonify({'message': 'Invalid username or password!'}), 401
-            
-            if not user[4]:  # is_active
-                return jsonify({'message': 'Account is inactive!'}), 401
-            
-            user_id = user[0]
-            
-            # Generate token
-            token = generate_token(user_id)
-            
-            # Update last login
-            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
-            
-            # Store session info
-            ip_address = request.remote_addr
-            user_agent = request.headers.get('User-Agent', '')
-            session_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + app.config['JWT_EXPIRATION_DELTA']
-            
-            cur.execute(
-                'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
-                (user_id, session_token, expires_at, ip_address, user_agent, 'local')
-            )
-            
-            conn.commit()
-            
-            return jsonify({
-                'message': 'Login successful!',
-                'token': token,
-                'user': {
-                    'id': user_id,
-                    'username': user[1],
-                    'email': user[2],
-                    'is_admin': user[5]  # Include is_admin flag
-                }
-            }), 200
-    except Exception as e:
-        logger.error(f"Login error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Login failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/logout', methods=['POST'])
-@token_required
-def logout():
-    conn = None
-    try:
-        auth_header = request.headers.get('Authorization')
-        if auth_header and auth_header.startswith('Bearer '):
-            token = auth_header.split(' ')[1]
-        else:
-            return jsonify({'message': 'No token provided!'}), 400
-        
-        user_id = request.user['id']
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Invalidate all sessions for this user
-            cur.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
-            conn.commit()
-            
-            return jsonify({'message': 'Logout successful!'}), 200
-    except Exception as e:
-        logger.error(f"Logout error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Logout failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/validate-token', methods=['GET'])
-@token_required
-def validate_token():
-    """Validate JWT token and return user info"""
-    try:
-        # If we got here, the token is valid (token_required decorator validated it)
-        return jsonify({
-            'valid': True,
-            'user': {
-                'id': request.user['id'],
-                'username': request.user['username'],
-                'email': request.user['email'],
-                'is_admin': request.user['is_admin']
-            },
-            'message': 'Token is valid'
-        }), 200
-    except Exception as e:
-        logger.error(f"Token validation error: {e}")
-        return jsonify({
-            'valid': False,
-            'message': 'Invalid token'
-        }), 401
-
-@app.route('/api/auth/user', methods=['GET'])
-@token_required
-def get_user():
-    conn = None
-    try:
-        user_id = request.user['id'] # Get user ID from the decorator
-
-        # --- ADD DATABASE QUERY ---
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(
-                'SELECT id, username, email, first_name, last_name, is_admin FROM users WHERE id = %s',
-                (user_id,)
-            )
-            user_data = cur.fetchone()
-        # --- END DATABASE QUERY ---
-
-        if not user_data:
-             return jsonify({'message': 'User not found!'}), 404
-
-        # Map database columns to a dictionary
-        columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin']
-        user_info = dict(zip(columns, user_data))
-
-        # Return the full user information
-        return jsonify(user_info), 200
-
-    except Exception as e:
-        logger.error(f"Get user error: {e}")
-        # Optionally rollback if there was an error during DB interaction
-        # if conn:
-        #     conn.rollback() # Not strictly needed for SELECT, but good practice if errors occur
-        return jsonify({'message': 'Failed to retrieve user information!'}), 500
-    finally:
-        # Release the connection back to the pool
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/password/reset-request', methods=['POST'])
-def request_password_reset():
-    conn = None
-    try:
-        data = request.get_json()
-        
-        if not data.get('email'):
-            return jsonify({'message': 'Email is required!'}), 400
-        
-        email = data['email']
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if user exists
-            cur.execute('SELECT id FROM users WHERE email = %s', (email,))
-            user = cur.fetchone()
-            
-            if not user:
-                # Don't reveal if email exists or not for security
-                return jsonify({'message': 'If your email is registered, you will receive a password reset link.'}), 200
-            
-            user_id = user[0]
-            
-            # Generate reset token
-            reset_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + timedelta(hours=24)
-            
-            # Delete any existing tokens for this user
-            cur.execute('DELETE FROM password_reset_tokens WHERE user_id = %s', (user_id,))
-            
-            # Insert new token
-            cur.execute(
-                'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)',
-                (user_id, reset_token, expires_at)
-            )
-            
-            conn.commit()
-
-            # Get email base URL from settings
-            email_base_url = 'http://localhost:8080' # Default fallback
-            try:
-                cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
-                result = cur.fetchone()
-                if result:
-                    email_base_url = result[0]
-                else:
-                    logger.warning("email_base_url setting not found for password reset, using default.")
-            except Exception as e:
-                 logger.error(f"Error fetching email_base_url from settings for password reset: {e}. Using default.")
-            
-            # Ensure base URL doesn't end with a slash
-            email_base_url = email_base_url.rstrip('/')
-
-            # Construct the full reset link
-            reset_link = f"{email_base_url}/reset-password.html?token={reset_token}" # Use base URL and correct page
-            
-            # Send password reset email
-            logger.info(f"Password reset requested for user {user_id}. Preparing to send email.")
-            try:
-                send_password_reset_email(email, reset_link)
-                logger.info(f"Password reset email initiated for {email}")
-            except Exception as e:
-                logger.error(f"Failed to send password reset email to {email}: {e}")
-                # Even if email fails, don't tell the user. 
-                # This prevents leaking information about registered emails or email server issues.
-                # The user journey remains the same: "If registered, you'll get an email."
-            
-            # Always return success to the user, regardless of email success/failure
-            return jsonify({
-                'message': 'If your email is registered, you will receive a password reset link.'
-            }), 200
-
-    except Exception as e:
-        logger.error(f"Password reset request error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Password reset request failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-# Note: The actual reset_password function is defined earlier in the file.
-# The duplicated block that caused the error has been removed.
-
-
-# Update existing endpoints to use authentication
+# OIDC functionality is handled by the oidc_bp Blueprint in backend/oidc_handler.py
 
 @app.route('/api/warranties', methods=['GET'])
 @token_required
@@ -1208,7 +361,7 @@ def get_warranties():
             cur.execute('''
                 SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
                        purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
-                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
+                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency
                 FROM warranties 
                 WHERE user_id = %s 
                 ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
@@ -1346,6 +499,23 @@ def add_warranty():
             except ValueError:
                 return jsonify({"error": "Purchase price must be a valid number"}), 400
         
+        # Handle currency (optional, defaults to USD)
+        currency = request.form.get('currency', 'USD')
+        # Validate currency code
+        valid_currencies = [
+            'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'INR', 'KRW', 'CHF', 'CAD', 'AUD',
+            'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'BGN', 'RON', 'HRK', 'RUB',
+            'BRL', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'VES', 'ZAR', 'EGP', 'NGN',
+            'KES', 'GHS', 'MAD', 'TND', 'AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR',
+            'JOD', 'LBP', 'ILS', 'TRY', 'IRR', 'PKR', 'BDT', 'LKR', 'NPR', 'BTN',
+            'MMK', 'THB', 'VND', 'LAK', 'KHR', 'MYR', 'SGD', 'IDR', 'PHP', 'TWD',
+            'HKD', 'MOP', 'KPW', 'MNT', 'KZT', 'UZS', 'TJS', 'KGS', 'TMT', 'AFN',
+            'AMD', 'AZN', 'GEL', 'MDL', 'UAH', 'BYN', 'RSD', 'MKD', 'ALL', 'BAM',
+            'ISK', 'FJD', 'PGK', 'SBD', 'TOP', 'VUV', 'WST', 'XPF', 'NZD'
+        ]
+        if currency not in valid_currencies:
+            return jsonify({"error": f"Invalid currency code: {currency}"}), 400
+        
         try:
             purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
         except ValueError:
@@ -1470,14 +640,14 @@ def add_warranty():
                 INSERT INTO warranties (
                     product_name, purchase_date, expiration_date, 
                     invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
-                    warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, expiration_date,
                 db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
-                warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path
+                warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path, currency
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -1718,6 +888,23 @@ def update_warranty(warranty_id):
                         return jsonify({"error": "Purchase price cannot be negative"}), 400
                 except ValueError:
                     return jsonify({"error": "Purchase price must be a valid number"}), 400
+            
+            # Handle currency (optional, defaults to USD)
+            currency = request.form.get('currency', 'USD')
+            # Validate currency code
+            valid_currencies = [
+                'USD', 'EUR', 'GBP', 'JPY', 'CNY', 'INR', 'KRW', 'CHF', 'CAD', 'AUD',
+                'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'BGN', 'RON', 'HRK', 'RUB',
+                'BRL', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'VES', 'ZAR', 'EGP', 'NGN',
+                'KES', 'GHS', 'MAD', 'TND', 'AED', 'SAR', 'QAR', 'KWD', 'BHD', 'OMR',
+                'JOD', 'LBP', 'ILS', 'TRY', 'IRR', 'PKR', 'BDT', 'LKR', 'NPR', 'BTN',
+                'MMK', 'THB', 'VND', 'LAK', 'KHR', 'MYR', 'SGD', 'IDR', 'PHP', 'TWD',
+                'HKD', 'MOP', 'KPW', 'MNT', 'KZT', 'UZS', 'TJS', 'KGS', 'TMT', 'AFN',
+                'AMD', 'AZN', 'GEL', 'MDL', 'UAH', 'BYN', 'RSD', 'MKD', 'ALL', 'BAM',
+                'ISK', 'FJD', 'PGK', 'SBD', 'TOP', 'VUV', 'WST', 'XPF', 'NZD'
+            ]
+            if currency not in valid_currencies:
+                return jsonify({"error": f"Invalid currency code: {currency}"}), 400
             db_invoice_path = None
             if 'invoice' in request.files:
                 invoice = request.files['invoice']
@@ -1893,7 +1080,8 @@ def update_warranty(warranty_id):
                 'product_url': product_url,
                 'purchase_price': purchase_price,
                 'vendor': vendor,
-                'warranty_type': warranty_type
+                'warranty_type': warranty_type,
+                'currency': currency
             }
             sql_fields = []
             sql_values = []
@@ -2365,644 +1553,6 @@ def test_endpoint():
         "timestamp": datetime.utcnow().isoformat()
     })
 
-# Public endpoint to check if authentication is required
-@app.route('/api/auth/status', methods=['GET'])
-def auth_status():
-    return jsonify({
-        "authentication_required": True,
-        "message": "Authentication is required for most endpoints"
-    })
-
-@app.route('/api/auth/profile', methods=['PUT'])
-@token_required
-def update_profile():
-    user_id = request.user['id']
-    
-    try:
-        # Get request data
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No input data provided'}), 400
-
-        # Extract fields
-        first_name = data.get('first_name', '').strip()
-        last_name = data.get('last_name', '').strip()
-        new_email = data.get('email', '').strip()
-
-        # Validate input
-        if not first_name or not last_name:
-            return jsonify({'message': 'First name and last name are required'}), 400
-
-        # Get database connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        try:
-            update_fields = ["first_name = %s", "last_name = %s"]
-            update_params = [first_name, last_name]
-
-            # Handle email change
-            if new_email:
-                if not is_valid_email(new_email):
-                    conn.rollback()
-                    return jsonify({'message': 'Invalid email format!'}), 400
-
-                # Check if the new email is different from the current one
-                cursor.execute("SELECT email FROM users WHERE id = %s", (user_id,))
-                current_email_tuple = cur.fetchone()
-                if not current_email_tuple:
-                    conn.rollback()
-                    return jsonify({'message': 'User not found while fetching current email.'}), 404
-                current_email = current_email_tuple[0]
-
-                if new_email.lower() != current_email.lower():
-                    # Check if the new email is already in use by another user
-                    cursor.execute("SELECT id FROM users WHERE LOWER(email) = LOWER(%s) AND id != %s", (new_email, user_id))
-                    if cursor.fetchone():
-                        conn.rollback()
-                        return jsonify({'message': 'This email address is already in use by another account.'}), 409
-                    update_fields.append("email = %s")
-                    update_params.append(new_email)
-
-            update_query_string = ", ".join(update_fields)
-            final_query = f"""
-                UPDATE users 
-                SET {update_query_string}
-                WHERE id = %s 
-                RETURNING id, username, email, first_name, last_name, created_at
-                """
-            cursor.execute(final_query, tuple(update_params + [user_id]))
-
-            # Get updated user data
-            user_data = cursor.fetchone()
-            if not user_data:
-                conn.rollback()
-                return jsonify({'message': 'User not found'}), 404
-
-            conn.commit()
-
-            user = {
-                'id': user_data[0],
-                'username': user_data[1],
-                'email': user_data[2],
-                'first_name': user_data[3],
-                'last_name': user_data[4],
-                'created_at': user_data[5].isoformat() if user_data[5] else None
-            }
-            return jsonify(user), 200
-
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error in update_profile: {str(e)}")
-            return jsonify({'message': 'Database error occurred'}), 500
-        finally:
-            cursor.close()
-            release_db_connection(conn)
-
-    except Exception as e:
-        logger.error(f"Error in update_profile: {str(e)}")
-        return jsonify({'message': 'An error occurred while updating profile'}), 500
-
-@app.route('/api/auth/account', methods=['DELETE'])
-@token_required
-def delete_account():
-    user_id = request.user['id']
-    
-    try:
-        # Get database connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
-            # Begin transaction
-            cursor.execute("BEGIN")
-            
-            # Delete user's warranties
-            cursor.execute("DELETE FROM warranties WHERE user_id = %s", (user_id,))
-            
-            # Delete user's reset tokens if any
-            cursor.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
-            
-            # Delete user's sessions if any
-            cursor.execute('DELETE FROM user_sessions WHERE user_id = %s', (user_id,))
-            sessions_deleted = cursor.rowcount
-            logger.info(f"Deleted {sessions_deleted} sessions belonging to user {user_id}")
-
-            # Delete user's tags
-            cursor.execute('DELETE FROM tags WHERE user_id = %s', (user_id,))
-            tags_deleted = cur.rowcount
-            logger.info(f"Deleted {tags_deleted} tags belonging to user {user_id}")
-
-            # Delete user
-            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
-            user_deleted = cur.rowcount
-            logger.info(f"Deleted user {user_id}, affected rows: {user_deleted}")
-            
-            # Commit transaction
-            cursor.execute("COMMIT")
-            
-            return jsonify({'message': 'Account deleted successfully'}), 200
-            
-        except Exception as e:
-            cursor.execute("ROLLBACK")
-            logger.error(f"Database error in delete_account: {str(e)}")
-            return jsonify({'message': 'Database error occurred'}), 500
-        finally:
-            cursor.close()
-            release_db_connection(conn)
-            
-    except Exception as e:
-        logger.error(f"Error in delete_account: {str(e)}")
-        return jsonify({'message': 'An error occurred while deleting account'}), 500
-
-@app.route('/api/auth/preferences', methods=['GET'])
-@token_required
-def get_preferences():
-    user_id = request.user['id']
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            # Check for notification columns
-            cursor.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name='user_preferences' 
-                AND column_name IN ('notification_channel', 'apprise_notification_time', 'apprise_notification_frequency', 'apprise_timezone')
-            """)
-            existing_columns = [row[0] for row in cursor.fetchall()]
-            
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'user_preferences'
-                )
-            """)
-            table_exists = cursor.fetchone()[0]
-            if not table_exists:
-                cursor.execute("""
-                    CREATE TABLE user_preferences (
-                        id SERIAL PRIMARY KEY,
-                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        email_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-                        default_view VARCHAR(10) NOT NULL DEFAULT 'grid',
-                        theme VARCHAR(10) NOT NULL DEFAULT 'light',
-                        expiring_soon_days INTEGER NOT NULL DEFAULT 30,
-                        notification_frequency VARCHAR(10) NOT NULL DEFAULT 'daily',
-                        notification_time VARCHAR(5) NOT NULL DEFAULT '09:00',
-                        timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
-                        currency_symbol VARCHAR(8) DEFAULT '$',
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                        UNIQUE(user_id)
-                    )
-                """)
-                cursor.execute("""
-                    CREATE INDEX idx_user_preferences_user_id ON user_preferences(user_id)
-                """)
-                conn.commit()
-                logger.info(f"Created user_preferences table")
-            has_currency = has_currency_symbol_column(cursor)
-
-            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='user_preferences' AND column_name='date_format'")
-            has_date_format_col = cursor.fetchone() is not None
-
-            has_notification_channel = 'notification_channel' in existing_columns
-            has_apprise_notification_time = 'apprise_notification_time' in existing_columns
-            has_apprise_notification_frequency = 'apprise_notification_frequency' in existing_columns
-
-            # Build select list dynamically
-            select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
-            if has_notification_channel:
-                select_fields_list.append("notification_channel")
-            has_apprise_notification_time = 'apprise_notification_time' in existing_columns
-            if has_apprise_notification_time:
-                select_fields_list.append("apprise_notification_time")
-            if 'apprise_timezone' in existing_columns:
-                select_fields_list.append("apprise_timezone")
-            has_apprise_notification_frequency = 'apprise_notification_frequency' in existing_columns
-            if has_apprise_notification_frequency:
-                select_fields_list.append("apprise_notification_frequency")
-            if has_currency:
-                select_fields_list.append("currency_symbol")
-            if has_date_format_col:
-                select_fields_list.append("date_format") # Add date_format if column exists
-            select_fields = ", ".join(select_fields_list)
-
-            cursor.execute(
-                f"""
-                SELECT {select_fields}
-                FROM user_preferences
-                WHERE user_id = %s
-                """,
-                (user_id,)
-            )
-            preferences_data = cursor.fetchone()
-            
-            if not preferences_data:
-                # Build insert list dynamically
-                insert_cols_list = ["user_id", "email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
-                insert_vals = [user_id, True, 'grid', 'light', 30, 'daily', '09:00', 'UTC']
-                if has_notification_channel:
-                    insert_cols_list.append("notification_channel")
-                    insert_vals.append('email')  # Default to email notifications
-                if has_apprise_notification_time:
-                    insert_cols_list.append("apprise_notification_time")
-                    insert_vals.append('09:00')
-                if has_apprise_notification_frequency:
-                    insert_cols_list.append("apprise_notification_frequency")
-                    insert_vals.append('daily')
-                if has_currency:
-                    insert_cols_list.append("currency_symbol")
-                    insert_vals.append('$')
-                if has_date_format_col:
-                    insert_cols_list.append("date_format")
-                    insert_vals.append('MDY') # Default date format
-                
-                insert_cols = ", ".join(insert_cols_list)
-                insert_vals_placeholders = ", ".join(["%s"] * len(insert_cols_list))
-                return_fields = insert_cols # Return the same columns we inserted
-
-                cursor.execute(
-                    f"""
-                    INSERT INTO user_preferences ({insert_cols})
-                    VALUES ({insert_vals_placeholders})
-                    RETURNING {return_fields}
-                    """,
-                    tuple(insert_vals)
-                )
-                preferences_data = cursor.fetchone()
-                conn.commit()
-            
-            # Map returned data to dictionary using the dynamically determined fields
-            returned_columns = [col.strip() for col in select_fields.split(',')]
-            if preferences_data:
-                pref_map = {col: i for i, col in enumerate(returned_columns)}
-                preferences = {
-                    'email_notifications': preferences_data[pref_map.get('email_notifications', 0)],
-                    'default_view': preferences_data[pref_map.get('default_view', 1)],
-                    'theme': preferences_data[pref_map.get('theme', 2)],
-                    'expiring_soon_days': preferences_data[pref_map.get('expiring_soon_days', 3)],
-                    'notification_frequency': preferences_data[pref_map.get('notification_frequency', 4)],
-                    'notification_time': preferences_data[pref_map.get('notification_time', 5)],
-                    'timezone': preferences_data[pref_map.get('timezone', 6)],
-                    'notification_channel': preferences_data[pref_map['notification_channel']] if 'notification_channel' in pref_map else 'email',
-                    'apprise_notification_time': preferences_data[pref_map['apprise_notification_time']] if 'apprise_notification_time' in pref_map else '09:00',
-                    'apprise_timezone': preferences_data[pref_map['apprise_timezone']] if 'apprise_timezone' in pref_map else 'UTC',
-                    'apprise_notification_frequency': preferences_data[pref_map['apprise_notification_frequency']] if 'apprise_notification_frequency' in pref_map else 'daily',
-                    'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$', # Handle currency optionality
-                    'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY' # Handle date_format optionality
-                }
-            else:
-                 # Fallback if even insert failed or returned nothing
-                 preferences = {
-                    'email_notifications': True,
-                    'default_view': 'grid',
-                    'theme': 'light',
-                    'expiring_soon_days': 30,
-                    'notification_frequency': 'daily',
-                    'notification_time': '09:00',
-                    'timezone': 'UTC',
-                    'notification_channel': 'email',
-                    'apprise_notification_time': '09:00',
-                    'apprise_notification_frequency': 'daily',
-                    'currency_symbol': '$',
-                    'date_format': 'MDY'
-                 }
-
-            return jsonify(preferences), 200
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error in get_preferences: {str(e)}")
-            default_preferences = {
-                'email_notifications': True,
-                'default_view': 'grid',
-                'theme': 'light',
-                'expiring_soon_days': 30,
-                'notification_frequency': 'daily',
-                'notification_time': '09:00',
-                'timezone': 'UTC',
-                'notification_channel': 'email',
-                'apprise_notification_time': '09:00',
-                'apprise_notification_frequency': 'daily',
-                'currency_symbol': '$',
-                'date_format': 'MDY'
-            }
-            return jsonify(default_preferences), 200
-        finally:
-            cursor.close()
-            release_db_connection(conn)
-    except Exception as e:
-        logger.error(f"Error in get_preferences: {str(e)}")
-        default_preferences = {
-            'email_notifications': True,
-            'default_view': 'grid',
-            'theme': 'light',
-            'expiring_soon_days': 30,
-            'notification_frequency': 'daily',
-            'notification_time': '09:00',
-            'timezone': 'UTC',
-            'notification_channel': 'email',
-            'apprise_notification_time': '09:00',
-            'apprise_notification_frequency': 'daily',
-            'currency_symbol': '$',
-            'date_format': 'MDY'
-        }
-        return jsonify(default_preferences), 200
-
-@app.route('/api/auth/preferences', methods=['PUT'])
-@token_required
-def update_preferences():
-    user_id = request.user['id']
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'message': 'No input data provided'}), 400
-        
-        # Debug logging for theme issue
-        logger.info(f"Update preferences input data: {data}")
-        
-        notification_channel = data.get('notification_channel')
-        default_view = data.get('default_view')
-        theme = data.get('theme')
-        expiring_soon_days = data.get('expiring_soon_days')
-        notification_frequency = data.get('notification_frequency')
-        notification_time = data.get('notification_time')
-        apprise_notification_time = data.get('apprise_notification_time')
-        apprise_notification_frequency = data.get('apprise_notification_frequency')
-        timezone = data.get('timezone')
-        apprise_timezone = data.get('apprise_timezone')
-        currency_symbol = data.get('currency_symbol')
-        date_format = data.get('date_format')
-        
-        logger.info(f"Update preferences parsed theme: {theme}")
-
-        if notification_channel and notification_channel not in ['none', 'email', 'apprise', 'both']:
-            return jsonify({'message': 'Invalid notification channel'}), 400
-        if default_view and default_view not in ['grid', 'list', 'table']:
-            return jsonify({'message': 'Invalid default view'}), 400
-        if theme and theme not in ['light', 'dark']:
-            return jsonify({'message': 'Invalid theme'}), 400
-        if expiring_soon_days is not None:
-            try:
-                expiring_soon_days = int(expiring_soon_days)
-                if expiring_soon_days < 1 or expiring_soon_days > 365:
-                    return jsonify({'message': 'Expiring soon days must be between 1 and 365'}), 400
-            except ValueError:
-                return jsonify({'message': 'Expiring soon days must be a valid number'}), 400
-        if notification_frequency and notification_frequency not in ['daily', 'weekly', 'monthly']:
-            return jsonify({'message': 'Invalid notification frequency'}), 400
-        if notification_time and not re.match(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$', notification_time):
-            return jsonify({'message': 'Invalid notification time format'}), 400
-        if timezone and not is_valid_timezone(timezone):
-            return jsonify({'message': 'Invalid timezone'}), 400
-        if apprise_timezone and not is_valid_timezone(apprise_timezone):
-            return jsonify({'message': 'Invalid Apprise timezone'}), 400
-        
-        # Add validation for date_format
-        valid_date_formats = ['MDY', 'DMY', 'YMD', 'MDY_WORDS', 'DMY_WORDS', 'YMD_WORDS']
-        if date_format and date_format not in valid_date_formats:
-            return jsonify({'message': 'Invalid date format'}), 400
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        try:
-            # Check if columns exist first to handle dynamic schema changes
-            cursor.execute("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name='user_preferences' 
-                AND column_name IN ('date_format', 'notification_channel', 'apprise_notification_time', 'apprise_notification_frequency', 'apprise_timezone')
-            """)
-            existing_cols = [row[0] for row in cursor.fetchall()]
-            has_date_format_col = 'date_format' in existing_cols
-            has_notification_channel_col = 'notification_channel' in existing_cols
-            has_apprise_notification_time_col = 'apprise_notification_time' in existing_cols
-            has_apprise_notification_frequency_col = 'apprise_notification_frequency' in existing_cols
-            has_currency = has_currency_symbol_column(cursor)
-            
-            # Debug logging for Apprise settings
-            logger.info(f"Update preferences debug - apprise_notification_time: {apprise_notification_time}")
-            logger.info(f"Update preferences debug - has_apprise_notification_time_col: {has_apprise_notification_time_col}")
-            logger.info(f"Update preferences debug - existing_cols: {existing_cols}")
-            
-            cursor.execute(
-                "SELECT 1 FROM user_preferences WHERE user_id = %s",
-                (user_id,)
-            )
-            preferences_exist = cursor.fetchone() is not None
-
-            if preferences_exist:
-                update_fields = []
-                update_values = []
-                if notification_channel and has_notification_channel_col:
-                    update_fields.append("notification_channel = %s")
-                    update_values.append(notification_channel)
-                if default_view:
-                    update_fields.append("default_view = %s")
-                    update_values.append(default_view)
-                if theme:
-                    update_fields.append("theme = %s")
-                    update_values.append(theme)
-                if expiring_soon_days is not None:
-                    update_fields.append("expiring_soon_days = %s")
-                    update_values.append(expiring_soon_days)
-                if notification_frequency:
-                    update_fields.append("notification_frequency = %s")
-                    update_values.append(notification_frequency)
-                if notification_time:
-                    update_fields.append("notification_time = %s")
-                    update_values.append(notification_time)
-                if apprise_notification_time is not None and has_apprise_notification_time_col:
-                    update_fields.append("apprise_notification_time = %s")
-                    update_values.append(apprise_notification_time)
-                if apprise_notification_frequency is not None and has_apprise_notification_frequency_col:
-                    update_fields.append("apprise_notification_frequency = %s")
-                    update_values.append(apprise_notification_frequency)
-                if timezone:
-                    update_fields.append("timezone = %s")
-                    update_values.append(timezone)
-                if apprise_timezone and 'apprise_timezone' in existing_cols:
-                    update_fields.append("apprise_timezone = %s")
-                    update_values.append(apprise_timezone)
-                if has_currency and currency_symbol is not None:
-                    update_fields.append("currency_symbol = %s")
-                    update_values.append(currency_symbol)
-                # Add date_format to update only if the column exists
-                if has_date_format_col and date_format:
-                    update_fields.append("date_format = %s")
-                    update_values.append(date_format)
-                
-                if update_fields:
-                    # Build the returning fields string dynamically based on existing columns
-                    # IMPORTANT: Always SELECT all fields, don't rely on UPDATE RETURNING subset
-                    return_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
-                    if has_notification_channel_col:
-                        return_fields_list.append("notification_channel")
-                    if has_apprise_notification_time_col:
-                        return_fields_list.append("apprise_notification_time")
-                    if has_apprise_notification_frequency_col:
-                        return_fields_list.append("apprise_notification_frequency")
-                    if 'apprise_timezone' in existing_cols:
-                        return_fields_list.append("apprise_timezone")
-                    if has_currency:
-                        return_fields_list.append("currency_symbol")
-                    if has_date_format_col:
-                        return_fields_list.append("date_format")
-                    return_fields = ", ".join(return_fields_list)
-
-                    # First do the UPDATE
-                    update_query = f"""
-                        UPDATE user_preferences 
-                        SET {', '.join(update_fields)}
-                        WHERE user_id = %s
-                    """
-                    cursor.execute(update_query, update_values + [user_id])
-                    
-                    # Then SELECT all fields to get complete data
-                    cursor.execute(
-                        f"""
-                        SELECT {return_fields}
-                        FROM user_preferences
-                        WHERE user_id = %s
-                        """,
-                        (user_id,)
-                    )
-                    preferences_data = cursor.fetchone()
-                else:
-                    # If no fields to update, select existing data
-                    select_fields_list = ["email_notifications", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
-                    if has_notification_channel_col:
-                        select_fields_list.append("notification_channel")
-                    if has_apprise_notification_time_col:
-                        select_fields_list.append("apprise_notification_time")
-                    if has_apprise_notification_frequency_col:
-                        select_fields_list.append("apprise_notification_frequency")
-                    if 'apprise_timezone' in existing_cols:
-                        select_fields_list.append("apprise_timezone")
-                    if has_currency:
-                        select_fields_list.append("currency_symbol")
-                    if has_date_format_col:
-                        select_fields_list.append("date_format")
-                    select_fields = ", ".join(select_fields_list)
-                    
-                    cursor.execute(
-                        f"""
-                        SELECT {select_fields}
-                        FROM user_preferences
-                        WHERE user_id = %s
-                        """,
-                        (user_id,)
-                    )
-                    preferences_data = cursor.fetchone()
-            else: # Insert new record
-                # Build insert dynamically
-                insert_cols_list = ["user_id", "default_view", "theme", "expiring_soon_days", "notification_frequency", "notification_time", "timezone"]
-                insert_vals = [
-                    user_id,
-                    default_view or 'grid',
-                    theme or 'light',
-                    expiring_soon_days if expiring_soon_days is not None else 30,
-                    notification_frequency or 'daily',
-                    notification_time or '09:00',
-                    timezone or 'UTC'
-                ]
-                if has_notification_channel_col:
-                    insert_cols_list.append("notification_channel")
-                    insert_vals.append(notification_channel or 'email')
-                if has_apprise_notification_time_col:
-                    insert_cols_list.append("apprise_notification_time")
-                    insert_vals.append(apprise_notification_time or '09:00')
-                if has_apprise_notification_frequency_col:
-                    insert_cols_list.append("apprise_notification_frequency")
-                    insert_vals.append(apprise_notification_frequency or 'daily')
-                if has_currency:
-                    insert_cols_list.append("currency_symbol")
-                    insert_vals.append(currency_symbol or '$')
-                if has_date_format_col:
-                    insert_cols_list.append("date_format")
-                    insert_vals.append(date_format or 'MDY')
-
-                insert_cols = ", ".join(insert_cols_list)
-                insert_vals_placeholders = ", ".join(["%s"] * len(insert_cols_list))
-                return_fields = insert_cols # Return the same columns we inserted
-                
-                cursor.execute(
-                    f"""
-                    INSERT INTO user_preferences ({insert_cols})
-                    VALUES ({insert_vals_placeholders})
-                    RETURNING {return_fields}
-                    """,
-                    tuple(insert_vals)
-                )
-                preferences_data = cursor.fetchone()
-            
-            # Map returned data to dictionary using the dynamically determined fields
-            returned_columns = [col.strip() for col in return_fields.split(',')]
-            if preferences_data:
-                pref_map = {col: i for i, col in enumerate(returned_columns)}
-                
-                # Log debug info for theme issues
-                logger.info(f"Update preferences debug - returned_columns: {returned_columns}")
-                logger.info(f"Update preferences debug - pref_map: {pref_map}")
-                logger.info(f"Update preferences debug - preferences_data: {preferences_data}")
-                logger.info(f"Update preferences debug - theme column index: {pref_map.get('theme', 'NOT_FOUND')}")
-                
-                preferences = {
-                    'email_notifications': preferences_data[pref_map['email_notifications']] if 'email_notifications' in pref_map else True,
-                    'default_view': preferences_data[pref_map['default_view']] if 'default_view' in pref_map else 'grid',
-                    'theme': preferences_data[pref_map['theme']] if 'theme' in pref_map else 'light',
-                    'expiring_soon_days': preferences_data[pref_map['expiring_soon_days']] if 'expiring_soon_days' in pref_map else 30,
-                    'notification_frequency': preferences_data[pref_map['notification_frequency']] if 'notification_frequency' in pref_map else 'daily',
-                    'notification_time': preferences_data[pref_map['notification_time']] if 'notification_time' in pref_map else '09:00',
-                    'timezone': preferences_data[pref_map['timezone']] if 'timezone' in pref_map else 'UTC',
-                    'notification_channel': preferences_data[pref_map['notification_channel']] if 'notification_channel' in pref_map else 'email',
-                    'apprise_notification_time': preferences_data[pref_map['apprise_notification_time']] if 'apprise_notification_time' in pref_map else '09:00',
-                    'apprise_notification_frequency': preferences_data[pref_map['apprise_notification_frequency']] if 'apprise_notification_frequency' in pref_map else 'daily',
-                    'apprise_timezone': preferences_data[pref_map['apprise_timezone']] if 'apprise_timezone' in pref_map else 'UTC',
-                    'currency_symbol': preferences_data[pref_map['currency_symbol']] if 'currency_symbol' in pref_map else '$',
-                    'date_format': preferences_data[pref_map['date_format']] if 'date_format' in pref_map else 'MDY'
-                }
-                
-                logger.info(f"Update preferences debug - final theme value: {preferences.get('theme')}")
-            else:
-                # Fallback if no data returned
-                preferences = {}
-
-
-            conn.commit()
-            return jsonify(preferences), 200
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Database error in update_preferences: {str(e)}")
-            fallback_preferences = {
-                'email_notifications': True,  # Fixed: Set default value instead of undefined variable
-                'default_view': default_view or 'grid',
-                'theme': theme or 'light',
-                'expiring_soon_days': expiring_soon_days if expiring_soon_days is not None else 30,
-                'notification_frequency': notification_frequency or 'daily',
-                'notification_time': notification_time or '09:00',
-                'timezone': timezone or 'UTC',
-                'currency_symbol': currency_symbol or '$',
-                'date_format': date_format or 'MDY' # Add to fallback
-            }
-            return jsonify(fallback_preferences), 200
-        finally:
-            cursor.close()
-            release_db_connection(conn)
-    except Exception as e:
-        logger.error(f"Error in update_preferences: {str(e)}")
-        default_preferences = {
-            'email_notifications': True,
-            'default_view': 'grid',
-            'theme': 'light',
-            'expiring_soon_days': 30,
-            'notification_frequency': 'daily',
-            'notification_time': '09:00',
-            'timezone': 'UTC',
-            'currency_symbol': '$',
-            'date_format': 'MDY'  # Fixed: Added missing date_format to defaults
-        }
-        return jsonify(default_preferences), 200
-
 # Admin User Management Endpoints
 
 @app.route('/api/admin/users', methods=['GET'])
@@ -3013,17 +1563,37 @@ def get_all_users():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute('''
-                SELECT id, username, email, first_name, last_name, is_active, is_admin, created_at, last_login 
-                FROM users 
-                ORDER BY created_at DESC
-            ''')
-            users = cur.fetchall()
+            # Try to get users with is_owner column, fall back to without it if column doesn't exist
+            try:
+                cur.execute('''
+                    SELECT id, username, email, first_name, last_name, is_active, is_admin, is_owner, created_at, last_login 
+                    FROM users 
+                    ORDER BY created_at DESC
+                ''')
+                users = cur.fetchall()
+                has_owner_column = True
+            except Exception as e:
+                # If the query fails (likely because is_owner column doesn't exist), rollback and try again
+                logger.warning(f"Failed to query with is_owner column in get_all_users, falling back: {e}")
+                conn.rollback()  # Rollback the failed transaction
+                cur.execute('''
+                    SELECT id, username, email, first_name, last_name, is_active, is_admin, created_at, last_login 
+                    FROM users 
+                    ORDER BY created_at DESC
+                ''')
+                users = cur.fetchall()
+                has_owner_column = False
+                
             columns = [desc[0] for desc in cur.description]
             users_list = []
             
             for row in users:
                 user_dict = dict(zip(columns, row))
+                
+                # Add is_owner field if it wasn't included in the query
+                if not has_owner_column:
+                    user_dict['is_owner'] = False
+                
                 # Convert date objects to ISO format strings for JSON serialization
                 for key, value in user_dict.items():
                     if isinstance(value, (datetime, date)):
@@ -3054,12 +1624,29 @@ def update_user(user_id):
         # Use regular connection since db_user now has superuser privileges
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if user exists
-            cur.execute('SELECT id FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
+            # Check if user exists and if they are the owner
+            try:
+                cur.execute('SELECT id, is_owner FROM users WHERE id = %s', (user_id,))
+                user = cur.fetchone()
+                is_owner = user[1] if user and len(user) > 1 else False
+            except Exception as e:
+                # If the query fails (likely because is_owner column doesn't exist), rollback and try again
+                logger.warning(f"Failed to query with is_owner column in update_user, falling back: {e}")
+                conn.rollback()  # Rollback the failed transaction
+                cur.execute('SELECT id FROM users WHERE id = %s', (user_id,))
+                user = cur.fetchone()
+                is_owner = False
             
             if not user:
                 return jsonify({"message": "User not found"}), 404
+            
+            # Check if the user being updated is the owner
+            if is_owner:
+                # If the user is the owner, prevent demotion or deactivation
+                if 'is_admin' in data and data['is_admin'] is False:
+                    return jsonify({"message": "The application owner cannot be demoted from admin status."}), 403
+                if 'is_active' in data and data['is_active'] is False:
+                    return jsonify({"message": "The application owner's account cannot be deactivated."}), 403
             
             # Update fields
             updates = []
@@ -3109,13 +1696,27 @@ def delete_user(user_id):
         # Use regular connection since db_user now has superuser privileges
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Check if user exists
-            cur.execute('SELECT id, username FROM users WHERE id = %s', (user_id,))
-            user = cur.fetchone()
+            # Check if user exists and if they are the owner
+            try:
+                cur.execute('SELECT id, username, is_owner FROM users WHERE id = %s', (user_id,))
+                user = cur.fetchone()
+                is_owner = user[2] if user and len(user) > 2 else False
+            except Exception as e:
+                # If the query fails (likely because is_owner column doesn't exist), rollback and try again
+                logger.warning(f"Failed to query with is_owner column in delete_user, falling back: {e}")
+                conn.rollback()  # Rollback the failed transaction
+                cur.execute('SELECT id, username FROM users WHERE id = %s', (user_id,))
+                user = cur.fetchone()
+                is_owner = False
             
             if not user:
                 logger.warning(f"User with ID {user_id} not found")
                 return jsonify({"message": "User not found"}), 404
+            
+            # Check if the user to be deleted is the owner
+            if is_owner:
+                logger.warning(f"Admin {request.user['id']} attempted to delete the application owner (user_id: {user_id})")
+                return jsonify({"message": "The application owner cannot be deleted."}), 403
             
             logger.info(f"Deleting user {user[1]} (ID: {user[0]})")
             
@@ -3153,6 +1754,70 @@ def delete_user(user_id):
         if conn:
             conn.rollback()
         return jsonify({"message": f"Failed to delete user: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/admin/transfer-ownership', methods=['POST'])
+@admin_required
+def transfer_ownership():
+    """Transfer application ownership to another admin user (owner only)"""
+    # 1. Security Check: Only the current owner can initiate a transfer.
+    # If is_owner column doesn't exist yet, this feature is not available
+    if not request.user.get('is_owner'):
+        return jsonify({"message": "Ownership transfer feature is not available. Please run the database migration first."}), 403
+
+    data = request.get_json()
+    new_owner_id = data.get('new_owner_id')
+    current_owner_id = request.user['id']
+
+    if not new_owner_id:
+        return jsonify({"message": "New owner ID is required."}), 400
+
+    if int(new_owner_id) == current_owner_id:
+        return jsonify({"message": "Cannot transfer ownership to yourself."}), 400
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # 2. Validate the new owner
+            cur.execute("SELECT id, is_admin, is_active FROM users WHERE id = %s", (new_owner_id,))
+            new_owner = cur.fetchone()
+
+            if not new_owner:
+                return jsonify({"message": "The selected user does not exist."}), 404
+            
+            if not new_owner[1]: # is_admin is false
+                 return jsonify({"message": "Ownership can only be transferred to another admin user."}), 400
+
+            if not new_owner[2]: # is_active is false
+                return jsonify({"message": "Cannot transfer ownership to an inactive user."}), 400
+
+            # 3. Perform the transfer within a database transaction
+            # This ensures both updates succeed or both fail.
+            logger.info(f"Ownership transfer initiated by user {current_owner_id} to user {new_owner_id}.")
+            
+            # Demote current owner to a regular admin
+            try:
+                cur.execute("UPDATE users SET is_owner = FALSE WHERE id = %s", (current_owner_id,))
+                
+                # Promote the new user to be the owner (and ensure they remain admin)
+                cur.execute("UPDATE users SET is_owner = TRUE, is_admin = TRUE WHERE id = %s", (new_owner_id,))
+            except Exception as e:
+                logger.error(f"Error updating ownership in database: {e}")
+                return jsonify({"message": "Ownership transfer feature is not available. Please run the database migration first."}), 500
+            
+            conn.commit()
+            
+            logger.info(f"Ownership successfully transferred from {current_owner_id} to {new_owner_id}.")
+            return jsonify({"message": "Ownership transferred successfully."}), 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error during ownership transfer: {e}")
+        return jsonify({"message": "An error occurred during ownership transfer. The operation has been rolled back."}), 500
     finally:
         if conn:
             release_db_connection(conn)
@@ -3198,6 +1863,7 @@ def get_site_settings():
                 'global_view_enabled': 'true',  # Global warranty view feature
                 'global_view_admin_only': 'false',  # Restrict global view to admins only
                 'oidc_enabled': 'false',
+                'oidc_only_mode': 'false',  # Force OIDC-only login (hide traditional login form)
                 'oidc_provider_name': 'oidc',
                 'oidc_client_id': '',
                 # 'oidc_client_secret': '', # Not returned
@@ -3221,7 +1887,7 @@ def get_site_settings():
                     continue
                 
                 # For boolean-like string settings, ensure they are 'true' or 'false'
-                if key in ['registration_enabled', 'oidc_enabled', 'apprise_enabled', 'global_view_enabled', 'global_view_admin_only']:
+                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'apprise_enabled', 'global_view_enabled', 'global_view_admin_only']:
                     settings_to_return[key] = 'true' if value.lower() == 'true' else 'false'
                 else:
                     settings_to_return[key] = value
@@ -3285,7 +1951,7 @@ def update_site_settings():
             requires_restart = False
             for key, value in data.items():
                 # Sanitize boolean-like string values
-                if key in ['registration_enabled', 'oidc_enabled', 'global_view_enabled', 'global_view_admin_only']:
+                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'global_view_enabled', 'global_view_admin_only']:
                     value = 'true' if str(value).lower() == 'true' else 'false'
                 
                 # Check if it's an OIDC related key that requires restart
@@ -3387,44 +2053,6 @@ def check_global_view_status():
         if conn:
             release_db_connection(conn)
 
-@app.route('/api/auth/registration-status', methods=['GET'])
-def check_registration_status():
-    """Check if registration is enabled"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if settings table exists
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'site_settings'
-                )
-            """)
-            table_exists = cur.fetchone()[0]
-            
-            if not table_exists:
-                # If table doesn't exist, registration is enabled by default
-                return jsonify({"enabled": True}), 200
-            
-            # Get registration_enabled setting
-            cur.execute("SELECT value FROM site_settings WHERE key = 'registration_enabled'")
-            result = cur.fetchone()
-            
-            if not result:
-                # If setting doesn't exist, registration is enabled by default
-                return jsonify({"enabled": True}), 200
-            
-            registration_enabled = result[0].lower() == 'true'
-            
-            return jsonify({"enabled": registration_enabled}), 200
-    except Exception as e:
-        logger.error(f"Error checking registration status: {e}")
-        return jsonify({"enabled": True}), 200  # Default to enabled on error
-    finally:
-        if conn:
-            release_db_connection(conn)
-
 # File serving endpoints
 @app.route('/api/files/<path:filename>', methods=['GET', 'POST'])
 @token_required
@@ -3478,6 +2106,7 @@ def secure_file_access(filename):
                 authorized = is_admin
                 logger.info(f"[SECURE_FILE] Initial authorization (is_admin={is_admin}): {authorized}")
 
+                # Check for ownership authorization
                 if not authorized and results:
                     for warranty_id_db, warranty_user_id_db in results:
                         logger.info(f"[SECURE_FILE] Checking ownership: warranty_id={warranty_id_db}, owner_id={warranty_user_id_db}, current_user_id={user_id}")
@@ -3485,6 +2114,38 @@ def secure_file_access(filename):
                             authorized = True
                             logger.info(f"[SECURE_FILE] Ownership confirmed for warranty_id={warranty_id_db}")
                             break
+
+                # Check for global view authorization for product photos
+                if not authorized and results:
+                    # Check if this file is a product photo by looking at which column matched
+                    cur.execute("""
+                        SELECT w.id, w.user_id
+                        FROM warranties w
+                        WHERE w.product_photo_path = %s
+                    """, (db_search_path,))
+                    photo_results = cur.fetchall()
+                    
+                    if photo_results:
+                        logger.info(f"[SECURE_FILE] File is a product photo, checking global view permissions")
+                        
+                        # Get global view settings
+                        cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+                        settings = {row[0]: row[1] for row in cur.fetchall()}
+                        
+                        # Check if global view is enabled at all
+                        global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+                        logger.info(f"[SECURE_FILE] Global view enabled: {global_view_enabled}")
+                        
+                        if global_view_enabled:
+                            # Check if global view is restricted to admins only
+                            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+                            logger.info(f"[SECURE_FILE] Global view admin only: {admin_only}")
+                            
+                            if not admin_only or is_admin:
+                                authorized = True
+                                logger.info(f"[SECURE_FILE] Global view photo access authorized for user {user_id}")
+                            else:
+                                logger.info(f"[SECURE_FILE] Global view restricted to admins only, user {user_id} is not admin")
                 
                 if not authorized:
                     logger.warning(f"[SECURE_FILE] Unauthorized file access attempt: '{filename}' (repr: {repr(filename)}) by user {user_id}. DB results count: {len(results) if results else 'None'}")
@@ -3745,6 +2406,13 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(f"Database initialization error during startup: {e}")
 
+# Always ensure owner exists regardless of how the app is started (dev vs production)
+try:
+    logger.info("Ensuring application owner exists on startup...")
+    ensure_owner_exists()
+except Exception as e:
+    logger.error(f"Error ensuring owner exists during startup: {e}")
+
 @app.route('/api/admin/send-notifications', methods=['POST'])
 @admin_required
 def trigger_notifications():
@@ -3820,6 +2488,202 @@ def get_timezones():
     except Exception as e:
         logger.error(f"Error getting timezones: {e}")
         return jsonify({'message': 'Failed to get timezones'}), 500
+
+@app.route('/api/currencies', methods=['GET'])
+def get_currencies():
+    """Get list of available currencies with their symbols"""
+    try:
+        currencies = [
+            {'code': 'USD', 'name': 'US Dollar', 'symbol': '$'},
+            {'code': 'EUR', 'name': 'Euro', 'symbol': '€'},
+            {'code': 'GBP', 'name': 'British Pound', 'symbol': '£'},
+            {'code': 'JPY', 'name': 'Japanese Yen', 'symbol': '¥'},
+            {'code': 'CNY', 'name': 'Chinese Yuan', 'symbol': '¥'},
+            {'code': 'INR', 'name': 'Indian Rupee', 'symbol': '₹'},
+            {'code': 'KRW', 'name': 'South Korean Won', 'symbol': '₩'},
+            {'code': 'CHF', 'name': 'Swiss Franc', 'symbol': 'CHF'},
+            {'code': 'CAD', 'name': 'Canadian Dollar', 'symbol': 'C$'},
+            {'code': 'AUD', 'name': 'Australian Dollar', 'symbol': 'A$'},
+            {'code': 'SEK', 'name': 'Swedish Krona', 'symbol': 'kr'},
+            {'code': 'NOK', 'name': 'Norwegian Krone', 'symbol': 'kr'},
+            {'code': 'DKK', 'name': 'Danish Krone', 'symbol': 'kr'},
+            {'code': 'PLN', 'name': 'Polish Złoty', 'symbol': 'zł'},
+            {'code': 'CZK', 'name': 'Czech Koruna', 'symbol': 'Kč'},
+            {'code': 'HUF', 'name': 'Hungarian Forint', 'symbol': 'Ft'},
+            {'code': 'BGN', 'name': 'Bulgarian Lev', 'symbol': 'лв'},
+            {'code': 'RON', 'name': 'Romanian Leu', 'symbol': 'lei'},
+            {'code': 'HRK', 'name': 'Croatian Kuna', 'symbol': 'kn'},
+            {'code': 'RUB', 'name': 'Russian Ruble', 'symbol': '₽'},
+            {'code': 'BRL', 'name': 'Brazilian Real', 'symbol': 'R$'},
+            {'code': 'MXN', 'name': 'Mexican Peso', 'symbol': '$'},
+            {'code': 'ARS', 'name': 'Argentine Peso', 'symbol': '$'},
+            {'code': 'CLP', 'name': 'Chilean Peso', 'symbol': '$'},
+            {'code': 'COP', 'name': 'Colombian Peso', 'symbol': '$'},
+            {'code': 'PEN', 'name': 'Peruvian Sol', 'symbol': 'S/'},
+            {'code': 'VES', 'name': 'Venezuelan Bolívar', 'symbol': 'Bs'},
+            {'code': 'ZAR', 'name': 'South African Rand', 'symbol': 'R'},
+            {'code': 'EGP', 'name': 'Egyptian Pound', 'symbol': '£'},
+            {'code': 'NGN', 'name': 'Nigerian Naira', 'symbol': '₦'},
+            {'code': 'KES', 'name': 'Kenyan Shilling', 'symbol': 'KSh'},
+            {'code': 'GHS', 'name': 'Ghanaian Cedi', 'symbol': '₵'},
+            {'code': 'MAD', 'name': 'Moroccan Dirham', 'symbol': 'DH'},
+            {'code': 'TND', 'name': 'Tunisian Dinar', 'symbol': 'DT'},
+            {'code': 'AED', 'name': 'UAE Dirham', 'symbol': 'AED'},
+            {'code': 'SAR', 'name': 'Saudi Riyal', 'symbol': 'SR'},
+            {'code': 'QAR', 'name': 'Qatari Riyal', 'symbol': 'QR'},
+            {'code': 'KWD', 'name': 'Kuwaiti Dinar', 'symbol': 'KD'},
+            {'code': 'BHD', 'name': 'Bahraini Dinar', 'symbol': 'BD'},
+            {'code': 'OMR', 'name': 'Omani Rial', 'symbol': 'OR'},
+            {'code': 'JOD', 'name': 'Jordanian Dinar', 'symbol': 'JD'},
+            {'code': 'LBP', 'name': 'Lebanese Pound', 'symbol': 'LL'},
+            {'code': 'ILS', 'name': 'Israeli Shekel', 'symbol': '₪'},
+            {'code': 'TRY', 'name': 'Turkish Lira', 'symbol': '₺'},
+            {'code': 'IRR', 'name': 'Iranian Rial', 'symbol': '﷼'},
+            {'code': 'PKR', 'name': 'Pakistani Rupee', 'symbol': '₨'},
+            {'code': 'BDT', 'name': 'Bangladeshi Taka', 'symbol': '৳'},
+            {'code': 'LKR', 'name': 'Sri Lankan Rupee', 'symbol': 'Rs'},
+            {'code': 'NPR', 'name': 'Nepalese Rupee', 'symbol': 'Rs'},
+            {'code': 'BTN', 'name': 'Bhutanese Ngultrum', 'symbol': 'Nu'},
+            {'code': 'MMK', 'name': 'Myanmar Kyat', 'symbol': 'K'},
+            {'code': 'THB', 'name': 'Thai Baht', 'symbol': '฿'},
+            {'code': 'VND', 'name': 'Vietnamese Dong', 'symbol': '₫'},
+            {'code': 'LAK', 'name': 'Lao Kip', 'symbol': '₭'},
+            {'code': 'KHR', 'name': 'Cambodian Riel', 'symbol': '៛'},
+            {'code': 'MYR', 'name': 'Malaysian Ringgit', 'symbol': 'RM'},
+            {'code': 'SGD', 'name': 'Singapore Dollar', 'symbol': 'S$'},
+            {'code': 'IDR', 'name': 'Indonesian Rupiah', 'symbol': 'Rp'},
+            {'code': 'PHP', 'name': 'Philippine Peso', 'symbol': '₱'},
+            {'code': 'TWD', 'name': 'Taiwan Dollar', 'symbol': 'NT$'},
+            {'code': 'HKD', 'name': 'Hong Kong Dollar', 'symbol': 'HK$'},
+            {'code': 'MOP', 'name': 'Macanese Pataca', 'symbol': 'MOP'},
+            {'code': 'KPW', 'name': 'North Korean Won', 'symbol': '₩'},
+            {'code': 'MNT', 'name': 'Mongolian Tugrik', 'symbol': '₮'},
+            {'code': 'KZT', 'name': 'Kazakhstani Tenge', 'symbol': '₸'},
+            {'code': 'UZS', 'name': 'Uzbekistani Som', 'symbol': 'soʻm'},
+            {'code': 'TJS', 'name': 'Tajikistani Somoni', 'symbol': 'SM'},
+            {'code': 'KGS', 'name': 'Kyrgyzstani Som', 'symbol': 'с'},
+            {'code': 'TMT', 'name': 'Turkmenistani Manat', 'symbol': 'T'},
+            {'code': 'AFN', 'name': 'Afghan Afghani', 'symbol': '؋'},
+            {'code': 'AMD', 'name': 'Armenian Dram', 'symbol': '֏'},
+            {'code': 'AZN', 'name': 'Azerbaijani Manat', 'symbol': '₼'},
+            {'code': 'GEL', 'name': 'Georgian Lari', 'symbol': '₾'},
+            {'code': 'MDL', 'name': 'Moldovan Leu', 'symbol': 'L'},
+            {'code': 'UAH', 'name': 'Ukrainian Hryvnia', 'symbol': '₴'},
+            {'code': 'BYN', 'name': 'Belarusian Ruble', 'symbol': 'Br'},
+            {'code': 'RSD', 'name': 'Serbian Dinar', 'symbol': 'дин'},
+            {'code': 'MKD', 'name': 'Macedonian Denar', 'symbol': 'ден'},
+            {'code': 'ALL', 'name': 'Albanian Lek', 'symbol': 'L'},
+            {'code': 'BAM', 'name': 'Bosnia-Herzegovina Mark', 'symbol': 'KM'},
+            {'code': 'ISK', 'name': 'Icelandic Króna', 'symbol': 'kr'},
+            {'code': 'FJD', 'name': 'Fijian Dollar', 'symbol': 'FJ$'},
+            {'code': 'PGK', 'name': 'Papua New Guinea Kina', 'symbol': 'K'},
+            {'code': 'SBD', 'name': 'Solomon Islands Dollar', 'symbol': 'SI$'},
+            {'code': 'TOP', 'name': 'Tongan Paʻanga', 'symbol': 'T$'},
+            {'code': 'VUV', 'name': 'Vanuatu Vatu', 'symbol': 'VT'},
+            {'code': 'WST', 'name': 'Samoan Tala', 'symbol': 'WS$'},
+            {'code': 'XPF', 'name': 'CFP Franc', 'symbol': '₣'},
+            {'code': 'NZD', 'name': 'New Zealand Dollar', 'symbol': 'NZ$'}
+        ]
+        
+        return jsonify(currencies)
+        
+    except Exception as e:
+        logger.error(f"Error getting currencies: {e}")
+        return jsonify([{'code': 'USD', 'name': 'US Dollar', 'symbol': '$'}]), 500
+
+@app.route('/api/debug/export', methods=['GET'])
+@token_required
+def debug_export():
+    """Debug endpoint to help troubleshoot export issues"""
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user.get('is_admin', False)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get basic warranty count
+            cur.execute('SELECT COUNT(*) FROM warranties WHERE user_id = %s', (user_id,))
+            personal_count = cur.fetchone()[0]
+            
+            # Get all warranty IDs for this user
+            cur.execute('SELECT id, product_name, is_lifetime, expiration_date FROM warranties WHERE user_id = %s ORDER BY id', (user_id,))
+            personal_warranties = cur.fetchall()
+            
+            # Get global count if admin
+            global_count = 0
+            global_warranties = []
+            if is_admin:
+                cur.execute('SELECT COUNT(*) FROM warranties')
+                global_count = cur.fetchone()[0]
+                
+                cur.execute('SELECT id, product_name, is_lifetime, expiration_date, user_id FROM warranties ORDER BY id')
+                global_warranties = cur.fetchall()
+            
+            # Get tag associations
+            cur.execute('''
+                SELECT w.id, t.id as tag_id, t.name as tag_name
+                FROM warranties w
+                LEFT JOIN warranty_tags wt ON w.id = wt.warranty_id
+                LEFT JOIN tags t ON wt.tag_id = t.id
+                WHERE w.user_id = %s
+                ORDER BY w.id, t.name
+            ''', (user_id,))
+            tag_associations = cur.fetchall()
+            
+            # Get serial number associations
+            cur.execute('''
+                SELECT w.id, sn.serial_number
+                FROM warranties w
+                LEFT JOIN serial_numbers sn ON w.id = sn.warranty_id
+                WHERE w.user_id = %s
+                ORDER BY w.id
+            ''', (user_id,))
+            serial_associations = cur.fetchall()
+            
+            return jsonify({
+                'user_id': user_id,
+                'is_admin': is_admin,
+                'personal_warranty_count': personal_count,
+                'global_warranty_count': global_count,
+                'personal_warranties': [
+                    {
+                        'id': w[0],
+                        'product_name': w[1],
+                        'is_lifetime': w[2],
+                        'expiration_date': w[3].isoformat() if w[3] else None
+                    } for w in personal_warranties
+                ],
+                'global_warranties': [
+                    {
+                        'id': w[0],
+                        'product_name': w[1],
+                        'is_lifetime': w[2],
+                        'expiration_date': w[3].isoformat() if w[3] else None,
+                        'user_id': w[4]
+                    } for w in global_warranties
+                ] if is_admin else [],
+                'tag_associations': [
+                    {
+                        'warranty_id': t[0],
+                        'tag_id': t[1],
+                        'tag_name': t[2]
+                    } for t in tag_associations if t[1] is not None
+                ],
+                'serial_associations': [
+                    {
+                        'warranty_id': s[0],
+                        'serial_number': s[1]
+                    } for s in serial_associations if s[1] is not None
+                ]
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in debug export endpoint: {e}")
+        return jsonify({"error": f"Debug failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @app.route('/api/debug/warranty/<int:warranty_id>', methods=['GET'])
 @token_required
@@ -4462,19 +3326,52 @@ def import_warranties():
                         failed_rows.append({"row": row_number, "errors": errors})
                         continue
 
+                    # --- Get user's preferred currency code ---
+                    user_currency_code = 'USD'  # Default fallback
+                    try:
+                        # Get user's preferred currency symbol from their preferences
+                        cur.execute("""
+                            SELECT currency_symbol FROM user_preferences 
+                            WHERE user_id = %s
+                        """, (user_id,))
+                        currency_result = cur.fetchone()
+                        
+                        if currency_result and currency_result[0]:
+                            user_symbol = currency_result[0]
+                            # Map common currency symbols to currency codes (same as frontend logic)
+                            symbol_to_currency_map = {
+                                '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR', '₩': 'KRW',
+                                'CHF': 'CHF', 'C$': 'CAD', 'A$': 'AUD', 'kr': 'SEK', 'zł': 'PLN', 
+                                'Kč': 'CZK', 'Ft': 'HUF', '₽': 'RUB', 'R$': 'BRL', '₦': 'NGN',
+                                '₪': 'ILS', '₺': 'TRY', '₨': 'PKR', '৳': 'BDT', '฿': 'THB',
+                                '₫': 'VND', 'RM': 'MYR', 'S$': 'SGD', 'Rp': 'IDR', '₱': 'PHP',
+                                'NT$': 'TWD', 'HK$': 'HKD', '₮': 'MNT', '₸': 'KZT', '₼': 'AZN',
+                                '₾': 'GEL', '₴': 'UAH', 'NZ$': 'NZD'
+                            }
+                            
+                            if user_symbol in symbol_to_currency_map:
+                                user_currency_code = symbol_to_currency_map[user_symbol]
+                                logger.info(f"[Import] Using user's preferred currency: {user_symbol} -> {user_currency_code} for user {user_id}")
+                            else:
+                                logger.info(f"[Import] Unknown currency symbol '{user_symbol}' for user {user_id}, defaulting to USD")
+                        else:
+                            logger.info(f"[Import] No currency preference found for user {user_id}, defaulting to USD")
+                    except Exception as currency_err:
+                        logger.error(f"[Import] Error getting user currency preference: {currency_err}, defaulting to USD")
+
                     # --- Insert into Database --- 
                     cur.execute("""
                         INSERT INTO warranties (
                             product_name, purchase_date, expiration_date, 
                             product_url, purchase_price, user_id, is_lifetime, vendor, warranty_type,
-                            warranty_duration_years, warranty_duration_months, warranty_duration_days
+                            warranty_duration_years, warranty_duration_months, warranty_duration_days, currency
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         product_name, purchase_date, expiration_date,
                         product_url, purchase_price, user_id, is_lifetime, vendor, warranty_type,
-                        warranty_duration_years, warranty_duration_months, warranty_duration_days
+                        warranty_duration_years, warranty_duration_months, warranty_duration_days, user_currency_code
                     ))
                     warranty_id = cur.fetchone()[0]
 
@@ -4543,416 +3440,40 @@ def import_warranties():
 # --- PATCH START: Currency Symbol Support ---
 # 1. Add a helper function to check if the currency_symbol column exists in user_preferences
 
-def has_currency_symbol_column(cursor):
-    cursor.execute("""
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'user_preferences' AND column_name = 'currency_symbol'
-    """)
-    return cursor.fetchone() is not None
-
-# 2. Update GET /api/auth/preferences
-#    - Add currency_symbol to CREATE TABLE, SELECT, INSERT, and response
-#    - Default to '$' if not set
-#
-# 3. Update PUT /api/auth/preferences
-#    - Accept currency_symbol from request data and update if provided
-#    - Add currency_symbol to CREATE TABLE, SELECT, INSERT, UPDATE, and response
-#    - Default to '$' if not set
-# --- PATCH END ---
-
-@app.route('/api/auth/password/reset', methods=['POST'])
-def reset_password():
-    conn = None
-    try:
-        data = request.get_json()
-        
-        if not data.get('token') or not data.get('password'):
-            return jsonify({'message': 'Token and password are required!'}), 400
-        
-        token = data['token']
-        password = data['password']
-        
-        # Validate password strength
-        if not is_valid_password(password):
-            return jsonify({'message': 'Password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Check if token exists and is valid
-            cur.execute('SELECT user_id, expires_at FROM password_reset_tokens WHERE token = %s', (token,))
-            token_info = cur.fetchone()
-            
-            if not token_info or token_info[1] < datetime.utcnow():
-                return jsonify({'message': 'Invalid or expired token!'}), 400
-            
-            user_id = token_info[0]
-            
-            # Hash the new password
-            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-            
-            # Update user's password
-            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
-            
-            # Delete the used token
-            cur.execute('DELETE FROM password_reset_tokens WHERE token = %s', (token,))
-            
-            conn.commit()
-            
-            return jsonify({'message': 'Password reset successful!'}), 200
-    except Exception as e:
-        logger.error(f"Password reset error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Password reset failed!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-@app.route('/api/auth/password/change', methods=['POST'])
-@token_required
-def change_password():
-    """Allow logged-in users to change their password"""
-    conn = None
-    try:
-        data = request.get_json()
-        
-        if not data.get('current_password') or not data.get('new_password'):
-            return jsonify({'message': 'Current password and new password are required!'}), 400
-        
-        current_password = data['current_password']
-        new_password = data['new_password']
-        user_id = request.user['id']  # Get user ID from the token_required decorator
-        
-        # Validate new password strength
-        if not is_valid_password(new_password):
-            return jsonify({'message': 'New password must be at least 8 characters and include uppercase, lowercase, and numbers!'}), 400
-        
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # Get the user's current password hash
-            cur.execute('SELECT password_hash FROM users WHERE id = %s', (user_id,))
-            user_data = cur.fetchone()
-            
-            if not user_data:
-                return jsonify({'message': 'User not found!'}), 404
-            
-            current_password_hash = user_data[0]
-            
-            # Verify the current password
-            if not bcrypt.check_password_hash(current_password_hash, current_password):
-                return jsonify({'message': 'Incorrect current password!'}), 401
-            
-            # Hash the new password
-            new_password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-            
-            # Update the password in the database
-            cur.execute('UPDATE users SET password_hash = %s WHERE id = %s', (new_password_hash, user_id))
-            
-            conn.commit()
-            
-            return jsonify({'message': 'Password changed successfully!'}), 200
-            
-    except Exception as e:
-        logger.error(f"Password change error: {e}")
-        if conn:
-            conn.rollback()
-        return jsonify({'message': 'Failed to change password!'}), 500
-    finally:
-        if conn:
-            release_db_connection(conn)
-
-def send_email_change_verification_email(recipient_email, verification_link_path_with_token):
-    """Sends an email with a link to verify the new email address."""
-    try:
-        smtp_host = os.environ.get('SMTP_HOST', 'localhost')
-        smtp_port = int(os.environ.get('SMTP_PORT', 1025))
-        smtp_username = os.environ.get('SMTP_USERNAME')
-        smtp_password = os.environ.get('SMTP_PASSWORD')
-        smtp_use_tls = os.environ.get('SMTP_USE_TLS', 'true').lower() == 'true'
-        smtp_use_ssl = os.environ.get('SMTP_USE_SSL', 'false').lower() == 'true'
-        sender_email = os.environ.get('SMTP_SENDER_EMAIL', 'noreply@warracker.com')
-        app_name = "Warracker" # Or get from config
-        
-        # Explicit SMTP_USE_TLS from environment, defaulting to true if port is 587
-        # and not explicitly set to false.
-        smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
-        
-        subject = f"Confirm Your New Email Address - {app_name}"
-        
-        app_base_url = os.environ.get('APP_BASE_URL', request.url_root.rstrip('/'))
-        full_verification_link = f"{app_base_url}{verification_link_path_with_token}"
-
-        html_content = None
-        email_template_path = os.path.join(os.path.dirname(__file__), 'templates', 'email_change_verification.html')
-        if os.path.exists(email_template_path):
-            with open(email_template_path, 'r') as f:
-                html_content = f.read()
-            html_content = html_content.replace("{{verification_link}}", full_verification_link)
-            html_content = html_content.replace("{{app_name}}", app_name)
-            html_content = html_content.replace("{{expiration_hours}}", str(EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS))
-        else:
-            logger.warning(f"Email template not found: {email_template_path}. Using basic HTML fallback.")
-            html_content = f"""            <html>
-                <body>
-                    <p>Hello,</p>
-                    <p>Please click the link below to confirm your new email address for {app_name}:</p>
-                    <p><a href="{full_verification_link}">Confirm Email Change</a></p>
-                    <p>If you did not request this change, please ignore this email.</p>
-                    <p>This link will expire in {EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS} hours.</p>
-                    <p>Thanks,<br>The {app_name} Team</p>
-                </body>
-            </html>
-            """
-
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg.attach(MIMEText(html_content, 'html'))
-
-        logger.info(f"Attempting to send email change verification to {recipient_email} via {smtp_host}:{smtp_port}")
-
-        server = None
-        logger.info(f"Attempting SMTP connection to {smtp_host}:{smtp_port}")
-        if smtp_port == 465:
-            logger.info("Using SMTP_SSL for port 465.")
-            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
-        else:
-            logger.info(f"Using SMTP for port {smtp_port}.")
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-            # For port 587, STARTTLS is standard.
-            # For other ports, allow SMTP_USE_TLS to explicitly enable/disable it.
-            # If SMTP_USE_TLS is 'not_set', default to True for port 587.
-            should_use_starttls = False
-            if smtp_port == 587:
-                should_use_starttls = (smtp_use_tls_env != 'false') # True unless explicitly 'false'
-                logger.info(f"Port is 587. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
-            elif smtp_use_tls_env == 'true':
-                should_use_starttls = True
-                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS explicitly 'true'. should_use_starttls: {should_use_starttls}")
-            else:
-                logger.info(f"Port is {smtp_port}. SMTP_USE_TLS set to '{smtp_use_tls_env}'. should_use_starttls: {should_use_starttls}")
-
-            if should_use_starttls:
-                logger.info("Attempting to start TLS (server.starttls()).")
-                server.starttls()
-                logger.info("STARTTLS successful.")
-            else:
-                logger.info("Not using STARTTLS based on port and SMTP_USE_TLS setting.")
-        
-        if smtp_username and smtp_password:
-            logger.info(f"Logging in with username: {smtp_username}")
-            server.login(smtp_username, smtp_password)
-            logger.info("SMTP login successful.")
-            
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-        server.quit()
-        logger.info(f"Email change verification sent successfully to {recipient_email}")
-        return True
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"SMTP Authentication Error sending email change verification: {e}")
-    except Exception as e:
-        logger.error(f"Error sending email change verification: {e}", exc_info=True)
-    return False
-
-def generate_secure_token(length=40):
-    """Generates a cryptographically secure random string token."""
-    return uuid.uuid4().hex + uuid.uuid4().hex[:length-len(uuid.uuid4().hex)]
-
-@app.route('/api/auth/change-email', methods=['POST'])
-@token_required
-def request_email_change():
-    current_user_id = request.user['id'] # Get user ID from decorator
-    data = request.get_json()
-    new_email = data.get('new_email')
-    password = data.get('password')
-
-    if not new_email or not password:
-        return jsonify({'message': 'New email and password are required'}), 400
-
-    if not is_valid_email(new_email):
-        return jsonify({'message': 'Invalid new email format'}), 400
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        # Fetch current user's password hash and current email
-        cur.execute("SELECT password_hash, email FROM users WHERE id = %s", (current_user_id,))
-        user_data = cur.fetchone()
-
-        if not user_data:
-            return jsonify({'message': 'User not found'}), 404 # Should not happen with @token_required
-
-        current_password_hash, current_email = user_data
-
-        if not bcrypt.check_password_hash(current_password_hash, password):
-            return jsonify({'message': 'Incorrect password'}), 401
-            
-        if new_email.lower() == current_email.lower():
-            return jsonify({'message': 'New email cannot be the same as the current email'}), 400
-
-        # Check if the new email is already in use by another user
-        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (new_email.lower(), current_user_id))
-        if cur.fetchone():
-            return jsonify({'message': 'This email address is already in use by another account.'}), 409
-            
-        # Check for an existing, non-expired, non-used request for this user and new email
-        cur.execute("""
-            SELECT id, token_expires_at FROM email_change_requests 
-            WHERE user_id = %s AND new_email = %s AND is_used = FALSE AND token_expires_at > NOW()
-        """, (current_user_id, new_email.lower()))
-        existing_request = cur.fetchone()
-
-        if existing_request:
-            # Potentially resend email if requested soon after, or just inform user
-            return jsonify({'message': 'An email change request for this address is already pending. Please check your inbox.'}), 409
-
-        # Invalidate any older, unused tokens for this user to prevent multiple active links
-        cur.execute("UPDATE email_change_requests SET is_used = TRUE, token_expires_at = NOW() WHERE user_id = %s AND is_used = FALSE", (current_user_id,))
-
-
-        verification_token = generate_secure_token()
-        token_expires_at = datetime.utcnow().replace(tzinfo=pytz.utc) + timedelta(hours=EMAIL_CHANGE_TOKEN_EXPIRATION_HOURS)
-        
-        # Get app base URL from environment or config
-        app_base_url = os.environ.get('APP_BASE_URL', request.url_root.rstrip('/'))
-        verification_link = f"{app_base_url}{EMAIL_CHANGE_VERIFICATION_ENDPOINT}?token={verification_token}"
-
-        cur.execute("""
-            INSERT INTO email_change_requests (user_id, new_email, verification_token, token_expires_at)
-            VALUES (%s, %s, %s, %s)
-        """, (current_user_id, new_email.lower(), verification_token, token_expires_at))
-        
-        conn.commit()
-
-        if send_email_change_verification_email(new_email, verification_link):
-            return jsonify({'message': f'Verification email sent to {new_email}. Please check your inbox to confirm.'}), 200
-        else:
-            # Rollback if email sending failed, to allow user to try again
-            # Or, consider if the request should remain, and user can request resend.
-            # For now, simple rollback.
-            conn.rollback() 
-            return jsonify({'message': 'Failed to send verification email. Please try again later.'}), 500
-
-    except psycopg2.Error as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Database error during email change request: {e}")
-        return jsonify({'message': 'Database error processing your request.'}), 500
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Error requesting email change: {e}")
-        return jsonify({'message': 'An unexpected error occurred.'}), 500
-    finally:
-        if conn:
-            cur.close()
-            release_db_connection(conn)
-
-@app.route('/api/auth/verify-email-change', methods=['POST'])
-# This endpoint might not need @token_required if the verification_token itself is the auth mechanism
-# However, if a user is already logged in on the browser where they click the link,
-# it might be good to associate, but the primary auth is the token from email.
-def verify_email_change():
-    data = request.get_json()
-    verification_token = data.get('token')
-
-    if not verification_token:
-        return jsonify({'message': 'Verification token is required'}), 400
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        cur.execute("""
-            SELECT id, user_id, new_email, token_expires_at 
-            FROM email_change_requests 
-            WHERE verification_token = %s AND is_used = FALSE
-        """, (verification_token,))
-        request_data = cur.fetchone()
-
-        if not request_data:
-            return jsonify({'message': 'Invalid or expired verification token.'}), 400
-
-        req_id, user_id, new_email, token_expires_at = request_data
-        
-        # Ensure token_expires_at is timezone-aware for comparison
-        if token_expires_at.tzinfo is None:
-            token_expires_at = pytz.utc.localize(token_expires_at)
-
-        if datetime.utcnow().replace(tzinfo=pytz.utc) > token_expires_at:
-            # Mark as used/expired anyway
-            cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,))
-            conn.commit()
-            return jsonify({'message': 'Verification token has expired.'}), 400
-
-        # Check if the new email has been taken by another user *since the request was made*
-        # This is a rare race condition but good to check.
-        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (new_email, user_id))
-        if cur.fetchone():
-            cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,)) # Invalidate token
-            conn.commit()
-            return jsonify({'message': 'This email address has recently been claimed by another account. Please try a different email.'}), 409
-
-        # Update user's email
-        cur.execute("UPDATE users SET email = %s, updated_at = NOW() WHERE id = %s", (new_email, user_id))
-        
-        # Mark token as used
-        cur.execute("UPDATE email_change_requests SET is_used = TRUE WHERE id = %s", (req_id,))
-        
-        conn.commit()
-        
-        # Optionally, log the user out of other sessions for security.
-        # This would require a session management mechanism (e.g., storing session IDs or using JWT blacklisting).
-        # For now, we will skip this, but it's a good addition for production.
-
-        # Optionally, send a notification to the OLD email address that the email has been changed.
-        # old_email_query = "SELECT email FROM users WHERE id = %s" # This would get new email now
-        # To get old email, it should have been selected before the update or passed through.
-        # For simplicity, this step is omitted but recommended.
-
-        return jsonify({'message': 'Email address updated successfully.'}), 200
-
-    except psycopg2.Error as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Database error during email verification: {e}")
-        return jsonify({'message': 'Database error processing your request.'}), 500
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Error verifying email change: {e}")
-        return jsonify({'message': 'An unexpected error occurred.'}), 500
-    finally:
-        if conn:
-            cur.close()
-            release_db_connection(conn)
-
 @app.route('/api/settings/oidc-status', methods=['GET'])
 def get_oidc_status():
-    """Public endpoint to check if OIDC is enabled."""
+    """Public endpoint to check if OIDC is enabled and if OIDC-only mode is active."""
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT value FROM site_settings WHERE key = 'oidc_enabled'")
-            result = cur.fetchone()
+            # Get both OIDC enabled and OIDC-only mode settings
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('oidc_enabled', 'oidc_only_mode')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+            
             oidc_enabled = False
-            if result and result[0].lower() == 'true':
+            if settings.get('oidc_enabled') and settings['oidc_enabled'].lower() == 'true':
                 oidc_enabled = True
             
             # Also check app.config as a fallback, though DB should be primary
-            if not result and app.config.get('OIDC_ENABLED'):
+            if not settings.get('oidc_enabled') and app.config.get('OIDC_ENABLED'):
                  oidc_enabled = True
+            
+            oidc_only_mode = False
+            if settings.get('oidc_only_mode') and settings['oidc_only_mode'].lower() == 'true':
+                oidc_only_mode = True
 
-            return jsonify({'oidc_enabled': oidc_enabled}), 200
+            return jsonify({
+                'oidc_enabled': oidc_enabled,
+                'oidc_only_mode': oidc_only_mode
+            }), 200
     except Exception as e:
         logger.error(f"Error fetching OIDC status: {e}")
         # Fallback to app.config or default to false if DB error
-        return jsonify({'oidc_enabled': app.config.get('OIDC_ENABLED', False)}), 200
+        return jsonify({
+            'oidc_enabled': app.config.get('OIDC_ENABLED', False),
+            'oidc_only_mode': False
+        }), 200
     finally:
         if conn:
             release_db_connection(conn)
@@ -5026,17 +3547,69 @@ def get_supported_apprise_services():
 @app.route('/api/admin/apprise/send-expiration', methods=['POST'])
 @admin_required
 def trigger_apprise_expiration_notifications():
-    """Manually trigger Apprise expiration notifications"""
+    """Manually trigger Apprise expiration notifications with warranty scope filtering"""
     if not APPRISE_AVAILABLE or apprise_handler is None:
         return jsonify({'success': False, 'message': 'Apprise notifications are not available'}), 503
     
     try:
-        results = apprise_handler.send_expiration_notifications()
+        # Get warranty scope setting to determine which warranties to include
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT value FROM site_settings WHERE key = 'apprise_warranty_scope'")
+                result = cur.fetchone()
+                warranty_scope = result[0] if result else 'all'
+        except Exception as e:
+            logger.error(f"Error fetching warranty scope setting: {e}")
+            warranty_scope = 'all'  # Default fallback
+        finally:
+            if conn:
+                release_db_connection(conn)
+        
+        # Get eligible user IDs based on warranty scope
+        eligible_user_ids = None  # None means all users
+        
+        if warranty_scope == 'admin':
+            # Get admin user ID (first check if there's an owner, otherwise find first admin)
+            admin_user_id = None
+            conn_scope = None
+            try:
+                conn_scope = get_db_connection()
+                with conn_scope.cursor() as cur:
+                    # First try to find the owner
+                    cur.execute("SELECT id FROM users WHERE is_owner = TRUE LIMIT 1")
+                    owner_result = cur.fetchone()
+                    if owner_result:
+                        admin_user_id = owner_result[0]
+                    else:
+                        # Fallback to first admin if no owner found
+                        cur.execute("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1")
+                        admin_result = cur.fetchone()
+                        if admin_result:
+                            admin_user_id = admin_result[0]
+            except Exception as e:
+                logger.error(f"Error finding admin user ID for warranty scope filtering: {e}")
+            finally:
+                if conn_scope:
+                    release_db_connection(conn_scope)
+            
+            if admin_user_id:
+                eligible_user_ids = [admin_user_id]
+                logger.info(f"Warranty scope 'admin': Limiting notifications to admin user ID {admin_user_id}")
+            else:
+                logger.warning("Warranty scope 'admin' requested but no admin user found, including all users")
+        
+        logger.info(f"Triggering Apprise notifications with warranty scope: '{warranty_scope}', eligible users: {eligible_user_ids}")
+        
+        # Send notifications with user filtering
+        results = apprise_handler.send_expiration_notifications(eligible_user_ids=eligible_user_ids)
         
         return jsonify({
             'success': True,
             'message': f'Notifications processed: {results["sent"]} sent, {results["errors"]} errors',
-            'results': results
+            'results': results,
+            'warranty_scope': warranty_scope
         }), 200
         
     except Exception as e:
@@ -5136,7 +3709,7 @@ def get_all_warranties():
             cur.execute('''
                 SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
                        w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
-                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path,
+                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                        u.username, u.email, u.first_name, u.last_name
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
@@ -5232,7 +3805,7 @@ def get_global_warranties():
             cur.execute('''
                 SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
                        w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
-                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path,
+                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                        u.username, u.email, u.first_name, u.last_name
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
@@ -5298,12 +3871,26 @@ def get_global_warranties():
 try:
     # Try Docker environment path first
     from backend.oidc_handler import oidc_bp
+    from backend.auth_routes import auth_bp
 except ImportError:
     # Fallback to development path
     from oidc_handler import oidc_bp
+    from auth_routes import auth_bp
 
 app.register_blueprint(oidc_bp, url_prefix='/api')
+app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
 # Note: Scheduler is already set up earlier in the file with 2-minute intervals
 # The main scheduler setup is around line 3642-3655 with precise user-timezone timing
 # This duplicate scheduler setup has been removed to prevent conflicts
+
+@app.route('/api/admin/fix-owner-role', methods=['POST'])
+@admin_required  
+def fix_owner_role():
+    """Temporary endpoint to manually fix owner role - can be removed after fix"""
+    try:
+        ensure_owner_exists()
+        return jsonify({'success': True, 'message': 'Owner role fix attempted. Check logs for results.'}), 200
+    except Exception as e:
+        logger.error(f"Error in fix_owner_role endpoint: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500

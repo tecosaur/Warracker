@@ -11,13 +11,41 @@ import time
 import atexit
 import smtplib
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from threading import Lock
+from decimal import Decimal
 
 import pytz
 from pytz import timezone as pytz_timezone
-from apscheduler.schedulers.background import BackgroundScheduler
+
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    BACKGROUND_SCHEDULER_AVAILABLE = True
+except ImportError:
+    BACKGROUND_SCHEDULER_AVAILABLE = False
+    BackgroundScheduler = None
+
+try:
+    from apscheduler.schedulers.gevent import GeventScheduler
+    GEVENT_SCHEDULER_AVAILABLE = True
+except ImportError:
+    GEVENT_SCHEDULER_AVAILABLE = False
+    GeventScheduler = None
+
+# Import database functions
+try:
+    from .db_handler import get_site_setting
+    DB_HANDLER_IMPORTED = True
+except ImportError:
+    try:
+        from db_handler import get_site_setting
+        DB_HANDLER_IMPORTED = True
+    except ImportError:
+        DB_HANDLER_IMPORTED = False
+        def get_site_setting(key, default=None):
+            return default
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -627,12 +655,18 @@ def send_expiration_notifications(manual_trigger=False, get_db_connection=None, 
             logger.error(f"Error connecting to SMTP server: {e}")
             logger.error(f"SMTP details - Host: {smtp_host}, Port: {smtp_port}, Username: {smtp_username}")
 
-        # Send Apprise notifications if available and enabled
-        if APPRISE_AVAILABLE and apprise_handler is not None:
+        # Send Apprise notifications if available and enabled (but not for manual triggers)
+        # Manual Apprise notifications should use the dedicated /api/admin/apprise/send-expiration endpoint
+        if APPRISE_AVAILABLE and apprise_handler is not None and not manual_trigger:
             try:
+                # Get the Apprise notification settings
+                notification_mode = get_site_setting('apprise_notification_mode', 'global')
+                warranty_scope = get_site_setting('apprise_warranty_scope', 'all')
+                logger.info(f"Apprise notification mode set to: '{notification_mode}', warranty scope: '{warranty_scope}'")
+                
+                # Filter warranties for users eligible for Apprise at this time
                 if manual_trigger:
-                    # For manual triggers, we still need to respect user notification preferences
-                    # Get users who have Apprise notifications enabled
+                    # For manual triggers, get users who have Apprise notifications enabled
                     conn = None
                     try:
                         conn = get_db_connection()
@@ -653,32 +687,110 @@ def send_expiration_notifications(manual_trigger=False, get_db_connection=None, 
                                     WHERE u.is_active = TRUE 
                                     AND up.notification_channel IN ('apprise', 'both')
                                 """)
-                                apprise_enabled_users = [row[0] for row in cur.fetchall()]
-                                
-                                if apprise_enabled_users:
-                                    logger.info(f"Manual trigger: Attempting to send Apprise notifications to {len(apprise_enabled_users)} users with Apprise enabled")
-                                    apprise_results = apprise_handler.send_expiration_notifications(eligible_user_ids=apprise_enabled_users)
-                                else:
-                                    logger.info("Manual trigger: No users have Apprise notifications enabled")
-                                    apprise_results = {"sent": 0, "errors": 0, "skipped": "No users with Apprise enabled"}
+                                apprise_eligible_user_ids = [row[0] for row in cur.fetchall()]
                             else:
                                 # Fallback for installations without notification_channel column
-                                logger.info("Manual trigger: notification_channel column not found, sending to all users (fallback mode)")
-                                apprise_results = apprise_handler.send_expiration_notifications()
+                                apprise_eligible_user_ids = list(users_warranties.keys())
+                                logger.info("Manual trigger: notification_channel column not found, enabling for all users (fallback mode)")
                     finally:
                         if conn:
                             release_db_connection(conn)
                 else:
-                    if users_to_notify_apprise:
-                        logger.info(f"Attempting to send Apprise notifications to {len(users_to_notify_apprise)} eligible users")
-                        apprise_results = apprise_handler.send_expiration_notifications(eligible_user_ids=list(users_to_notify_apprise))
+                    # For scheduled notifications, use users_to_notify_apprise
+                    apprise_eligible_user_ids = list(users_to_notify_apprise)
+                
+                if not apprise_eligible_user_ids:
+                    logger.info("No users eligible for Apprise notifications")
+                    apprise_results = {"sent": 0, "errors": 0, "skipped": "No eligible users"}
+                else:
+                    # Filter expiring warranties for eligible users
+                    warranties_for_apprise_users = [w for w in expiring_warranties if w['user_id'] in apprise_eligible_user_ids]
+                    
+                    # Apply warranty scope filtering
+                    if warranty_scope == 'admin':
+                        # Get admin user ID (first check if there's an owner, otherwise find first admin)
+                        admin_user_id = None
+                        conn_scope = None
+                        try:
+                            conn_scope = get_db_connection()
+                            with conn_scope.cursor() as cur:
+                                # First try to find the owner
+                                cur.execute("SELECT id FROM users WHERE is_owner = TRUE LIMIT 1")
+                                owner_result = cur.fetchone()
+                                if owner_result:
+                                    admin_user_id = owner_result[0]
+                                else:
+                                    # Fallback to first admin if no owner found
+                                    cur.execute("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1")
+                                    admin_result = cur.fetchone()
+                                    if admin_result:
+                                        admin_user_id = admin_result[0]
+                        except Exception as e:
+                            logger.error(f"Error finding admin user ID for warranty scope filtering: {e}")
+                        finally:
+                            if conn_scope:
+                                release_db_connection(conn_scope)
+                        
+                        if admin_user_id:
+                            original_count = len(warranties_for_apprise_users)
+                            warranties_for_apprise_users = [w for w in warranties_for_apprise_users if w['user_id'] == admin_user_id]
+                            logger.info(f"Warranty scope 'admin': Filtered from {original_count} to {len(warranties_for_apprise_users)} warranties (admin user ID: {admin_user_id})")
+                        else:
+                            logger.warning("Warranty scope 'admin' requested but no admin user found, including all warranties")
+                    elif warranty_scope == 'all':
+                        logger.info(f"Warranty scope 'all': Including all {len(warranties_for_apprise_users)} eligible warranties")
                     else:
-                        logger.info("No users eligible for Apprise notifications at this time")
-                        apprise_results = {"sent": 0, "errors": 0, "skipped": "No eligible users"}
+                        logger.warning(f"Unknown warranty scope '{warranty_scope}', defaulting to 'all' warranties")
+                    
+                    if not warranties_for_apprise_users:
+                        logger.info("No expiring warranties for users eligible for Apprise at this time")
+                        apprise_results = {"sent": 0, "errors": 0, "skipped": "No expiring warranties for eligible users"}
+                    else:
+                        logger.info(f"Processing Apprise notifications in {notification_mode.upper()} mode for {len(warranties_for_apprise_users)} warranties")
+                        
+                        if notification_mode == 'global':
+                            # GLOBAL MODE: Send one consolidated notification
+                            logger.info("Sending GLOBAL Apprise notification")
+                            success = apprise_handler.send_global_expiration_notification(warranties_for_apprise_users)
+                            apprise_results = {"sent": 1 if success else 0, "errors": 0 if success else 1, "mode": "global"}
+                        
+                        elif notification_mode == 'individual':
+                            # INDIVIDUAL MODE: Send one notification per user
+                            logger.info("Sending INDIVIDUAL Apprise notifications")
+                            sent_count = 0
+                            error_count = 0
+                            
+                            # Group warranties by user
+                            user_warranties = {}
+                            for w in warranties_for_apprise_users:
+                                uid = w['user_id']
+                                if uid not in user_warranties:
+                                    user_warranties[uid] = []
+                                user_warranties[uid].append(w)
+                            
+                            # Send notification for each user
+                            for user_id, warranties in user_warranties.items():
+                                try:
+                                    success = apprise_handler.send_individual_expiration_notification(user_id, warranties, get_db_connection, release_db_connection)
+                                    if success:
+                                        sent_count += 1
+                                    else:
+                                        error_count += 1
+                                except Exception as e:
+                                    logger.error(f"Error sending individual Apprise notification for user {user_id}: {e}")
+                                    error_count += 1
+                            
+                            apprise_results = {"sent": sent_count, "errors": error_count, "mode": "individual"}
+                        
+                        else:
+                            logger.warning(f"Unknown Apprise notification mode: '{notification_mode}'. Skipping Apprise notifications.")
+                            apprise_results = {"sent": 0, "errors": 1, "skipped": f"Unknown mode: {notification_mode}"}
                 
                 logger.info(f"Apprise notification process completed. Results: {apprise_results}")
             except Exception as e:
                 logger.error(f"Error sending Apprise notifications: {e}")
+        elif manual_trigger:
+            logger.debug("Manual trigger: Skipping Apprise notifications (use dedicated Apprise endpoint for manual Apprise notifications)")
         else:
             logger.debug("Apprise notifications not available, skipping")
 
@@ -716,13 +828,50 @@ def init_scheduler(get_db_connection, release_db_connection):
         try:
             # Initialize scheduler if not already done
             if scheduler is None:
-                scheduler = BackgroundScheduler(
-                    job_defaults={
-                        'coalesce': True,
-                        'max_instances': 1,
-                        'misfire_grace_time': 300
-                    }
-                )
+                # First try GeventScheduler if gevent is available and we're in a gevent worker
+                worker_class = os.environ.get('GUNICORN_WORKER_CLASS', '')
+                
+                if GEVENT_SCHEDULER_AVAILABLE and worker_class == 'gevent':
+                    try:
+                        scheduler = GeventScheduler(
+                            job_defaults={
+                                'coalesce': True,
+                                'max_instances': 1,
+                                'misfire_grace_time': 300
+                            }
+                        )
+                        logger.info("Using GeventScheduler for gevent worker compatibility")
+                    except Exception as gevent_error:
+                        logger.warning(f"Failed to initialize GeventScheduler: {gevent_error}")
+                        logger.info("Falling back to BackgroundScheduler")
+                        if BACKGROUND_SCHEDULER_AVAILABLE:
+                            scheduler = BackgroundScheduler(
+                                job_defaults={
+                                    'coalesce': True,
+                                    'max_instances': 1,
+                                    'misfire_grace_time': 300
+                                }
+                            )
+                            logger.info("Using BackgroundScheduler (GeventScheduler fallback)")
+                        else:
+                            logger.error("BackgroundScheduler not available for fallback")
+                            return False
+                else:
+                    if BACKGROUND_SCHEDULER_AVAILABLE:
+                        scheduler = BackgroundScheduler(
+                            job_defaults={
+                                'coalesce': True,
+                                'max_instances': 1,
+                                'misfire_grace_time': 300
+                            }
+                        )
+                        if worker_class == 'gevent':
+                            logger.info("Using BackgroundScheduler with gevent worker (GeventScheduler not available)")
+                        else:
+                            logger.info(f"Using BackgroundScheduler with {worker_class} worker")
+                    else:
+                        logger.error("No scheduler available (BackgroundScheduler not found)")
+                        return False
             
             # Create a wrapper function that includes the database functions
             def notification_wrapper():
