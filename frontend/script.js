@@ -2238,18 +2238,9 @@ async function renderWarranties(warrantiesToRender) {
                                 <i class="fas fa-globe"></i> Product Website
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
@@ -2305,18 +2296,9 @@ async function renderWarranties(warrantiesToRender) {
                                 <i class="fas fa-globe"></i> Product Website
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
@@ -2361,18 +2343,9 @@ async function renderWarranties(warrantiesToRender) {
                                 <i class="fas fa-globe"></i> Product Website
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
@@ -2670,12 +2643,24 @@ async function openEditModal(warranty) {
     const currentInvoiceElement = document.getElementById('currentInvoice');
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
     if (currentInvoiceElement && deleteInvoiceBtn) {
-        if (warranty.invoice_path && warranty.invoice_path !== 'null') {
+        const hasLocalInvoice = warranty.invoice_path && warranty.invoice_path !== 'null';
+        const hasPaperlessInvoice = warranty.paperless_invoice_id && warranty.paperless_invoice_id !== null;
+        
+        if (hasLocalInvoice) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current invoice: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
                     (Upload a new file to replace)
+                </span>
+            `;
+            deleteInvoiceBtn.style.display = '';
+        } else if (hasPaperlessInvoice) {
+            currentInvoiceElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current invoice: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_invoice_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
                 </span>
             `;
             deleteInvoiceBtn.style.display = '';
@@ -2695,12 +2680,24 @@ async function openEditModal(warranty) {
     const currentManualElement = document.getElementById('currentManual');
     const deleteManualBtn = document.getElementById('deleteManualBtn');
     if (currentManualElement && deleteManualBtn) {
-        if (warranty.manual_path && warranty.manual_path !== 'null') {
+        const hasLocalManual = warranty.manual_path && warranty.manual_path !== 'null';
+        const hasPaperlessManual = warranty.paperless_manual_id && warranty.paperless_manual_id !== null;
+        
+        if (hasLocalManual) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current manual: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
                     (Upload a new file to replace)
+                </span>
+            `;
+            deleteManualBtn.style.display = '';
+        } else if (hasPaperlessManual) {
+            currentManualElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current manual: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_manual_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
                 </span>
             `;
             deleteManualBtn.style.display = '';
@@ -2721,13 +2718,26 @@ async function openEditModal(warranty) {
     const currentProductPhotoElement = document.getElementById('currentProductPhoto');
     const deleteProductPhotoBtn = document.getElementById('deleteProductPhotoBtn');
     if (currentProductPhotoElement && deleteProductPhotoBtn) {
-        if (warranty.product_photo_path && warranty.product_photo_path !== 'null') {
+        const hasLocalPhoto = warranty.product_photo_path && warranty.product_photo_path !== 'null';
+        const hasPaperlessPhoto = warranty.paperless_photo_id && warranty.paperless_photo_id !== null;
+        
+        if (hasLocalPhoto) {
             currentProductPhotoElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current photo: 
                     <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Current Photo" class="secure-image" 
                          style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; margin-left: 10px; border: 2px solid var(--border-color);"
                          onerror="this.style.display='none'">
+                    <br><small>(Upload a new photo to replace)</small>
+                </span>
+            `;
+            deleteProductPhotoBtn.style.display = '';
+        } else if (hasPaperlessPhoto) {
+            currentProductPhotoElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current photo: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_photo_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
                     <br><small>(Upload a new photo to replace)</small>
                 </span>
             `;
@@ -2749,12 +2759,24 @@ async function openEditModal(warranty) {
     const currentOtherDocumentElement = document.getElementById('currentOtherDocument'); 
     const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
     if (currentOtherDocumentElement && deleteOtherDocumentBtn) { 
-        if (warranty.other_document_path && warranty.other_document_path !== 'null') { 
+        const hasLocalOther = warranty.other_document_path && warranty.other_document_path !== 'null';
+        const hasPaperlessOther = warranty.paperless_other_id && warranty.paperless_other_id !== null;
+        
+        if (hasLocalOther) { 
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> Current other document: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
                     (Upload a new file to replace)
+                </span>
+            `; 
+            deleteOtherDocumentBtn.style.display = ''; 
+        } else if (hasPaperlessOther) {
+            currentOtherDocumentElement.innerHTML = ` 
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> Current other document: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_other_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
                 </span>
             `; 
             deleteOtherDocumentBtn.style.display = ''; 
@@ -3192,50 +3214,59 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // Show loading spinner
     showLoadingSpinner();
     
-    // Send the form data to the server
-    fetch('/api/warranties', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
-        },
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Failed to add warranty');
+    // Process Paperless-ngx uploads if enabled
+    processPaperlessNgxUploads(formData)
+        .then(paperlessUploads => {
+            // Add Paperless-ngx document IDs to form data
+            Object.keys(paperlessUploads).forEach(key => {
+                formData.append(key, paperlessUploads[key]);
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoadingSpinner();
-        showToast('Warranty added successfully', 'success');
-        
-        // --- Close and reset the modal on success ---
-        if (addWarrantyModal) {
-            addWarrantyModal.classList.remove('active');
-        }
-        resetAddWarrantyWizard(); // Reset the wizard form
-        // --- End modification ---
+            
+            // Send the form data to the server
+            return fetch('/api/warranties', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+                },
+                body: formData
+            });
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to add warranty');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingSpinner();
+            showToast('Warranty added successfully', 'success');
+            
+            // --- Close and reset the modal on success ---
+            if (addWarrantyModal) {
+                addWarrantyModal.classList.remove('active');
+            }
+            resetAddWarrantyWizard(); // Reset the wizard form
+            // --- End modification ---
 
-        loadWarranties(true).then(() => {
-            console.log('Warranties reloaded after adding new warranty');
-            applyFilters();
-            // Load secure images for the new cards - additional call to ensure they load
-            setTimeout(() => {
-                console.log('Loading secure images for new warranty cards');
-                loadSecureImages();
-            }, 200); // Slightly longer delay to ensure everything is rendered
-        }).catch(error => {
-            console.error('Error reloading warranties after adding:', error);
-        }); // Reload the list and update UI
-    })
-    .catch(error => {
-        hideLoadingSpinner();
-        console.error('Error adding warranty:', error);
-        showToast(error.message || 'Failed to add warranty', 'error');
-    });
+            loadWarranties(true).then(() => {
+                console.log('Warranties reloaded after adding new warranty');
+                applyFilters();
+                // Load secure images for the new cards - additional call to ensure they load
+                setTimeout(() => {
+                    console.log('Loading secure images for new warranty cards');
+                    loadSecureImages();
+                }, 200); // Slightly longer delay to ensure everything is rendered
+            }).catch(error => {
+                console.error('Error reloading warranties after adding:', error);
+            }); // Reload the list and update UI
+        })
+        .catch(error => {
+            hideLoadingSpinner();
+            console.error('Error adding warranty:', error);
+            showToast(error.message || 'Failed to add warranty', 'error');
+        });
 }
 
 // Initialize page
@@ -3387,7 +3418,7 @@ function openSecureFile(filePath) {
         showToast('Please log in to access files', 'error');
         return false;
     }
-
+    
     // Enhanced fetch with retry logic and better error handling
     const fetchWithRetry = async (url, options, retries = 2) => {
         for (let i = 0; i <= retries; i++) {
@@ -3406,7 +3437,7 @@ function openSecureFile(filePath) {
                         throw new Error(`Server error: ${response.status} ${response.statusText}`);
                     }
                 }
-                
+
                 // Check if response has content-length header
                 const contentLength = response.headers.get('content-length');
                 console.log(`[openSecureFile] Response Content-Length: ${contentLength}`);
@@ -3497,6 +3528,65 @@ function openSecureFile(filePath) {
     });
     
     return false;
+}
+
+/**
+ * Open a Paperless-ngx document by ID
+ */
+
+/**
+ * Generate document link HTML for both local and Paperless-ngx documents
+ */
+function generateDocumentLink(warranty, docType) {
+    const docConfig = {
+        invoice: {
+            localPath: warranty.invoice_path,
+            paperlessId: warranty.paperless_invoice_id,
+            icon: 'fas fa-file-invoice',
+            label: 'Invoice',
+            className: 'invoice-link'
+        },
+        manual: {
+            localPath: warranty.manual_path,
+            paperlessId: warranty.paperless_manual_id,
+            icon: 'fas fa-book',
+            label: 'Manual',
+            className: 'manual-link'
+        },
+        other: {
+            localPath: warranty.other_document_path,
+            paperlessId: warranty.paperless_other_id,
+            icon: 'fas fa-file-alt',
+            label: 'Files',
+            className: 'other-document-link'
+        },
+        photo: {
+            localPath: warranty.product_photo_path,
+            paperlessId: warranty.paperless_photo_id,
+            icon: 'fas fa-image',
+            label: 'Photo',
+            className: 'photo-link'
+        }
+    };
+    
+    const config = docConfig[docType];
+    if (!config) return '';
+    
+    const hasLocal = config.localPath && config.localPath !== 'null';
+    const hasPaperless = config.paperlessId && config.paperlessId !== null;
+
+    
+    if (hasLocal) {
+        return `<a href="#" onclick="openSecureFile('${config.localPath}'); return false;" class="${config.className}">
+            <i class="${config.icon}"></i> ${config.label}
+        </a>`;
+    } else if (hasPaperless) {
+        return `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}); return false;" class="${config.className}">
+            <i class="${config.icon}"></i> ${config.label} <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
+        </a>`;
+    }
+    
+    return '';
 }
 
 // Initialize the warranty form and all its components
@@ -4722,26 +4812,35 @@ function saveWarranty() {
     
     showLoadingSpinner();
     
-    // Send request
-    fetch(`/api/warranties/${currentWarrantyId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': 'Bearer ' + token
-        },
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Failed to update warranty');
+    // Process Paperless-ngx uploads if enabled
+    processEditPaperlessNgxUploads(formData)
+        .then(paperlessUploads => {
+            // Add Paperless-ngx document IDs to form data
+            Object.keys(paperlessUploads).forEach(key => {
+                formData.append(key, paperlessUploads[key]);
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoadingSpinner();
-        showToast('Warranty updated successfully', 'success');
-        closeModals();
+            
+            // Send request
+            return fetch(`/api/warranties/${currentWarrantyId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: formData
+            });
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to update warranty');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingSpinner();
+            showToast('Warranty updated successfully', 'success');
+            closeModals();
         
         // Always reload from server to ensure we get the latest data including product photo paths
         console.log('Reloading warranties after edit to ensure latest data including product photos');
@@ -6088,3 +6187,474 @@ async function loadSecureImages() {
         }
     }
 }
+
+// ============================================================================
+// Paperless-ngx Integration Functions
+// ============================================================================
+
+// Global variable to store Paperless-ngx enabled state
+let paperlessNgxEnabled = false;
+
+/**
+ * Check if Paperless-ngx integration is enabled
+ */
+async function checkPaperlessNgxStatus() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return false;
+
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const settings = await response.json();
+            paperlessNgxEnabled = settings.paperless_enabled === 'true';
+            console.log('[Paperless-ngx] Integration status:', paperlessNgxEnabled);
+            return paperlessNgxEnabled;
+        }
+    } catch (error) {
+        console.error('[Paperless-ngx] Error checking status:', error);
+    }
+    return false;
+}
+
+/**
+ * Initialize Paperless-ngx integration UI
+ */
+async function initPaperlessNgxIntegration() {
+    // Check if Paperless-ngx is enabled
+    const isEnabled = await checkPaperlessNgxStatus();
+    
+    if (isEnabled) {
+        // Show the info alert
+        const infoAlert = document.getElementById('paperlessInfoAlert');
+        if (infoAlert) {
+            infoAlert.style.display = 'block';
+        }
+        
+        // Show storage selection options for add modal
+        const storageSelections = [
+            'productPhotoStorageSelection',
+            'invoiceStorageSelection',
+            'manualStorageSelection',
+            'otherDocumentStorageSelection'
+        ];
+        
+        storageSelections.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = 'block';
+            }
+        });
+        
+        // Show storage selection options for edit modal
+        const editStorageSelections = [
+            'editProductPhotoStorageSelection',
+            'editInvoiceStorageSelection',
+            'editManualStorageSelection',
+            'editOtherDocumentStorageSelection'
+        ];
+        
+        editStorageSelections.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = 'block';
+            }
+        });
+        
+        console.log('[Paperless-ngx] UI elements initialized and shown');
+    } else {
+        console.log('[Paperless-ngx] Integration disabled, hiding UI elements');
+    }
+}
+
+/**
+ * Get selected storage option for a document type
+ * @param {string} documentType - The document type (productPhoto, invoice, manual, otherDocument)
+ * @param {boolean} isEdit - Whether this is for the edit modal
+ * @returns {string} - 'local' or 'paperless'
+ */
+function getStorageOption(documentType, isEdit = false) {
+    const prefix = isEdit ? 'edit' : '';
+    const capitalizedType = documentType.charAt(0).toUpperCase() + documentType.slice(1);
+    const name = `${prefix}${capitalizedType}Storage`;
+    const radio = document.querySelector(`input[name="${name}"]:checked`);
+    return radio ? radio.value : 'local';
+}
+
+/**
+ * Upload file to Paperless-ngx
+ * @param {File} file - The file to upload
+ * @param {string} documentType - The type of document for tagging
+ * @returns {Promise<Object>} - Upload result with document ID
+ */
+async function uploadToPaperlessNgx(file, documentType) {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            throw new Error('Authentication token not available');
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('document_type', documentType);
+        formData.append('title', `Warracker ${documentType} - ${file.name}`);
+        
+        // Add tags for organization
+        const tags = ['warracker', documentType];
+        formData.append('tags', tags.join(','));
+        
+        console.log('[Paperless-ngx] Upload FormData contents:');
+        console.log('  - file:', file.name, '(' + file.size + ' bytes, ' + file.type + ')');
+        console.log('  - document_type:', documentType);
+        console.log('  - title:', `Warracker ${documentType} - ${file.name}`);
+        console.log('  - tags:', tags.join(','));
+
+        const response = await fetch('/api/paperless/upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to upload to Paperless-ngx';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+                console.error('[Paperless-ngx] Server error details:', errorData);
+            } catch (parseError) {
+                console.error('[Paperless-ngx] Could not parse error response:', parseError);
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        console.log('[Paperless-ngx] Upload successful:', result);
+        
+        return {
+            success: true,
+            document_id: result.document_id,
+            message: result.message
+        };
+        
+    } catch (error) {
+        console.error('[Paperless-ngx] Upload error:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * Handle warranty form submission with Paperless-ngx integration
+ * This extends the existing saveWarranty function
+ */
+async function processPaperlessNgxUploads(formData) {
+    if (!paperlessNgxEnabled) {
+        return {}; // Return empty object if not enabled
+    }
+
+    const uploads = {};
+    const documentTypes = ['productPhoto', 'invoice', 'manual', 'otherDocument'];
+    
+    for (const docType of documentTypes) {
+        const storageOption = getStorageOption(docType);
+        
+        if (storageOption === 'paperless') {
+            const fileInput = document.getElementById(docType);
+            const file = fileInput?.files[0];
+            
+            if (file) {
+                console.log(`[Paperless-ngx] Uploading ${docType} to Paperless-ngx`);
+                
+                // Upload to Paperless-ngx
+                const uploadResult = await uploadToPaperlessNgx(file, docType);
+                
+                if (uploadResult.success) {
+                    // Map frontend document types to database column names
+                    const fieldMapping = {
+                        'productPhoto': 'paperless_photo_id',
+                        'invoice': 'paperless_invoice_id', 
+                        'manual': 'paperless_manual_id',
+                        'otherDocument': 'paperless_other_id'
+                    };
+                    
+                    const dbField = fieldMapping[docType];
+                    if (dbField) {
+                        uploads[dbField] = uploadResult.document_id;
+                    }
+                    
+                    // Remove the file from FormData since it's stored in Paperless-ngx
+                    if (formData.has(docType)) {
+                        formData.delete(docType);
+                    }
+                    
+                    console.log(`[Paperless-ngx] ${docType} uploaded successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                } else {
+                    throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
+                }
+            }
+        }
+    }
+    
+    return uploads;
+}
+
+/**
+ * Handle warranty edit form submission with Paperless-ngx integration
+ * This extends the existing edit warranty functionality
+ */
+async function processEditPaperlessNgxUploads(formData) {
+    if (!paperlessNgxEnabled) {
+        return {}; // Return empty object if not enabled
+    }
+
+    const uploads = {};
+    const documentTypes = ['productPhoto', 'invoice', 'manual', 'otherDocument'];
+    
+    for (const docType of documentTypes) {
+        const storageOption = getStorageOption(docType, true); // true for edit modal
+        
+        if (storageOption === 'paperless') {
+            const fileInput = document.getElementById(`edit${docType.charAt(0).toUpperCase() + docType.slice(1)}`);
+            const file = fileInput?.files[0];
+            
+            if (file) {
+                console.log(`[Paperless-ngx] Uploading ${docType} to Paperless-ngx (edit mode)`);
+                
+                // Upload to Paperless-ngx
+                const uploadResult = await uploadToPaperlessNgx(file, docType);
+                
+                if (uploadResult.success) {
+                    // Map frontend document types to database column names
+                    const fieldMapping = {
+                        'productPhoto': 'paperless_photo_id',
+                        'invoice': 'paperless_invoice_id', 
+                        'manual': 'paperless_manual_id',
+                        'otherDocument': 'paperless_other_id'
+                    };
+                    
+                    const dbField = fieldMapping[docType];
+                    if (dbField) {
+                        uploads[dbField] = uploadResult.document_id;
+                    }
+                    
+                    // Remove the file from FormData since it's stored in Paperless-ngx
+                    const editFieldName = `edit${docType.charAt(0).toUpperCase() + docType.slice(1)}`;
+                    if (formData.has(editFieldName)) {
+                        formData.delete(editFieldName);
+                    }
+                    
+                    console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                } else {
+                    throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
+                }
+            }
+        }
+    }
+    
+    return uploads;
+}
+
+// Initialize Paperless-ngx integration when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize after a short delay to ensure other components are loaded
+    setTimeout(() => {
+        initPaperlessNgxIntegration();
+    }, 1000);
+});
+
+/**
+ * Open a Paperless-ngx document in a new tab
+ */
+async function openPaperlessDocument(paperlessId) {
+    console.log(`[openPaperlessDocument] Opening Paperless document: ${paperlessId}`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[openPaperlessDocument] No auth token available');
+        showToast('Authentication required', 'error');
+        return;
+    }
+    
+    // Retry mechanism for document retrieval
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+    
+    const fetchWithRetry = async (attempt = 1) => {
+        try {
+            console.log(`[openPaperlessDocument] Attempt ${attempt} to fetch: /api/paperless-file/${paperlessId}`);
+            
+            const response = await fetch(`/api/paperless-file/${paperlessId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.status === 404) {
+                throw new Error('Document not found in Paperless-ngx.');
+            }
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            }
+            
+            // Get the blob and create object URL
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            
+            // Open in new tab
+            const newTab = window.open(url, '_blank');
+            if (!newTab) {
+                showToast('Please allow popups to view documents', 'warning');
+            }
+            
+            // Clean up the object URL after a delay
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            
+        } catch (error) {
+            console.error(`[openPaperlessDocument] Attempt ${attempt} failed:`, error);
+            
+            if (attempt < maxRetries) {
+                console.log(`[openPaperlessDocument] Retrying in ${retryDelay}ms...`);
+                setTimeout(() => fetchWithRetry(attempt + 1), retryDelay);
+            } else {
+                console.error(`[openPaperlessDocument] All ${maxRetries} attempts failed`);
+                showToast(`Failed to open document: ${error.message}`, 'error');
+            }
+        }
+    };
+    
+    try {
+        await fetchWithRetry();
+    } catch (error) {
+        console.error('Error fetching Paperless document:', error);
+        showToast(`Error opening document: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Debug function to test Paperless document status
+ */
+async function debugPaperlessDocument(paperlessId) {
+    console.log(`[debugPaperlessDocument] Debugging Paperless document: ${paperlessId}`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[debugPaperlessDocument] No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paperless/debug-document/${paperlessId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[debugPaperlessDocument] HTTP ${response.status}: ${errorText}`);
+            return;
+        }
+        
+        const debugInfo = await response.json();
+        console.log(`[debugPaperlessDocument] Debug info for document ${paperlessId}:`, debugInfo);
+        
+        // Show debug info in a more readable format
+        let debugMessage = `Debug info for Paperless document ${paperlessId}:\n\n`;
+        debugMessage += `Document exists: ${debugInfo.document_exists}\n`;
+        debugMessage += `Database references: ${debugInfo.database_references?.length || 0}\n\n`;
+        
+        debugMessage += 'Endpoint test results:\n';
+        for (const [endpoint, result] of Object.entries(debugInfo.endpoints_tested || {})) {
+            debugMessage += `- ${endpoint}: ${result.success ? 'SUCCESS' : 'FAILED'} (${result.status_code || result.error})\n`;
+        }
+        
+        if (debugInfo.recent_documents && Array.isArray(debugInfo.recent_documents)) {
+            debugMessage += `\nDocument in recent list: ${debugInfo.document_in_recent}\n`;
+            debugMessage += `Recent documents: ${debugInfo.recent_documents.map(d => `${d.id}: ${d.title}`).join(', ')}\n`;
+        }
+        
+        alert(debugMessage);
+        
+    } catch (error) {
+        console.error('Error debugging Paperless document:', error);
+        alert(`Debug failed: ${error.message}`);
+    }
+}
+
+/**
+ * Clean up invalid Paperless-ngx document references
+ */
+async function cleanupInvalidPaperlessDocuments() {
+    console.log('[cleanupInvalidPaperlessDocuments] Starting cleanup...');
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[cleanupInvalidPaperlessDocuments] No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/paperless/cleanup-invalid', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[cleanupInvalidPaperlessDocuments] HTTP ${response.status}: ${errorText}`);
+            return;
+        }
+        
+        const result = await response.json();
+        console.log('[cleanupInvalidPaperlessDocuments] Cleanup result:', result);
+        
+        // Show result to user
+        let message = result.message || 'Cleanup completed';
+        if (result.details) {
+            message += `\n\nDetails:\n`;
+            message += `- Documents checked: ${result.details.checked}\n`;
+            message += `- Invalid documents found: ${result.details.invalid_found}\n`;
+            message += `- References cleaned up: ${result.details.cleaned_up}\n`;
+            
+            if (result.details.errors && result.details.errors.length > 0) {
+                message += `\nErrors:\n${result.details.errors.join('\n')}`;
+            }
+        }
+        
+        alert(message);
+        
+        // Reload warranties to reflect changes
+        if (result.details && result.details.cleaned_up > 0) {
+            console.log('[cleanupInvalidPaperlessDocuments] Reloading warranties after cleanup...');
+            await loadWarranties(true);
+        }
+        
+    } catch (error) {
+        console.error('Error cleaning up Paperless documents:', error);
+        alert(`Cleanup failed: ${error.message}`);
+    }
+}
+
+// Make debug and cleanup functions available globally for console testing
+window.debugPaperlessDocument = debugPaperlessDocument;
+window.cleanupInvalidPaperlessDocuments = cleanupInvalidPaperlessDocuments;

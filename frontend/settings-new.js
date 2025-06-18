@@ -102,6 +102,15 @@ const currencyPositionSelect = document.getElementById('currencyPositionSelect')
 // Add dateFormatSelect near other DOM element declarations if not already there
 const dateFormatSelect = document.getElementById('dateFormat');
 
+// Paperless-ngx Settings DOM Elements
+const paperlessEnabledToggle = document.getElementById('paperlessEnabled');
+const paperlessUrlInput = document.getElementById('paperlessUrl');
+const paperlessApiTokenInput = document.getElementById('paperlessApiToken');
+const paperlessSettingsContainer = document.getElementById('paperlessSettingsContainer');
+const testPaperlessConnectionBtn = document.getElementById('testPaperlessConnectionBtn');
+const savePaperlessSettingsBtn = document.getElementById('savePaperlessSettingsBtn');
+const paperlessConnectionStatus = document.getElementById('paperlessConnectionStatus');
+
 // Global variable to store currencies data for currency code lookup
 let globalCurrenciesData = [];
 
@@ -1108,6 +1117,52 @@ function setupEventListeners() {
     if (notificationChannel) {
         notificationChannel.addEventListener('change', (e) => {
             toggleNotificationSettings(e.target.value);
+        });
+    }
+    
+    // Paperless-ngx event listeners
+    if (paperlessEnabledToggle) {
+        paperlessEnabledToggle.addEventListener('change', function() {
+            togglePaperlessSettings(this.checked);
+        });
+    }
+    
+    if (testPaperlessConnectionBtn) {
+        testPaperlessConnectionBtn.addEventListener('click', testPaperlessConnection);
+    }
+    
+    if (savePaperlessSettingsBtn) {
+        savePaperlessSettingsBtn.addEventListener('click', savePaperlessSettings);
+    }
+    
+    // Add debug button event listener
+    const debugPaperlessBtn = document.getElementById('debugPaperlessBtn');
+    if (debugPaperlessBtn) {
+        debugPaperlessBtn.addEventListener('click', debugPaperlessConfiguration);
+    }
+    
+    // Add test upload button event listener
+    const testFileUploadBtn = document.getElementById('testFileUploadBtn');
+    if (testFileUploadBtn) {
+        testFileUploadBtn.addEventListener('click', testFileUpload);
+    }
+    
+    // Clear status message when inputs are changed
+    if (paperlessUrlInput) {
+        paperlessUrlInput.addEventListener('input', function() {
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.className = 'paperless-status-message';
+                paperlessConnectionStatus.innerHTML = '';
+            }
+        });
+    }
+    
+    if (paperlessApiTokenInput) {
+        paperlessApiTokenInput.addEventListener('input', function() {
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.className = 'paperless-status-message';
+                paperlessConnectionStatus.innerHTML = '';
+            }
         });
     }
     
@@ -4428,9 +4483,387 @@ document.addEventListener('DOMContentLoaded', function() {
             const currentUser = window.auth.getCurrentUser();
             if (currentUser && currentUser.is_admin) {
                 loadAppriseSettings();
+                loadPaperlessSettings(); // Also load Paperless-ngx settings for admin
             } else {
                 console.log('User is not admin, skipping Apprise settings load in deferred initialization');
             }
         }
     }, 1000);
 });
+
+// ============================================================================
+// Paperless-ngx Integration Functions
+// ============================================================================
+
+/**
+ * Toggle the visibility of Paperless-ngx settings based on enabled state
+ * @param {boolean} enabled - Whether Paperless-ngx is enabled
+ */
+function togglePaperlessSettings(enabled) {
+    if (paperlessSettingsContainer) {
+        paperlessSettingsContainer.style.display = enabled ? 'block' : 'none';
+    }
+}
+
+/**
+ * Load Paperless-ngx settings from the server
+ */
+async function loadPaperlessSettings() {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load settings');
+        }
+
+        const settings = await response.json();
+        
+        // Update Paperless-ngx settings UI
+        if (paperlessEnabledToggle) {
+            const isEnabled = settings.paperless_enabled === 'true';
+            paperlessEnabledToggle.checked = isEnabled;
+            togglePaperlessSettings(isEnabled);
+        }
+        
+        if (paperlessUrlInput && settings.paperless_url) {
+            paperlessUrlInput.value = settings.paperless_url;
+        }
+        
+        // Update API token field placeholder to indicate if token is saved
+        if (paperlessApiTokenInput) {
+            if (settings.paperless_api_token_set === 'true') {
+                paperlessApiTokenInput.placeholder = 'API token saved (hidden for security) - Leave blank to keep existing';
+            } else {
+                paperlessApiTokenInput.placeholder = 'Enter API token';
+            }
+        }
+        
+        console.log('✅ Paperless-ngx settings loaded successfully');
+        
+    } catch (error) {
+        console.error('❌ Error loading Paperless-ngx settings:', error);
+        showToast(`Error loading Paperless-ngx settings: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Save Paperless-ngx settings to the server
+ */
+async function savePaperlessSettings() {
+    try {
+        showLoading();
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        // Validate URL format
+        const url = paperlessUrlInput.value.trim();
+        if (url && !isValidUrl(url)) {
+            showToast('Please enter a valid URL (e.g., https://paperless.yourdomain.com)', 'error');
+            return;
+        }
+        
+        // Prepare settings data
+        const settingsData = {
+            paperless_enabled: paperlessEnabledToggle.checked.toString(),
+            paperless_url: url
+        };
+        
+        // Only include API token if it's provided (not empty)
+        const apiToken = paperlessApiTokenInput.value.trim();
+        if (apiToken) {
+            settingsData.paperless_api_token = apiToken;
+        }
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settingsData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save Paperless-ngx settings');
+        }
+
+        const result = await response.json();
+        
+        showToast('Paperless-ngx settings saved successfully!', 'success');
+        
+        // Clear the API token input for security
+        if (paperlessApiTokenInput) {
+            paperlessApiTokenInput.value = '';
+            paperlessApiTokenInput.placeholder = 'API token saved (hidden for security) - Leave blank to keep existing';
+        }
+        
+        console.log('✅ Paperless-ngx settings saved successfully');
+        
+    } catch (error) {
+        console.error('❌ Error saving Paperless-ngx settings:', error);
+        showToast(`Error saving Paperless-ngx settings: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Test connection to Paperless-ngx instance
+ */
+async function testPaperlessConnection() {
+    try {
+        showLoading();
+        
+        // Clear previous status
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.innerHTML = '';
+            paperlessConnectionStatus.className = 'paperless-status-message';
+        }
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        // Get current values from the form
+        const url = paperlessUrlInput.value.trim();
+        const apiToken = paperlessApiTokenInput.value.trim();
+        
+        if (!url) {
+            showToast('Please enter a Paperless-ngx URL first', 'warning');
+            return;
+        }
+        
+        // Check if API token is provided in form, otherwise use stored settings
+        if (!apiToken && paperlessApiTokenInput.placeholder.includes('saved')) {
+            // API token is already saved, test with stored settings
+            const response = await fetch('/api/paperless/test', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                if (result.success) {
+                    paperlessConnectionStatus.className = 'paperless-status-message show success';
+                    paperlessConnectionStatus.innerHTML = `
+                        <strong>✅ Connection Successful!</strong><br>
+                        ${result.message}
+                        ${result.server_info ? `<br><small>Server: ${result.server_info}</small>` : ''}
+                    `;
+                    showToast('Paperless-ngx connection test successful!', 'success');
+                } else {
+                    paperlessConnectionStatus.className = 'paperless-status-message show error';
+                    paperlessConnectionStatus.innerHTML = `
+                        <strong>❌ Connection Failed!</strong><br>
+                        ${result.message}
+                    `;
+                    showToast('Paperless-ngx connection test failed', 'error');
+                }
+            }
+            
+            return;
+        }
+        
+        if (!apiToken) {
+            showToast('Please enter an API token to test the connection', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/paperless/test', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                api_token: apiToken
+            })
+        });
+
+        const result = await response.json();
+        
+        if (paperlessConnectionStatus) {
+            if (result.success) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show success';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>✅ Connection Successful!</strong><br>
+                    ${result.message}
+                    ${result.server_info ? `<br><small>Server: ${result.server_info}</small>` : ''}
+                `;
+                showToast('Paperless-ngx connection test successful!', 'success');
+            } else {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show error';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>❌ Connection Failed!</strong><br>
+                    ${result.message}
+                `;
+                showToast('Paperless-ngx connection test failed', 'error');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error testing Paperless-ngx connection:', error);
+        
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.classList.add('show');
+            paperlessConnectionStatus.className = 'paperless-status-message show error';
+            paperlessConnectionStatus.innerHTML = `
+                <strong>❌ Connection Error!</strong><br>
+                ${error.message}
+            `;
+        }
+        
+        showToast(`Error testing connection: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Debug Paperless-ngx configuration
+ */
+async function debugPaperlessConfiguration() {
+    try {
+        showLoading();
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/paperless/debug', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        
+        // Display debug information
+        console.log('🔍 Paperless-ngx Debug Information:', result);
+        
+        let debugHtml = '<h5>📋 Paperless-ngx Debug Information</h5>';
+        debugHtml += `<strong>Enabled:</strong> ${result.paperless_enabled}<br>`;
+        debugHtml += `<strong>URL:</strong> ${result.paperless_url || 'Not set'}<br>`;
+        debugHtml += `<strong>API Token Set:</strong> ${result.paperless_api_token_set}<br>`;
+        debugHtml += `<strong>Handler Available:</strong> ${result.paperless_handler_available}<br>`;
+        
+        if (result.test_connection_result) {
+            debugHtml += `<strong>Connection Test:</strong> ${result.test_connection_result.success ? '✅ Success' : '❌ Failed'}<br>`;
+            debugHtml += `<strong>Message:</strong> ${result.test_connection_result.message || result.test_connection_result.error}<br>`;
+        }
+        
+        if (result.paperless_handler_error) {
+            debugHtml += `<strong>Handler Error:</strong> ${result.paperless_handler_error}<br>`;
+        }
+        
+        // Show in connection status area or create a temporary area
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.classList.add('show');
+            paperlessConnectionStatus.className = 'paperless-status-message show info';
+            paperlessConnectionStatus.innerHTML = debugHtml;
+        } else {
+            // Create temporary debug display
+            const debugArea = document.createElement('div');
+            debugArea.innerHTML = debugHtml;
+            document.body.appendChild(debugArea);
+            setTimeout(() => debugArea.remove(), 10000); // Remove after 10 seconds
+        }
+        
+        showToast('Debug information logged to console', 'info');
+        
+    } catch (error) {
+        console.error('❌ Error running Paperless debug:', error);
+        showToast(`Debug error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Test basic file upload mechanism
+ */
+async function testFileUpload() {
+    try {
+        showLoading();
+        
+        // Create a simple test file
+        const testContent = 'This is a test file for Paperless-ngx upload debugging';
+        const testFile = new File([testContent], 'test.txt', { type: 'text/plain' });
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const formData = new FormData();
+        formData.append('file', testFile);
+        formData.append('document_type', 'test');
+        
+        const response = await fetch('/api/paperless/test-upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        console.log('🧪 File Upload Test Result:', result);
+        
+        if (result.success) {
+            showToast('File upload test successful!', 'success');
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show success';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>✅ File Upload Test Successful!</strong><br>
+                    ${result.message}<br>
+                    <small>File: ${result.file_info.filename} (${result.file_info.size} bytes)</small>
+                `;
+            }
+        } else {
+            showToast('File upload test failed', 'error');
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show error';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>❌ File Upload Test Failed!</strong><br>
+                    ${result.error}
+                `;
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error testing file upload:', error);
+        showToast(`File upload test error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Validate if a string is a valid URL
+ * @param {string} string - The string to validate
+ * @returns {boolean} - Whether the string is a valid URL
+ */
+function isValidUrl(string) {
+    try {
+        const url = new URL(string);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
+}

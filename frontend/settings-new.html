@@ -599,6 +599,71 @@
                     </div>
                 </div>
 
+                <!-- Paperless-ngx Integration Configuration Card -->
+                <div class="card collapsible-card">
+                    <div class="card-header collapsible-header" data-target="paperlessSettingsContent">
+                        <h3>Paperless-ngx Integration</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="card-body collapsible-content" id="paperlessSettingsContent">
+                        <div class="alert alert-info" style="margin-bottom: 20px;">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>About Paperless-ngx Integration:</strong> 
+                            This optional feature allows you to store warranty documents in your self-hosted Paperless-ngx instance instead of locally. 
+                            When enabled, users can choose where to store each document: locally or in Paperless-ngx.
+                        </div>
+                        
+                        <form id="paperlessSettingsForm">
+                            <div class="form-group">
+                                <div class="preference-item">
+                                    <div>
+                                        <label>Enable Paperless-ngx Integration</label>
+                                        <p class="text-muted">Allow users to store warranty documents in Paperless-ngx</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="paperlessEnabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="paperlessSettingsContainer" style="display: none;">
+                                <div class="form-group">
+                                    <label for="paperlessUrl">Paperless-ngx URL</label>
+                                    <input type="url" id="paperlessUrl" class="form-control" placeholder="https://paperless.yourdomain.com">
+                                    <small class="text-muted">The base URL of your Paperless-ngx instance (without trailing slash).</small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="paperlessApiToken">API Token</label>
+                                    <input type="password" id="paperlessApiToken" class="form-control" placeholder="Enter API token or leave blank to keep existing">
+                                    <small class="text-muted">Generate an API token from your Paperless-ngx instance (Settings → API Tokens).</small>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 20px;">
+                                    <label>Connection Testing</label>
+                                    <div class="paperless-button-group">
+                                        <button type="button" id="testPaperlessConnectionBtn" class="btn btn-secondary">
+                                            <i class="fas fa-plug"></i> Test Connection
+                                        </button>
+                                        <button type="button" id="debugPaperlessBtn" class="btn btn-info">
+                                            <i class="fas fa-bug"></i> Debug Config
+                                        </button>
+                                        <button type="button" id="testFileUploadBtn" class="btn btn-warning">
+                                            <i class="fas fa-upload"></i> Test Upload
+                                        </button>
+                                    </div>
+                                    <div id="paperlessConnectionStatus" class="paperless-status-message"></div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" id="savePaperlessSettingsBtn" class="btn btn-primary" style="margin-top: 15px;">
+                                <i class="fas fa-save"></i> Save Paperless-ngx Settings
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- Apprise Notifications Configuration Card -->
                 <div class="card collapsible-card">
                     <div class="card-header collapsible-header" data-target="appriseNotificationsContent">

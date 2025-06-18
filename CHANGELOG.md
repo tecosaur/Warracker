@@ -1,4 +1,28 @@
 # Changelog
+## 0.10.1.3  - 2025-06-17
+
+### Added
+- **Paperless-ngx Document Management Integration:** Complete integration with Paperless-ngx for advanced document management and storage capabilities.
+  - **Settings Page Configuration:** Added Paperless-ngx configuration section in admin settings allowing administrators to:
+    - **Connection Setup:** Configure Paperless-ngx server URL and API token for secure integration
+    - **Test Connection:** Built-in connection testing to verify Paperless-ngx server accessibility and authentication
+    - **Enable/Disable Toggle:** Master switch to activate or deactivate Paperless-ngx integration across the application
+  - **Hybrid Storage System (`backend/app.py`):** Implemented intelligent document storage with per-document storage choice:
+    - **Storage Selection:** Users can choose between local storage and Paperless-ngx for each document type (invoice, manual, photos, other documents)
+    - **Smart File Handling:** Documents are stored exclusively in chosen location (prevents dual storage)
+    - **Database Integration:** Paperless document IDs properly tracked in database fields (`paperless_invoice_id`, `paperless_manual_id`, etc.)
+    - **Automatic Cleanup:** When switching storage methods, old files are automatically removed from previous location
+  - **Visual Document Identification:** Enhanced warranty cards with clear visual indicators for document storage location:
+    - **Cloud Icons:** Blue cloud icons (🌤️) appear next to documents stored in Paperless-ngx for instant recognition
+    - **Local Document Icons:** Standard document icons for locally stored files
+    - **Mixed Storage Support:** Warranties can have documents stored in both locations with appropriate visual indicators
+  - **Add/Edit Warranty Integration:** Full Paperless-ngx support in both add and edit warranty workflows:
+    - **Storage Option Selection:** Radio buttons for each document type allowing users to choose storage location
+    - **Seamless Upload Process:** Files uploaded to Paperless-ngx are automatically tagged and organized
+    - **Edit Modal Parity:** Edit warranty modal has identical Paperless-ngx functionality to add warranty modal
+  - **Document Access Integration:** Direct access to Paperless-ngx documents through warranty interface with secure authentication
+  - _Files: `backend/app.py`, `frontend/script.js`, `frontend/settings-new.html`, `frontend/settings-new.js`_
+
 
 ##  0.10.1.2 - 2025-06-16
 

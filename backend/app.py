@@ -6,11 +6,15 @@ try:
     from backend.db_handler import init_db_pool, get_db_connection, release_db_connection
     # Import the NEW auth_utils instead of having helpers in app.py
     from backend.auth_utils import generate_token, decode_token, token_required, admin_required, is_valid_email, is_valid_password
+    # Import Paperless-ngx handler
+    from backend.paperless_handler import get_paperless_handler
 except ImportError:
     # Fallback to direct import for development
     from extensions import oauth
     from db_handler import init_db_pool, get_db_connection, release_db_connection
     from auth_utils import generate_token, decode_token, token_required, admin_required, is_valid_email, is_valid_password
+    # Import Paperless-ngx handler
+    from paperless_handler import get_paperless_handler
 import psycopg2 # Added import
 import psycopg2.errors
 import os
@@ -377,7 +381,8 @@ def get_warranties():
             cur.execute('''
                 SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
                        purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
-                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency
+                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
+                       paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
                 FROM warranties 
                 WHERE user_id = %s 
                 ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
@@ -565,9 +570,21 @@ def add_warranty():
                 # Neither exact date nor duration provided
                 return jsonify({"error": "Either exact expiration date or warranty duration must be specified for non-lifetime warranties."}), 400
         
-        # Handle invoice file upload
+        # Handle Paperless-ngx document IDs if provided (check before file uploads)
+        paperless_invoice_id = request.form.get('paperless_invoice_id')
+        paperless_manual_id = request.form.get('paperless_manual_id')
+        paperless_photo_id = request.form.get('paperless_photo_id')
+        paperless_other_id = request.form.get('paperless_other_id')
+        
+        # Convert empty strings to None for database insertion
+        paperless_invoice_id = int(paperless_invoice_id) if paperless_invoice_id and paperless_invoice_id.strip() else None
+        paperless_manual_id = int(paperless_manual_id) if paperless_manual_id and paperless_manual_id.strip() else None
+        paperless_photo_id = int(paperless_photo_id) if paperless_photo_id and paperless_photo_id.strip() else None
+        paperless_other_id = int(paperless_other_id) if paperless_other_id and paperless_other_id.strip() else None
+
+        # Handle invoice file upload (only if not stored in Paperless-ngx)
         db_invoice_path = None
-        if 'invoice' in request.files:
+        if not paperless_invoice_id and 'invoice' in request.files:
             invoice = request.files['invoice']
             if invoice.filename != '':
                 if not allowed_file(invoice.filename):
@@ -586,10 +603,12 @@ def add_warranty():
                     logger.error(f"Error saving invoice {filename} to {invoice_path}: {e}")
                     # Optionally, decide if you want to return an error here or continue
                     return jsonify({"error": f"Failed to save invoice: {str(e)}"}), 500
+        elif paperless_invoice_id:
+            logger.info(f"Invoice stored in Paperless-ngx with ID: {paperless_invoice_id}")
         
-        # Handle manual file upload
+        # Handle manual file upload (only if not stored in Paperless-ngx)
         db_manual_path = None
-        if 'manual' in request.files:
+        if not paperless_manual_id and 'manual' in request.files:
             manual = request.files['manual']
             if manual.filename != '':
                 if not allowed_file(manual.filename):
@@ -606,10 +625,12 @@ def add_warranty():
                 except Exception as e:
                     logger.error(f"Error saving manual {filename} to {manual_path}: {e}")
                     return jsonify({"error": f"Failed to save manual: {str(e)}"}), 500
+        elif paperless_manual_id:
+            logger.info(f"Manual stored in Paperless-ngx with ID: {paperless_manual_id}")
         
-        # Handle other_document file upload
+        # Handle other_document file upload (only if not stored in Paperless-ngx)
         db_other_document_path = None
-        if 'other_document' in request.files:
+        if not paperless_other_id and 'other_document' in request.files:
             other_document = request.files['other_document']
             if other_document.filename != '':
                 if not allowed_file(other_document.filename):
@@ -626,10 +647,12 @@ def add_warranty():
                 except Exception as e:
                     logger.error(f"Error saving other_document {filename} to {other_document_path_on_disk}: {e}")
                     return jsonify({"error": f"Failed to save other_document: {str(e)}"}), 500
+        elif paperless_other_id:
+            logger.info(f"Other document stored in Paperless-ngx with ID: {paperless_other_id}")
 
-        # Handle product photo file upload
+        # Handle product photo file upload (only if not stored in Paperless-ngx)
         db_product_photo_path = None
-        if 'product_photo' in request.files:
+        if not paperless_photo_id and 'product_photo' in request.files:
             product_photo = request.files['product_photo']
             if product_photo.filename != '':
                 # Check if it's an image file
@@ -647,6 +670,10 @@ def add_warranty():
                 except Exception as e:
                     logger.error(f"Error saving product_photo {filename} to {product_photo_path_on_disk}: {e}")
                     return jsonify({"error": f"Failed to save product_photo: {str(e)}"}), 500
+        elif paperless_photo_id:
+            logger.info(f"Product photo stored in Paperless-ngx with ID: {paperless_photo_id}")
+
+
 
         # Save to database
         conn = get_db_connection()
@@ -656,14 +683,16 @@ def add_warranty():
                 INSERT INTO warranties (
                     product_name, purchase_date, expiration_date, 
                     invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
-                    warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency
+                    warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
+                    paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, expiration_date,
                 db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
-                warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path, currency
+                warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path, currency,
+                paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -921,8 +950,24 @@ def update_warranty(warranty_id):
             ]
             if currency not in valid_currencies:
                 return jsonify({"error": f"Invalid currency code: {currency}"}), 400
+
+            # Handle Paperless-ngx document IDs
+            paperless_invoice_id = request.form.get('paperless_invoice_id')
+            paperless_manual_id = request.form.get('paperless_manual_id')
+            paperless_photo_id = request.form.get('paperless_photo_id')
+            paperless_other_id = request.form.get('paperless_other_id')
+
+            logger.info(f"[UPDATE] Received Paperless IDs: invoice={paperless_invoice_id}, manual={paperless_manual_id}, photo={paperless_photo_id}, other={paperless_other_id}")
+
+            # Convert to integers if provided, otherwise None
+            paperless_invoice_id = int(paperless_invoice_id) if paperless_invoice_id and paperless_invoice_id.strip() else None
+            paperless_manual_id = int(paperless_manual_id) if paperless_manual_id and paperless_manual_id.strip() else None
+            paperless_photo_id = int(paperless_photo_id) if paperless_photo_id and paperless_photo_id.strip() else None
+            paperless_other_id = int(paperless_other_id) if paperless_other_id and paperless_other_id.strip() else None
+
+            logger.info(f"[UPDATE] Converted Paperless IDs: invoice={paperless_invoice_id}, manual={paperless_manual_id}, photo={paperless_photo_id}, other={paperless_other_id}")
             db_invoice_path = None
-            if 'invoice' in request.files:
+            if not paperless_invoice_id and 'invoice' in request.files:
                 invoice = request.files['invoice']
                 if invoice.filename != '':
                     if not allowed_file(invoice.filename):
@@ -948,6 +993,20 @@ def update_warranty(warranty_id):
                     except Exception as e:
                         logger.error(f"Error saving updated invoice {filename} to {invoice_path}: {e}")
                         return jsonify({"error": f"Failed to save updated invoice: {str(e)}"}), 500
+            elif paperless_invoice_id:
+                logger.info(f"Invoice updated to Paperless-ngx with ID: {paperless_invoice_id}")
+                # Clear local path when storing in Paperless-ngx
+                cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_invoice_path = cur.fetchone()[0]
+                if old_invoice_path:
+                    full_path = os.path.join('/data', old_invoice_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted old local invoice (moving to Paperless): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting old local invoice: {e}")
+                db_invoice_path = None  # Clear local path
             elif request.form.get('delete_invoice', 'false').lower() == 'true':
                 cur.execute('SELECT invoice_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_invoice_path = cur.fetchone()[0]
@@ -961,7 +1020,7 @@ def update_warranty(warranty_id):
                             logger.error(f"Error deleting invoice (delete request): {e}")
                 db_invoice_path = None  # Set to None to clear in DB
             db_manual_path = None
-            if 'manual' in request.files:
+            if not paperless_manual_id and 'manual' in request.files:
                 manual = request.files['manual']
                 if manual.filename != '':
                     if not allowed_file(manual.filename):
@@ -987,6 +1046,20 @@ def update_warranty(warranty_id):
                     except Exception as e:
                         logger.error(f"Error saving updated manual {filename} to {manual_path}: {e}")
                         return jsonify({"error": f"Failed to save updated manual: {str(e)}"}), 500
+            elif paperless_manual_id:
+                logger.info(f"Manual updated to Paperless-ngx with ID: {paperless_manual_id}")
+                # Clear local path when storing in Paperless-ngx
+                cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_manual_path = cur.fetchone()[0]
+                if old_manual_path:
+                    full_path = os.path.join('/data', old_manual_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted old local manual (moving to Paperless): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting old local manual: {e}")
+                db_manual_path = None  # Clear local path
             elif request.form.get('delete_manual', 'false').lower() == 'true':
                 cur.execute('SELECT manual_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_manual_path = cur.fetchone()[0]
@@ -1001,7 +1074,7 @@ def update_warranty(warranty_id):
                 db_manual_path = None  # Set to None to clear in DB
             
             db_other_document_path = None
-            if 'other_document' in request.files:
+            if not paperless_other_id and 'other_document' in request.files:
                 other_document = request.files['other_document']
                 if other_document.filename != '':
                     if not allowed_file(other_document.filename):
@@ -1027,6 +1100,20 @@ def update_warranty(warranty_id):
                     except Exception as e:
                         logger.error(f"Error saving updated other_document {filename} to {other_document_path_on_disk}: {e}")
                         return jsonify({"error": f"Failed to save updated other_document: {str(e)}"}), 500
+            elif paperless_other_id:
+                logger.info(f"Other document updated to Paperless-ngx with ID: {paperless_other_id}")
+                # Clear local path when storing in Paperless-ngx
+                cur.execute('SELECT other_document_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_other_document_path = cur.fetchone()[0]
+                if old_other_document_path:
+                    full_path = os.path.join('/data', old_other_document_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted old local other_document (moving to Paperless): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting old local other_document: {e}")
+                db_other_document_path = None  # Clear local path
             elif request.form.get('delete_other_document', 'false').lower() == 'true':
                 cur.execute('SELECT other_document_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_other_document_path = cur.fetchone()[0]
@@ -1040,9 +1127,9 @@ def update_warranty(warranty_id):
                             logger.error(f"Error deleting other_document (delete request): {e}")
                 db_other_document_path = None # Set to None to clear in DB
 
-            # Handle product photo file upload
+            # Handle product photo file upload (only if not stored in Paperless-ngx)
             db_product_photo_path = None
-            if 'product_photo' in request.files:
+            if not paperless_photo_id and 'product_photo' in request.files:
                 product_photo = request.files['product_photo']
                 if product_photo.filename != '':
                     # Check if it's an image file
@@ -1072,6 +1159,20 @@ def update_warranty(warranty_id):
                     except Exception as e:
                         logger.error(f"Error saving updated product_photo {filename} to {product_photo_path_on_disk}: {e}")
                         return jsonify({"error": f"Failed to save updated product_photo: {str(e)}"}), 500
+            elif paperless_photo_id:
+                logger.info(f"Product photo updated to Paperless-ngx with ID: {paperless_photo_id}")
+                # Clear local path when storing in Paperless-ngx
+                cur.execute('SELECT product_photo_path FROM warranties WHERE id = %s', (warranty_id,))
+                old_product_photo_path = cur.fetchone()[0]
+                if old_product_photo_path:
+                    full_path = os.path.join('/data', old_product_photo_path)
+                    if os.path.exists(full_path):
+                        try:
+                            os.remove(full_path)
+                            logger.info(f"Deleted old local product_photo (moving to Paperless): {full_path}")
+                        except Exception as e:
+                            logger.error(f"Error deleting old local product_photo: {e}")
+                db_product_photo_path = None  # Clear local path
             elif request.form.get('delete_product_photo', 'false').lower() == 'true':
                 cur.execute('SELECT product_photo_path FROM warranties WHERE id = %s', (warranty_id,))
                 old_product_photo_path = cur.fetchone()[0]
@@ -1127,6 +1228,20 @@ def update_warranty(warranty_id):
                 sql_values.append(db_product_photo_path)
             elif 'delete_product_photo' in request.form and request.form.get('delete_product_photo', 'false').lower() == 'true':
                 sql_fields.append("product_photo_path = NULL")
+
+            # Handle Paperless-ngx document IDs
+            if paperless_invoice_id is not None:
+                sql_fields.append("paperless_invoice_id = %s")
+                sql_values.append(paperless_invoice_id)
+            if paperless_manual_id is not None:
+                sql_fields.append("paperless_manual_id = %s")
+                sql_values.append(paperless_manual_id)
+            if paperless_photo_id is not None:
+                sql_fields.append("paperless_photo_id = %s")
+                sql_values.append(paperless_photo_id)
+            if paperless_other_id is not None:
+                sql_fields.append("paperless_other_id = %s")
+                sql_values.append(paperless_other_id)
 
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
             sql_values.append(warranty_id)
@@ -1890,7 +2005,11 @@ def get_site_settings():
                 'apprise_urls': '',
                 'apprise_expiration_days': '7,30',
                 'apprise_notification_time': '09:00',
-                'apprise_title_prefix': '[Warracker]'
+                'apprise_title_prefix': '[Warracker]',
+                # Paperless-ngx integration settings
+                'paperless_enabled': 'false',
+                'paperless_url': '',
+                # 'paperless_api_token': '', # Not returned directly
             }
 
             settings_to_return = {}
@@ -1898,29 +2017,30 @@ def get_site_settings():
 
             # First, add all existing settings from the database
             for key, value in raw_settings.items():
-                # Skip returning the client secret directly
-                if key == 'oidc_client_secret':
+                # Skip returning sensitive secrets directly
+                if key in ['oidc_client_secret', 'paperless_api_token']:
                     continue
                 
                 # For boolean-like string settings, ensure they are 'true' or 'false'
-                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'apprise_enabled', 'global_view_enabled', 'global_view_admin_only']:
+                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'apprise_enabled', 'global_view_enabled', 'global_view_admin_only', 'paperless_enabled']:
                     settings_to_return[key] = 'true' if value.lower() == 'true' else 'false'
                 else:
                     settings_to_return[key] = value
 
             # Then, add defaults for any missing settings
             for key, default_value in default_site_settings.items():
-                if key not in settings_to_return and key != 'oidc_client_secret':
+                if key not in settings_to_return and key not in ['oidc_client_secret', 'paperless_api_token']:
                     settings_to_return[key] = default_value
-                    # Insert default if missing (except for secret)
+                    # Insert default if missing (except for secrets)
                     cur.execute(
                         'INSERT INTO site_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING',
                         (key, default_value)
                     )
                     needs_commit = True
             
-            # Indicate if OIDC client secret is set without revealing it
+            # Indicate if secrets are set without revealing them
             settings_to_return['oidc_client_secret_set'] = bool(raw_settings.get('oidc_client_secret'))
+            settings_to_return['paperless_api_token_set'] = bool(raw_settings.get('paperless_api_token'))
 
             if needs_commit:
                 conn.commit()
@@ -1967,19 +2087,19 @@ def update_site_settings():
             requires_restart = False
             for key, value in data.items():
                 # Sanitize boolean-like string values
-                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'global_view_enabled', 'global_view_admin_only']:
+                if key in ['registration_enabled', 'oidc_enabled', 'oidc_only_mode', 'global_view_enabled', 'global_view_admin_only', 'paperless_enabled']:
                     value = 'true' if str(value).lower() == 'true' else 'false'
                 
                 # Check if it's an OIDC related key that requires restart
                 if key.startswith('oidc_'):
                     requires_restart = True
                 
-                # For oidc_client_secret, only update if a non-empty value is provided
+                # For sensitive secrets, only update if a non-empty value is provided
                 # An empty string could mean "clear" or "no change" - admin UI should clarify
-                # For now, if key is 'oidc_client_secret' and value is empty, we skip update to avoid accidental clearing.
+                # For now, if key is a secret and value is empty, we skip update to avoid accidental clearing.
                 # The admin UI should send a specific placeholder if they intend to clear it, or not send the key.
-                if key == 'oidc_client_secret' and not value: # If an empty secret is passed, don't update
-                    logger.info(f"Skipping update for oidc_client_secret as value is empty.")
+                if key in ['oidc_client_secret', 'paperless_api_token'] and not value: # If an empty secret is passed, don't update
+                    logger.info(f"Skipping update for {key} as value is empty.")
                     continue
 
 
@@ -2092,9 +2212,19 @@ def serve_file(filename):
 @app.route('/api/secure-file/<path:filename>', methods=['GET', 'POST'])
 @token_required
 def secure_file_access(filename):
-    """Enhanced secure file serving with authorization checks and improved reliability."""
+    """Enhanced secure file serving with authorization checks and Paperless-ngx integration."""
+    conn = None
     try:
-        # ADD EXTRA LOGGING HERE
+        # Check if this is a Paperless-ngx document ID request (paperless-{id})
+        if filename.startswith('paperless-'):
+            try:
+                paperless_id = int(filename.replace('paperless-', ''))
+                return serve_paperless_document(paperless_id)
+            except ValueError:
+                logger.warning(f"[SECURE_FILE] Invalid Paperless-ngx document ID format: {filename}")
+                return jsonify({"message": "Invalid Paperless document ID"}), 400
+        
+        # Original local file serving logic
         logger.info(f"[SECURE_FILE] Raw filename from route: '{filename}' (len: {len(filename)})")
         logger.info(f"[SECURE_FILE] repr(filename): {repr(filename)}")
 
@@ -2104,157 +2234,266 @@ def secure_file_access(filename):
             return jsonify({"message": "Invalid file path"}), 400
 
         conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                db_search_path = f"uploads/{filename}"
-                logger.info(f"[SECURE_FILE] Searching DB for paths like: '{db_search_path}' (repr: {repr(db_search_path)})")
-                query = """
+        with conn.cursor() as cur:
+            db_search_path = f"uploads/{filename}"
+            logger.info(f"[SECURE_FILE] Searching DB for paths like: '{db_search_path}' (repr: {repr(db_search_path)})")
+            query = """
+                SELECT w.id, w.user_id
+                FROM warranties w
+                WHERE w.invoice_path = %s OR w.manual_path = %s OR w.other_document_path = %s OR w.product_photo_path = %s
+            """
+            cur.execute(query, (db_search_path, db_search_path, db_search_path, db_search_path))
+            results = cur.fetchall()
+            logger.info(f"[SECURE_FILE] DB query results for '{db_search_path}': {results}")
+
+            user_id = request.user['id']
+            is_admin = request.user.get('is_admin', False)
+            authorized = is_admin
+            logger.info(f"[SECURE_FILE] Initial authorization (is_admin={is_admin}): {authorized}")
+
+            # Check for ownership authorization
+            if not authorized and results:
+                for warranty_id_db, warranty_user_id_db in results:
+                    logger.info(f"[SECURE_FILE] Checking ownership: warranty_id={warranty_id_db}, owner_id={warranty_user_id_db}, current_user_id={user_id}")
+                    if warranty_user_id_db == user_id:
+                        authorized = True
+                        logger.info(f"[SECURE_FILE] Ownership confirmed for warranty_id={warranty_id_db}")
+                        break
+
+            # Check for global view authorization for product photos
+            if not authorized and results:
+                # Check if this file is a product photo by looking at which column matched
+                cur.execute("""
                     SELECT w.id, w.user_id
                     FROM warranties w
-                    WHERE w.invoice_path = %s OR w.manual_path = %s OR w.other_document_path = %s OR w.product_photo_path = %s
-                """
-                cur.execute(query, (db_search_path, db_search_path, db_search_path, db_search_path))
-                results = cur.fetchall()
-                logger.info(f"[SECURE_FILE] DB query results for '{db_search_path}': {results}")
-
-                user_id = request.user['id']
-                is_admin = request.user.get('is_admin', False)
-                authorized = is_admin
-                logger.info(f"[SECURE_FILE] Initial authorization (is_admin={is_admin}): {authorized}")
-
-                # Check for ownership authorization
-                if not authorized and results:
-                    for warranty_id_db, warranty_user_id_db in results:
-                        logger.info(f"[SECURE_FILE] Checking ownership: warranty_id={warranty_id_db}, owner_id={warranty_user_id_db}, current_user_id={user_id}")
-                        if warranty_user_id_db == user_id:
+                    WHERE w.product_photo_path = %s
+                """, (db_search_path,))
+                photo_results = cur.fetchall()
+                
+                if photo_results:
+                    logger.info(f"[SECURE_FILE] File is a product photo, checking global view permissions")
+                    
+                    # Get global view settings
+                    cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+                    settings = {row[0]: row[1] for row in cur.fetchall()}
+                    
+                    # Check if global view is enabled at all
+                    global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+                    logger.info(f"[SECURE_FILE] Global view enabled: {global_view_enabled}")
+                    
+                    if global_view_enabled:
+                        # Check if global view is restricted to admins only
+                        admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+                        logger.info(f"[SECURE_FILE] Global view admin only: {admin_only}")
+                        
+                        if not admin_only or is_admin:
                             authorized = True
-                            logger.info(f"[SECURE_FILE] Ownership confirmed for warranty_id={warranty_id_db}")
-                            break
-
-                # Check for global view authorization for product photos
-                if not authorized and results:
-                    # Check if this file is a product photo by looking at which column matched
-                    cur.execute("""
-                        SELECT w.id, w.user_id
-                        FROM warranties w
-                        WHERE w.product_photo_path = %s
-                    """, (db_search_path,))
-                    photo_results = cur.fetchall()
+                            logger.info(f"[SECURE_FILE] Global view photo access authorized for user {user_id}")
+                        else:
+                            logger.info(f"[SECURE_FILE] Global view restricted to admins only, user {user_id} is not admin")
+            
+            if not authorized:
+                logger.warning(f"[SECURE_FILE] Unauthorized file access attempt: '{filename}' (repr: {repr(filename)}) by user {user_id}. DB results count: {len(results) if results else 'None'}")
+                return jsonify({"message": "You are not authorized to access this file"}), 403
+            
+            logger.info(f"[SECURE_FILE] User {user_id} authorized for file '{filename}'. Attempting to serve from /data/uploads.")
+            
+            # Construct the full file path
+            target_file_path_for_send = os.path.join('/data/uploads', filename)
+            logger.info(f"[SECURE_FILE] Path for verification: '{target_file_path_for_send}' (repr: {repr(target_file_path_for_send)})")
+            
+            # Enhanced file existence and readability checks
+            if not os.path.exists(target_file_path_for_send):
+                logger.error(f"[SECURE_FILE] File '{target_file_path_for_send}' does not exist")
+                try:
+                    dir_contents = os.listdir('/data/uploads')
+                    logger.info(f"[SECURE_FILE] Contents of /data/uploads: {dir_contents}")
+                except Exception as list_err:
+                    logger.error(f"[SECURE_FILE] Error listing /data/uploads: {list_err}")
+                return jsonify({"message": "File not found"}), 404
+            
+            if not os.path.isfile(target_file_path_for_send):
+                logger.error(f"[SECURE_FILE] Path '{target_file_path_for_send}' exists but is not a file")
+                return jsonify({"message": "Invalid file"}), 400
+            
+            # Check file size and readability
+            try:
+                file_size = os.path.getsize(target_file_path_for_send)
+                logger.info(f"[SECURE_FILE] File size: {file_size} bytes")
+                
+                # Verify we can read the file
+                with open(target_file_path_for_send, 'rb') as f:
+                    # Try to read first byte to ensure file is readable
+                    f.read(1)
+                    f.seek(0)  # Reset file pointer
                     
-                    if photo_results:
-                        logger.info(f"[SECURE_FILE] File is a product photo, checking global view permissions")
-                        
-                        # Get global view settings
-                        cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
-                        settings = {row[0]: row[1] for row in cur.fetchall()}
-                        
-                        # Check if global view is enabled at all
-                        global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
-                        logger.info(f"[SECURE_FILE] Global view enabled: {global_view_enabled}")
-                        
-                        if global_view_enabled:
-                            # Check if global view is restricted to admins only
-                            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
-                            logger.info(f"[SECURE_FILE] Global view admin only: {admin_only}")
-                            
-                            if not admin_only or is_admin:
-                                authorized = True
-                                logger.info(f"[SECURE_FILE] Global view photo access authorized for user {user_id}")
-                            else:
-                                logger.info(f"[SECURE_FILE] Global view restricted to admins only, user {user_id} is not admin")
+            except (OSError, IOError) as e:
+                logger.error(f"[SECURE_FILE] Cannot read file '{target_file_path_for_send}': {e}")
+                return jsonify({"message": "File read error"}), 500
+            
+            # Use Flask's send_from_directory with enhanced error handling
+            try:
+                # Get MIME type
+                mimetype, _ = mimetypes.guess_type(target_file_path_for_send)
+                if not mimetype:
+                    mimetype = 'application/octet-stream'
                 
-                if not authorized:
-                    logger.warning(f"[SECURE_FILE] Unauthorized file access attempt: '{filename}' (repr: {repr(filename)}) by user {user_id}. DB results count: {len(results) if results else 'None'}")
-                    return jsonify({"message": "You are not authorized to access this file"}), 403
+                logger.info(f"[SECURE_FILE] Serving file with size {file_size} bytes, mimetype: {mimetype}")
                 
-                logger.info(f"[SECURE_FILE] User {user_id} authorized for file '{filename}'. Attempting to serve from /data/uploads.")
+                # Use streaming for ALL files to prevent Content-Length mismatches
+                logger.info(f"[SECURE_FILE] Using streaming response for file: {filename}")
                 
-                # Construct the full file path
-                target_file_path_for_send = os.path.join('/data/uploads', filename)
-                logger.info(f"[SECURE_FILE] Path for verification: '{target_file_path_for_send}' (repr: {repr(target_file_path_for_send)})")
-                
-                # Enhanced file existence and readability checks
-                if not os.path.exists(target_file_path_for_send):
-                    logger.error(f"[SECURE_FILE] File '{target_file_path_for_send}' does not exist")
+                def generate():
                     try:
-                        dir_contents = os.listdir('/data/uploads')
-                        logger.info(f"[SECURE_FILE] Contents of /data/uploads: {dir_contents}")
-                    except Exception as list_err:
-                        logger.error(f"[SECURE_FILE] Error listing /data/uploads: {list_err}")
-                    return jsonify({"message": "File not found"}), 404
+                        with open(target_file_path_for_send, 'rb') as f:
+                            chunk_size = 4096  # 4KB chunks
+                            total_sent = 0
+                            while True:
+                                chunk = f.read(chunk_size)
+                                if not chunk:
+                                    break
+                                total_sent += len(chunk)
+                                logger.debug(f"[SECURE_FILE] Streaming chunk: {len(chunk)} bytes, total sent: {total_sent}/{file_size}")
+                                yield chunk
+                            logger.info(f"[SECURE_FILE] Streaming completed: {total_sent}/{file_size} bytes sent")
+                    except Exception as e:
+                        logger.error(f"[SECURE_FILE] Error during streaming: {e}")
+                        raise
                 
-                if not os.path.isfile(target_file_path_for_send):
-                    logger.error(f"[SECURE_FILE] Path '{target_file_path_for_send}' exists but is not a file")
-                    return jsonify({"message": "Invalid file"}), 400
+                response = Response(
+                    generate(),
+                    mimetype=mimetype,
+                    headers={
+                        'Content-Length': str(file_size),
+                        'Content-Disposition': f'inline; filename="{os.path.basename(filename)}"',
+                        'Accept-Ranges': 'bytes',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
+                        'X-Content-Type-Options': 'nosniff',
+                        'Connection': 'close'
+                    }
+                )
+                return response
+            except Exception as send_error:
+                logger.error(f"[SECURE_FILE] Error serving file: {send_error}")
+                return jsonify({"message": "Error serving file"}), 500
                 
-                # Check file size and readability
-                try:
-                    file_size = os.path.getsize(target_file_path_for_send)
-                    logger.info(f"[SECURE_FILE] File size: {file_size} bytes")
-                    
-                    # Verify we can read the file
-                    with open(target_file_path_for_send, 'rb') as f:
-                        # Try to read first byte to ensure file is readable
-                        f.read(1)
-                        f.seek(0)  # Reset file pointer
-                        
-                except (OSError, IOError) as e:
-                    logger.error(f"[SECURE_FILE] Cannot read file '{target_file_path_for_send}': {e}")
-                    return jsonify({"message": "File read error"}), 500
-                
-                # Use Flask's send_from_directory with enhanced error handling
-                try:
-                    # Get MIME type
-                    mimetype, _ = mimetypes.guess_type(target_file_path_for_send)
-                    if not mimetype:
-                        mimetype = 'application/octet-stream'
-                    
-                    logger.info(f"[SECURE_FILE] Serving file with size {file_size} bytes, mimetype: {mimetype}")
-                    
-                    # Use streaming for ALL files to prevent Content-Length mismatches
-                    logger.info(f"[SECURE_FILE] Using streaming response for file: {filename}")
-                    
-                    def generate():
-                        try:
-                            with open(target_file_path_for_send, 'rb') as f:
-                                chunk_size = 4096  # 4KB chunks
-                                total_sent = 0
-                                while True:
-                                    chunk = f.read(chunk_size)
-                                    if not chunk:
-                                        break
-                                    total_sent += len(chunk)
-                                    logger.debug(f"[SECURE_FILE] Streaming chunk: {len(chunk)} bytes, total sent: {total_sent}/{file_size}")
-                                    yield chunk
-                                logger.info(f"[SECURE_FILE] Streaming completed: {total_sent}/{file_size} bytes sent")
-                        except Exception as e:
-                            logger.error(f"[SECURE_FILE] Error during streaming: {e}")
-                            raise
-                    
-                    response = Response(
-                        generate(),
-                        mimetype=mimetype,
-                        headers={
-                            'Content-Length': str(file_size),
-                            'Content-Disposition': f'inline; filename="{os.path.basename(filename)}"',
-                            'Accept-Ranges': 'bytes',
-                            'Cache-Control': 'no-cache, no-store, must-revalidate',
-                            'Pragma': 'no-cache',
-                            'Expires': '0',
-                            'X-Content-Type-Options': 'nosniff',
-                            'Connection': 'close'
-                        }
-                    )
-                    return response
-                except Exception as send_error:
-                    logger.error(f"[SECURE_FILE] Error serving file: {send_error}")
-                    return jsonify({"message": "Error serving file"}), 500
-                    
-        finally:
-            release_db_connection(conn)
     except Exception as e:
         logger.error(f"[SECURE_FILE] Error in secure file access for '{filename}' (repr: {repr(filename)}): {e}", exc_info=True)
         return jsonify({"message": "Error accessing file"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+
+@app.route('/api/paperless-file/<int:paperless_id>', methods=['GET'])
+@token_required
+def serve_paperless_document(paperless_id: int):
+    """Serve a document from Paperless-ngx"""
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user.get('is_admin', False)
+        
+        # Get database connection
+        conn = get_db_connection()
+        
+        # Find warranty that has this Paperless document ID
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT w.id, w.user_id
+                FROM warranties w
+                WHERE w.paperless_invoice_id = %s OR w.paperless_manual_id = %s 
+                   OR w.paperless_photo_id = %s OR w.paperless_other_id = %s
+            """, (paperless_id, paperless_id, paperless_id, paperless_id))
+            
+            results = cur.fetchall()
+            
+            if not results:
+                logger.warning(f"[PAPERLESS_FILE] No warranty found with Paperless document ID {paperless_id}")
+                return jsonify({"message": "Document not found"}), 404
+            
+            # Check authorization
+            authorized = is_admin
+            if not authorized:
+                for warranty_id_db, warranty_user_id_db in results:
+                    if warranty_user_id_db == user_id:
+                        authorized = True
+                        break
+            
+            # Check global view for photos
+            if not authorized:
+                cur.execute("""
+                    SELECT w.id, w.user_id
+                    FROM warranties w
+                    WHERE w.paperless_photo_id = %s
+                """, (paperless_id,))
+                photo_results = cur.fetchall()
+                
+                if photo_results:
+                    # Get global view settings
+                    cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+                    settings = {row[0]: row[1] for row in cur.fetchall()}
+                    
+                    global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+                    admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+                    
+                    if global_view_enabled and (not admin_only or is_admin):
+                        authorized = True
+            
+            if not authorized:
+                logger.warning(f"[PAPERLESS_FILE] Unauthorized access to Paperless document {paperless_id} by user {user_id}")
+                return jsonify({"message": "You are not authorized to access this document"}), 403
+        
+        # Get Paperless handler and retrieve document
+        paperless_handler = get_paperless_handler(conn)
+        if not paperless_handler:
+            return jsonify({"message": "Paperless-ngx integration not available"}), 503
+        
+        # Get document from Paperless-ngx
+        success, content, message, content_type = paperless_handler.get_document_preview(paperless_id)
+        
+        if not success:
+            logger.error(f"[PAPERLESS_FILE] Failed to retrieve document {paperless_id}: {message}")
+            return jsonify({"message": message}), 404
+        
+        # Stream the document content
+        def generate():
+            chunk_size = 4096
+            total_sent = 0
+            remaining = len(content)
+            
+            while remaining > 0:
+                chunk_size_actual = min(chunk_size, remaining)
+                chunk = content[total_sent:total_sent + chunk_size_actual]
+                total_sent += chunk_size_actual
+                remaining -= chunk_size_actual
+                yield chunk
+        
+        # Return streaming response
+        response = Response(
+            generate(),
+            mimetype=content_type or 'application/octet-stream',
+            headers={
+                'Content-Length': str(len(content)),
+                'Content-Disposition': f'inline; filename="paperless_document_{paperless_id}"',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'X-Content-Type-Options': 'nosniff'
+            }
+        )
+        
+        logger.info(f"[PAPERLESS_FILE] Successfully served Paperless document {paperless_id} to user {user_id}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"[PAPERLESS_FILE] Error serving Paperless document {paperless_id}: {e}")
+        return jsonify({"message": "Error retrieving document"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 
 
@@ -3910,3 +4149,418 @@ def fix_owner_role():
     except Exception as e:
         logger.error(f"Error in fix_owner_role endpoint: {e}")
         return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
+# ============================
+# Paperless-ngx Integration Routes
+# ============================
+
+@app.route('/api/paperless/upload', methods=['POST'])
+@token_required
+def paperless_upload():
+    """
+    Proxy endpoint to upload files to Paperless-ngx
+    """
+    conn = None
+    try:
+        logger.info("Paperless upload endpoint called")
+        
+        # Get Paperless handler
+        conn = get_db_connection()
+        logger.info("Database connection acquired")
+        
+        paperless_handler = get_paperless_handler(conn)
+        logger.info(f"Paperless handler: {paperless_handler is not None}")
+        
+        if not paperless_handler:
+            logger.warning("Paperless handler is None - integration not configured")
+            return jsonify({"error": "Paperless-ngx integration is not enabled or configured"}), 400
+        
+        # Validate file upload
+        logger.info(f"Request files keys: {list(request.files.keys())}")
+        if 'file' not in request.files:
+            logger.warning("No 'file' key in request.files")
+            return jsonify({"error": "No file provided"}), 400
+        
+        uploaded_file = request.files['file']
+        logger.info(f"Uploaded file: filename='{uploaded_file.filename}', content_type='{uploaded_file.content_type}'")
+        
+        if uploaded_file.filename == '':
+            logger.warning("Empty filename")
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Validate file type
+        if not allowed_file(uploaded_file.filename):
+            logger.warning(f"File type not allowed: {uploaded_file.filename}")
+            return jsonify({"error": "File type not allowed"}), 400
+        
+        # Get additional metadata
+        title = request.form.get('title', uploaded_file.filename)
+        document_type = request.form.get('document_type', 'warranty_document')
+        logger.info(f"Upload metadata: title='{title}', document_type='{document_type}'")
+        
+        # Add Warracker-specific tags
+        tags = ['warracker', document_type]
+        if request.form.get('warranty_id'):
+            tags.append(f"warranty_{request.form.get('warranty_id')}")
+        logger.info(f"Upload tags: {tags}")
+        
+        # Read file content
+        try:
+            file_content = uploaded_file.read()
+            logger.info(f"File content read successfully: {len(file_content)} bytes")
+        except Exception as file_read_error:
+            logger.error(f"Error reading file content: {file_read_error}")
+            return jsonify({"error": f"Error reading file: {str(file_read_error)}"}), 400
+        
+        # Upload to Paperless-ngx
+        logger.info("Starting upload to Paperless-ngx")
+        try:
+            success, document_id, message = paperless_handler.upload_document(
+                file_content=file_content,
+                filename=uploaded_file.filename,
+                title=title,
+                tags=tags,
+                correspondent="Warracker"
+            )
+            logger.info(f"Upload result: success={success}, document_id={document_id}, message='{message}'")
+        except Exception as upload_error:
+            logger.error(f"Error during paperless upload: {upload_error}")
+            return jsonify({"error": f"Upload to Paperless-ngx failed: {str(upload_error)}"}), 500
+        
+        if success:
+            logger.info("Upload successful")
+            return jsonify({
+                "success": True,
+                "document_id": document_id,
+                "message": message
+            }), 200
+        else:
+            logger.warning(f"Upload failed: {message}")
+            return jsonify({
+                "success": False,
+                "error": message
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error in Paperless upload proxy: {e}", exc_info=True)
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/test', methods=['POST'])
+@admin_required
+def test_paperless_connection():
+    """
+    Test connection to Paperless-ngx instance
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({"error": "Paperless-ngx integration is not enabled or configured"}), 400
+        
+        success, message = paperless_handler.test_connection()
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "message": message
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": message
+            }), 400
+        
+    except Exception as e:
+        logger.error(f"Error testing Paperless connection: {e}")
+        return jsonify({"error": "Connection test failed"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/search', methods=['GET'])
+@token_required
+def paperless_search():
+    """
+    Search documents in Paperless-ngx
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({"error": "Paperless-ngx integration not available"}), 400
+        
+        query = request.args.get('q', '')
+        limit = min(int(request.args.get('limit', 25)), 100)
+        
+        success, documents, message = paperless_handler.search_documents(query, limit)
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "documents": documents,
+                "message": message
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": message
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error in Paperless search: {e}")
+        return jsonify({"error": "Search failed"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/debug', methods=['GET'])
+@token_required
+def paperless_debug():
+    """
+    Debug endpoint to test Paperless-ngx configuration
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        
+        # Check database settings
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT key, value FROM site_settings 
+                WHERE key IN ('paperless_enabled', 'paperless_url', 'paperless_api_token')
+            """)
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+        
+        debug_info = {
+            "paperless_enabled": settings.get('paperless_enabled', 'false'),
+            "paperless_url": settings.get('paperless_url', ''),
+            "paperless_api_token_set": bool(settings.get('paperless_api_token', '').strip()),
+            "paperless_handler_available": False,
+            "test_connection_result": None
+        }
+        
+        # Try to get paperless handler
+        try:
+            paperless_handler = get_paperless_handler(conn)
+            debug_info["paperless_handler_available"] = paperless_handler is not None
+            
+            if paperless_handler:
+                # Test connection
+                try:
+                    success, message = paperless_handler.test_connection()
+                    debug_info["test_connection_result"] = {
+                        "success": success,
+                        "message": message
+                    }
+                except Exception as test_error:
+                    debug_info["test_connection_result"] = {
+                        "success": False,
+                        "error": str(test_error)
+                    }
+        except Exception as handler_error:
+            debug_info["paperless_handler_error"] = str(handler_error)
+        
+        return jsonify(debug_info), 200
+        
+    except Exception as e:
+        logger.error(f"Error in Paperless debug: {e}")
+        return jsonify({"error": f"Debug failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/test-upload', methods=['POST'])
+@token_required
+def test_file_upload():
+    """
+    Test file upload mechanism without Paperless-ngx
+    """
+    try:
+        logger.info("Test upload endpoint called")
+        logger.info(f"Request files keys: {list(request.files.keys())}")
+        logger.info(f"Request form keys: {list(request.form.keys())}")
+        
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        uploaded_file = request.files['file']
+        logger.info(f"File: {uploaded_file.filename}, size: {uploaded_file.content_length}, type: {uploaded_file.content_type}")
+        
+        # Read file content to test
+        file_content = uploaded_file.read()
+        logger.info(f"Successfully read {len(file_content)} bytes")
+        
+        return jsonify({
+            "success": True,
+            "message": "File upload test successful",
+            "file_info": {
+                "filename": uploaded_file.filename,
+                "size": len(file_content),
+                "content_type": uploaded_file.content_type
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Test upload error: {e}", exc_info=True)
+        return jsonify({"error": f"Test upload failed: {str(e)}"}), 500
+
+@app.route('/api/paperless/debug-document/<int:document_id>', methods=['GET'])
+@token_required
+def paperless_debug_document(document_id: int):
+    """
+    Debug endpoint to check status of a specific Paperless-ngx document
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({"error": "Paperless-ngx integration not available"}), 400
+        
+        # Get debug information about the document
+        debug_info = paperless_handler.debug_document_status(document_id)
+        
+        # Also check if this document ID exists in our database
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT w.id, w.product_name, w.user_id,
+                       CASE 
+                           WHEN w.paperless_invoice_id = %s THEN 'invoice'
+                           WHEN w.paperless_manual_id = %s THEN 'manual'
+                           WHEN w.paperless_photo_id = %s THEN 'photo'
+                           WHEN w.paperless_other_id = %s THEN 'other'
+                           ELSE 'unknown'
+                       END as document_type
+                FROM warranties w
+                WHERE w.paperless_invoice_id = %s OR w.paperless_manual_id = %s 
+                   OR w.paperless_photo_id = %s OR w.paperless_other_id = %s
+            """, (document_id, document_id, document_id, document_id, 
+                  document_id, document_id, document_id, document_id))
+            
+            db_results = cur.fetchall()
+            debug_info['database_references'] = [
+                {
+                    'warranty_id': row[0],
+                    'product_name': row[1],
+                    'user_id': row[2],
+                    'document_type': row[3]
+                }
+                for row in db_results
+            ]
+        
+        return jsonify(debug_info), 200
+        
+    except Exception as e:
+        logger.error(f"Error in Paperless document debug: {e}")
+        return jsonify({"error": f"Debug failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/cleanup-invalid', methods=['POST'])
+@token_required
+def cleanup_invalid_paperless_documents():
+    """
+    Clean up invalid Paperless-ngx document references from the database
+    """
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user.get('is_admin', False)
+        
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({"error": "Paperless-ngx integration not available"}), 400
+        
+        cleanup_results = {
+            'checked': 0,
+            'invalid_found': 0,
+            'cleaned_up': 0,
+            'errors': []
+        }
+        
+        with conn.cursor() as cur:
+            # Get all Paperless document IDs for this user (or all if admin)
+            if is_admin:
+                cur.execute("""
+                    SELECT id, product_name, paperless_invoice_id, paperless_manual_id, 
+                           paperless_photo_id, paperless_other_id
+                    FROM warranties 
+                    WHERE paperless_invoice_id IS NOT NULL 
+                       OR paperless_manual_id IS NOT NULL 
+                       OR paperless_photo_id IS NOT NULL 
+                       OR paperless_other_id IS NOT NULL
+                """)
+            else:
+                cur.execute("""
+                    SELECT id, product_name, paperless_invoice_id, paperless_manual_id, 
+                           paperless_photo_id, paperless_other_id
+                    FROM warranties 
+                    WHERE user_id = %s 
+                      AND (paperless_invoice_id IS NOT NULL 
+                           OR paperless_manual_id IS NOT NULL 
+                           OR paperless_photo_id IS NOT NULL 
+                           OR paperless_other_id IS NOT NULL)
+                """, (user_id,))
+            
+            warranties = cur.fetchall()
+            
+            for warranty in warranties:
+                warranty_id, product_name, invoice_id, manual_id, photo_id, other_id = warranty
+                
+                # Check each document ID
+                document_fields = [
+                    ('paperless_invoice_id', invoice_id),
+                    ('paperless_manual_id', manual_id),
+                    ('paperless_photo_id', photo_id),
+                    ('paperless_other_id', other_id)
+                ]
+                
+                for field_name, doc_id in document_fields:
+                    if doc_id is not None:
+                        cleanup_results['checked'] += 1
+                        
+                        try:
+                            if not paperless_handler.document_exists(doc_id):
+                                cleanup_results['invalid_found'] += 1
+                                logger.info(f"Found invalid Paperless document ID {doc_id} in warranty {warranty_id} ({product_name})")
+                                
+                                # Clear the invalid reference
+                                cur.execute(f"""
+                                    UPDATE warranties 
+                                    SET {field_name} = NULL 
+                                    WHERE id = %s
+                                """, (warranty_id,))
+                                
+                                cleanup_results['cleaned_up'] += 1
+                                logger.info(f"Cleaned up invalid {field_name} reference for warranty {warranty_id}")
+                                
+                        except Exception as e:
+                            error_msg = f"Error checking document {doc_id}: {str(e)}"
+                            cleanup_results['errors'].append(error_msg)
+                            logger.error(error_msg)
+            
+            conn.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Cleanup complete. Checked {cleanup_results['checked']} documents, found {cleanup_results['invalid_found']} invalid, cleaned up {cleanup_results['cleaned_up']}.",
+            "details": cleanup_results
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error in Paperless cleanup: {e}")
+        return jsonify({"error": f"Cleanup failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)

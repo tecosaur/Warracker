@@ -45,6 +45,7 @@ COPY backend/extensions.py /app/backend/
 COPY backend/oidc_handler.py /app/backend/
 COPY backend/apprise_handler.py /app/backend/
 COPY backend/notifications.py /app/backend/
+COPY backend/paperless_handler.py /app/backend/
 
 # Copy other utility scripts and migrations
 COPY backend/fix_permissions.py .

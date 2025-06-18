@@ -442,8 +442,31 @@
                                 </div>
                                 <!-- Documents Tab -->
                                 <div class="tab-content" id="documents">
+                                    <!-- Paperless-ngx Info Alert (hidden by default, shown when enabled) -->
+                                    <div id="paperlessInfoAlert" class="alert alert-info" style="display: none;">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Paperless-ngx Integration Enabled!</strong> You can now choose to store documents in your Paperless-ngx instance instead of locally.
+                                    </div>
+                                    
                                     <div class="form-group">
                                         <label>Product Photo (Optional)</label>
+                                        <!-- Storage Selection -->
+                                        <div id="productPhotoStorageSelection" class="storage-selection" style="display: none;">
+                                            <div class="storage-options">
+                                                <label class="storage-option">
+                                                    <input type="radio" name="productPhotoStorage" value="local" checked>
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                    </span>
+                                                </label>
+                                                <label class="storage-option">
+                                                    <input type="radio" name="productPhotoStorage" value="paperless">
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="productPhoto" class="file-input-label">
                                                 <i class="fas fa-camera"></i> Choose Photo
@@ -458,6 +481,23 @@
                                     
                                     <div class="form-group">
                                         <label>Invoice/Receipt</label>
+                                        <!-- Storage Selection -->
+                                        <div id="invoiceStorageSelection" class="storage-selection" style="display: none;">
+                                            <div class="storage-options">
+                                                <label class="storage-option">
+                                                    <input type="radio" name="invoiceStorage" value="local" checked>
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                    </span>
+                                                </label>
+                                                <label class="storage-option">
+                                                    <input type="radio" name="invoiceStorage" value="paperless">
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="invoice" class="file-input-label">
                                                 <i class="fas fa-upload"></i> Choose File
@@ -469,6 +509,23 @@
                                     
                                     <div class="form-group">
                                         <label>Product Manual (Optional)</label>
+                                        <!-- Storage Selection -->
+                                        <div id="manualStorageSelection" class="storage-selection" style="display: none;">
+                                            <div class="storage-options">
+                                                <label class="storage-option">
+                                                    <input type="radio" name="manualStorage" value="local" checked>
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                    </span>
+                                                </label>
+                                                <label class="storage-option">
+                                                    <input type="radio" name="manualStorage" value="paperless">
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="manual" class="file-input-label">
                                                 <i class="fas fa-upload"></i> Choose File
@@ -479,6 +536,23 @@
                                     </div>
                                     <div class="form-group">
                                         <label>Files (ZIP/RAR, Optional)</label>
+                                        <!-- Storage Selection -->
+                                        <div id="otherDocumentStorageSelection" class="storage-selection" style="display: none;">
+                                            <div class="storage-options">
+                                                <label class="storage-option">
+                                                    <input type="radio" name="otherDocumentStorage" value="local" checked>
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                    </span>
+                                                </label>
+                                                <label class="storage-option">
+                                                    <input type="radio" name="otherDocumentStorage" value="paperless">
+                                                    <span class="storage-label">
+                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="otherDocument" class="file-input-label">
                                                 <i class="fas fa-upload"></i> Choose File
@@ -760,6 +834,23 @@
                     <div class="edit-tab-content" id="edit-documents">
                         <div class="form-group">
                             <label>Product Photo (Optional)</label>
+                            <!-- Storage Selection -->
+                            <div id="editProductPhotoStorageSelection" class="storage-selection" style="display: none;">
+                                <div class="storage-options">
+                                    <label class="storage-option">
+                                        <input type="radio" name="editProductPhotoStorage" value="local" checked>
+                                        <span class="storage-label">
+                                            <i class="fas fa-hdd"></i> Store Locally
+                                        </span>
+                                    </label>
+                                    <label class="storage-option">
+                                        <input type="radio" name="editProductPhotoStorage" value="paperless">
+                                        <span class="storage-label">
+                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editProductPhoto" class="file-input-label">
                                     <i class="fas fa-camera"></i> Choose Photo
@@ -776,6 +867,23 @@
                         
                         <div class="form-group">
                             <label>Invoice/Receipt</label>
+                            <!-- Storage Selection -->
+                            <div id="editInvoiceStorageSelection" class="storage-selection" style="display: none;">
+                                <div class="storage-options">
+                                    <label class="storage-option">
+                                        <input type="radio" name="editInvoiceStorage" value="local" checked>
+                                        <span class="storage-label">
+                                            <i class="fas fa-hdd"></i> Store Locally
+                                        </span>
+                                    </label>
+                                    <label class="storage-option">
+                                        <input type="radio" name="editInvoiceStorage" value="paperless">
+                                        <span class="storage-label">
+                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editInvoice" class="file-input-label">
                                     <i class="fas fa-upload"></i> Choose File
@@ -789,6 +897,23 @@
                         
                         <div class="form-group">
                             <label>Product Manual (Optional)</label>
+                            <!-- Storage Selection -->
+                            <div id="editManualStorageSelection" class="storage-selection" style="display: none;">
+                                <div class="storage-options">
+                                    <label class="storage-option">
+                                        <input type="radio" name="editManualStorage" value="local" checked>
+                                        <span class="storage-label">
+                                            <i class="fas fa-hdd"></i> Store Locally
+                                        </span>
+                                    </label>
+                                    <label class="storage-option">
+                                        <input type="radio" name="editManualStorage" value="paperless">
+                                        <span class="storage-label">
+                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editManual" class="file-input-label">
                                     <i class="fas fa-upload"></i> Choose File
@@ -801,6 +926,23 @@
                         </div>
                         <div class="form-group">
                             <label>Files (ZIP/RAR, Optional)</label>
+                            <!-- Storage Selection -->
+                            <div id="editOtherDocumentStorageSelection" class="storage-selection" style="display: none;">
+                                <div class="storage-options">
+                                    <label class="storage-option">
+                                        <input type="radio" name="editOtherDocumentStorage" value="local" checked>
+                                        <span class="storage-label">
+                                            <i class="fas fa-hdd"></i> Store Locally
+                                        </span>
+                                    </label>
+                                    <label class="storage-option">
+                                        <input type="radio" name="editOtherDocumentStorage" value="paperless">
+                                        <span class="storage-label">
+                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editOtherDocument" class="file-input-label">
                                     <i class="fas fa-upload"></i> Choose File
@@ -900,7 +1042,7 @@
     </div>
     
     <script src="auth.js"></script>
-    <script src="script.js?v=20250529005"></script>
+    <script src="script.js?v=20250617007"></script>
 
     <!-- Footer Width Fix -->
     <script src="footer-fix.js"></script>
