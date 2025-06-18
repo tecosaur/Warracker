@@ -40,24 +40,28 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 **Warracker** is a web-based application that simplifies the management of product warranties. It allows users to organize warranty information, monitor expiration dates, and securely store related documents.
 
 
-## Features
+## 🔑 Key Features
 
-* **Centralized Management**: Track all your product warranties in one place.
-* **Detailed Records**: Store purchase dates, durations, notes, and product photos with thumbnail previews.
-* **Document Storage**: Upload receipts, invoices, and manuals securely.
-* **Proactive Alerts**: Receive configurable notifications for upcoming expirations via email and/or 100+ push notification services (e.g., Discord, Slack, Telegram) powered by Apprise integration.
-* **Quick Search and Filter**: Find warranties by product name, serial number, vendor, tags, warranty type, or notes with case-insensitive filtering and real-time sorting.
-* **Multiple serial numbers**: Add multiple serial numbers on one product.
-* **Global Warranty View**: All authenticated users can now view warranties across the entire user base with appropriate read-only or edit permissions; admins retain full control.
-* **Multi-User Support**: Create multiple user accounts with advanced admin controls, including toggles for site-wide global view access.
-* **Data Export/Import**: Export to CSV or import from CSV files for easy data portability.
-* **Customizable Settings**: Adjust currency symbols, date formats, and notification preferences including notification timing and branding.
-* **Tagging**: Organize warranties flexibly with tags for easy categorization.
-* **Password Reset**: Secure, token-based account recovery system.
-* **OIDC Single Sign-On (SSO)**: Seamlessly log in using identity providers like Google, GitHub, or Keycloak.
-* **Status Dashboard with Global View**: Monitor warranty statistics and analytics for your account or all users (for eligible roles), with charts and detailed tables.
-* **Responsive and Enhanced UI**: Modern, mobile-friendly interfaces with improved tooltips, admin controls.
-* **Paperless-ngx Integration**: Seamlessly store and manage warranty documents in Paperless-ngx with per-file storage selection, visual indicators, automatic cleanup, and direct access from within Warracker.
+| **Feature**                      | **Description**                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 🗃️ **Centralized Management**   | Track all your product warranties in one place                                                           |
+| 🧾 **Detailed Records**          | Store purchase dates, durations, notes, and product photos with thumbnail previews                       |
+| 📄 **Document Storage**          | Upload receipts, invoices, and manuals securely                                                          |
+| 🔔 **Proactive Alerts**          | Get alerts for upcoming expirations via email or 100+ push services (Discord, Slack, etc.) using Apprise |
+| 🔍 **Quick Search and Filter**   | Search by product name, serial number, vendor, tags, and more with real-time filtering                   |
+| #️⃣ **Multiple Serial Numbers**  | Add and manage multiple serial numbers per product                                                       |
+| 🌍 **Global Warranty View**      | Authenticated users can view global warranty data with role-based permissions                            |
+| 👥 **Multi-User Support**        | Manage multiple accounts with admin controls and global access toggles                                   |
+| 📤 **Data Export/Import**        | Import/export warranty data via CSV                                                                      |
+| ⚙️ **Customizable Settings**     | Configure currency, date formats, notification timing, and branding                                      |
+| 🏷️ **Tagging**                  | Organize warranties using custom tags                                                                    |
+| 🔐 **Password Reset**            | Token-based, secure account recovery system                                                              |
+| 🔑 **OIDC SSO**                  | Single sign-on with providers like Google, GitHub, and Keycloak                                          |
+| 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
+| 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
+| 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
+
+---
 
 
 ## Project Status
