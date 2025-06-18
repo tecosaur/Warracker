@@ -57,6 +57,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 * **OIDC Single Sign-On (SSO)**: Seamlessly log in using identity providers like Google, GitHub, or Keycloak.
 * **Status Dashboard with Global View**: Monitor warranty statistics and analytics for your account or all users (for eligible roles), with charts and detailed tables.
 * **Responsive and Enhanced UI**: Modern, mobile-friendly interfaces with improved tooltips, admin controls.
+* **Paperless-ngx Integration**: Seamlessly store and manage warranty documents in Paperless-ngx with per-file storage selection, visual indicators, automatic cleanup, and direct access from within Warracker.
 
 
 ## Project Status
