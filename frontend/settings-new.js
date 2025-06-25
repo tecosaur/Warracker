@@ -106,6 +106,7 @@ const dateFormatSelect = document.getElementById('dateFormat');
 const paperlessEnabledToggle = document.getElementById('paperlessEnabled');
 const paperlessUrlInput = document.getElementById('paperlessUrl');
 const paperlessApiTokenInput = document.getElementById('paperlessApiToken');
+const paperlessViewInAppToggle = document.getElementById('paperlessViewInApp');
 const paperlessSettingsContainer = document.getElementById('paperlessSettingsContainer');
 const testPaperlessConnectionBtn = document.getElementById('testPaperlessConnectionBtn');
 const savePaperlessSettingsBtn = document.getElementById('savePaperlessSettingsBtn');
@@ -773,6 +774,16 @@ async function loadPreferences() {
         console.log(`${prefix}expiringSoonDays not found, defaulting to 30`);
     }
 
+    // Paperless View in App
+    const storedPaperlessViewInApp = localStorage.getItem(`${prefix}paperlessViewInApp`);
+    if (storedPaperlessViewInApp !== null && paperlessViewInAppToggle) {
+        paperlessViewInAppToggle.checked = storedPaperlessViewInApp === 'true';
+        console.log(`Loaded Paperless view in app from ${prefix}paperlessViewInApp: ${storedPaperlessViewInApp}`);
+    } else if (paperlessViewInAppToggle) {
+        paperlessViewInAppToggle.checked = false; // Default
+        console.log(`${prefix}paperlessViewInApp not found, defaulting to false`);
+    }
+
     // Apply API preferences to form elements (apiPrefs already loaded above)
     if (apiPrefs) {
         console.log('Applying API preferences to form elements:', apiPrefs);
@@ -840,6 +851,13 @@ async function loadPreferences() {
                      }
                  }
                  // --- End Date Format Check ---
+
+                 // --- Update Paperless View in App from API Prefs ---
+                 if (apiPrefs.paperless_view_in_app !== undefined && paperlessViewInAppToggle) {
+                     paperlessViewInAppToggle.checked = apiPrefs.paperless_view_in_app;
+                     console.log(`Set Paperless view in app from API: ${apiPrefs.paperless_view_in_app}`);
+                 }
+                 // --- End Paperless View in App from API Prefs ---
 
                 // Update Email Settings from API
                 if (notificationChannel) {
@@ -1416,6 +1434,7 @@ async function savePreferences() {
         expiring_soon_days: expiringSoonDaysInput ? parseInt(expiringSoonDaysInput.value) : 30,
         date_format: dateFormatSelect ? dateFormatSelect.value : 'MDY',
         theme: isDark ? 'dark' : 'light',  // Use current UI state, not old localStorage
+        paperless_view_in_app: paperlessViewInAppToggle ? paperlessViewInAppToggle.checked : false,
     };
 
     // Handle currency symbol (standard or custom)
@@ -1465,6 +1484,7 @@ async function savePreferences() {
     localStorage.setItem(`${prefix}currencyCode`, currencyCode); // Save currency code
     localStorage.setItem(`${prefix}currencyPosition`, preferencesToSave.currency_position);
     localStorage.setItem(`${prefix}expiringSoonDays`, preferencesToSave.expiring_soon_days);
+    localStorage.setItem(`${prefix}paperlessViewInApp`, preferencesToSave.paperless_view_in_app);
 
     console.log('Preferences saved to localStorage (prefix:', prefix, '):', preferencesToSave);
     console.log(`Value of dateFormat in localStorage: ${localStorage.getItem('dateFormat')}`);
@@ -4582,6 +4602,7 @@ async function savePaperlessSettings() {
             settingsData.paperless_api_token = apiToken;
         }
         
+        // Save admin settings first
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
@@ -4596,7 +4617,28 @@ async function savePaperlessSettings() {
             throw new Error(errorData.message || 'Failed to save Paperless-ngx settings');
         }
 
-        const result = await response.json();
+        // Also save the user preference for viewing documents in app
+        const paperlessViewInApp = paperlessViewInAppToggle ? paperlessViewInAppToggle.checked : false;
+        const preferencesData = {
+            paperless_view_in_app: paperlessViewInApp
+        };
+        
+        const preferencesResponse = await fetch('/api/auth/preferences', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(preferencesData)
+        });
+
+        if (!preferencesResponse.ok) {
+            console.warn('Failed to save paperless view preference, but admin settings were saved');
+        }
+        
+        // Update localStorage for the preference
+        const prefix = getPreferenceKeyPrefix();
+        localStorage.setItem(`${prefix}paperlessViewInApp`, paperlessViewInApp);
         
         showToast('Paperless-ngx settings saved successfully!', 'success');
         

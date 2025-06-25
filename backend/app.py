@@ -42,6 +42,7 @@ import csv  # Added for CSV import
 import io   # Added for CSV import
 from dateutil.relativedelta import relativedelta
 import mimetypes
+import requests
 
 app = Flask(__name__)
 
@@ -1213,21 +1214,25 @@ def update_warranty(warranty_id):
                 sql_values.append(db_invoice_path)
             elif 'delete_invoice' in request.form and request.form.get('delete_invoice', 'false').lower() == 'true':
                 sql_fields.append("invoice_path = NULL")
+                sql_fields.append("paperless_invoice_id = NULL")  # Also clear Paperless ID
             if db_manual_path is not None:
                 sql_fields.append("manual_path = %s")
                 sql_values.append(db_manual_path)
             elif 'delete_manual' in request.form and request.form.get('delete_manual', 'false').lower() == 'true':
                 sql_fields.append("manual_path = NULL")
+                sql_fields.append("paperless_manual_id = NULL")  # Also clear Paperless ID
             if db_other_document_path is not None:
                 sql_fields.append("other_document_path = %s")
                 sql_values.append(db_other_document_path)
             elif 'delete_other_document' in request.form and request.form.get('delete_other_document', 'false').lower() == 'true':
                 sql_fields.append("other_document_path = NULL")
+                sql_fields.append("paperless_other_id = NULL")  # Also clear Paperless ID
             if db_product_photo_path is not None:
                 sql_fields.append("product_photo_path = %s")
                 sql_values.append(db_product_photo_path)
             elif 'delete_product_photo' in request.form and request.form.get('delete_product_photo', 'false').lower() == 'true':
                 sql_fields.append("product_photo_path = NULL")
+                sql_fields.append("paperless_photo_id = NULL")  # Also clear Paperless ID
 
             # Handle Paperless-ngx document IDs
             if paperless_invoice_id is not None:
@@ -4294,28 +4299,117 @@ def paperless_search():
         paperless_handler = get_paperless_handler(conn)
         
         if not paperless_handler:
-            return jsonify({"error": "Paperless-ngx integration not available"}), 400
+            return jsonify({'success': False, 'message': 'Paperless-ngx not configured'}), 400
         
-        query = request.args.get('q', '')
-        limit = min(int(request.args.get('limit', 25)), 100)
+        # Get query parameters
+        ordering = request.args.get('ordering', '-created')
+        created_gte = request.args.get('created__gte')
+        search_query = request.args.get('query', '')
         
-        success, documents, message = paperless_handler.search_documents(query, limit)
+        # Get pagination parameters (support both old and new formats)
+        limit = request.args.get('limit', request.args.get('page_size', '25'))
+        offset = request.args.get('offset', '0')
+        page = request.args.get('page', '1')
         
-        if success:
-            return jsonify({
-                "success": True,
-                "documents": documents,
-                "message": message
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "error": message
-            }), 500
+        # Calculate page from offset if needed
+        try:
+            limit_int = int(limit)
+            offset_int = int(offset)
+            if offset_int > 0:
+                page = str((offset_int // limit_int) + 1)
+        except (ValueError, ZeroDivisionError):
+            page = '1'
+            limit = '25'
+        
+        # Build search URL using paperless handler's configuration
+        search_url = f"{paperless_handler.base_url.rstrip('/')}/api/documents/"
+        params = {
+            'ordering': ordering,
+            'page_size': limit,
+            'page': page
+        }
+        
+        if created_gte:
+            # Convert ISO format to Paperless-ngx expected format
+            # Remove 'Z' and use format that Paperless-ngx accepts
+            try:
+                from datetime import datetime, timezone
+                # Parse the ISO format and convert to YYYY-MM-DD format
+                dt = datetime.fromisoformat(created_gte.replace('Z', '+00:00'))
+                # Use date only format for better compatibility
+                params['created__gte'] = dt.strftime('%Y-%m-%d')
+                logger.info(f"Converted date filter from {created_gte} to {params['created__gte']}")
+            except Exception as date_error:
+                logger.warning(f"Could not parse date {created_gte}: {date_error}")
+                # Fallback: use today's date
+                from datetime import datetime
+                params['created__gte'] = datetime.now().strftime('%Y-%m-%d')
+        if search_query:
+            params['query'] = search_query
+            
+        # Add document type filter
+        document_type = request.args.get('document_type', '')
+        if document_type:
+            params['document_type'] = document_type
+            
+        # Add tag filter
+        tags_filter = request.args.get('tags__id__in', '')
+        if tags_filter:
+            params['tags__id__in'] = tags_filter
+            
+        logger.info(f"Searching Paperless documents with params: {params}")
+        
+        # Make request to Paperless-ngx using the session from paperless handler
+        response = paperless_handler.session.get(
+            search_url,
+            params=params,
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        search_result = response.json()
+        
+        logger.info(f"Paperless search returned {len(search_result.get('results', []))} documents")
+        
+        return jsonify(search_result)
         
     except Exception as e:
-        logger.error(f"Error in Paperless search: {e}")
-        return jsonify({"error": "Search failed"}), 500
+        logger.error(f"Error searching Paperless documents: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless/tags', methods=['GET'])
+@token_required
+def paperless_tags():
+    """
+    Get tags from Paperless-ngx
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({'success': False, 'message': 'Paperless-ngx integration not available'}), 400
+        
+        # Make request to Paperless-ngx tags endpoint
+        response = paperless_handler.session.get(
+            f"{paperless_handler.paperless_url}/api/tags/",
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        tags_result = response.json()
+        
+        logger.info(f"Paperless tags returned {len(tags_result.get('results', []))} tags")
+        
+        return jsonify(tags_result)
+        
+    except Exception as e:
+        logger.error(f"Error fetching Paperless tags: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         if conn:
             release_db_connection(conn)
@@ -4561,6 +4655,129 @@ def cleanup_invalid_paperless_documents():
     except Exception as e:
         logger.error(f"Error in Paperless cleanup: {e}")
         return jsonify({"error": f"Cleanup failed: {str(e)}"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/paperless-search-and-link', methods=['POST'])
+@token_required
+def paperless_search_and_link():
+    """Search for a Paperless document by title and link it to a warranty."""
+
+    conn = None  # Single connection for the full request lifecycle
+    try:
+        logger.info("paperless_search_and_link called by user: %s", request.user)
+
+        data = request.get_json() or {}
+        warranty_id = data.get("warranty_id")
+        document_type = data.get("document_type")  # 'invoice', 'manual', 'photo', 'other'
+        search_title = data.get("search_title")
+
+        logger.info("Search request: warranty_id=%s, document_type=%s, search_title=%s", warranty_id, document_type, search_title)
+
+        if not all([warranty_id, document_type, search_title]):
+            return jsonify({"success": False, "message": "Missing required parameters"}), 400
+
+        # Validate document_type
+        valid_types = {
+            "invoice": "paperless_invoice_id",
+            "manual": "paperless_manual_id",
+            "photo": "paperless_photo_id",
+            "other": "paperless_other_id",
+        }
+
+        if document_type not in valid_types:
+            return jsonify({"success": False, "message": "Invalid document type"}), 400
+
+        # Get DB connection once and reuse it throughout
+        conn = get_db_connection()
+
+        # Obtain Paperless handler (uses same connection to fetch settings)
+        paperless_handler = get_paperless_handler(conn)
+        if not paperless_handler:
+            return jsonify({"success": False, "message": "Paperless-ngx not configured"}), 400
+
+        # Search for the document in Paperless-ngx
+        success, document_id, message = paperless_handler.find_document_by_title(search_title)
+        logger.info("Paperless search result: success=%s, document_id=%s, message=%s", success, document_id, message)
+
+        if not success or not document_id:
+            return jsonify({"success": False, "message": f"Document not found: {message}"}), 404
+
+        # Update warranty with the found document ID
+        db_field = valid_types[document_type]
+
+        with conn.cursor() as cursor:
+            logger.info(
+                "Updating warranty %s field %s with document ID %s for user %s",
+                warranty_id,
+                db_field,
+                document_id,
+                request.user["id"],
+            )
+
+            cursor.execute(
+                f"""
+                UPDATE warranties
+                SET {db_field} = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (document_id, warranty_id, request.user["id"]),
+            )
+
+            if cursor.rowcount == 0:
+                logger.warning("No warranty found with ID %s for user %s", warranty_id, request.user["id"])
+                conn.rollback()
+                return jsonify({"success": False, "message": "Warranty not found or access denied"}), 404
+
+        conn.commit()
+
+        logger.info("Successfully linked document %s to warranty %s", document_id, warranty_id)
+
+        return jsonify({"success": True, "message": "Document linked successfully", "document_id": document_id})
+
+    except Exception as e:
+        logger.error("Error in paperless_search_and_link: %s", e, exc_info=True)
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/test-auth', methods=['POST'])
+@token_required
+def test_auth():
+    """Simple test endpoint to verify authentication is working"""
+    try:
+        logger.info(f"test_auth called by user: {request.user}")
+        return jsonify({
+            'success': True,
+            'user': request.user,
+            'message': 'Authentication working'
+        })
+    except Exception as e:
+        logger.error(f"Error in test_auth: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/paperless/url', methods=['GET'])
+@token_required
+def get_paperless_url():
+    """Get the Paperless-ngx base URL for opening documents directly"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        paperless_handler = get_paperless_handler(conn)
+        
+        if not paperless_handler:
+            return jsonify({'success': False, 'message': 'Paperless-ngx not configured'}), 400
+        
+        return jsonify({
+            'success': True,
+            'url': paperless_handler.base_url
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting Paperless URL: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
     finally:
         if conn:
             release_db_connection(conn)

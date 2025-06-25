@@ -821,14 +821,15 @@ def get_preferences():
                     'timezone': 'UTC',
                     'notification_channel': 'email',
                     'currency_symbol': '$',
-                    'date_format': 'MDY'
+                    'date_format': 'MDY',
+                    'paperless_view_in_app': False
                 }
                 return jsonify(default_preferences), 200
             
             # Get user preferences
             cursor.execute("""
                 SELECT email_notifications, default_view, theme, expiring_soon_days, 
-                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position
+                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position, paperless_view_in_app
                 FROM user_preferences 
                 WHERE user_id = %s
             """, (user_id,))
@@ -850,7 +851,8 @@ def get_preferences():
                     'apprise_notification_time': preferences_data[10] if preferences_data[10] else '09:00',
                     'apprise_notification_frequency': preferences_data[11] if preferences_data[11] else 'daily',
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
-                    'currency_position': preferences_data[13] if preferences_data[13] else 'left'
+                    'currency_position': preferences_data[13] if preferences_data[13] else 'left',
+                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False
                 }
             else:
                 # Create default preferences for user
@@ -865,7 +867,8 @@ def get_preferences():
                     'notification_channel': 'email',
                     'currency_symbol': '$',
                     'date_format': 'MDY',
-                    'currency_position': 'left'
+                    'currency_position': 'left',
+                    'paperless_view_in_app': False
                 }
                 preferences = default_preferences
             
@@ -884,7 +887,8 @@ def get_preferences():
                 'notification_channel': 'email',
                 'currency_symbol': '$',
                 'date_format': 'MDY',
-                'currency_position': 'left'
+                'currency_position': 'left',
+                'paperless_view_in_app': False
             }
             return jsonify(default_preferences), 200
         finally:
@@ -904,7 +908,8 @@ def get_preferences():
             'notification_channel': 'email',
             'currency_symbol': '$',
             'date_format': 'MDY',
-            'currency_position': 'left'
+            'currency_position': 'left',
+            'paperless_view_in_app': False
         }
         return jsonify(default_preferences), 200
 
@@ -932,6 +937,7 @@ def update_preferences():
         apprise_notification_frequency = data.get('apprise_notification_frequency')
         timezone = data.get('timezone')
         apprise_timezone = data.get('apprise_timezone')
+        paperless_view_in_app = data.get('paperless_view_in_app')
         
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
@@ -952,6 +958,8 @@ def update_preferences():
             return jsonify({'message': 'Invalid date format'}), 400
         if notification_channel and notification_channel not in ['none', 'email', 'apprise', 'both']:
             return jsonify({'message': 'Invalid notification channel'}), 400
+        if paperless_view_in_app is not None and not isinstance(paperless_view_in_app, bool):
+            return jsonify({'message': 'paperless_view_in_app must be a boolean'}), 400
         
         conn = db_handler.get_db_connection()
         cursor = conn.cursor()
@@ -1005,6 +1013,9 @@ def update_preferences():
                 if apprise_timezone is not None:
                     update_fields.append("apprise_timezone = %s")
                     update_values.append(apprise_timezone)
+                if paperless_view_in_app is not None:
+                    update_fields.append("paperless_view_in_app = %s")
+                    update_values.append(paperless_view_in_app)
                 
                 if update_fields:
                     update_query = f"UPDATE user_preferences SET {', '.join(update_fields)} WHERE user_id = %s"
@@ -1012,16 +1023,16 @@ def update_preferences():
             else:
                 # Insert new preferences
                 cursor.execute("""
-                    INSERT INTO user_preferences (user_id, default_view, theme, expiring_soon_days, currency_symbol, currency_position, date_format, notification_channel, notification_frequency, notification_time, apprise_notification_time, apprise_notification_frequency, timezone, apprise_timezone)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (user_id, default_view or 'grid', theme or 'light', expiring_soon_days or 30, currency_symbol or '$', currency_position or 'left', date_format or 'MDY', notification_channel or 'email', notification_frequency or 'daily', notification_time or '09:00', apprise_notification_time or '09:00', apprise_notification_frequency or 'daily', timezone or 'UTC', apprise_timezone or 'UTC'))
+                    INSERT INTO user_preferences (user_id, default_view, theme, expiring_soon_days, currency_symbol, currency_position, date_format, notification_channel, notification_frequency, notification_time, apprise_notification_time, apprise_notification_frequency, timezone, apprise_timezone, paperless_view_in_app)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (user_id, default_view or 'grid', theme or 'light', expiring_soon_days or 30, currency_symbol or '$', currency_position or 'left', date_format or 'MDY', notification_channel or 'email', notification_frequency or 'daily', notification_time or '09:00', apprise_notification_time or '09:00', apprise_notification_frequency or 'daily', timezone or 'UTC', apprise_timezone or 'UTC', paperless_view_in_app if paperless_view_in_app is not None else False))
             
             conn.commit()
             
             # Return updated preferences
             cursor.execute("""
                 SELECT email_notifications, default_view, theme, expiring_soon_days, 
-                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position
+                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position, paperless_view_in_app
                 FROM user_preferences 
                 WHERE user_id = %s
             """, (user_id,))
@@ -1043,7 +1054,8 @@ def update_preferences():
                     'apprise_notification_time': preferences_data[10] if preferences_data[10] else '09:00',
                     'apprise_notification_frequency': preferences_data[11] if preferences_data[11] else 'daily',
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
-                    'currency_position': preferences_data[13] if preferences_data[13] else 'left'
+                    'currency_position': preferences_data[13] if preferences_data[13] else 'left',
+                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False
                 }
             else:
                 preferences = {
@@ -1060,7 +1072,8 @@ def update_preferences():
                     'currency_position': currency_position or 'left',
                     'apprise_notification_time': apprise_notification_time or '09:00',
                     'apprise_notification_frequency': apprise_notification_frequency or 'daily',
-                    'apprise_timezone': apprise_timezone or 'UTC'
+                    'apprise_timezone': apprise_timezone or 'UTC',
+                    'paperless_view_in_app': paperless_view_in_app if paperless_view_in_app is not None else False
                 }
             
             return jsonify(preferences), 200

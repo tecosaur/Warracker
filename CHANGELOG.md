@@ -1,4 +1,80 @@
 # Changelog
+
+## 0.10.1.4  - 2025-06-24
+
+### Enhanced
+- **Warranty Card Information Display Improvements:** Redesigned warranty card layout with clean icon-based display and improved visual organization.
+  - **Icon-Based Information Display:** Added intuitive icons to warranty information for better visual scanning:
+    - 📅 Calendar icon for Product Age
+    - 📄 Document icon for Warranty Duration  
+    - 🔧 Wrench icon for Warranty End Date
+    - 🪙 Coins icon for Purchase Price
+    - 📊 Barcode icon for Serial Number
+    - 🏪 Store icon for Vendor
+    - 🛡️ Shield icon for Warranty Type
+  - **Reorganized Information Order:** Reordered warranty details for logical information hierarchy:
+    - Age → Warranty Duration → Warranty End Date → Price → Serial Number → Vendor → Type
+  - **Layout Improvements:**
+    - Fixed text overlapping with product photo thumbnails by removing right-alignment
+    - Values now positioned close to labels with consistent spacing
+    - Applied improvements across all view modes (grid, list, table)
+  - **Visual Enhancements:**
+    - Added light grey background (#f5f5f5) to product photo thumbnails
+    - Dark mode photo backgrounds use #2a2a2a for proper contrast
+    - Improved serial number display - first serial shown inline, additional ones in list below
+  - _Files: `frontend/script.js`, `frontend/style.css`_
+
+### Added
+- **Paperless-ngx Document Browser:** Complete GUI interface for browsing and selecting documents from Paperless-ngx in warranty forms.
+  - **Interactive Document Browser:** Added comprehensive document browser modal accessible from warranty add/edit forms:
+    - **Browse Buttons:** Added "Browse Paperless" buttons for invoice and manual document selection in warranty forms
+    - **Search and Filter:** Full-text search across document titles and content with tag-based filtering capabilities
+    - **Pagination Support:** Efficient pagination for large document collections with configurable page sizes
+    - **Document Selection:** Single-click document selection with visual confirmation and selection state management
+  - **Backend API Enhancements (`backend/app.py`):** Added `/api/paperless/tags` endpoint for document filtering:
+    - **Tag Retrieval:** Fetches available tags from Paperless-ngx for filter dropdown population
+    - **Authentication:** Properly authenticated endpoint with user permission validation
+    - **Error Handling:** Comprehensive error handling for Paperless-ngx connection issues
+  - **Frontend Integration (`frontend/index.html`, `frontend/script.js`, `frontend/style.css`):**
+    - **Modal Interface:** Large, responsive document browser modal with search bar, filters, and document grid
+    - **Document Display:** Clean document cards showing title, creation date, tags, and selection status
+    - **Form Integration:** Selected documents automatically populate warranty form fields with document IDs
+    - **Mobile Responsive:** Optimized layout for mobile devices with appropriate touch targets
+    - **Visual Feedback:** Loading states, error messages, and success confirmations for all operations
+  - **User Experience Features:**
+    - **Conditional Visibility:** Browse buttons only appear when Paperless-ngx is enabled and configured
+    - **Real-time Search:** Instant search results as users type in the search field
+    - **Tag Filtering:** Multi-select tag filter for refined document discovery
+    - **Keyboard Navigation:** Full keyboard support for accessibility
+    - **Cache Management:** Intelligent caching of document lists and tags for improved performance
+  - _Files: `backend/app.py`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+- **Paperless-ngx Document Viewing Preference:** Added user preference to view Paperless documents within Warracker instead of opening in Paperless domain.
+  - **User Preference Setting:** Added "View Documents in Warracker" toggle in Paperless-ngx settings section:
+    - **Individual Choice:** Each user can choose their preferred document viewing method between Warracker interface or Paperless-ngx instance
+    - **Dual Viewing Options:** Users can view documents either within Warracker's interface or directly in the Paperless-ngx web interface
+    - **Persistent Setting:** Preference saved to user preferences database and localStorage
+    - **Immediate Effect:** Setting changes apply immediately without requiring page refresh
+  - **Database Schema (`backend/migrations/037_add_paperless_view_in_app_preference.sql`):** Added `paperless_view_in_app` boolean column to `user_preferences` table:
+    - **Default Value:** Set to FALSE (open in Paperless-ngx domain) for backward compatibility
+    - **User-Specific:** Each user maintains their own viewing preference independently
+  - **Backend API Integration (`backend/auth_routes.py`):** Enhanced user preferences endpoints:
+    - **GET /api/auth/preferences:** Returns paperless viewing preference with proper fallback handling
+    - **PUT /api/auth/preferences:** Validates and saves paperless viewing preference with boolean validation
+    - **Default Handling:** All preference responses include paperless_view_in_app with appropriate defaults
+  - **Frontend Implementation (`frontend/script.js`, `frontend/settings-new.html`, `frontend/settings-new.js`):**
+    - **Document Opening Logic:** Modified `openPaperlessDocument()` function to check user preference
+    - **Warracker Viewing:** When enabled, documents open via `/api/paperless-file/{id}` endpoint within Warracker interface
+    - **Paperless-ngx Viewing:** When disabled, documents open directly in the Paperless-ngx web interface at the configured instance URL
+    - **Authentication Handling:** Proper token authentication for in-app document viewing with query parameter support
+    - **Fallback Support:** Graceful fallback to Paperless-ngx domain if in-app viewing fails
+    - **Settings UI:** Toggle switch in Paperless-ngx settings section with clear description of both viewing options
+  - **Security Features:**
+    - **Token Authentication:** Documents accessed through Warracker maintain proper user authentication
+    - **Permission Validation:** Backend validates user access rights before serving documents
+    - **Secure Token Passing:** Authentication tokens properly encoded in query parameters for secure access
+  - _Files: `backend/migrations/037_add_paperless_view_in_app_preference.sql`, `backend/auth_routes.py`, `frontend/script.js`, `frontend/settings-new.html`, `frontend/settings-new.js`_
+
 ## 0.10.1.3  - 2025-06-17
 
 ### Added
@@ -22,6 +98,24 @@
     - **Edit Modal Parity:** Edit warranty modal has identical Paperless-ngx functionality to add warranty modal
   - **Document Access Integration:** Direct access to Paperless-ngx documents through warranty interface with secure authentication
   - _Files: `backend/app.py`, `frontend/script.js`, `frontend/settings-new.html`, `frontend/settings-new.js`_
+
+### Fixed
+- **Application Loading Performance:** Eliminated empty warranty list flash during login by preventing premature rendering before data is loaded.
+  - **Loading State Management:** Added `warrantiesLoaded` flag to track when warranty data has been successfully fetched from the API
+  - **Render Prevention:** Modified `switchView()` function to skip rendering warranties until data is actually loaded from the server
+  - **Smooth User Experience:** Users now see warranties appear directly without the brief flash of empty content during authentication
+  - **State Synchronization:** Warranty loading flag properly reset on load start and error conditions to maintain accurate state
+  - **Initialization Flow:** View preference loading no longer triggers empty warranty rendering during page initialization
+  - _Files: `frontend/script.js`_
+
+- **Settings Page Horizontal Scrollbar:** Eliminated horizontal scrollbar issue on the settings page that was causing unwanted left-right scrolling.
+  - **Footer Overflow Fix:** Replaced problematic viewport width calculations (`100vw`) with standard width (`100%`) in `.warracker-footer` class to prevent horizontal overflow
+  - **Margin Calculation Fix:** Removed `calc(-50vw + 50%)` margin calculations that were causing overflow beyond viewport boundaries
+  - **Global Overflow Prevention:** Added `overflow-x: hidden` to `html`, `body`, and `.content-wrapper` elements to prevent any horizontal scrolling
+  - **Grid Responsiveness:** Reduced minimum column width from `200px` to `150px` in admin actions, apprise actions, and status grid layouts for better mobile compatibility
+  - **Text Handling:** Added `word-wrap: break-word` and `box-sizing: border-box` to form controls and cards to prevent text overflow
+  - **Cross-Device Compatibility:** Settings page now displays properly without horizontal scrollbars on all screen sizes and devices
+  - _Files: `frontend/settings-styles.css`_
 
 
 ##  0.10.1.2 - 2025-06-16

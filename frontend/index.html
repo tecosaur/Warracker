@@ -450,23 +450,6 @@
                                     
                                     <div class="form-group">
                                         <label>Product Photo (Optional)</label>
-                                        <!-- Storage Selection -->
-                                        <div id="productPhotoStorageSelection" class="storage-selection" style="display: none;">
-                                            <div class="storage-options">
-                                                <label class="storage-option">
-                                                    <input type="radio" name="productPhotoStorage" value="local" checked>
-                                                    <span class="storage-label">
-                                                        <i class="fas fa-hdd"></i> Store Locally
-                                                    </span>
-                                                </label>
-                                                <label class="storage-option">
-                                                    <input type="radio" name="productPhotoStorage" value="paperless">
-                                                    <span class="storage-label">
-                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="productPhoto" class="file-input-label">
                                                 <i class="fas fa-camera"></i> Choose Photo
@@ -477,6 +460,7 @@
                                         <div id="productPhotoPreview" class="photo-preview" style="display: none;">
                                             <img id="productPhotoImg" src="" alt="Product Photo Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 10px;">
                                         </div>
+
                                     </div>
                                     
                                     <div class="form-group">
@@ -505,6 +489,18 @@
                                             <input type="file" id="invoice" name="invoice" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                                         </div>
                                         <div id="fileName" class="file-name"></div>
+                                        <!-- Paperless Browse Button -->
+                                        <div id="invoicePaperlessBrowse" class="paperless-browse-section" style="display: none;">
+                                            <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('invoice')">
+                                                <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                            </button>
+                                            <div id="selectedInvoiceFromPaperless" class="selected-paperless-doc" style="display: none;">
+                                                <span class="selected-doc-name"></span>
+                                                <button type="button" class="btn btn-danger btn-xs" onclick="clearPaperlessSelection('invoice')">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <div class="form-group">
@@ -533,26 +529,21 @@
                                             <input type="file" id="manual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                                         </div>
                                         <div id="manualFileName" class="file-name"></div>
+                                        <!-- Paperless Browse Button -->
+                                        <div id="manualPaperlessBrowse" class="paperless-browse-section" style="display: none;">
+                                            <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('manual')">
+                                                <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                            </button>
+                                            <div id="selectedManualFromPaperless" class="selected-paperless-doc" style="display: none;">
+                                                <span class="selected-doc-name"></span>
+                                                <button type="button" class="btn btn-danger btn-xs" onclick="clearPaperlessSelection('manual')">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label>Files (ZIP/RAR, Optional)</label>
-                                        <!-- Storage Selection -->
-                                        <div id="otherDocumentStorageSelection" class="storage-selection" style="display: none;">
-                                            <div class="storage-options">
-                                                <label class="storage-option">
-                                                    <input type="radio" name="otherDocumentStorage" value="local" checked>
-                                                    <span class="storage-label">
-                                                        <i class="fas fa-hdd"></i> Store Locally
-                                                    </span>
-                                                </label>
-                                                <label class="storage-option">
-                                                    <input type="radio" name="otherDocumentStorage" value="paperless">
-                                                    <span class="storage-label">
-                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
-                                                    </span>
-                                                </label>
-                                            </div>
-                                        </div>
                                         <div class="file-input-wrapper">
                                             <label for="otherDocument" class="file-input-label">
                                                 <i class="fas fa-upload"></i> Choose File
@@ -560,6 +551,7 @@
                                             <input type="file" id="otherDocument" name="other_document" class="file-input" accept=".zip,.rar">
                                         </div>
                                         <div id="otherDocumentFileName" class="file-name"></div>
+
                                     </div>
                                 </div>
                                 <!-- Tags Tab -->
@@ -834,23 +826,6 @@
                     <div class="edit-tab-content" id="edit-documents">
                         <div class="form-group">
                             <label>Product Photo (Optional)</label>
-                            <!-- Storage Selection -->
-                            <div id="editProductPhotoStorageSelection" class="storage-selection" style="display: none;">
-                                <div class="storage-options">
-                                    <label class="storage-option">
-                                        <input type="radio" name="editProductPhotoStorage" value="local" checked>
-                                        <span class="storage-label">
-                                            <i class="fas fa-hdd"></i> Store Locally
-                                        </span>
-                                    </label>
-                                    <label class="storage-option">
-                                        <input type="radio" name="editProductPhotoStorage" value="paperless">
-                                        <span class="storage-label">
-                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editProductPhoto" class="file-input-label">
                                     <i class="fas fa-camera"></i> Choose Photo
@@ -863,6 +838,7 @@
                             </div>
                             <div id="currentProductPhoto" class="mt-10"></div>
                             <button type="button" id="deleteProductPhotoBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Photo</button>
+                            
                         </div>
                         
                         <div class="form-group">
@@ -893,6 +869,18 @@
                             <div id="editFileName" class="file-name"></div>
                             <div id="currentInvoice" class="mt-10"></div>
                             <button type="button" id="deleteInvoiceBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Invoice</button>
+                            <!-- Paperless Browse Button -->
+                            <div id="editInvoicePaperlessBrowse" class="paperless-browse-section" style="display: none;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('edit_invoice')">
+                                    <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                </button>
+                                <div id="selectedEditInvoiceFromPaperless" class="selected-paperless-doc" style="display: none;">
+                                    <span class="selected-doc-name"></span>
+                                    <button type="button" class="btn btn-danger btn-xs" onclick="clearPaperlessSelection('edit_invoice')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-group">
@@ -923,26 +911,21 @@
                             <div id="editManualFileName" class="file-name"></div>
                             <div id="currentManual" class="mt-10"></div>
                             <button type="button" id="deleteManualBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Manual</button>
+                            <!-- Paperless Browse Button -->
+                            <div id="editManualPaperlessBrowse" class="paperless-browse-section" style="display: none;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('edit_manual')">
+                                    <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                </button>
+                                <div id="selectedEditManualFromPaperless" class="selected-paperless-doc" style="display: none;">
+                                    <span class="selected-doc-name"></span>
+                                    <button type="button" class="btn btn-danger btn-xs" onclick="clearPaperlessSelection('edit_manual')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Files (ZIP/RAR, Optional)</label>
-                            <!-- Storage Selection -->
-                            <div id="editOtherDocumentStorageSelection" class="storage-selection" style="display: none;">
-                                <div class="storage-options">
-                                    <label class="storage-option">
-                                        <input type="radio" name="editOtherDocumentStorage" value="local" checked>
-                                        <span class="storage-label">
-                                            <i class="fas fa-hdd"></i> Store Locally
-                                        </span>
-                                    </label>
-                                    <label class="storage-option">
-                                        <input type="radio" name="editOtherDocumentStorage" value="paperless">
-                                        <span class="storage-label">
-                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
                             <div class="file-input-wrapper">
                                 <label for="editOtherDocument" class="file-input-label">
                                     <i class="fas fa-upload"></i> Choose File
@@ -952,6 +935,7 @@
                             <div id="editOtherDocumentFileName" class="file-name"></div>
                             <div id="currentOtherDocument" class="mt-10"></div>
                             <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Files</button>
+                            
                         </div>
                     </div>
                     
@@ -1033,6 +1017,63 @@
         </div>
     </div>
     
+    <!-- Paperless Document Browser Modal -->
+    <div id="paperlessBrowserModal" class="modal-backdrop">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title">Browse Paperless-ngx Documents</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="paperless-browser-controls">
+                    <div class="search-section">
+                        <input type="text" id="paperlessSearchInput" class="form-control" placeholder="Search documents by title, content, or tags...">
+                        <button type="button" class="btn btn-primary" id="paperlessSearchBtn">
+                            <i class="fas fa-search"></i> Search
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="paperlessShowAllBtn">
+                            <i class="fas fa-list"></i> Show All
+                        </button>
+                    </div>
+                    <div class="filter-section">
+                        <select id="paperlessTypeFilter" class="form-control">
+                            <option value="">All Document Types</option>
+                            <option value="application/pdf">PDF Documents</option>
+                            <option value="image/jpeg,image/jpg,image/png">Images</option>
+                            <option value="application/zip">Archives</option>
+                        </select>
+                        <select id="paperlessTagFilter" class="form-control">
+                            <option value="">All Tags</option>
+                            <!-- Tags will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="paperlessDocumentsList" class="paperless-documents-list">
+                    <div class="loading-message" style="text-align: center; padding: 20px;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading documents...
+                    </div>
+                </div>
+                
+                <div class="pagination-controls" id="paperlessPagination" style="display: none;">
+                    <button type="button" class="btn btn-secondary" id="prevPageBtn" onclick="changePage(-1)">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button type="button" class="btn btn-secondary" id="nextPageBtn" onclick="changePage(1)">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="selectPaperlessDocBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-check"></i> Select Document
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
     
@@ -1042,7 +1083,7 @@
     </div>
     
     <script src="auth.js"></script>
-    <script src="script.js?v=20250617007"></script>
+    <script src="script.js?v=20250617018"></script>
 
     <!-- Footer Width Fix -->
     <script src="footer-fix.js"></script>

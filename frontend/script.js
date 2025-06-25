@@ -5,6 +5,7 @@ console.log('[DEBUG] script.js loaded and running');
 
 // Global variables
 let warranties = [];
+let warrantiesLoaded = false; // Track if warranties have been loaded from API
 let currentTabIndex = 0;
 let tabContents = []; // Initialize as empty array
 let editMode = false;
@@ -553,6 +554,9 @@ document.addEventListener('DOMContentLoaded', function() {
             await loadTags(); // Ensure all available tags are loaded
             await loadCurrencies(); // Load currencies for dropdowns
             
+            // Initialize Paperless-ngx integration
+            await initPaperlessNgxIntegration();
+            
             // Initialize view controls for all users
             initViewControls();
 
@@ -621,6 +625,19 @@ let expiringSoonDays = 30; // Default value, will be updated from user preferenc
 
 // API URL
 const API_URL = '/api/warranties';
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
 
 // Form tab navigation variables (simplified)
 let formTabs = []; // Changed from const to let, initialized as empty
@@ -1388,8 +1405,8 @@ async function switchView(viewType, saveToApi = true) { // Added saveToApi param
         tableViewHeader.classList.toggle('visible', viewType === 'table');
     }
 
-    // Re-render warranties only if warrantiesList exists
-    if (warrantiesList) {
+    // Re-render warranties only if warrantiesList exists AND warranties have been loaded from API
+    if (warrantiesList && warrantiesLoaded) {
         renderWarranties(filterWarranties()); // Assuming filterWarranties() returns the correct array
     }
 }
@@ -1730,6 +1747,10 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
     
     try {
         console.log('[DEBUG] Entered loadWarranties, isAuthenticated:', isAuthenticated);
+        
+        // Reset the flag when starting to load warranties
+        warrantiesLoaded = false;
+        
         showLoading();
         
         // Fetch user preferences (including date format) before loading warranties
@@ -1858,6 +1879,9 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         console.log('[DEBUG] Total warranties loaded:', warranties.length);
         console.log('[DEBUG] Warranty IDs loaded:', warranties.map(w => w.id));
         
+        // Set flag to indicate warranties have been loaded from API
+        warrantiesLoaded = true;
+        
         if (warranties.length === 0) {
             console.log('No warranties found, showing empty state');
             renderEmptyState('No warranties found. Add your first warranty using the form.');
@@ -1873,6 +1897,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         }
     } catch (error) {
         console.error('[DEBUG] Error loading warranties:', error);
+        warrantiesLoaded = false; // Reset flag on error
         renderEmptyState('Error loading warranties. Please try again later.');
     } finally {
         hideLoading();
@@ -2211,21 +2236,22 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Age: <span>${productAge}</span></div>
-                        <div>Warranty: <span>${warrantyDurationText}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
-                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
-                        ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
+                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div class="serial-numbers">
-                                <strong>Serial Numbers:</strong>
-                                <ul>
-                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                                </ul>
-                            </div>
+                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
                         ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2252,7 +2278,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="product-photo-thumbnail">
                     <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
                         <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
-                             style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
+                             style="width: 180px; height: 180px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
                              onerror="this.style.display='none'" class="secure-image">
                     </a>
                 </div>
@@ -2269,21 +2295,22 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Age: <span>${productAge}</span></div>
-                        <div>Warranty: <span>${warrantyDurationText}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
-                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
-                        ${warranty.warranty_type ? `<div>Type: <span>${warranty.warranty_type}</span></div>` : ''}
+                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div class="serial-numbers">
-                                <strong>Serial Numbers:</strong>
-                                <ul>
-                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                                </ul>
-                            </div>
+                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
                         ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2327,10 +2354,22 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Age: <span>${productAge}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</div>` : ''}
+                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
+                        ${validSerialNumbers.length > 0 ? `
+                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2809,6 +2848,52 @@ async function openEditModal(warranty) {
         editPhotoPreview.style.display = 'none';
     } 
     
+    // Set storage options based on current document storage
+    if (paperlessNgxEnabled) {
+        // Set product photo storage option
+        const editProductPhotoStorageRadios = document.getElementsByName('editProductPhotoStorage');
+        if (editProductPhotoStorageRadios.length > 0) {
+            const isPaperlessPhoto = warranty.paperless_photo_id && warranty.paperless_photo_id !== null;
+            editProductPhotoStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessPhoto ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set invoice storage option
+        const editInvoiceStorageRadios = document.getElementsByName('editInvoiceStorage');
+        if (editInvoiceStorageRadios.length > 0) {
+            const isPaperlessInvoice = warranty.paperless_invoice_id && warranty.paperless_invoice_id !== null;
+            editInvoiceStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessInvoice ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set manual storage option
+        const editManualStorageRadios = document.getElementsByName('editManualStorage');
+        if (editManualStorageRadios.length > 0) {
+            const isPaperlessManual = warranty.paperless_manual_id && warranty.paperless_manual_id !== null;
+            editManualStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessManual ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set other document storage option
+        const editOtherDocumentStorageRadios = document.getElementsByName('editOtherDocumentStorage');
+        if (editOtherDocumentStorageRadios.length > 0) {
+            const isPaperlessOther = warranty.paperless_other_id && warranty.paperless_other_id !== null;
+            editOtherDocumentStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessOther ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        console.log('[Edit Modal] Storage options set based on current document storage:', {
+            photo: warranty.paperless_photo_id ? 'paperless' : 'local',
+            invoice: warranty.paperless_invoice_id ? 'paperless' : 'local',
+            manual: warranty.paperless_manual_id ? 'paperless' : 'local',
+            other: warranty.paperless_other_id ? 'paperless' : 'local'
+        });
+    }
+    
     // Initialize file input event listeners
     const editProductPhotoInput = document.getElementById('editProductPhoto');
     if (editProductPhotoInput) {
@@ -3211,6 +3296,25 @@ function handleFormSubmit(event) { // Renamed from submitForm
         formData.append('other_document', otherDocumentFile); 
     } 
     
+    // Add selected Paperless documents
+    const selectedPaperlessProductPhoto = document.getElementById('selectedPaperlessProductPhoto');
+    const selectedPaperlessInvoice = document.getElementById('selectedPaperlessInvoice');
+    const selectedPaperlessManual = document.getElementById('selectedPaperlessManual');
+    const selectedPaperlessOtherDocument = document.getElementById('selectedPaperlessOtherDocument');
+    
+    if (selectedPaperlessProductPhoto && selectedPaperlessProductPhoto.value) {
+        formData.append('paperless_photo_id', selectedPaperlessProductPhoto.value);
+    }
+    if (selectedPaperlessInvoice && selectedPaperlessInvoice.value) {
+        formData.append('paperless_invoice_id', selectedPaperlessInvoice.value);
+    }
+    if (selectedPaperlessManual && selectedPaperlessManual.value) {
+        formData.append('paperless_manual_id', selectedPaperlessManual.value);
+    }
+    if (selectedPaperlessOtherDocument && selectedPaperlessOtherDocument.value) {
+        formData.append('paperless_other_id', selectedPaperlessOtherDocument.value);
+    }
+    
     // Show loading spinner
     showLoadingSpinner();
     
@@ -3243,6 +3347,9 @@ function handleFormSubmit(event) { // Renamed from submitForm
             hideLoadingSpinner();
             showToast('Warranty added successfully', 'success');
             
+            // Store the new warranty ID for auto-linking
+            const newWarrantyId = data.id;
+            
             // --- Close and reset the modal on success ---
             if (addWarrantyModal) {
                 addWarrantyModal.classList.remove('active');
@@ -3258,6 +3365,25 @@ function handleFormSubmit(event) { // Renamed from submitForm
                     console.log('Loading secure images for new warranty cards');
                     loadSecureImages();
                 }, 200); // Slightly longer delay to ensure everything is rendered
+                
+                // Auto-link any documents that were uploaded to Paperless-ngx
+                const invoiceFile = document.getElementById('invoice').files[0];
+                const manualFile = document.getElementById('manual').files[0];
+                const otherDocumentFile = document.getElementById('otherDocument').files[0];
+                
+                if ((invoiceFile || manualFile || otherDocumentFile) && newWarrantyId) {
+                    console.log('[Auto-Link] Starting automatic document linking after warranty creation');
+                    
+                    // Collect filename information for intelligent searching
+                    const fileInfo = {};
+                    if (invoiceFile) fileInfo.invoice = invoiceFile.name;
+                    if (manualFile) fileInfo.manual = manualFile.name;
+                    if (otherDocumentFile) fileInfo.other = otherDocumentFile.name;
+                    
+                    setTimeout(() => {
+                        autoLinkRecentDocuments(newWarrantyId, ['invoice', 'manual', 'other'], 10, 10000, fileInfo);
+                    }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
+                }
             }).catch(error => {
                 console.error('Error reloading warranties after adding:', error);
             }); // Reload the list and update UI
@@ -4547,6 +4673,162 @@ function hideLoadingSpinner() {
     }
 }
 
+// Paperless upload loading functions
+function showPaperlessUploadLoading(documentType) {
+    // Create or show the Paperless upload overlay
+    let overlay = document.getElementById('paperless-upload-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'paperless-upload-overlay';
+        overlay.innerHTML = `
+            <div class="paperless-upload-modal">
+                <div class="paperless-upload-content">
+                    <div class="paperless-upload-spinner"></div>
+                    <h3>Uploading to Paperless-ngx</h3>
+                    <p id="paperless-upload-status">Uploading document...</p>
+                    <div class="paperless-upload-progress">
+                        <div class="paperless-upload-progress-bar" id="paperless-progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        
+        // Add CSS styles
+        const style = document.createElement('style');
+        style.textContent = `
+            #paperless-upload-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                backdrop-filter: blur(2px);
+            }
+            
+            .paperless-upload-modal {
+                background: var(--card-bg, #fff);
+                border-radius: 12px;
+                padding: 2rem;
+                max-width: 400px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                border: 1px solid var(--border-color, #ddd);
+            }
+            
+            .paperless-upload-content h3 {
+                margin: 1rem 0 0.5rem 0;
+                color: var(--text-color, #333);
+                font-size: 1.2rem;
+            }
+            
+            .paperless-upload-content p {
+                margin: 0.5rem 0 1.5rem 0;
+                color: var(--text-secondary, #666);
+                font-size: 0.9rem;
+            }
+            
+            .paperless-upload-spinner {
+                width: 40px;
+                height: 40px;
+                border: 4px solid var(--border-color, #ddd);
+                border-top: 4px solid var(--primary-color, #007bff);
+                border-radius: 50%;
+                animation: paperless-spin 1s linear infinite;
+                margin: 0 auto 1rem auto;
+            }
+            
+            @keyframes paperless-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .paperless-upload-progress {
+                width: 100%;
+                height: 6px;
+                background: var(--border-color, #ddd);
+                border-radius: 3px;
+                overflow: hidden;
+                margin-top: 1rem;
+            }
+            
+            .paperless-upload-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, var(--primary-color, #007bff), var(--success-color, #28a745));
+                border-radius: 3px;
+                width: 0%;
+                transition: width 0.3s ease;
+                animation: paperless-progress-pulse 2s ease-in-out infinite;
+            }
+            
+            @keyframes paperless-progress-pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    overlay.style.display = 'flex';
+    
+    // Update status text
+    const statusEl = document.getElementById('paperless-upload-status');
+    if (statusEl) {
+        statusEl.textContent = `Uploading ${documentType} to Paperless-ngx...`;
+    }
+    
+    // Animate progress bar
+    const progressBar = document.getElementById('paperless-progress-bar');
+    if (progressBar) {
+        progressBar.style.width = '30%';
+        setTimeout(() => {
+            progressBar.style.width = '60%';
+        }, 1000);
+        setTimeout(() => {
+            progressBar.style.width = '80%';
+        }, 2000);
+    }
+}
+
+function updatePaperlessUploadStatus(message, isProcessing = false) {
+    const statusEl = document.getElementById('paperless-upload-status');
+    const progressBar = document.getElementById('paperless-progress-bar');
+    
+    if (statusEl) {
+        statusEl.textContent = message;
+    }
+    
+    if (isProcessing && progressBar) {
+        progressBar.style.width = '90%';
+    }
+}
+
+function hidePaperlessUploadLoading() {
+    const overlay = document.getElementById('paperless-upload-overlay');
+    if (overlay) {
+        // Complete the progress bar first
+        const progressBar = document.getElementById('paperless-progress-bar');
+        if (progressBar) {
+            progressBar.style.width = '100%';
+        }
+        
+        // Hide after a short delay to show completion
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            // Reset progress bar for next use
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+        }, 500);
+    }
+}
+
 // Delete warranty function
 function deleteWarranty() {
     if (!currentWarrantyId) {
@@ -4791,6 +5073,25 @@ function saveWarranty() {
     }
     formData.append('warranty_type', warrantyTypeValue);
     
+    // Add selected Paperless documents for edit form
+    const selectedEditPaperlessProductPhoto = document.getElementById('selectedEditPaperlessProductPhoto');
+    const selectedEditPaperlessInvoice = document.getElementById('selectedEditPaperlessInvoice');
+    const selectedEditPaperlessManual = document.getElementById('selectedEditPaperlessManual');
+    const selectedEditPaperlessOtherDocument = document.getElementById('selectedEditPaperlessOtherDocument');
+    
+    if (selectedEditPaperlessProductPhoto && selectedEditPaperlessProductPhoto.value) {
+        formData.append('paperless_photo_id', selectedEditPaperlessProductPhoto.value);
+    }
+    if (selectedEditPaperlessInvoice && selectedEditPaperlessInvoice.value) {
+        formData.append('paperless_invoice_id', selectedEditPaperlessInvoice.value);
+    }
+    if (selectedEditPaperlessManual && selectedEditPaperlessManual.value) {
+        formData.append('paperless_manual_id', selectedEditPaperlessManual.value);
+    }
+    if (selectedEditPaperlessOtherDocument && selectedEditPaperlessOtherDocument.value) {
+        formData.append('paperless_other_id', selectedEditPaperlessOtherDocument.value);
+    }
+    
     // DEBUG: Log what we're sending to the backend
     console.log('[DEBUG saveWarranty] Form data being sent:');
     console.log('[DEBUG saveWarranty] isLifetime:', isLifetime);
@@ -4860,6 +5161,21 @@ function saveWarranty() {
             }
             
             console.log('Warranty updated and reloaded from server');
+            
+            // Auto-link any documents that were uploaded to Paperless-ngx
+            if ((invoiceFile || manualFile || otherDocumentFile) && currentWarrantyId) {
+                console.log('[Auto-Link] Starting automatic document linking after warranty update');
+                
+                // Collect filename information for intelligent searching
+                const fileInfo = {};
+                if (invoiceFile) fileInfo.invoice = invoiceFile.name;
+                if (manualFile) fileInfo.manual = manualFile.name;
+                if (otherDocumentFile) fileInfo.other = otherDocumentFile.name;
+                
+                setTimeout(() => {
+                    autoLinkRecentDocuments(currentWarrantyId, ['invoice', 'manual', 'other'], 10, 10000, fileInfo);
+                }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
+            }
         }).catch(error => {
             console.error('Error reloading warranties after edit:', error);
         });
@@ -5070,6 +5386,10 @@ function resetAddWarrantyWizard() {
     if (fileName) fileName.textContent = '';
     if (manualFileName) manualFileName.textContent = '';
     if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
+
+    // Clear Paperless document selections (only for invoice and manual)
+    clearPaperlessSelection('invoice');
+    clearPaperlessSelection('manual');
 
     // Reset selected tags
     selectedTags = [];
@@ -6214,6 +6534,7 @@ async function checkPaperlessNgxStatus() {
         if (response.ok) {
             const settings = await response.json();
             paperlessNgxEnabled = settings.paperless_enabled === 'true';
+            window.paperlessNgxEnabled = paperlessNgxEnabled; // Set global variable
             console.log('[Paperless-ngx] Integration status:', paperlessNgxEnabled);
             return paperlessNgxEnabled;
         }
@@ -6237,12 +6558,10 @@ async function initPaperlessNgxIntegration() {
             infoAlert.style.display = 'block';
         }
         
-        // Show storage selection options for add modal
+        // Show storage selection options for add modal (only invoice and manual)
         const storageSelections = [
-            'productPhotoStorageSelection',
             'invoiceStorageSelection',
-            'manualStorageSelection',
-            'otherDocumentStorageSelection'
+            'manualStorageSelection'
         ];
         
         storageSelections.forEach(id => {
@@ -6252,12 +6571,10 @@ async function initPaperlessNgxIntegration() {
             }
         });
         
-        // Show storage selection options for edit modal
+        // Show storage selection options for edit modal (only invoice and manual)
         const editStorageSelections = [
-            'editProductPhotoStorageSelection',
             'editInvoiceStorageSelection',
-            'editManualStorageSelection',
-            'editOtherDocumentStorageSelection'
+            'editManualStorageSelection'
         ];
         
         editStorageSelections.forEach(id => {
@@ -6267,9 +6584,17 @@ async function initPaperlessNgxIntegration() {
             }
         });
         
+        // Show Paperless browse sections
+        console.log('[Paperless-ngx] Calling togglePaperlessBrowseSections...');
+        togglePaperlessBrowseSections();
+        
         console.log('[Paperless-ngx] UI elements initialized and shown');
     } else {
         console.log('[Paperless-ngx] Integration disabled, hiding UI elements');
+        
+        // Hide Paperless browse sections
+        console.log('[Paperless-ngx] Calling togglePaperlessBrowseSections (disabled)...');
+        togglePaperlessBrowseSections();
     }
 }
 
@@ -6280,6 +6605,13 @@ async function initPaperlessNgxIntegration() {
  * @returns {string} - 'local' or 'paperless'
  */
 function getStorageOption(documentType, isEdit = false) {
+    // Only allow Paperless-ngx storage for invoices and manuals
+    const paperlessAllowedTypes = ['invoice', 'manual'];
+    
+    if (!paperlessAllowedTypes.includes(documentType)) {
+        return 'local'; // Force local storage for productPhoto and otherDocument
+    }
+    
     const prefix = isEdit ? 'edit' : '';
     const capitalizedType = documentType.charAt(0).toUpperCase() + documentType.slice(1);
     const name = `${prefix}${capitalizedType}Storage`;
@@ -6300,6 +6632,9 @@ async function uploadToPaperlessNgx(file, documentType) {
             throw new Error('Authentication token not available');
         }
 
+        // Show upload loading screen
+        showPaperlessUploadLoading(documentType);
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('document_type', documentType);
@@ -6314,6 +6649,8 @@ async function uploadToPaperlessNgx(file, documentType) {
         console.log('  - document_type:', documentType);
         console.log('  - title:', `Warracker ${documentType} - ${file.name}`);
         console.log('  - tags:', tags.join(','));
+
+        updatePaperlessUploadStatus('Uploading file to Paperless-ngx...');
 
         const response = await fetch('/api/paperless/upload', {
             method: 'POST',
@@ -6333,11 +6670,19 @@ async function uploadToPaperlessNgx(file, documentType) {
                 console.error('[Paperless-ngx] Could not parse error response:', parseError);
                 errorMessage = `HTTP ${response.status}: ${response.statusText}`;
             }
+            hidePaperlessUploadLoading();
             throw new Error(errorMessage);
         }
 
         const result = await response.json();
         console.log('[Paperless-ngx] Upload successful:', result);
+        
+        // Update status based on result
+        if (result.document_id) {
+            updatePaperlessUploadStatus('Document uploaded and ready!');
+        } else {
+            updatePaperlessUploadStatus('Document uploaded, processing...', true);
+        }
         
         return {
             success: true,
@@ -6347,6 +6692,7 @@ async function uploadToPaperlessNgx(file, documentType) {
         
     } catch (error) {
         console.error('[Paperless-ngx] Upload error:', error);
+        hidePaperlessUploadLoading();
         return {
             success: false,
             error: error.message
@@ -6364,7 +6710,8 @@ async function processPaperlessNgxUploads(formData) {
     }
 
     const uploads = {};
-    const documentTypes = ['productPhoto', 'invoice', 'manual', 'otherDocument'];
+    // Only process invoice and manual for Paperless-ngx uploads
+    const documentTypes = ['invoice', 'manual'];
     
     for (const docType of documentTypes) {
         const storageOption = getStorageOption(docType);
@@ -6389,16 +6736,24 @@ async function processPaperlessNgxUploads(formData) {
                     };
                     
                     const dbField = fieldMapping[docType];
-                    if (dbField) {
+                    if (dbField && uploadResult.document_id) {
+                        // Only store the ID if we actually got a document ID (not a task ID)
                         uploads[dbField] = uploadResult.document_id;
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        // Hide loading screen immediately for direct uploads
+                        hidePaperlessUploadLoading();
+                    } else if (dbField && !uploadResult.document_id) {
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully but no document ID received (async processing). Not storing reference.`);
+                        // Don't hide loading screen yet - auto-link will handle it
+                        updatePaperlessUploadStatus('Document processing, searching for link...', true);
                     }
                     
-                    // Remove the file from FormData since it's stored in Paperless-ngx
+                    // ALWAYS remove the file from FormData since it's been uploaded to Paperless-ngx
+                    // This prevents the backend from also saving it locally
                     if (formData.has(docType)) {
                         formData.delete(docType);
+                        console.log(`[Paperless-ngx] Removed ${docType} from FormData to prevent local storage`);
                     }
-                    
-                    console.log(`[Paperless-ngx] ${docType} uploaded successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
                 } else {
                     throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
                 }
@@ -6419,7 +6774,8 @@ async function processEditPaperlessNgxUploads(formData) {
     }
 
     const uploads = {};
-    const documentTypes = ['productPhoto', 'invoice', 'manual', 'otherDocument'];
+    // Only process invoice and manual for Paperless-ngx uploads
+    const documentTypes = ['invoice', 'manual'];
     
     for (const docType of documentTypes) {
         const storageOption = getStorageOption(docType, true); // true for edit modal
@@ -6444,17 +6800,25 @@ async function processEditPaperlessNgxUploads(formData) {
                     };
                     
                     const dbField = fieldMapping[docType];
-                    if (dbField) {
+                    if (dbField && uploadResult.document_id) {
+                        // Only store the ID if we actually got a document ID (not a task ID)
                         uploads[dbField] = uploadResult.document_id;
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        // Hide loading screen immediately for direct uploads
+                        hidePaperlessUploadLoading();
+                    } else if (dbField && !uploadResult.document_id) {
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit) but no document ID received (async processing). Not storing reference.`);
+                        // Don't hide loading screen yet - auto-link will handle it
+                        updatePaperlessUploadStatus('Document processing, searching for link...', true);
                     }
                     
-                    // Remove the file from FormData since it's stored in Paperless-ngx
-                    const editFieldName = `edit${docType.charAt(0).toUpperCase() + docType.slice(1)}`;
-                    if (formData.has(editFieldName)) {
-                        formData.delete(editFieldName);
+                    // ALWAYS remove the file from FormData since it's been uploaded to Paperless-ngx
+                    // This prevents the backend from also saving it locally
+                    // Note: In edit mode, the form field names don't have 'edit' prefix in FormData
+                    if (formData.has(docType)) {
+                        formData.delete(docType);
+                        console.log(`[Paperless-ngx] Removed ${docType} from FormData to prevent local storage`);
                     }
-                    
-                    console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
                 } else {
                     throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
                 }
@@ -6474,75 +6838,191 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Open a Paperless-ngx document in a new tab
+ * Debug Paperless-ngx configuration
+ */
+async function debugPaperlessConfiguration() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            console.error('[Paperless Debug] No auth token found');
+            return null;
+        }
+
+        console.log('[Paperless Debug] Checking configuration...');
+        
+        const response = await fetch('/api/paperless/debug', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.error('[Paperless Debug] Debug endpoint failed:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('[Paperless Debug] Error response:', errorText);
+            return null;
+        }
+
+        const result = await response.json();
+        console.log('[Paperless Debug] Configuration:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('[Paperless Debug] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * Open a Paperless-ngx document either in Warracker interface or in Paperless-ngx directly
  */
 async function openPaperlessDocument(paperlessId) {
     console.log(`[openPaperlessDocument] Opening Paperless document: ${paperlessId}`);
     
-    const token = auth.getToken();
+    // First, debug the Paperless configuration
+    const debugInfo = await debugPaperlessConfiguration();
+    if (debugInfo) {
+        console.log('[openPaperlessDocument] Debug info:', debugInfo);
+        
+        if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+            showToast('Paperless-ngx integration is not enabled', 'error');
+            return;
+        }
+        
+        if (!debugInfo.paperless_handler_available) {
+            showToast('Paperless-ngx is not properly configured. Please check the settings.', 'error');
+            console.error('[openPaperlessDocument] Paperless handler not available');
+            if (debugInfo.paperless_handler_error) {
+                console.error('[openPaperlessDocument] Handler error:', debugInfo.paperless_handler_error);
+            }
+            return;
+        }
+        
+        if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+            showToast(`Paperless-ngx connection failed: ${debugInfo.test_connection_result.message || debugInfo.test_connection_result.error}`, 'error');
+            return;
+        }
+    }
+    
+    const token = localStorage.getItem('auth_token');
     if (!token) {
         console.error('[openPaperlessDocument] No auth token available');
         showToast('Authentication required', 'error');
         return;
     }
     
-    // Retry mechanism for document retrieval
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
+    // Check user preference for viewing documents
+    const viewInApp = await getUserPaperlessViewPreference();
+    console.log(`[openPaperlessDocument] User preference view in app: ${viewInApp}`);
     
-    const fetchWithRetry = async (attempt = 1) => {
-        try {
-            console.log(`[openPaperlessDocument] Attempt ${attempt} to fetch: /api/paperless-file/${paperlessId}`);
-            
-            const response = await fetch(`/api/paperless-file/${paperlessId}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (response.status === 404) {
-                throw new Error('Document not found in Paperless-ngx.');
+    if (viewInApp) {
+        // Open document in Warracker interface
+        console.log(`[openPaperlessDocument] Opening document ${paperlessId} in Warracker interface`);
+        const documentUrl = `/api/paperless-file/${paperlessId}?token=${encodeURIComponent(token)}`;
+        
+        const newTab = window.open(documentUrl, '_blank');
+        if (!newTab) {
+            showToast('Please allow popups to view documents', 'warning');
+        } else {
+            showToast('Opening document in Warracker...', 'info');
+        }
+        return;
+    }
+    
+    // Default behavior: open in Paperless-ngx interface
+    try {
+        // Get the Paperless-ngx base URL
+        const response = await fetch('/api/paperless/url', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
             }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[openPaperlessDocument] URL endpoint failed:', response.status, errorText);
+            throw new Error(`Failed to get Paperless-ngx URL: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to get Paperless-ngx URL');
+        }
+        
+        // Construct the direct link to the document in Paperless-ngx
+        const paperlessUrl = result.url.replace(/\/$/, ''); // Remove trailing slash
+        const documentUrl = `${paperlessUrl}/documents/${paperlessId}/details`;
+        
+        console.log(`[openPaperlessDocument] Opening Paperless-ngx document at: ${documentUrl}`);
+        
+        // Open the document directly in Paperless-ngx interface
+        const newTab = window.open(documentUrl, '_blank');
+        if (!newTab) {
+            showToast('Please allow popups to view documents in Paperless-ngx', 'warning');
+        } else {
+            showToast('Opening document in Paperless-ngx...', 'info');
+        }
+        
+    } catch (error) {
+        console.error('Error opening Paperless document:', error);
+        showToast(`Error opening document: ${error.message}`, 'error');
+        
+        // Try to determine the base URL from debug info for fallback
+        if (debugInfo && debugInfo.paperless_url) {
+            const fallbackUrl = `${debugInfo.paperless_url.replace(/\/$/, '')}/documents/${paperlessId}/details`;
+            console.log(`[openPaperlessDocument] Trying fallback URL: ${fallbackUrl}`);
             
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+            const fallbackTab = window.open(fallbackUrl, '_blank');
+            if (fallbackTab) {
+                showToast('Opened with fallback URL - please check if Paperless-ngx is accessible', 'warning');
             }
+        } else {
+            // Last resort fallback
+            const genericFallbackUrl = `${window.location.protocol}//${window.location.hostname}:8000/documents/${paperlessId}/details`;
+            console.log(`[openPaperlessDocument] Trying generic fallback URL: ${genericFallbackUrl}`);
             
-            // Get the blob and create object URL
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            
-            // Open in new tab
-            const newTab = window.open(url, '_blank');
-            if (!newTab) {
-                showToast('Please allow popups to view documents', 'warning');
-            }
-            
-            // Clean up the object URL after a delay
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
-            
-        } catch (error) {
-            console.error(`[openPaperlessDocument] Attempt ${attempt} failed:`, error);
-            
-            if (attempt < maxRetries) {
-                console.log(`[openPaperlessDocument] Retrying in ${retryDelay}ms...`);
-                setTimeout(() => fetchWithRetry(attempt + 1), retryDelay);
-            } else {
-                console.error(`[openPaperlessDocument] All ${maxRetries} attempts failed`);
-                showToast(`Failed to open document: ${error.message}`, 'error');
+            const genericTab = window.open(genericFallbackUrl, '_blank');
+            if (genericTab) {
+                showToast('Opened with generic fallback URL', 'warning');
             }
         }
-    };
-    
-    try {
-        await fetchWithRetry();
-    } catch (error) {
-        console.error('Error fetching Paperless document:', error);
-        showToast(`Error opening document: ${error.message}`, 'error');
     }
+}
+
+/**
+ * Get user preference for viewing Paperless documents in app
+ */
+async function getUserPaperlessViewPreference() {
+    // First check localStorage
+    const prefix = getPreferenceKeyPrefix();
+    const localPreference = localStorage.getItem(`${prefix}paperlessViewInApp`);
+    if (localPreference !== null) {
+        return localPreference === 'true';
+    }
+    
+    // If not in localStorage, check API
+    if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+        try {
+            const response = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${window.auth.getToken()}`
+                }
+            });
+            if (response.ok) {
+                const prefs = await response.json();
+                return prefs.paperless_view_in_app || false;
+            }
+        } catch (e) {
+            console.warn('Failed to load preferences from API:', e);
+        }
+    }
+    
+    // Default to false (open in Paperless-ngx)
+    return false;
 }
 
 /**
@@ -6655,6 +7135,1093 @@ async function cleanupInvalidPaperlessDocuments() {
     }
 }
 
+/**
+ * Search for and link a Paperless document by title
+ * Used when documents were uploaded with async processing and we lost the document ID
+ */
+async function searchAndLinkPaperlessDocument(warrantyId, documentType, searchTitle) {
+    try {
+        console.log(`[Paperless-ngx] Searching for document: ${searchTitle}`);
+        
+        const response = await fetch('/api/paperless-search-and-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            },
+            body: JSON.stringify({
+                warranty_id: warrantyId,
+                document_type: documentType,
+                search_title: searchTitle
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`[Paperless-ngx] Document linked successfully: ID ${result.document_id}`);
+            showToast('Document linked successfully! Refreshing...', 'success');
+            
+            // Reload warranties to show the updated document links
+            setTimeout(async () => {
+                console.log('🔄 [Search&Link] Reloading warranties to show updated document links...');
+                await loadWarranties(true);  // Pass isAuthenticated parameter
+                
+                // Force re-render of the warranty cards
+                applyFilters();
+                
+                // Also reload secure images to update cloud icons
+                await loadSecureImages();
+                
+                console.log('✅ [Search&Link] Warranties reloaded and UI updated');
+            }, 1000);
+            
+            return { success: true, document_id: result.document_id };
+        } else {
+            console.error(`[Paperless-ngx] Failed to link document: ${result.message}`);
+            showToast(`Failed to link document: ${result.message}`, 'error');
+            return { success: false, message: result.message };
+        }
+    } catch (error) {
+        console.error(`[Paperless-ngx] Error searching for document:`, error);
+        showToast('Error searching for document', 'error');
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Automatically search for and link recently uploaded documents
+ * This handles the case where Paperless-ngx async processing returns task_id instead of document_id
+ */
+async function autoLinkRecentDocuments(warrantyId, documentTypes = ['invoice', 'manual'], maxRetries = 10, retryDelay = 10000, fileInfo = {}) {
+    console.log(`[Auto-Link] Starting automatic document linking for warranty ${warrantyId}`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[Auto-Link] No auth token available');
+        return;
+    }
+    
+    let attempt = 0;
+    let linkedDocuments = [];
+    
+    const tryLinking = async () => {
+        attempt++;
+        console.log(`[Auto-Link] Attempt ${attempt}/${maxRetries} for warranty ${warrantyId}`);
+        
+        try {
+            // First check if Paperless-ngx is properly configured
+            const debugInfo = await debugPaperlessConfiguration();
+            if (!debugInfo) {
+                console.error('[Auto-Link] Could not get Paperless debug info');
+                return;
+            }
+            
+            if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+                console.log('[Auto-Link] Paperless-ngx integration is not enabled, skipping auto-link');
+                return;
+            }
+            
+            if (!debugInfo.paperless_handler_available) {
+                console.error('[Auto-Link] Paperless handler not available:', debugInfo.paperless_handler_error || 'Unknown error');
+                return;
+            }
+            
+            if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+                console.error('[Auto-Link] Paperless connection test failed:', debugInfo.test_connection_result.message || debugInfo.test_connection_result.error);
+                return;
+            }
+            
+            console.log(`[Auto-Link] Using intelligent filename-based search. File info:`, fileInfo);
+            
+            // Strategy 1: Search by exact filename (most reliable)
+            let candidateDocuments = [];
+            
+            for (const [docType, filename] of Object.entries(fileInfo)) {
+                if (!documentTypes.includes(docType)) continue;
+                
+                console.log(`[Auto-Link] Searching for ${docType} with filename: "${filename}"`);
+                
+                // Remove file extension for searching
+                const baseFilename = filename.replace(/\.[^/.]+$/, '');
+                
+                // Try multiple search strategies
+                const searchQueries = [
+                    filename,                                    // Exact filename with extension
+                    baseFilename,                               // Filename without extension
+                    `"${filename}"`,                            // Quoted exact match
+                    `"${baseFilename}"`,                        // Quoted base filename
+                    `Warracker ${docType} - ${baseFilename}`    // Warracker format
+                ];
+                
+                for (const query of searchQueries) {
+                    try {
+                        console.log(`[Auto-Link] Trying search query: "${query}"`);
+                        
+                        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(query)}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            const docs = result.results || [];
+                            
+                            console.log(`[Auto-Link] Query "${query}" found ${docs.length} documents`);
+                            
+                            if (docs.length > 0) {
+                                // Filter for recent documents (last 24 hours)
+                                const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                                const recentDocs = docs.filter(doc => {
+                                    try {
+                                        const docDate = new Date(doc.created);
+                                        return docDate > oneDayAgo;
+                                    } catch {
+                                        return true; // Include if we can't parse the date
+                                    }
+                                });
+                                
+                                if (recentDocs.length > 0) {
+                                    console.log(`[Auto-Link] Found ${recentDocs.length} recent documents for ${docType}`);
+                                    candidateDocuments.push({
+                                        docType,
+                                        filename,
+                                        documents: recentDocs,
+                                        searchQuery: query
+                                    });
+                                    break; // Found documents, no need to try other queries for this file
+                                } else if (docs.length > 0) {
+                                    // If no recent docs but we found some documents, include them anyway
+                                    console.log(`[Auto-Link] Found ${docs.length} older documents for ${docType}, including them anyway`);
+                                    candidateDocuments.push({
+                                        docType,
+                                        filename,
+                                        documents: docs.slice(0, 3), // Take up to 3 most recent
+                                        searchQuery: query
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`[Auto-Link] Error searching with query "${query}":`, error);
+                    }
+                }
+            }
+            
+            // Strategy 2: Fallback to Warracker tag search if filename search fails
+            if (candidateDocuments.length === 0) {
+                console.log('[Auto-Link] No documents found by filename, trying Warracker tag search...');
+                
+                const response = await fetch('/api/paperless/search?ordering=-created&created__gte=' + 
+                    new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const searchResult = await response.json();
+                    let recentDocs = searchResult.results || [];
+                    
+                    // Filter for Warracker documents
+                    const warrackerDocs = recentDocs.filter(doc => 
+                        doc.title && doc.title.includes('Warracker')
+                    );
+                    
+                    console.log(`[Auto-Link] Found ${warrackerDocs.length} Warracker documents from last 2 hours`);
+                    
+                    // Group by document type
+                    for (const docType of documentTypes) {
+                        const typeDocs = warrackerDocs.filter(doc => 
+                            doc.title && doc.title.includes(docType)
+                        );
+                        
+                        if (typeDocs.length > 0) {
+                            candidateDocuments.push({
+                                docType,
+                                filename: fileInfo[docType] || `${docType} document`,
+                                documents: typeDocs,
+                                searchQuery: `Warracker ${docType}`
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Debug: Show what candidate documents we found
+            if (candidateDocuments.length > 0) {
+                console.log('[Auto-Link] Candidate documents found:');
+                candidateDocuments.forEach(candidate => {
+                    console.log(`   ${candidate.docType}: ${candidate.documents.length} documents found with query "${candidate.searchQuery}"`);
+                    candidate.documents.forEach((doc, i) => {
+                        console.log(`     ${i+1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+                    });
+                });
+            }
+            
+            // Try to link the best candidate for each document type
+            for (const candidate of candidateDocuments) {
+                // Use the most recent document (first in the ordered list)
+                const doc = candidate.documents[0];
+                
+                console.log(`[Auto-Link] Attempting to link ${candidate.docType}: ${doc.title} (ID: ${doc.id})`);
+                
+                try {
+                    const linkResponse = await fetch('/api/paperless-search-and-link', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: JSON.stringify({
+                            warranty_id: warrantyId,
+                            document_type: candidate.docType,
+                            search_title: doc.title.replace('Warracker ' + candidate.docType + ' - ', '')
+                        })
+                    });
+                    
+                    const linkResult = await linkResponse.json();
+                    
+                    if (linkResult.success) {
+                        console.log(`[Auto-Link] Successfully linked ${candidate.docType}: ${doc.title}`);
+                        linkedDocuments.push({ 
+                            type: candidate.docType, 
+                            title: doc.title, 
+                            id: doc.id,
+                            filename: candidate.filename
+                        });
+                    } else {
+                        console.log(`[Auto-Link] Failed to link ${candidate.docType}: ${linkResult.message}`);
+                    }
+                } catch (error) {
+                    console.error(`[Auto-Link] Error linking ${candidate.docType}:`, error);
+                }
+            }
+            
+            // If we found and linked documents, we're done
+            if (linkedDocuments.length > 0) {
+                console.log(`[Auto-Link] Successfully linked ${linkedDocuments.length} documents:`, linkedDocuments);
+                
+                // Update loading screen to show success
+                updatePaperlessUploadStatus('Documents linked successfully!');
+                
+                // Show success message with filenames
+                const docInfo = linkedDocuments.map(d => `${d.type} (${d.filename || d.title})`).join(', ');
+                showToast(`Automatically linked ${linkedDocuments.length} document(s): ${docInfo}`, 'success');
+                
+                // Reload warranties to show the updated document links
+                setTimeout(async () => {
+                    console.log('🔄 [Auto-Link] Reloading warranties to show updated document links...');
+                    await loadWarranties(true);  // Pass isAuthenticated parameter
+                    
+                    // Force re-render of the warranty cards
+                    applyFilters();
+                    
+                    // Also reload secure images to update cloud icons
+                    await loadSecureImages();
+                    
+                    console.log('✅ [Auto-Link] Warranties reloaded and UI updated');
+                    
+                    // Hide loading screen after successful completion
+                    hidePaperlessUploadLoading();
+                }, 1000);
+                
+                return true;
+            }
+            
+            // If no documents found and we have retries left, try again
+            if (attempt < maxRetries) {
+                console.log(`[Auto-Link] No documents found, retrying in ${retryDelay}ms...`);
+                updatePaperlessUploadStatus(`Searching for documents (attempt ${attempt + 1}/${maxRetries})...`, true);
+                setTimeout(tryLinking, retryDelay);
+            } else {
+                console.log(`[Auto-Link] No documents found after ${maxRetries} attempts`);
+                updatePaperlessUploadStatus('Document uploaded but could not auto-link');
+                showToast('Document uploaded to Paperless-ngx but could not be automatically linked. You can manually link it later.', 'warning');
+                // Hide loading screen after failed auto-link
+                setTimeout(() => {
+                    hidePaperlessUploadLoading();
+                }, 2000);
+            }
+            
+        } catch (error) {
+            console.error(`[Auto-Link] Error in attempt ${attempt}:`, error);
+            
+            if (attempt < maxRetries) {
+                console.log(`[Auto-Link] Retrying in ${retryDelay}ms...`);
+                updatePaperlessUploadStatus(`Error occurred, retrying (${attempt + 1}/${maxRetries})...`, true);
+                setTimeout(tryLinking, retryDelay);
+            } else {
+                updatePaperlessUploadStatus('Upload completed with errors');
+                showToast('Document uploaded but auto-linking failed due to errors. You can manually link it later.', 'warning');
+                // Hide loading screen after final error
+                setTimeout(() => {
+                    hidePaperlessUploadLoading();
+                }, 2000);
+            }
+        }
+    };
+    
+    // Start the linking process
+    tryLinking();
+}
+
 // Make debug and cleanup functions available globally for console testing
 window.debugPaperlessDocument = debugPaperlessDocument;
 window.cleanupInvalidPaperlessDocuments = cleanupInvalidPaperlessDocuments;
+window.searchAndLinkPaperlessDocument = searchAndLinkPaperlessDocument;
+window.autoLinkRecentDocuments = autoLinkRecentDocuments;
+
+// Helper function to manually link a specific document by title
+window.manualLinkDocument = async function(warrantyId, documentType, titleSearchTerm) {
+    console.log(`🔗 Manually linking document for warranty ${warrantyId}`);
+    console.log(`   Document type: ${documentType}`);
+    console.log(`   Searching for title containing: "${titleSearchTerm}"`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('❌ No auth token available');
+        return;
+    }
+    
+    try {
+        // Search for documents containing the search term
+        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(titleSearchTerm)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Search failed: ${response.status}`);
+            return;
+        }
+        
+        const result = await response.json();
+        const docs = result.results || [];
+        
+        console.log(`📄 Found ${docs.length} documents matching "${titleSearchTerm}"`);
+        
+        if (docs.length === 0) {
+            console.log('❌ No documents found. The document might still be processing in Paperless-ngx.');
+            return;
+        }
+        
+        // Show all matching documents
+        docs.forEach((doc, index) => {
+            console.log(`   ${index + 1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+        });
+        
+        // Try to link the first matching document
+        const docToLink = docs[0];
+        console.log(`🔗 Attempting to link document ID ${docToLink.id}: "${docToLink.title}"`);
+        
+        const linkResponse = await fetch('/api/paperless-search-and-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                warranty_id: warrantyId,
+                document_type: documentType,
+                search_title: docToLink.title.replace('Warracker ' + documentType + ' - ', '')
+            })
+        });
+        
+        const linkResult = await linkResponse.json();
+        
+        if (linkResult.success) {
+            console.log(`✅ Successfully linked ${documentType}: ${docToLink.title}`);
+            showToast(`Document linked successfully: ${documentType}`, 'success');
+            
+            // Reload warranties to show the updated document links
+            setTimeout(async () => {
+                console.log('🔄 Reloading warranties to show updated document links...');
+                await loadWarranties(true);  // Pass isAuthenticated parameter
+                
+                // Force re-render of the warranty cards
+                applyFilters();
+                
+                // Also reload secure images to update cloud icons
+                await loadSecureImages();
+                
+                console.log('✅ Warranties reloaded and UI updated');
+            }, 1000);
+        } else {
+            console.error(`❌ Failed to link ${documentType}: ${linkResult.message}`);
+        }
+        
+        return docToLink;
+        
+    } catch (error) {
+        console.error('❌ Error in manual linking:', error);
+    }
+};
+
+// Helper function to search for documents in Paperless-ngx (debug function)
+window.debugSearchPaperlessDocuments = async function(searchTerm = 'Warracker', limit = 10) {
+    console.log(`🔍 Searching for documents containing: "${searchTerm}"`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('❌ No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(searchTerm)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Search failed: ${response.status}`);
+            return;
+        }
+        
+        const result = await response.json();
+        const docs = result.results || [];
+        
+        console.log(`📄 Found ${docs.length} documents:`);
+        docs.slice(0, limit).forEach((doc, index) => {
+            console.log(`   ${index + 1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+        });
+        
+        if (docs.length > limit) {
+            console.log(`   ... and ${docs.length - limit} more documents`);
+        }
+        
+        return docs;
+    } catch (error) {
+        console.error('❌ Error searching documents:', error);
+    }
+};
+
+// Helper function for users to debug Paperless-ngx configuration
+window.debugPaperlessSetup = async function() {
+    console.log('🔍 Debugging Paperless-ngx setup...');
+    
+    const debugInfo = await debugPaperlessConfiguration();
+    if (!debugInfo) {
+        console.error('❌ Could not get debug information');
+        return;
+    }
+    
+    console.log('📋 Paperless-ngx Configuration:');
+    console.log(`   Enabled: ${debugInfo.paperless_enabled}`);
+    console.log(`   URL: ${debugInfo.paperless_url || 'Not set'}`);
+    console.log(`   API Token Set: ${debugInfo.paperless_api_token_set}`);
+    console.log(`   Handler Available: ${debugInfo.paperless_handler_available}`);
+    
+    if (debugInfo.paperless_handler_error) {
+        console.error(`   Handler Error: ${debugInfo.paperless_handler_error}`);
+    }
+    
+    if (debugInfo.test_connection_result) {
+        console.log(`   Connection Test: ${debugInfo.test_connection_result.success ? '✅ Success' : '❌ Failed'}`);
+        console.log(`   Message: ${debugInfo.test_connection_result.message || debugInfo.test_connection_result.error}`);
+    }
+    
+    // Provide recommendations
+    console.log('\n💡 Recommendations:');
+    
+    if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+        console.log('   - Enable Paperless-ngx integration in Settings');
+    }
+    
+    if (!debugInfo.paperless_url) {
+        console.log('   - Set Paperless-ngx URL in Settings (e.g., http://paperless:8000)');
+    }
+    
+    if (!debugInfo.paperless_api_token_set) {
+        console.log('   - Set API token in Settings (generate from Paperless-ngx → Settings → API Tokens)');
+    }
+    
+    if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+        console.log('   - Check if Paperless-ngx is running and accessible');
+        console.log('   - Verify URL and API token are correct');
+        console.log('   - Check network connectivity between Warracker and Paperless-ngx');
+    }
+    
+    return debugInfo;
+};
+
+// ===== PAPERLESS DOCUMENT BROWSER FUNCTIONALITY =====
+
+// Global variables for paperless browser
+let currentPaperlessDocuments = [];
+let selectedPaperlessDocument = null;
+let currentPaperlessPage = 1;
+let totalPaperlessPages = 1;
+let currentDocumentType = '';
+let paperlessSearchQuery = '';
+
+/**
+ * Open the Paperless document browser modal
+ * @param {string} documentType - Type of document being selected (invoice, manual, product_photo, other_document)
+ */
+function openPaperlessBrowser(documentType) {
+    currentDocumentType = documentType;
+    selectedPaperlessDocument = null;
+    
+    // Reset pagination state
+    currentPaperlessPage = 1;
+    totalPaperlessPages = 1;
+    paperlessSearchQuery = '';
+    
+    // Show the modal
+    const modal = document.getElementById('paperlessBrowserModal');
+    modal.classList.add('active');
+    
+    // Reset search and filters
+    document.getElementById('paperlessSearchInput').value = '';
+    document.getElementById('paperlessTypeFilter').value = '';
+    document.getElementById('paperlessTagFilter').value = '';
+    
+    // Load documents
+    loadAllPaperlessDocuments();
+    
+    // Load tags for filter
+    loadPaperlessTags();
+    
+    // Hide select button initially
+    const selectBtn = document.getElementById('selectPaperlessDocBtn');
+    if (selectBtn) {
+        selectBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Load all Paperless documents
+ */
+async function loadAllPaperlessDocuments() {
+    try {
+        showPaperlessLoading();
+        
+        const params = new URLSearchParams();
+        const offset = (currentPaperlessPage - 1) * 25;
+        params.append('limit', '25');
+        params.append('offset', offset.toString());
+        
+        const response = await fetch(`/api/paperless/search?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        currentPaperlessDocuments = data.results || [];
+        totalPaperlessPages = Math.ceil(data.count / 25) || 1;
+        
+        renderPaperlessDocuments();
+        updatePaperlessPagination();
+        
+    } catch (error) {
+        console.error('Error loading Paperless documents:', error);
+        showPaperlessError('Failed to load documents from Paperless-ngx');
+    }
+}
+
+/**
+ * Search Paperless documents
+ */
+async function searchPaperlessDocuments() {
+    const searchInput = document.getElementById('paperlessSearchInput');
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    
+    paperlessSearchQuery = searchInput.value.trim();
+    
+    try {
+        showPaperlessLoading();
+        
+        const params = new URLSearchParams();
+        if (paperlessSearchQuery) {
+            params.append('query', paperlessSearchQuery);
+        }
+        if (typeFilter.value) {
+            params.append('document_type', typeFilter.value);
+        }
+        if (tagFilter.value) {
+            params.append('tags__id__in', tagFilter.value);
+        }
+        
+        // Add pagination
+        const offset = (currentPaperlessPage - 1) * 25;
+        params.append('limit', '25');
+        params.append('offset', offset.toString());
+        
+        const response = await fetch(`/api/paperless/search?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        currentPaperlessDocuments = data.results || [];
+        totalPaperlessPages = Math.ceil(data.count / 25) || 1;
+        
+        renderPaperlessDocuments();
+        updatePaperlessPagination();
+        
+    } catch (error) {
+        console.error('Error searching Paperless documents:', error);
+        showPaperlessError('Failed to search documents');
+    }
+}
+
+/**
+ * Load Paperless tags for filter dropdown
+ */
+async function loadPaperlessTags() {
+    try {
+        const response = await fetch('/api/paperless/tags', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const tagFilter = document.getElementById('paperlessTagFilter');
+            
+            // Clear existing options except the first one
+            tagFilter.innerHTML = '<option value="">All Tags</option>';
+            
+            // Add tag options
+            if (data.results) {
+                data.results.forEach(tag => {
+                    const option = document.createElement('option');
+                    option.value = tag.id;
+                    option.textContent = tag.name;
+                    tagFilter.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading Paperless tags:', error);
+    }
+}
+
+/**
+ * Render the list of Paperless documents
+ */
+function renderPaperlessDocuments() {
+    const container = document.getElementById('paperlessDocumentsList');
+    
+    if (currentPaperlessDocuments.length === 0) {
+        container.innerHTML = `
+            <div class="no-documents-message">
+                <i class="fas fa-file-alt"></i>
+                <h4>No documents found</h4>
+                <p>Try adjusting your search terms or filters.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const documentsHtml = currentPaperlessDocuments.map(doc => {
+        const createdDate = new Date(doc.created).toLocaleDateString();
+        const fileType = doc.mime_type || 'Unknown';
+        const tags = doc.tags || [];
+        
+        return `
+            <div class="paperless-document-item" data-id="${doc.id}" onclick="selectPaperlessDocument(${doc.id})">
+                <div class="document-title">${escapeHtml(doc.title)}</div>
+                <div class="document-meta">
+                    <span><i class="fas fa-calendar"></i> ${createdDate}</span>
+                    <span><i class="fas fa-file"></i> ${fileType}</span>
+                    ${doc.correspondent ? `<span><i class="fas fa-user"></i> ${escapeHtml(doc.correspondent)}</span>` : ''}
+                </div>
+                ${tags.length > 0 ? `
+                    <div class="document-tags">
+                        ${tags.map(tag => `<span class="document-tag">${escapeHtml(tag)}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = documentsHtml;
+}
+
+/**
+ * Select a Paperless document
+ * @param {number} documentId - ID of the document to select
+ */
+function selectPaperlessDocument(documentId) {
+    // Remove previous selection
+    document.querySelectorAll('.paperless-document-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Add selection to clicked item
+    const selectedItem = document.querySelector(`[data-id="${documentId}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('selected');
+        selectedPaperlessDocument = currentPaperlessDocuments.find(doc => doc.id === documentId);
+        
+        // Show select button
+        const selectBtn = document.getElementById('selectPaperlessDocBtn');
+        selectBtn.style.display = 'inline-block';
+        selectBtn.onclick = () => confirmPaperlessSelection();
+    }
+}
+
+/**
+ * Confirm the selection of a Paperless document
+ */
+function confirmPaperlessSelection() {
+    if (!selectedPaperlessDocument) return;
+    
+    // Update the UI to show the selected document
+    updatePaperlessSelectionUI();
+    
+    // Close the modal
+    closePaperlessBrowser();
+}
+
+/**
+ * Update the UI to show the selected Paperless document
+ */
+function updatePaperlessSelectionUI() {
+    if (!selectedPaperlessDocument || !currentDocumentType) return;
+    
+    const docName = selectedPaperlessDocument.title;
+    const docId = selectedPaperlessDocument.id;
+    
+    // Map document types to their UI elements (only for invoice and manual)
+    const typeMapping = {
+        'invoice': {
+            selectedDiv: 'selectedInvoiceFromPaperless',
+            hiddenInput: 'selectedPaperlessInvoice'
+        },
+        'manual': {
+            selectedDiv: 'selectedManualFromPaperless',
+            hiddenInput: 'selectedPaperlessManual'
+        },
+        // Edit modal versions
+        'edit_invoice': {
+            selectedDiv: 'selectedEditInvoiceFromPaperless',
+            hiddenInput: 'selectedEditPaperlessInvoice'
+        },
+        'edit_manual': {
+            selectedDiv: 'selectedEditManualFromPaperless',
+            hiddenInput: 'selectedEditPaperlessManual'
+        }
+    };
+    
+    const mapping = typeMapping[currentDocumentType];
+    if (!mapping) return;
+    
+    // Show the selected document
+    const selectedDiv = document.getElementById(mapping.selectedDiv);
+    if (selectedDiv) {
+        selectedDiv.style.display = 'flex';
+        selectedDiv.querySelector('.selected-doc-name').textContent = docName;
+    }
+    
+    // Create or update hidden input to store the document ID
+    let hiddenInput = document.getElementById(mapping.hiddenInput);
+    if (!hiddenInput) {
+        hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = mapping.hiddenInput;
+        hiddenInput.name = mapping.hiddenInput;
+        document.body.appendChild(hiddenInput);
+    }
+    hiddenInput.value = docId;
+}
+
+/**
+ * Clear the Paperless document selection
+ * @param {string} documentType - Type of document to clear
+ */
+function clearPaperlessSelection(documentType) {
+    const typeMapping = {
+        'invoice': {
+            selectedDiv: 'selectedInvoiceFromPaperless',
+            hiddenInput: 'selectedPaperlessInvoice'
+        },
+        'manual': {
+            selectedDiv: 'selectedManualFromPaperless',
+            hiddenInput: 'selectedPaperlessManual'
+        },
+        // Edit modal versions
+        'edit_invoice': {
+            selectedDiv: 'selectedEditInvoiceFromPaperless',
+            hiddenInput: 'selectedEditPaperlessInvoice'
+        },
+        'edit_manual': {
+            selectedDiv: 'selectedEditManualFromPaperless',
+            hiddenInput: 'selectedEditPaperlessManual'
+        }
+    };
+    
+    const mapping = typeMapping[documentType];
+    if (!mapping) return;
+    
+    // Hide the selected document display
+    const selectedDiv = document.getElementById(mapping.selectedDiv);
+    if (selectedDiv) {
+        selectedDiv.style.display = 'none';
+    }
+    
+    // Clear the hidden input
+    const hiddenInput = document.getElementById(mapping.hiddenInput);
+    if (hiddenInput) {
+        hiddenInput.value = '';
+    }
+}
+
+/**
+ * Close the Paperless browser modal
+ */
+function closePaperlessBrowser() {
+    const modal = document.getElementById('paperlessBrowserModal');
+    modal.classList.remove('active');
+    
+    // Reset state
+    selectedPaperlessDocument = null;
+    currentDocumentType = '';
+    
+    // Hide select button
+    const selectBtn = document.getElementById('selectPaperlessDocBtn');
+    selectBtn.style.display = 'none';
+}
+
+/**
+ * Change page in Paperless document browser
+ * @param {number} direction - Direction to change page (-1 for previous, 1 for next)
+ */
+function changePage(direction) {
+    const newPage = currentPaperlessPage + direction;
+    if (newPage < 1 || newPage > totalPaperlessPages) return;
+    
+    currentPaperlessPage = newPage;
+    
+    // Check if we have any active filters
+    const searchInput = document.getElementById('paperlessSearchInput');
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    
+    const hasFilters = (searchInput && searchInput.value.trim()) || 
+                      (typeFilter && typeFilter.value) || 
+                      (tagFilter && tagFilter.value);
+    
+    if (hasFilters) {
+        searchPaperlessDocuments();
+    } else {
+        loadAllPaperlessDocuments();
+    }
+}
+
+/**
+ * Update pagination controls
+ */
+function updatePaperlessPagination() {
+    const paginationDiv = document.getElementById('paperlessPagination');
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    
+    if (totalPaperlessPages <= 1) {
+        paginationDiv.style.display = 'none';
+        return;
+    }
+    
+    paginationDiv.style.display = 'flex';
+    prevBtn.disabled = currentPaperlessPage <= 1;
+    nextBtn.disabled = currentPaperlessPage >= totalPaperlessPages;
+    pageInfo.textContent = `Page ${currentPaperlessPage} of ${totalPaperlessPages}`;
+}
+
+/**
+ * Show loading state in Paperless browser
+ */
+function showPaperlessLoading() {
+    const container = document.getElementById('paperlessDocumentsList');
+    container.innerHTML = `
+        <div class="loading-message" style="text-align: center; padding: 40px;">
+            <i class="fas fa-spinner fa-spin"></i> Loading documents...
+        </div>
+    `;
+}
+
+/**
+ * Show error message in Paperless browser
+ * @param {string} message - Error message to display
+ */
+function showPaperlessError(message) {
+    const container = document.getElementById('paperlessDocumentsList');
+    container.innerHTML = `
+        <div class="no-documents-message">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h4>Error</h4>
+            <p>${escapeHtml(message)}</p>
+        </div>
+    `;
+}
+
+/**
+ * Show/hide Paperless browse sections based on Paperless-ngx availability
+ */
+function togglePaperlessBrowseSections() {
+    const paperlessEnabled = window.paperlessNgxEnabled || false;
+    console.log('[togglePaperlessBrowseSections] Paperless enabled:', paperlessEnabled);
+    
+    // List of paperless browse section IDs (only for invoice and manual)
+    const browseSectionIds = [
+        'invoicePaperlessBrowse', 
+        'manualPaperlessBrowse',
+        'editInvoicePaperlessBrowse',
+        'editManualPaperlessBrowse'
+    ];
+    
+    let foundSections = 0;
+    browseSectionIds.forEach(id => {
+        const section = document.getElementById(id);
+        if (section) {
+            foundSections++;
+            section.style.display = paperlessEnabled ? 'block' : 'none';
+            console.log(`[togglePaperlessBrowseSections] ${id}: ${paperlessEnabled ? 'shown' : 'hidden'}`);
+        } else {
+            console.warn(`[togglePaperlessBrowseSections] Section not found: ${id}`);
+        }
+    });
+    
+    console.log(`[togglePaperlessBrowseSections] Found ${foundSections} of ${browseSectionIds.length} sections`);
+}
+
+// Initialize Paperless browser functionality when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners for modal close buttons
+    const paperlessModal = document.getElementById('paperlessBrowserModal');
+    if (paperlessModal) {
+        // Close on backdrop click
+        paperlessModal.addEventListener('click', function(e) {
+            if (e.target === paperlessModal) {
+                closePaperlessBrowser();
+            }
+        });
+        
+        // Close on close button click
+        const closeBtn = paperlessModal.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closePaperlessBrowser);
+        }
+        
+        // Close on cancel button click - but only the Cancel button, not all secondary buttons
+        const cancelBtn = paperlessModal.querySelector('.modal-footer .btn-secondary');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closePaperlessBrowser);
+        }
+    }
+    
+    // Add event listeners for search and filters
+    const searchInput = document.getElementById('paperlessSearchInput');
+    if (searchInput) {
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPaperlessPage = 1; // Reset to first page
+                searchPaperlessDocuments();
+            }
+        });
+        
+        // Search on input change (with debounce)
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPaperlessPage = 1; // Reset to first page
+                searchPaperlessDocuments();
+            }, 500);
+        });
+    }
+    
+    // Add event listeners for filter dropdowns
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', function() {
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    if (tagFilter) {
+        tagFilter.addEventListener('change', function() {
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    // Add event listener for search button
+    const searchBtn = document.getElementById('paperlessSearchBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    // Add event listener for "Show All" button
+    const showAllBtn = document.getElementById('paperlessShowAllBtn');
+    if (showAllBtn) {
+        showAllBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear all filters
+            if (searchInput) searchInput.value = '';
+            if (typeFilter) typeFilter.value = '';
+            if (tagFilter) tagFilter.value = '';
+            
+            // Reset page and load all documents
+            currentPaperlessPage = 1;
+            paperlessSearchQuery = '';
+            loadAllPaperlessDocuments();
+        });
+    }
+    
+    // Toggle browse sections will be handled by initPaperlessNgxIntegration()
+    // togglePaperlessBrowseSections();
+});
+
+// Make functions available globally
+window.openPaperlessBrowser = openPaperlessBrowser;
+window.loadAllPaperlessDocuments = loadAllPaperlessDocuments;
+window.selectPaperlessDocument = selectPaperlessDocument;
+window.clearPaperlessSelection = clearPaperlessSelection;
+window.changePage = changePage;
+
+// ===== END PAPERLESS BROWSER FUNCTIONALITY =====

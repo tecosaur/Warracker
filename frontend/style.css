@@ -2827,24 +2827,58 @@ input.invalid {
   flex: 0 1 auto; /* Allow natural sizing */
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .warranty-info > div {
-  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
 }
 
 .warranty-info > div:last-child {
   margin-bottom: 0;
 }
 
+.warranty-info > div i {
+  width: 20px;
+  margin-right: 8px;
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+}
+
+.warranty-info > div span {
+  margin-left: 5px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+:root[data-theme="dark"] .warranty-info > div i {
+  color: #999;
+}
+
 /* Serial numbers section */
 .serial-numbers {
-  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  margin-top: 0;
+}
+
+.serial-numbers strong {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.serial-numbers span {
+  margin-left: 5px;
+  font-weight: 500;
 }
 
 .serial-numbers ul {
   margin: 5px 0 0 0;
   padding-left: 20px;
+  flex: 1;
 }
 
 .serial-numbers li {
@@ -2873,6 +2907,18 @@ input.invalid {
 .list-view .warranty-info > div {
   margin-bottom: 0;
   margin-right: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.list-view .warranty-info > div i {
+  width: auto;
+  margin-right: 5px;
+}
+
+.list-view .warranty-info > div span {
+  margin-left: 5px;
+  font-weight: 500;
 }
 
 /* Document links row */
@@ -2989,15 +3035,30 @@ input.invalid {
 .table-view .warranty-info > div {
   margin-bottom: 4px;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
 }
 
 .table-view .warranty-info > div:last-child {
   margin-bottom: 0;
 }
 
+.table-view .warranty-info > div i {
+  width: auto;
+  margin-right: 5px;
+  font-size: 0.85rem;
+}
+
+.table-view .warranty-info > div span {
+  margin-left: 5px;
+}
+
 /* Improve serial numbers display in table view */
 .table-view .serial-numbers {
-  margin-top: 5px;
+  margin-top: 0;
+  display: flex;
+  align-items: flex-start;
+  font-size: 0.9rem;
 }
 
 .table-view .serial-numbers ul {
@@ -3929,6 +3990,7 @@ html.dark-mode .warracker-footer a:hover {
     border-radius: 8px;
     object-fit: cover;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background-color: #f5f5f5;
 }
 
 .product-photo-thumbnail img:hover {
@@ -3964,8 +4026,8 @@ html.dark-mode .warracker-footer a:hover {
 
 /* List view photo positioning */
 .list-view .product-photo-thumbnail img {
-    width: 70px;
-    height: 70px;
+    width: 180px;
+    height: 180px;
 }
 
 /* Table view photo positioning */
@@ -3977,6 +4039,7 @@ html.dark-mode .warracker-footer a:hover {
 /* Dark mode adjustments */
 :root[data-theme="dark"] .product-photo-thumbnail img {
     border-color: var(--border-color);
+    background-color: #2a2a2a;
 }
 
 :root[data-theme="dark"] .photo-preview img {
@@ -3986,10 +4049,14 @@ html.dark-mode .warracker-footer a:hover {
 
 /* Mobile responsiveness */
 @media (max-width: 768px) {
-    .grid-view .product-photo-thumbnail img,
-    .list-view .product-photo-thumbnail img {
+    .grid-view .product-photo-thumbnail img {
         width: 60px;
         height: 60px;
+    }
+    
+    .list-view .product-photo-thumbnail img {
+        width: 120px;
+        height: 120px;
     }
     
     .table-view .product-photo-thumbnail img {
@@ -4000,5 +4067,246 @@ html.dark-mode .warracker-footer a:hover {
     .product-photo-thumbnail {
         top: 6px;
         right: 6px;
+    }
+}
+
+@media (max-width: 768px) {
+    .grid-view .product-photo-thumbnail img {
+        width: 30px;
+        height: 30px;
+    }
+    .list-view .product-photo-thumbnail img {
+        width: 25px;
+        height: 25px;
+    }
+    .table-view .product-photo-thumbnail img {
+        width: 20px;
+        height: 20px;
+    }
+    .product-photo-thumbnail {
+        margin-right: 5px;
+    }
+}
+
+/* ===== PAPERLESS BROWSER STYLES ===== */
+.modal-large {
+    max-width: 90vw;
+    width: 900px;
+}
+
+.paperless-browse-section {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: var(--light-gray);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+:root[data-theme="dark"] .paperless-browse-section {
+    background-color: var(--medium-gray);
+    border-color: var(--border-color);
+}
+
+.selected-paperless-doc {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.selected-paperless-doc .selected-doc-name {
+    font-weight: 500;
+    flex-grow: 1;
+}
+
+.selected-paperless-doc .btn-xs {
+    padding: 2px 6px;
+    font-size: 0.8em;
+    margin-left: 10px;
+}
+
+.paperless-browser-controls {
+    margin-bottom: 20px;
+}
+
+.search-section {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.search-section input {
+    flex: 1;
+    min-width: 250px;
+    padding: 10px 12px;
+    font-size: 1rem;
+}
+
+.filter-section {
+    display: flex;
+    gap: 10px;
+}
+
+.filter-section select {
+    flex: 1;
+}
+
+.paperless-documents-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: var(--card-bg);
+}
+
+.paperless-document-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.paperless-document-item:last-child {
+    border-bottom: none;
+}
+
+.paperless-document-item:hover {
+    background-color: var(--light-gray);
+}
+
+:root[data-theme="dark"] .paperless-document-item:hover {
+    background-color: var(--medium-gray);
+}
+
+.paperless-document-item.selected {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.paperless-document-item.selected:hover {
+    background-color: var(--primary-dark);
+}
+
+.document-title {
+    font-weight: 600;
+    font-size: 1.1em;
+    margin-bottom: 4px;
+}
+
+.document-meta {
+    font-size: 0.9em;
+    color: var(--dark-gray);
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.paperless-document-item.selected .document-meta {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.document-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.document-tag {
+    background-color: var(--medium-gray);
+    color: var(--text-color);
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 0.75em;
+}
+
+.paperless-document-item.selected .document-tag {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 15px;
+    padding: 10px;
+    flex-wrap: nowrap;
+}
+
+.pagination-controls button {
+    white-space: nowrap;
+    min-width: fit-content;
+    padding: 8px 12px;
+}
+
+.pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#pageInfo {
+    font-weight: 500;
+    color: var(--text-color);
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.loading-message {
+    color: var(--dark-gray);
+    font-style: italic;
+}
+
+.no-documents-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--dark-gray);
+}
+
+.no-documents-message i {
+    font-size: 3em;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.no-documents-message h4 {
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+/* Mobile responsiveness for paperless browser */
+@media (max-width: 768px) {
+    .modal-large {
+        max-width: 95vw;
+        width: 95vw;
+    }
+    
+    .search-section {
+        flex-direction: column;
+    }
+    
+    .filter-section {
+        flex-direction: column;
+    }
+    
+    .paperless-documents-list {
+        max-height: 300px;
+    }
+    
+    .document-meta {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .pagination-controls {
+        flex-direction: row;
+        gap: 10px;
+        flex-wrap: nowrap;
     }
 }

@@ -26,6 +26,7 @@ class PaperlessHandler:
             api_token: API token for authentication
         """
         self.paperless_url = paperless_url.rstrip('/')
+        self.base_url = self.paperless_url  # Add base_url alias for compatibility
         self.api_token = api_token
         self.session = requests.Session()
         self.session.headers.update({
@@ -127,7 +128,24 @@ class PaperlessHandler:
                 logger.info(f"Paperless-ngx upload response: {result}")
             except Exception as e:
                 logger.warning(f"Could not parse response as JSON: {e}")
-                # If we can't parse JSON but got 200, treat as success
+
+                # If Paperless returns plain text, it is often just the task UUID.
+                text_body = response.text.strip().strip('"')  # paperless may wrap uuid in quotes
+
+                import re
+                uuid_pattern = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+                if uuid_pattern.match(text_body):
+                    # Treat as task ID and try to resolve the document ID
+                    resolved_id = self._get_document_id_from_task(text_body)
+
+                    if resolved_id:
+                        return True, resolved_id, "Document uploaded and processed successfully"
+                    else:
+                        logger.info("Upload accepted; processing asynchronously (task %s)", text_body)
+                        return True, None, f"Document uploaded successfully: {text_body}"
+
+                # If we can't recognise the content, still mark success but without ID
                 return True, None, "Document uploaded successfully"
             
             # Handle different possible response formats from Paperless-ngx
@@ -136,9 +154,21 @@ class PaperlessHandler:
                 # JSON object response
                 if 'task_id' in result:
                     # Task-based response (asynchronous processing)
-                    document_id = result.get('task_id')
-                    logger.info(f"Document upload task created: {document_id}")
-                    return True, document_id, "Document uploaded successfully (processing)"
+                    task_id = result.get('task_id')
+                    logger.info(f"Document upload task created: {task_id}")
+
+                    # NEW: Poll Paperless-ngx task endpoint to resolve the final document ID.
+                    resolved_id = self._get_document_id_from_task(task_id)
+
+                    if resolved_id:
+                        logger.info(f"Resolved task {task_id} to document ID {resolved_id}")
+                        return True, resolved_id, "Document uploaded and processed successfully"
+                    else:
+                        logger.warning(
+                            "Timed out waiting for Paperless-ngx to finish processing task %s", task_id
+                        )
+                        # Processing will still finish in background; caller can attempt later auto-link.
+                        return True, None, "Document uploaded (processing asynchronously – link pending)"
                 elif 'id' in result:
                     # Direct document ID response (synchronous processing)
                     document_id = result.get('id')
@@ -157,9 +187,10 @@ class PaperlessHandler:
                 logger.info(f"Document uploaded successfully (string response): {result}")
                 # Try to extract an ID from the string if it looks like one
                 import re
-                id_match = re.search(r'\d+', result)
+                # Only match standalone numbers, not task IDs
+                id_match = re.search(r'"id"\s*:\s*(\d+)', result)
                 if id_match:
-                    document_id = int(id_match.group())
+                    document_id = int(id_match.group(1))
                     logger.info(f"Extracted document ID from string: {document_id}")
                     return True, document_id, f"Document uploaded successfully: {result}"
                 else:
@@ -429,6 +460,151 @@ class PaperlessHandler:
         except Exception as e:
             logger.warning(f"Error checking document existence {document_id}: {e}")
             return False
+
+    def find_document_by_title(self, title: str) -> Tuple[bool, Optional[int], str]:
+        """
+        Find a document by its title in Paperless-ngx
+        
+        Args:
+            title: Document title to search for
+            
+        Returns:
+            (success: bool, document_id: Optional[int], message: str)
+        """
+        try:
+            logger.info(f"Searching for document by title: {title}")
+            
+            # Search for documents with the given title
+            response = self.session.get(
+                f'{self.paperless_url}/api/documents/',
+                params={
+                    'title__icontains': title,  # Case-insensitive partial match
+                    'ordering': '-created',     # Most recent first
+                    'page_size': 10            # Limit results
+                },
+                timeout=15
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'results' in result and result['results']:
+                # Return the first (most recent) match
+                document = result['results'][0]
+                document_id = document.get('id')
+                document_title = document.get('title', 'Unknown')
+                
+                logger.info(f"Found document: ID {document_id}, Title: {document_title}")
+                return True, document_id, f"Found document: {document_title}"
+            else:
+                logger.info(f"No document found with title containing: {title}")
+                return False, None, "Document not found"
+                
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error searching for document: {e}")
+            return False, None, f"Search failed: HTTP {e.response.status_code}"
+        except Exception as e:
+            logger.error(f"Error searching for document: {e}")
+            return False, None, f"Search failed: {str(e)}"
+
+    # ---------------------------------------------------------------------
+    # Internal helpers
+    # ---------------------------------------------------------------------
+
+    def _get_document_id_from_task(
+        self,
+        task_id: str,
+        timeout_secs: int = 600,  # increased to 10 minutes per user request
+        poll_interval: float = 5.0,  # less frequent polling to reduce load
+    ) -> Optional[int]:
+        """Poll /api/tasks endpoint until the task completes and returns a document ID.
+
+        Args:
+            task_id: The UUID returned by the document upload request.
+            timeout_secs: Maximum time to wait before giving up.
+            poll_interval: Seconds between polls.
+
+        Returns:
+            The related document ID if the task completed successfully within the
+            timeout window; otherwise, ``None``.
+        """
+
+        import time
+
+        if not task_id:
+            return None
+
+        # Prefer the dedicated task endpoint (Paperless ≥2.3). Some older
+        # releases only support the list + filter variant. We therefore try the
+        # singular endpoint first and fall back to the legacy query if it 404s.
+
+        task_url_primary = f"{self.paperless_url}/api/tasks/{task_id}/"
+        task_url_legacy_list = f"{self.paperless_url}/api/tasks/"
+
+        deadline = time.time() + timeout_secs
+
+        while time.time() < deadline:
+            try:
+                try:
+                    resp = self.session.get(task_url_primary, timeout=10)
+                    if resp.status_code == 404:
+                        # Fall back to legacy ?task_id=<uuid> filter
+                        resp = self.session.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
+                except requests.exceptions.HTTPError as http_err:
+                    if http_err.response.status_code == 404 and http_err.response.url.rstrip('/') == task_url_primary.rstrip('/'):
+                        # Primary endpoint not available, try legacy
+                        resp = self.session.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
+                    else:
+                        raise
+
+                resp.raise_for_status()
+
+                # Legacy endpoint returns a list
+                if isinstance(resp.json(), list):
+                    task_info = resp.json()[0] if resp.json() else {}
+                else:
+                    task_info = resp.json()
+
+                # In newer Paperless versions the field is called "state"; fall back to
+                # "status" for backwards-compatibility.
+                state = task_info.get("state") or task_info.get("status")
+                related_doc = task_info.get("related_document")
+
+                # Some Paperless versions don't fill related_document but embed the
+                # newly-created ID in the free-text "result" string, e.g.
+                #   "Success. New document id 416 created"  – see GH#3064.
+                if not related_doc and isinstance(task_info.get("result"), str):
+                    import re
+                    m = re.search(r"document id (\d+)", task_info["result"])
+                    if m:
+                        related_doc = m.group(1)
+
+                if state == "SUCCESS" and related_doc:
+                    try:
+                        return int(related_doc)
+                    except (ValueError, TypeError):
+                        logger.warning("Unexpected related_document value: %s", related_doc)
+                        return None
+
+                if state in {"FAILURE", "REVOKED"}:
+                    logger.error("Paperless task %s finished with state %s", task_id, state)
+                    return None
+
+                # Task still running – wait and try again
+                time.sleep(poll_interval)
+
+            except Exception as poll_err:
+                # Transient network or parsing error – log and retry until deadline
+                logger.warning("Error polling task %s: %s", task_id, poll_err)
+                time.sleep(poll_interval)
+
+        # Timed out waiting for the task to finish
+        logger.warning(
+            "Timed out after %s seconds waiting for task %s (state pending) – will return None so frontend can attempt auto-link",
+            timeout_secs,
+            task_id,
+        )
+        return None
 
 
 def get_paperless_handler(conn) -> Optional[PaperlessHandler]:
