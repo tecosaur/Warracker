@@ -54,6 +54,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 👥 **Multi-User Support**        | Manage multiple accounts with admin controls and global access toggles                                   |
 | 📤 **Data Export/Import**        | Import/export warranty data via CSV                                                                      |
 | ⚙️ **Customizable Settings**     | Configure currency, date formats, notification timing, and branding                                      |
+| 🌐 **Internationalization Support** | Support for multiple currencies and date formats tailored to regional preferences, enabling a seamless global user experience |
 | 🏷️ **Tagging**                  | Organize warranties using custom tags                                                                    |
 | 🔐 **Password Reset**            | Token-based, secure account recovery system                                                              |
 | 🔑 **OIDC SSO**                  | Single sign-on with providers like Google, GitHub, and Keycloak                                          |
