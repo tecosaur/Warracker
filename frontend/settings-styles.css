@@ -1310,3 +1310,57 @@ textarea.form-control {
     }
 }
 
+
+
+/* RTL Language Support for Settings */
+[dir=\
+rtl\] .settings-container {
+    text-align: right;
+}
+
+[dir=\rtl\] .collapsible-card {
+    text-align: right;
+}
+
+[dir=\rtl\] .collapsible-header {
+    justify-content: space-between;
+    text-align: right;
+}
+
+[dir=\rtl\] .collapse-icon {
+    order: -1;
+    margin-left: 0;
+    margin-right: 10px;
+}
+
+[dir=\rtl\] .form-group label {
+    text-align: right;
+}
+
+[dir=\rtl\] .text-muted {
+    text-align: right;
+}
+
+[dir=\rtl\] .toggle-group {
+    flex-direction: row-reverse;
+}
+
+[dir=\rtl\] .preference-item {
+    text-align: right;
+}
+
+[dir=\rtl\] .preference-item > div:first-child {
+    text-align: right;
+}
+
+[dir=\rtl\] .current-user-info {
+    text-align: right;
+}
+
+[dir=\rtl\] .admin-section {
+    text-align: right;
+}
+
+[dir=\rtl\] .danger-zone {
+    text-align: right;
+}

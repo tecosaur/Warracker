@@ -171,17 +171,13 @@ async function initViewControls() {
                     isGlobalView = true;
                     personalViewBtn.classList.remove('active');
                     globalViewBtn.classList.add('active');
-                    if (warrantiesPanelTitle) {
-                        warrantiesPanelTitle.textContent = 'All Users\' Warranties';
-                    }
+                    updateWarrantiesPanelTitle(true);
                 } else {
                     // Apply personal view (default)
                     isGlobalView = false;
                     personalViewBtn.classList.add('active');
                     globalViewBtn.classList.remove('active');
-                    if (warrantiesPanelTitle) {
-                        warrantiesPanelTitle.textContent = 'Your Warranties';
-                    }
+                    updateWarrantiesPanelTitle(false);
                 }
             } else if (adminViewSwitcher) {
                 // Global view is disabled, hide view switcher
@@ -190,9 +186,7 @@ async function initViewControls() {
                 // If currently in global view, switch back to personal view
                 if (isGlobalView) {
                     isGlobalView = false;
-                    if (warrantiesPanelTitle) {
-                        warrantiesPanelTitle.textContent = 'Your Warranties';
-                    }
+                    updateWarrantiesPanelTitle(false);
                     // Reload warranties
                     await loadWarranties(true);
                     applyFilters();
@@ -244,9 +238,7 @@ async function switchToPersonalView() {
     saveViewScopePreference('personal');
     
     // Update title
-    if (warrantiesPanelTitle) {
-        warrantiesPanelTitle.textContent = 'Your Warranties';
-    }
+    updateWarrantiesPanelTitle(false);
     
     // Reload warranties
     try {
@@ -257,7 +249,7 @@ async function switchToPersonalView() {
         }
     } catch (error) {
         console.error('Error switching to personal view:', error);
-        showToast('Error loading personal warranties', 'error');
+        showToast(window.t('messages.error_loading_personal_warranties'), 'error');
     }
 }
 
@@ -280,7 +272,7 @@ async function switchToGlobalView() {
         if (response.ok) {
             const result = await response.json();
             if (!result.enabled) {
-                showToast('Global view has been disabled by administrator', 'error');
+                showToast(window.t('messages.global_view_disabled'), 'error');
                 return;
             }
         }
@@ -296,9 +288,7 @@ async function switchToGlobalView() {
     saveViewScopePreference('global');
     
     // Update title
-    if (warrantiesPanelTitle) {
-        warrantiesPanelTitle.textContent = 'All Users\' Warranties';
-    }
+    updateWarrantiesPanelTitle(true);
     
     // Reload warranties
     try {
@@ -309,7 +299,23 @@ async function switchToGlobalView() {
         }
     } catch (error) {
         console.error('Error switching to global view:', error);
-        showToast('Error loading global warranties', 'error');
+        showToast(window.t('messages.error_loading_global_warranties'), 'error');
+    }
+}
+
+/**
+ * Update warranties panel title with proper translation
+ * @param {boolean} isGlobal - Whether to show global or personal title
+ */
+function updateWarrantiesPanelTitle(isGlobal = false) {
+    if (warrantiesPanelTitle) {
+        if (window.i18next && window.i18next.t) {
+            warrantiesPanelTitle.textContent = isGlobal ? 
+                window.i18next.t('warranties.title_global') : 
+                window.i18next.t('warranties.title');
+        } else {
+            warrantiesPanelTitle.textContent = isGlobal ? 'All Users\' Warranties' : 'Your Warranties';
+        }
     }
 }
 
@@ -436,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const name = tagNameInput ? tagNameInput.value.trim() : '';
                 const color = tagColorInput ? tagColorInput.value : '#808080';
                 if (!name) {
-                    showToast('Tag name is required', 'error');
+                    showToast(window.t('messages.tag_name_required'), 'error');
                     return;
                 }
                 // Use the existing createTag function if available
@@ -448,10 +454,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             renderExistingTags && renderExistingTags();
                         })
                         .catch((err) => {
-                            showToast((err && err.message) || 'Failed to create tag', 'error');
+                            showToast((err && err.message) || window.t('messages.failed_to_create_tag'), 'error');
                         });
                 } else {
-                    showToast('Tag creation function not found', 'error');
+                    showToast(window.t('messages.tag_creation_function_not_found'), 'error');
                 }
             });
         }
@@ -662,7 +668,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
             // Get auth token
             const token = localStorage.getItem('auth_token');
             if (!token) {
-                showToast('Authentication required', 'error');
+                showToast(window.t('messages.authentication_required'), 'error');
                 return;
             }
             showLoadingSpinner();
@@ -730,7 +736,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
                     throw new Error(data.error || 'Failed to update notes');
                 }
                 hideLoadingSpinner();
-                showToast('Notes updated successfully', 'success');
+                showToast(window.t('messages.notes_updated_successfully'), 'success');
                 // Close the modal
                 const notesModal = document.getElementById('notesModal');
                 if (notesModal) notesModal.style.display = 'none';
@@ -740,7 +746,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
             } catch (error) {
                 hideLoadingSpinner();
                 console.error('Error updating notes:', error);
-                showToast(error.message || 'Failed to update notes', 'error');
+                showToast(error.message || window.t('messages.failed_to_update_notes'), 'error');
             }
         };
     }
@@ -932,23 +938,25 @@ function updateCompletedTabs() {
 // Validate a specific tab
 function validateTab(tabIndex) {
     const tabContent = tabContents[tabIndex];
-    // Get all relevant form controls within the tab
     const controls = tabContent.querySelectorAll('input, textarea, select');
     let isTabValid = true;
 
     controls.forEach(control => {
-        // Check the native HTML5 validity state
-        if (!control.validity.valid) {
+        // Clear previous validation state
+        control.classList.remove('invalid');
+        let validationMessageElement = control.nextElementSibling;
+        if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
+            validationMessageElement.remove();
+        }
+
+        // Manual validation for required fields
+        if (control.hasAttribute('required') && control.value.trim() === '') {
             isTabValid = false;
             control.classList.add('invalid');
-            // Ensure a validation message placeholder exists or is updated by showValidationErrors
-        } else {
-            control.classList.remove('invalid');
-            // Remove validation message if control is now valid and message exists
-            let validationMessageElement = control.nextElementSibling;
-            if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
-                validationMessageElement.remove();
-            }
+            // Mark as invalid, message will be added by showValidationErrors
+        } else if (!control.validity.valid) { // For other HTML5 validation issues (e.g., type mismatch)
+            isTabValid = false;
+            control.classList.add('invalid');
         }
     });
     return isTabValid;
@@ -959,6 +967,7 @@ function showValidationErrors(tabIndex) {
     const tabContent = tabContents[tabIndex];
     const controls = tabContent.querySelectorAll('input, textarea, select');
     let firstInvalidControl = null;
+    let validationToast = document.querySelector('.validation-toast'); // Check for existing validation toast
 
     controls.forEach(control => {
         if (!control.validity.valid) {
@@ -972,7 +981,11 @@ function showValidationErrors(tabIndex) {
                 validationMessageElement.className = 'validation-message';
                 control.parentNode.insertBefore(validationMessageElement, control.nextSibling);
             }
-            validationMessageElement.textContent = control.validationMessage || 'This field is invalid.';
+            if (control.hasAttribute('required') && control.value.trim() === '') {
+                validationMessageElement.textContent = window.i18next ? window.i18next.t('messages.please_fill_out_this_field') : 'Please fill out this field.';
+            } else {
+                validationMessageElement.textContent = control.validationMessage || (window.i18next ? window.i18next.t('messages.field_is_invalid') : 'This field is invalid.');
+            }
         } else {
             // Ensure invalid class is removed if somehow missed by validateTab (shouldn't happen)
             control.classList.remove('invalid');
@@ -986,7 +999,15 @@ function showValidationErrors(tabIndex) {
 
     // The browser will attempt to focus the first invalid field when form submission is prevented.
     // Switching to the tab containing the error (done by handleFormSubmit) is key.
-    showToast('Please correct the errors in the current tab.', 'error');
+    
+    // Manage a single validation toast
+    if (!validationToast) {
+        validationToast = showToast(window.t('messages.correct_errors_in_tab'), 'error', 0); // 0 duration = persistent
+        validationToast.classList.add('validation-toast'); // Add a class to identify it
+    } else {
+        // Update existing toast message if needed (optional)
+        validationToast.querySelector('span').textContent = window.t('messages.correct_errors_in_tab');
+    }
 }
 
 // Update summary tab with current form values
@@ -1054,18 +1075,27 @@ function updateSummary() {
     const summaryWarrantyDuration = document.getElementById('summary-warranty-duration'); // Use new ID
 
     if (summaryWarrantyDuration) {
-        if (isLifetime) {
-            summaryWarrantyDuration.textContent = 'Lifetime';
+                if (isLifetime) {
+            summaryWarrantyDuration.textContent = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         } else {
             const years = parseInt(warrantyDurationYearsInput?.value || 0);
             const months = parseInt(warrantyDurationMonthsInput?.value || 0);
             const days = parseInt(warrantyDurationDaysInput?.value || 0);
-            
+
             let durationParts = [];
-            if (years > 0) durationParts.push(`${years} year${years !== 1 ? 's' : ''}`);
-            if (months > 0) durationParts.push(`${months} month${months !== 1 ? 's' : ''}`);
-            if (days > 0) durationParts.push(`${days} day${days !== 1 ? 's' : ''}`);
-            
+            if (years > 0) {
+                const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+                durationParts.push(`${years} ${yearText}`);
+            }
+            if (months > 0) {
+                const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+                durationParts.push(`${months} ${monthText}`);
+            }
+            if (days > 0) {
+                const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+                durationParts.push(`${days} ${dayText}`);
+            }
+
             summaryWarrantyDuration.textContent = durationParts.length > 0 ? durationParts.join(', ') : '-';
         }
     }
@@ -1322,7 +1352,7 @@ async function exportWarranties() {
     document.body.removeChild(link);
     
     // Show success notification
-    showToast(`Exported ${warrantiesToExport.length} warranties successfully`, 'success');
+    showToast(window.t('messages.exported_warranties_successfully', {count: warrantiesToExport.length}), 'success');
 }
 
 // Switch view of warranties list
@@ -1477,7 +1507,11 @@ function addSerialNumberInput(container = serialNumbersContainer) {
     input.type = 'text';
     input.className = 'form-control';
     input.name = 'serial_numbers[]';
-    input.placeholder = 'Enter serial number';
+    input.placeholder = window.i18next ? window.i18next.t('warranties.enter_serial_number') : 'Enter serial number';
+    console.log('i18next available for serial number placeholder:', !!window.i18next);
+    if (window.i18next) {
+        console.log('Translation for warranties.enter_serial_number:', window.i18next.t('warranties.enter_serial_number'));
+    }
     
     // Check if this is the first serial number input
     const isFirstInput = container.querySelectorAll('.serial-number-input').length === 0;
@@ -1513,7 +1547,11 @@ function addSerialNumberInput(container = serialNumbersContainer) {
         const addButton = document.createElement('button');
         addButton.type = 'button';
         addButton.className = 'btn btn-sm btn-secondary add-serial';
-        addButton.innerHTML = '<i class="fas fa-plus"></i> Add Serial Number';
+        addButton.innerHTML = '<i class="fas fa-plus"></i> ' + (window.i18next ? window.i18next.t('warranties.add_serial_number') : 'Add Serial Number');
+        console.log('i18next available in addSerialNumberInput:', !!window.i18next);
+        if (window.i18next) {
+            console.log('Translation for warranties.add_serial_number:', window.i18next.t('warranties.add_serial_number'));
+        }
         
         addButton.addEventListener('click', function() {
             addSerialNumberInput(container);
@@ -1544,27 +1582,60 @@ function hideLoading() {
     }
 }
 
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 5000) {
+    // Check if a toast with the same message and type already exists
+    const existingToasts = document.querySelectorAll(`.toast.toast-${type}`);
+    for (let i = 0; i < existingToasts.length; i++) {
+        const span = existingToasts[i].querySelector('span');
+        if (span && span.textContent === message) {
+            return existingToasts[i]; // Don't create a new one
+        }
+    }
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        ${message}
-        <button class="toast-close">&times;</button>
-    `;
     
-    // Add close event
-    toast.querySelector('.toast-close').addEventListener('click', () => {
-        toast.remove();
-    });
+    const icon = document.createElement('i');
+    switch (type) {
+        case 'success':
+            icon.className = 'fas fa-check-circle';
+            break;
+        case 'error':
+            icon.className = 'fas fa-exclamation-circle';
+            break;
+        case 'warning':
+            icon.className = 'fas fa-exclamation-triangle';
+            break;
+        default:
+            icon.className = 'fas fa-info-circle';
+    }
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(messageSpan);
     
     toastContainer.appendChild(toast);
     
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        if (toast.parentElement) {
+    // Add a method to remove the toast
+    toast.remove = function() {
+        toast.classList.add('toast-fade-out');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    };
+    
+    // Auto-hide toast after specified duration (if not 0)
+    if (duration > 0) {
+        setTimeout(() => {
             toast.remove();
-        }
-    }, 3000);
+        }, duration);
+    }
+    
+    return toast;
 }
 
 // Update file name display when a file is selected
@@ -1659,7 +1730,7 @@ function processWarrantyData(warranty) {
     // --- Lifetime Handling ---
     if (processedWarranty.is_lifetime) {
         processedWarranty.status = 'active';
-        processedWarranty.statusText = 'Lifetime';
+        processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         processedWarranty.daysRemaining = Infinity;
         // Ensure duration components are 0 for lifetime
         processedWarranty.warranty_duration_years = 0;
@@ -1676,13 +1747,23 @@ function processWarrantyData(warranty) {
 
         if (daysRemaining < 0) {
             processedWarranty.status = 'expired';
-            processedWarranty.statusText = 'Expired';
+            processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.expired') : 'Expired';
         } else if (daysRemaining < expiringSoonDays) {
             processedWarranty.status = 'expiring';
-            processedWarranty.statusText = `Expiring Soon (${daysRemaining} day${daysRemaining !== 1 ? 's' : ''})`;
+            const dayText = window.i18next ? 
+                window.i18next.t('warranties.day', {count: daysRemaining}) :
+                `day${daysRemaining !== 1 ? 's' : ''}`;
+            processedWarranty.statusText = window.i18next ? 
+                window.i18next.t('warranties.expiring_soon_days', {days: daysRemaining, dayText: dayText}) :
+                `Expiring Soon (${daysRemaining} day${daysRemaining !== 1 ? 's' : ''})`;
         } else {
             processedWarranty.status = 'active';
-            processedWarranty.statusText = `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
+            const dayText = window.i18next ? 
+                window.i18next.t('warranties.day', {count: daysRemaining}) :
+                `day${daysRemaining !== 1 ? 's' : ''}`;
+            processedWarranty.statusText = window.i18next ? 
+                window.i18next.t('warranties.days_remaining', {days: daysRemaining, dayText: dayText}) :
+                `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
         }
         
         // Preserve original duration values to detect input method
@@ -1723,7 +1804,7 @@ function processWarrantyData(warranty) {
         }
     } else {
         processedWarranty.status = 'unknown';
-        processedWarranty.statusText = 'Unknown Status';
+        processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.unknown_status') : 'Unknown Status';
         processedWarranty.daysRemaining = null;
     }
 
@@ -1831,7 +1912,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         // Check if auth is available and user is authenticated using the passed parameter
         if (!isAuthenticated) {
             console.log('[DEBUG] loadWarranties: Early return - User not authenticated based on passed parameter.');
-            renderEmptyState('Please log in to view your warranties.');
+            renderEmptyState(window.t('messages.login_to_view_warranties'));
             hideLoading();
             return;
         }
@@ -1839,7 +1920,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         const token = window.auth.getToken();
         if (!token) {
             console.log('[DEBUG] Early return: No auth token available');
-            renderEmptyState('Authentication error. Please log in again.');
+            renderEmptyState(window.t('messages.authentication_error_login_again'));
             hideLoading();
             return;
         }
@@ -1884,7 +1965,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         
         if (warranties.length === 0) {
             console.log('No warranties found, showing empty state');
-            renderEmptyState('No warranties found. Add your first warranty using the form.');
+            renderEmptyState(window.t('messages.no_warranties_found_add_first'));
         } else {
             console.log('Applying filters to display warranties');
             
@@ -1898,7 +1979,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
     } catch (error) {
         console.error('[DEBUG] Error loading warranties:', error);
         warrantiesLoaded = false; // Reset flag on error
-        renderEmptyState('Error loading warranties. Please try again later.');
+        renderEmptyState(window.t('messages.error_loading_warranties_try_again'));
     } finally {
         hideLoading();
     }
@@ -2002,13 +2083,16 @@ function calculateProductAge(purchaseDate) {
     // Format the result
     const parts = [];
     if (years > 0) {
-        parts.push(`${years} year${years !== 1 ? 's' : ''}`);
+        const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+        parts.push(`${years} ${yearText}`);
     }
     if (months > 0) {
-        parts.push(`${months} month${months !== 1 ? 's' : ''}`);
+        const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+        parts.push(`${months} ${monthText}`);
     }
     if (days > 0 && years === 0) { // Only show days if less than a year old
-        parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+        const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+        parts.push(`${days} ${dayText}`);
     }
     
     if (parts.length === 0) {
@@ -2115,9 +2199,9 @@ async function renderWarranties(warrantiesToRender) {
         const statusClass = warranty.status || 'unknown';
         const statusText = warranty.statusText || 'Unknown Status';
         // Format warranty duration text
-        let warrantyDurationText = 'N/A';
+        let warrantyDurationText = window.i18next ? window.i18next.t('warranties.na') : 'N/A';
         if (isLifetime) {
-            warrantyDurationText = 'Lifetime';
+            warrantyDurationText = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         } else {
             // Use display_duration values if available, otherwise fall back to warranty_duration values
             const years = warranty.display_duration_years !== undefined ? warranty.display_duration_years : (warranty.warranty_duration_years || 0);
@@ -2129,9 +2213,18 @@ async function renderWarranties(warrantiesToRender) {
                 const calculatedDuration = calculateDurationFromDates(warranty.purchase_date, warranty.expiration_date);
                 if (calculatedDuration) {
                     let parts = [];
-                    if (calculatedDuration.years > 0) parts.push(`${calculatedDuration.years} year${calculatedDuration.years !== 1 ? 's' : ''}`);
-                    if (calculatedDuration.months > 0) parts.push(`${calculatedDuration.months} month${calculatedDuration.months !== 1 ? 's' : ''}`);
-                    if (calculatedDuration.days > 0) parts.push(`${calculatedDuration.days} day${calculatedDuration.days !== 1 ? 's' : ''}`);
+                    if (calculatedDuration.years > 0) {
+                        const yearText = window.i18next ? window.i18next.t('warranties.year', {count: calculatedDuration.years}) : `year${calculatedDuration.years !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.years} ${yearText}`);
+                    }
+                    if (calculatedDuration.months > 0) {
+                        const monthText = window.i18next ? window.i18next.t('warranties.month', {count: calculatedDuration.months}) : `month${calculatedDuration.months !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.months} ${monthText}`);
+                    }
+                    if (calculatedDuration.days > 0) {
+                        const dayText = window.i18next ? window.i18next.t('warranties.day', {count: calculatedDuration.days}) : `day${calculatedDuration.days !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.days} ${dayText}`);
+                    }
                     if (parts.length > 0) {
                         warrantyDurationText = parts.join(', ');
                     }
@@ -2139,15 +2232,24 @@ async function renderWarranties(warrantiesToRender) {
             } else {
                 // Use the stored/calculated duration fields
                 let parts = [];
-                if (years > 0) parts.push(`${years} year${years !== 1 ? 's' : ''}`);
-                if (months > 0) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
-                if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+                if (years > 0) {
+                    const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+                    parts.push(`${years} ${yearText}`);
+                }
+                if (months > 0) {
+                    const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+                    parts.push(`${months} ${monthText}`);
+                }
+                if (days > 0) {
+                    const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+                    parts.push(`${days} ${dayText}`);
+                }
                 if (parts.length > 0) {
                     warrantyDurationText = parts.join(', ');
                 }
             }
         }
-        const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
+        const expirationDateText = isLifetime ? (window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime') : formatDate(expirationDate);
         
         // Calculate product age
         const productAge = calculateProductAge(warranty.purchase_date);
@@ -2159,7 +2261,8 @@ async function renderWarranties(warrantiesToRender) {
         // Prepare user info HTML for global view
         let userInfoHtml = '';
         if (isGlobalView && warranty.user_display_name) {
-            userInfoHtml = `<div><strong>Owner:</strong> <span>${warranty.user_display_name}</span></div>`;
+            const ownerLabel = window.i18next ? window.i18next.t('warranties.owner') : 'Owner';
+            userInfoHtml = `<div><strong>${ownerLabel}:</strong> <span>${warranty.user_display_name}</span></div>`;
         }
         
         // Prepare tags HTML
@@ -2178,7 +2281,8 @@ async function renderWarranties(warrantiesToRender) {
         // Remove the button, and instead prepare a notes link for document-links-row
         let notesLinkHtml = '';
         if (hasNotes) {
-            notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> Notes</a>`;
+            const notesLabel = window.i18next ? window.i18next.t('warranties.notes') : 'Notes';
+            notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> ${notesLabel}</a>`;
         }
         
         // Get current user ID to check warranty ownership
@@ -2236,12 +2340,12 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
-                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
-                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
                             ${validSerialNumbers.length > 1 ? `
                                 <div style="margin-left: 28px;">
                                     <ul style="margin-top: 5px;">
@@ -2250,8 +2354,8 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
-                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
-                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2261,7 +2365,7 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
                         ${generateDocumentLink(warranty, 'invoice')}
@@ -2295,12 +2399,12 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
-                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
-                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
                             ${validSerialNumbers.length > 1 ? `
                                 <div style="margin-left: 28px;">
                                     <ul style="margin-top: 5px;">
@@ -2309,8 +2413,8 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
-                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
-                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2320,7 +2424,7 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
                         ${generateDocumentLink(warranty, 'invoice')}
@@ -2354,12 +2458,12 @@ async function renderWarranties(warrantiesToRender) {
                     ${photoThumbnailHtml}
                     <div class="warranty-info">
                         ${userInfoHtml}
-                        <div><i class="fas fa-calendar"></i> Age: <span>${productAge}</span></div>
-                        <div><i class="fas fa-file-alt"></i> Warranty: <span>${warrantyDurationText}</span></div>
-                        <div><i class="fas fa-wrench"></i> Warranty Ends: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> Price: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div><i class="fas fa-barcode"></i> Serial Number: <span>${validSerialNumbers[0]}</span></div>
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
                             ${validSerialNumbers.length > 1 ? `
                                 <div style="margin-left: 28px;">
                                     <ul style="margin-top: 5px;">
@@ -2368,8 +2472,8 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
-                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> Vendor: <span>${warranty.vendor}</span></div>` : ''}
-                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> Type: <span>${warranty.warranty_type}</span></div>` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
@@ -2379,7 +2483,7 @@ async function renderWarranties(warrantiesToRender) {
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
                         ${generateDocumentLink(warranty, 'invoice')}
@@ -2408,7 +2512,7 @@ async function renderWarranties(warrantiesToRender) {
                     if (currentWarranty) {
                         await openEditModal(currentWarranty);
                     } else {
-                        showToast('Warranty not found. Please refresh the page.', 'error');
+                        showToast(window.t('messages.warranty_not_found_refresh'), 'error');
                     }
                 });
             }
@@ -2431,7 +2535,7 @@ async function renderWarranties(warrantiesToRender) {
                 if (currentWarranty) {
                     showNotesModal(currentWarranty.notes, currentWarranty);
                 } else {
-                    showToast('Warranty not found. Please refresh the page.', 'error');
+                    showToast(window.t('messages.warranty_not_found_refresh'), 'error');
                 }
             });
         }
@@ -2644,9 +2748,9 @@ async function openEditModal(warranty) {
         const firstInput = document.createElement('div');
         firstInput.className = 'serial-number-input';
         firstInput.innerHTML = `
-            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[0]}">
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="${i18next.t('warranties.enter_serial_number')}" value="${validSerialNumbers[0]}">
             <button type="button" class="btn btn-sm btn-primary add-serial-number">
-                <i class="fas fa-plus"></i> Add Another
+                <i class="fas fa-plus"></i> ${i18next.t('warranties.add_serial_number')}
             </button>
         `;
 
@@ -2663,9 +2767,9 @@ async function openEditModal(warranty) {
             const newInput = document.createElement('div');
             newInput.className = 'serial-number-input';
             newInput.innerHTML = `
-                <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[i]}">
+                <input type="text" name="serial_numbers[]" class="form-control" placeholder="${i18next.t('warranties.enter_serial_number')}" value="${validSerialNumbers[i]}">
                 <button type="button" class="btn btn-sm btn-danger remove-serial-number">
-                    <i class="fas fa-minus"></i> Remove
+                    <i class="fas fa-minus"></i> ${i18next.t('actions.delete')}
                 </button>
             `;
 
@@ -2688,30 +2792,30 @@ async function openEditModal(warranty) {
         if (hasLocalInvoice) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current invoice: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_invoice')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteInvoiceBtn.style.display = '';
         } else if (hasPaperlessInvoice) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current invoice: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_invoice')}: 
                     <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_invoice_id}); return false;">View</a>
-                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteInvoiceBtn.style.display = '';
         } else {
-            currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+            currentInvoiceElement.innerHTML = `<span>${i18next.t('warranties.no_invoice_uploaded')}</span>`;
             deleteInvoiceBtn.style.display = 'none';
         }
         // Reset delete state
         deleteInvoiceBtn.dataset.delete = 'false';
         deleteInvoiceBtn.onclick = function() {
             deleteInvoiceBtn.dataset.delete = 'true';
-            currentInvoiceElement.innerHTML = '<span class="text-danger">Invoice will be deleted on save</span>';
+            currentInvoiceElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.invoice_will_be_deleted')}</span>`;
             deleteInvoiceBtn.style.display = 'none';
         };
     }
@@ -2725,30 +2829,30 @@ async function openEditModal(warranty) {
         if (hasLocalManual) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current manual: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_manual')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteManualBtn.style.display = '';
         } else if (hasPaperlessManual) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current manual: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_manual')}: 
                     <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_manual_id}); return false;">View</a>
-                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteManualBtn.style.display = '';
         } else {
-            currentManualElement.innerHTML = '<span>No manual uploaded</span>';
+            currentManualElement.innerHTML = `<span>${i18next.t('warranties.no_manual_uploaded')}</span>`;
             deleteManualBtn.style.display = 'none';
         }
         // Reset delete state
         deleteManualBtn.dataset.delete = 'false';
         deleteManualBtn.onclick = function() {
             deleteManualBtn.dataset.delete = 'true';
-            currentManualElement.innerHTML = '<span class="text-danger">Manual will be deleted on save</span>';
+            currentManualElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.manual_will_be_deleted')}</span>`;
             deleteManualBtn.style.display = 'none';
         };
     }
@@ -2763,33 +2867,33 @@ async function openEditModal(warranty) {
         if (hasLocalPhoto) {
             currentProductPhotoElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current photo: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_photo')}: 
                     <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Current Photo" class="secure-image" 
                          style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; margin-left: 10px; border: 2px solid var(--border-color);"
                          onerror="this.style.display='none'">
-                    <br><small>(Upload a new photo to replace)</small>
+                    <br><small>(${i18next.t('warranties.upload_new_photo_replace')})</small>
                 </span>
             `;
             deleteProductPhotoBtn.style.display = '';
         } else if (hasPaperlessPhoto) {
             currentProductPhotoElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current photo: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_photo')}: 
                     <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_photo_id}); return false;">View</a>
                     <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
-                    <br><small>(Upload a new photo to replace)</small>
+                    <br><small>(${i18next.t('warranties.upload_new_photo_replace')})</small>
                 </span>
             `;
             deleteProductPhotoBtn.style.display = '';
         } else {
-            currentProductPhotoElement.innerHTML = '<span>No photo uploaded</span>';
+            currentProductPhotoElement.innerHTML = `<span>${i18next.t('warranties.no_photo_uploaded')}</span>`;
             deleteProductPhotoBtn.style.display = 'none';
         }
         // Reset delete state
         deleteProductPhotoBtn.dataset.delete = 'false';
         deleteProductPhotoBtn.onclick = function() {
             deleteProductPhotoBtn.dataset.delete = 'true';
-            currentProductPhotoElement.innerHTML = '<span class="text-danger">Photo will be deleted on save</span>';
+            currentProductPhotoElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.photo_will_be_deleted')}</span>`;
             deleteProductPhotoBtn.style.display = 'none';
         };
     }
@@ -2804,30 +2908,30 @@ async function openEditModal(warranty) {
         if (hasLocalOther) { 
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current other document: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_other_document')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `; 
             deleteOtherDocumentBtn.style.display = ''; 
         } else if (hasPaperlessOther) {
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current other document: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_other_document')}: 
                     <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_other_id}); return false;">View</a>
-                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (Upload a new file to replace)
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `; 
             deleteOtherDocumentBtn.style.display = ''; 
         } else { 
-            currentOtherDocumentElement.innerHTML = '<span>No other document uploaded</span>'; 
+            currentOtherDocumentElement.innerHTML = `<span>${i18next.t('warranties.no_other_document_uploaded')}</span>`; 
             deleteOtherDocumentBtn.style.display = 'none'; 
         } 
         // Reset delete state
         deleteOtherDocumentBtn.dataset.delete = 'false'; 
         deleteOtherDocumentBtn.onclick = function() { 
             deleteOtherDocumentBtn.dataset.delete = 'true'; 
-            currentOtherDocumentElement.innerHTML = '<span class="text-danger">Other document will be deleted on save</span>'; 
+            currentOtherDocumentElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.other_document_will_be_deleted')}</span>`; 
             deleteOtherDocumentBtn.style.display = 'none'; 
         }; 
     } 
@@ -3159,7 +3263,7 @@ function validateFileSize(formData, maxSizeMB = 32) {
 }
 
 // Submit form function - event handler for form submit
-function handleFormSubmit(event) { // Renamed from submitForm
+async function handleFormSubmit(event) { // Made async to properly await paperless uploads
     event.preventDefault();
     
     const isLifetime = isLifetimeCheckbox.checked;
@@ -3174,7 +3278,7 @@ function handleFormSubmit(event) { // Renamed from submitForm
         if (isDurationMethod) {
             // Validate duration fields
             if (years === 0 && months === 0 && days === 0) {
-                showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
+                showValidationErrors(1);
                 switchToTab(1); // Switch to warranty details tab
                 // Optionally focus the first duration input
                 if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
@@ -3185,7 +3289,7 @@ function handleFormSubmit(event) { // Renamed from submitForm
         } else {
             // Validate exact expiration date
             if (!exactDate) {
-                showToast('Exact expiration date is required when using the exact date method', 'error');
+                showValidationErrors(1);
                 switchToTab(1); // Switch to warranty details tab
                 if (exactExpirationDateInput) exactExpirationDateInput.focus();
                 return;
@@ -3194,7 +3298,7 @@ function handleFormSubmit(event) { // Renamed from submitForm
             // Validate that expiration date is in the future relative to purchase date
             const purchaseDate = document.getElementById('purchaseDate').value;
             if (purchaseDate && exactDate <= purchaseDate) {
-                showToast('Expiration date must be after the purchase date', 'error');
+                showToast(window.t('messages.expiration_date_after_purchase_date'), 'error');
                 switchToTab(1);
                 if (exactExpirationDateInput) exactExpirationDateInput.focus();
                 return;
@@ -3210,6 +3314,7 @@ function handleFormSubmit(event) { // Renamed from submitForm
         if (!validateTab(i)) {
             // Switch to the first invalid tab
             switchToTab(i);
+            showValidationErrors(i);
             return;
         }
     }
@@ -3290,18 +3395,46 @@ function handleFormSubmit(event) { // Renamed from submitForm
         formData.set('warranty_duration_days', '0');
     }
 
-    // Add other_document file
-    const otherDocumentFile = document.getElementById('otherDocument').files[0]; 
-    if (otherDocumentFile) { 
-        formData.append('other_document', otherDocumentFile); 
-    } 
-    
-    // Add selected Paperless documents
+    // Add other_document file (always, as no storage selection for this)
+    const otherDocumentFile = document.getElementById('otherDocument').files[0];
+    if (otherDocumentFile) {
+        formData.append('other_document', otherDocumentFile);
+    }
+
+    // --- Only append invoice/manual files to FormData if storage is 'local' ---
+    const invoiceFile = document.getElementById('invoice')?.files[0];
+    const manualFile = document.getElementById('manual')?.files[0];
+    let invoiceStorage = 'local';
+    let manualStorage = 'local';
+    const invoiceStorageRadio = document.querySelector('input[name="invoiceStorage"]:checked');
+    const manualStorageRadio = document.querySelector('input[name="manualStorage"]:checked');
+    if (invoiceStorageRadio) invoiceStorage = invoiceStorageRadio.value;
+    if (manualStorageRadio) manualStorage = manualStorageRadio.value;
+    formData.set('invoiceStorage', invoiceStorage);
+    formData.set('manualStorage', manualStorage);
+    console.log('[DEBUG] Invoice storage:', invoiceStorage, 'Manual storage:', manualStorage);
+    console.log('[DEBUG] Invoice file:', invoiceFile);
+    console.log('[DEBUG] Manual file:', manualFile);
+    if (invoiceStorage === 'local' && invoiceFile) {
+        console.log('[DEBUG] Appending invoice file to FormData (local storage)');
+        formData.append('invoice', invoiceFile);
+    }
+    if (manualStorage === 'local' && manualFile) {
+        console.log('[DEBUG] Appending manual file to FormData (local storage)');
+        formData.append('manual', manualFile);
+    }
+    if (invoiceStorage === 'paperless') {
+        console.log('[DEBUG] Invoice should be uploaded to Paperless-ngx');
+    }
+    if (manualStorage === 'paperless') {
+        console.log('[DEBUG] Manual should be uploaded to Paperless-ngx');
+    }
+
+    // Add selected Paperless documents (for linking existing docs, not uploads)
     const selectedPaperlessProductPhoto = document.getElementById('selectedPaperlessProductPhoto');
     const selectedPaperlessInvoice = document.getElementById('selectedPaperlessInvoice');
     const selectedPaperlessManual = document.getElementById('selectedPaperlessManual');
     const selectedPaperlessOtherDocument = document.getElementById('selectedPaperlessOtherDocument');
-    
     if (selectedPaperlessProductPhoto && selectedPaperlessProductPhoto.value) {
         formData.append('paperless_photo_id', selectedPaperlessProductPhoto.value);
     }
@@ -3318,81 +3451,90 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // Show loading spinner
     showLoadingSpinner();
     
-    // Process Paperless-ngx uploads if enabled
-    processPaperlessNgxUploads(formData)
-        .then(paperlessUploads => {
-            // Add Paperless-ngx document IDs to form data
-            Object.keys(paperlessUploads).forEach(key => {
-                formData.append(key, paperlessUploads[key]);
-            });
-            
-            // Send the form data to the server
-            return fetch('/api/warranties', {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
-                },
-                body: formData
-            });
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(data => {
-                    throw new Error(data.error || 'Failed to add warranty');
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            hideLoadingSpinner();
-            showToast('Warranty added successfully', 'success');
-            
-            // Store the new warranty ID for auto-linking
-            const newWarrantyId = data.id;
-            
-            // --- Close and reset the modal on success ---
-            if (addWarrantyModal) {
-                addWarrantyModal.classList.remove('active');
-            }
-            resetAddWarrantyWizard(); // Reset the wizard form
-            // --- End modification ---
-
-            loadWarranties(true).then(() => {
-                console.log('Warranties reloaded after adding new warranty');
-                applyFilters();
-                // Load secure images for the new cards - additional call to ensure they load
-                setTimeout(() => {
-                    console.log('Loading secure images for new warranty cards');
-                    loadSecureImages();
-                }, 200); // Slightly longer delay to ensure everything is rendered
-                
-                // Auto-link any documents that were uploaded to Paperless-ngx
-                const invoiceFile = document.getElementById('invoice').files[0];
-                const manualFile = document.getElementById('manual').files[0];
-                const otherDocumentFile = document.getElementById('otherDocument').files[0];
-                
-                if ((invoiceFile || manualFile || otherDocumentFile) && newWarrantyId) {
-                    console.log('[Auto-Link] Starting automatic document linking after warranty creation');
-                    
-                    // Collect filename information for intelligent searching
-                    const fileInfo = {};
-                    if (invoiceFile) fileInfo.invoice = invoiceFile.name;
-                    if (manualFile) fileInfo.manual = manualFile.name;
-                    if (otherDocumentFile) fileInfo.other = otherDocumentFile.name;
-                    
-                    setTimeout(() => {
-                        autoLinkRecentDocuments(newWarrantyId, ['invoice', 'manual', 'other'], 10, 10000, fileInfo);
-                    }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
-                }
-            }).catch(error => {
-                console.error('Error reloading warranties after adding:', error);
-            }); // Reload the list and update UI
-        })
-        .catch(error => {
-            hideLoadingSpinner();
-            console.error('Error adding warranty:', error);
-            showToast(error.message || 'Failed to add warranty', 'error');
+    try {
+        // Process Paperless-ngx uploads if enabled
+        const paperlessUploads = await processPaperlessNgxUploads(formData);
+        
+        // Add Paperless-ngx document IDs to form data
+        Object.keys(paperlessUploads).forEach(key => {
+            formData.append(key, paperlessUploads[key]);
         });
+        
+        // Send the form data to the server
+        const response = await fetch('/api/warranties', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to add warranty');
+        }
+
+        const data = await response.json();
+        hideLoadingSpinner();
+        showToast(window.t('messages.warranty_added_successfully'), 'success');
+        
+        // Store the new warranty ID for auto-linking
+        const newWarrantyId = data.id;
+
+        // --- Store file info and storage type before upload for auto-link logic ---
+        const invoiceFileInput = document.getElementById('invoice');
+        const manualFileInput = document.getElementById('manual');
+        const invoiceFilePre = invoiceFileInput?.files[0];
+        const manualFilePre = manualFileInput?.files[0];
+        const invoiceStoragePre = formData.get('invoiceStorage');
+        const manualStoragePre = formData.get('manualStorage');
+
+        // Auto-link any documents that were uploaded to Paperless-ngx (match edit modal behavior)
+        const autoLinkTypes = [];
+        const fileInfo = {};
+        if (invoiceStoragePre === 'paperless' && invoiceFilePre) {
+            autoLinkTypes.push('invoice');
+            fileInfo.invoice = invoiceFilePre.name;
+        }
+        if (manualStoragePre === 'paperless' && manualFilePre) {
+            autoLinkTypes.push('manual');
+            fileInfo.manual = manualFilePre.name;
+        }
+        // Other document does not have a storage option, so skip unless you add support
+        // If you want to support auto-linking for 'other', add logic here
+        console.log('[Auto-Link DEBUG] newWarrantyId:', newWarrantyId, 'autoLinkTypes:', autoLinkTypes, 'fileInfo:', fileInfo, 'invoiceStorage:', invoiceStoragePre, 'manualStorage:', manualStoragePre);
+        if (autoLinkTypes.length > 0 && newWarrantyId) {
+            console.log('[Auto-Link] Starting automatic document linking after warranty creation (Paperless-ngx uploads only)', autoLinkTypes, fileInfo);
+            setTimeout(() => {
+                console.log('[Auto-Link DEBUG] Calling autoLinkRecentDocuments with:', newWarrantyId, autoLinkTypes, fileInfo);
+                autoLinkRecentDocuments(newWarrantyId, autoLinkTypes, 10, 10000, fileInfo);
+            }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
+        }
+
+        // Close and reset the modal on success
+        if (addWarrantyModal) {
+            addWarrantyModal.classList.remove('active');
+        }
+        resetAddWarrantyWizard(); // Reset the wizard form
+
+        try {
+            await loadWarranties(true);
+            console.log('Warranties reloaded after adding new warranty');
+            applyFilters();
+            
+            // Load secure images for the new cards
+            setTimeout(() => {
+                console.log('Loading secure images for new warranty cards');
+                loadSecureImages();
+            }, 200);
+        } catch (error) {
+            console.error('Error reloading warranties after adding:', error);
+        }
+    } catch (error) {
+        hideLoadingSpinner();
+        console.error('Error adding warranty:', error);
+        showToast(error.message || window.t('messages.failed_to_add_warranty'), 'error');
+    }
 }
 
 // Initialize page
@@ -3541,7 +3683,7 @@ function openSecureFile(filePath) {
     const token = auth.getToken();
     
     if (!token) {
-        showToast('Please log in to access files', 'error');
+        showToast(window.t('messages.login_to_access_files'), 'error');
         return false;
     }
     
@@ -3629,7 +3771,7 @@ function openSecureFile(filePath) {
         
         // Check if window was blocked by popup blocker
         if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-            showToast('Popup blocked. Please allow popups for this site and try again.', 'warning');
+            showToast(window.t('messages.popup_blocked'), 'warning');
             window.URL.revokeObjectURL(blobUrl); // Clean up immediately if blocked
         }
     })
@@ -4162,12 +4304,12 @@ function createTag(name) {
             allTags.push(newTag);
             renderExistingTags();
             populateTagFilter();
-            showToast('Tag created successfully', 'success');
+            showToast(window.t('messages.tag_created_successfully'), 'success');
             resolve(newTag);
         })
         .catch(error => {
             console.error('Error creating tag:', error);
-            showToast(error.message || 'Failed to create tag', 'error');
+            showToast(error.message || window.t('messages.failed_to_create_tag'), 'error');
             reject(error);
         });
     });
@@ -4277,7 +4419,7 @@ function editTag(tag) {
         const newColor = tagInfoElement.querySelector('.edit-tag-color').value;
         
         if (!newName) {
-            showToast('Tag name is required', 'error');
+            showToast(window.t('messages.tag_name_required'), 'error');
             return;
         }
         
@@ -4342,11 +4484,11 @@ function updateTag(id, name, color) {
             updateSummary();
         }
         
-        showToast('Tag updated successfully', 'success');
+        showToast(window.t('messages.tag_updated_successfully'), 'success');
     })
     .catch(error => {
         console.error('Error updating tag:', error);
-        showToast(error.message || 'Failed to update tag', 'error');
+        showToast(error.message || window.t('messages.failed_to_update_tag'), 'error');
     });
 }
 
@@ -4359,7 +4501,7 @@ function deleteTag(id) {
     const token = localStorage.getItem('auth_token');
     if (!token) {
         console.error('No authentication token found');
-        showToast('Authentication required', 'error'); // Added toast for better feedback
+        showToast(window.t('messages.authentication_required'), 'error'); // Added toast for better feedback
         return;
     }
     
@@ -4400,11 +4542,11 @@ function deleteTag(id) {
         populateTagFilter(); // Update the filter dropdown on the main page
         // --- END FIX ---
         
-        showToast('Tag deleted successfully', 'success');
+        showToast(window.t('messages.tag_deleted_successfully'), 'success');
     })
     .catch(error => {
         console.error('Error deleting tag:', error);
-        showToast(error.message || 'Failed to delete tag', 'error'); // Show specific error message
+        showToast(error.message || window.t('messages.failed_to_delete_tag'), 'error'); // Show specific error message
     })
     .finally(() => {
         hideLoadingSpinner(); // Hide loading indicator
@@ -4487,22 +4629,25 @@ function setupUIEventListeners() {
     const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
     
     if (searchInput) {
+        // Debounce logic: only apply filters after user stops typing for 300ms
+        let searchDebounceTimeout;
         searchInput.addEventListener('input', () => {
             currentFilters.search = searchInput.value.toLowerCase();
-            
             // Show/hide clear button based on search input
             if (clearSearchBtn) {
                 clearSearchBtn.style.display = searchInput.value ? 'flex' : 'none';
             }
-            
             // Add visual feedback class to search box when active
             if (searchInput.value) {
                 searchInput.parentElement.classList.add('active-search');
             } else {
                 searchInput.parentElement.classList.remove('active-search');
             }
-            
-            applyFilters();
+            // Debounce applyFilters
+            if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+            searchDebounceTimeout = setTimeout(() => {
+                applyFilters();
+            }, 300);
         });
     }
     
@@ -4832,7 +4977,7 @@ function hidePaperlessUploadLoading() {
 // Delete warranty function
 function deleteWarranty() {
     if (!currentWarrantyId) {
-        showToast('No warranty selected for deletion', 'error');
+        showToast(window.t('messages.no_warranty_selected_for_deletion'), 'error');
         return;
     }
     
@@ -4882,7 +5027,7 @@ function deleteWarranty() {
 function saveWarranty() {
     console.log("[script.js] CORE saveWarranty (original from script.js) EXECUTING.");
     if (!currentWarrantyId) {
-        showToast('No warranty selected for update', 'error');
+        showToast(window.t('messages.no_warranty_selected_for_update'), 'error');
         return;
     }
     
@@ -4899,12 +5044,12 @@ function saveWarranty() {
     
     // Basic validation
     if (!productName) {
-        showToast('Product name is required', 'error');
+        showToast(window.t('messages.product_name_required'), 'error');
         return;
     }
     
     if (!purchaseDate) {
-        showToast('Purchase date is required', 'error');
+        showToast(window.t('messages.purchase_date_required'), 'error');
         return;
     }
     
@@ -4913,7 +5058,7 @@ function saveWarranty() {
         if (isDurationMethod) {
             // Validate duration fields
             if (years === 0 && months === 0 && days === 0) {
-                showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
+                showToast(window.t('messages.warranty_duration_required'), 'error');
                 // Optional: focus the years input again
                 const yearsInput = document.getElementById('editWarrantyDurationYears');
                 if (yearsInput) { // Check if element exists
@@ -4926,14 +5071,14 @@ function saveWarranty() {
         } else {
             // Validate exact expiration date
             if (!exactDate) {
-                showToast('Exact expiration date is required when using the exact date method', 'error');
+                showToast(window.t('messages.exact_expiration_date_required'), 'error');
                 if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
                 return;
             }
             
             // Validate that expiration date is in the future relative to purchase date
             if (purchaseDate && exactDate <= purchaseDate) {
-                showToast('Expiration date must be after the purchase date', 'error');
+                showToast(window.t('messages.expiration_date_after_purchase_date'), 'error');
                 if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
                 return;
             }
@@ -5374,6 +5519,15 @@ function resetAddWarrantyWizard() {
     // Reset the form fields
     if (warrantyForm) {
         warrantyForm.reset();
+        
+        // Explicitly set storage options to 'local'
+        const storageTypes = ['invoice', 'manual'];
+        storageTypes.forEach(type => {
+            const localRadio = document.querySelector(`input[name="${type}Storage"][value="local"]`);
+            if (localRadio) {
+                localRadio.checked = true;
+            }
+        });
     }
 
     // Reset serial numbers container (remove all but the first input structure)
@@ -5394,10 +5548,8 @@ function resetAddWarrantyWizard() {
     // Reset selected tags
     selectedTags = [];
     console.log('Resetting Add Warranty Wizard...');
-    // Reset the form fields
-    if (warrantyForm) {
-        warrantyForm.reset();
-    }
+    
+    // No need to reset the form again as we already did it above
 
     // Reset serial numbers container (remove all but the first input structure)
     if (serialNumbersContainer) {
@@ -5708,7 +5860,7 @@ if (!document.getElementById('notesModal')) {
             // Open the edit modal with current data
             await openEditModal(currentWarranty);
         } else {
-            showToast('Warranty not found. Please refresh the page.', 'error');
+            showToast(window.t('messages.warranty_not_found_refresh'), 'error');
         }
     });
 }
@@ -6714,18 +6866,18 @@ async function processPaperlessNgxUploads(formData) {
     const documentTypes = ['invoice', 'manual'];
     
     for (const docType of documentTypes) {
-        const storageOption = getStorageOption(docType);
-        
+        // Use storage option from formData, not DOM
+        const storageKey = docType + 'Storage';
+        const storageOption = formData.get(storageKey) || 'local';
+        const fileInput = document.getElementById(docType);
+        const file = fileInput?.files[0];
+        console.log(`[DEBUG][processPaperlessNgxUploads] docType:`, docType, '| storageOption (from formData):', storageOption, '| file:', file);
         if (storageOption === 'paperless') {
-            const fileInput = document.getElementById(docType);
-            const file = fileInput?.files[0];
-            
             if (file) {
                 console.log(`[Paperless-ngx] Uploading ${docType} to Paperless-ngx`);
-                
                 // Upload to Paperless-ngx
                 const uploadResult = await uploadToPaperlessNgx(file, docType);
-                
+                console.log(`[DEBUG][processPaperlessNgxUploads] uploadResult for ${docType}:`, uploadResult);
                 if (uploadResult.success) {
                     // Map frontend document types to database column names
                     const fieldMapping = {
@@ -6734,7 +6886,6 @@ async function processPaperlessNgxUploads(formData) {
                         'manual': 'paperless_manual_id',
                         'otherDocument': 'paperless_other_id'
                     };
-                    
                     const dbField = fieldMapping[docType];
                     if (dbField && uploadResult.document_id) {
                         // Only store the ID if we actually got a document ID (not a task ID)
@@ -6747,7 +6898,6 @@ async function processPaperlessNgxUploads(formData) {
                         // Don't hide loading screen yet - auto-link will handle it
                         updatePaperlessUploadStatus('Document processing, searching for link...', true);
                     }
-                    
                     // ALWAYS remove the file from FormData since it's been uploaded to Paperless-ngx
                     // This prevents the backend from also saving it locally
                     if (formData.has(docType)) {
@@ -6755,9 +6905,14 @@ async function processPaperlessNgxUploads(formData) {
                         console.log(`[Paperless-ngx] Removed ${docType} from FormData to prevent local storage`);
                     }
                 } else {
+                    console.error(`[Paperless-ngx] Failed to upload ${docType} to Paperless-ngx:`, uploadResult.error);
                     throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
                 }
+            } else {
+                console.log(`[DEBUG][processPaperlessNgxUploads] No file found for ${docType} with paperless storage option.`);
             }
+        } else {
+            console.log(`[DEBUG][processPaperlessNgxUploads] Skipping ${docType}, storageOption is not paperless.`);
         }
     }
     

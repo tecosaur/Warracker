@@ -12,6 +12,7 @@ import psycopg2
 # Use relative imports for project modules
 from . import db_handler, notifications
 from .auth_utils import generate_token, token_required, is_valid_email, is_valid_password
+from .localization import SUPPORTED_LANGUAGES
 
 # Import bcrypt from app since it's initialized with the app
 try:
@@ -826,12 +827,14 @@ def get_preferences():
                 }
                 return jsonify(default_preferences), 200
             
-            # Get user preferences
+            # Get user preferences with language preference from users table
             cursor.execute("""
-                SELECT email_notifications, default_view, theme, expiring_soon_days, 
-                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position, paperless_view_in_app
-                FROM user_preferences 
-                WHERE user_id = %s
+                SELECT up.email_notifications, up.default_view, up.theme, up.expiring_soon_days, 
+                       up.notification_frequency, up.notification_time, up.timezone, up.currency_symbol, up.date_format, up.notification_channel, up.apprise_notification_time, up.apprise_notification_frequency, up.apprise_timezone, up.currency_position, up.paperless_view_in_app,
+                       u.preferred_language
+                FROM user_preferences up
+                JOIN users u ON up.user_id = u.id
+                WHERE up.user_id = %s
             """, (user_id,))
             
             preferences_data = cursor.fetchone()
@@ -852,10 +855,15 @@ def get_preferences():
                     'apprise_notification_frequency': preferences_data[11] if preferences_data[11] else 'daily',
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
                     'currency_position': preferences_data[13] if preferences_data[13] else 'left',
-                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False
+                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False,
+                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en'
                 }
             else:
-                # Create default preferences for user
+                # Create default preferences for user, but get language from users table
+                cursor.execute("SELECT preferred_language FROM users WHERE id = %s", (user_id,))
+                user_lang = cursor.fetchone()
+                preferred_language = user_lang[0] if user_lang and user_lang[0] else 'en'
+                
                 default_preferences = {
                     'email_notifications': True,
                     'default_view': 'grid',
@@ -868,7 +876,8 @@ def get_preferences():
                     'currency_symbol': '$',
                     'date_format': 'MDY',
                     'currency_position': 'left',
-                    'paperless_view_in_app': False
+                    'paperless_view_in_app': False,
+                    'preferred_language': preferred_language
                 }
                 preferences = default_preferences
             
@@ -888,7 +897,8 @@ def get_preferences():
                 'currency_symbol': '$',
                 'date_format': 'MDY',
                 'currency_position': 'left',
-                'paperless_view_in_app': False
+                'paperless_view_in_app': False,
+                'preferred_language': 'en'
             }
             return jsonify(default_preferences), 200
         finally:
@@ -909,7 +919,8 @@ def get_preferences():
             'currency_symbol': '$',
             'date_format': 'MDY',
             'currency_position': 'left',
-            'paperless_view_in_app': False
+            'paperless_view_in_app': False,
+            'preferred_language': 'en'
         }
         return jsonify(default_preferences), 200
 
@@ -938,6 +949,7 @@ def update_preferences():
         timezone = data.get('timezone')
         apprise_timezone = data.get('apprise_timezone')
         paperless_view_in_app = data.get('paperless_view_in_app')
+        preferred_language = data.get('preferred_language')
         
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
@@ -960,6 +972,8 @@ def update_preferences():
             return jsonify({'message': 'Invalid notification channel'}), 400
         if paperless_view_in_app is not None and not isinstance(paperless_view_in_app, bool):
             return jsonify({'message': 'paperless_view_in_app must be a boolean'}), 400
+        if preferred_language and preferred_language not in SUPPORTED_LANGUAGES:
+            return jsonify({'message': 'Invalid language preference'}), 400
         
         conn = db_handler.get_db_connection()
         cursor = conn.cursor()
@@ -1020,21 +1034,31 @@ def update_preferences():
                 if update_fields:
                     update_query = f"UPDATE user_preferences SET {', '.join(update_fields)} WHERE user_id = %s"
                     cursor.execute(update_query, update_values + [user_id])
+                
+                # Update language preference in users table separately
+                if preferred_language is not None:
+                    cursor.execute("UPDATE users SET preferred_language = %s WHERE id = %s", (preferred_language, user_id))
             else:
                 # Insert new preferences
                 cursor.execute("""
                     INSERT INTO user_preferences (user_id, default_view, theme, expiring_soon_days, currency_symbol, currency_position, date_format, notification_channel, notification_frequency, notification_time, apprise_notification_time, apprise_notification_frequency, timezone, apprise_timezone, paperless_view_in_app)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (user_id, default_view or 'grid', theme or 'light', expiring_soon_days or 30, currency_symbol or '$', currency_position or 'left', date_format or 'MDY', notification_channel or 'email', notification_frequency or 'daily', notification_time or '09:00', apprise_notification_time or '09:00', apprise_notification_frequency or 'daily', timezone or 'UTC', apprise_timezone or 'UTC', paperless_view_in_app if paperless_view_in_app is not None else False))
+                
+                # Update language preference in users table separately
+                if preferred_language is not None:
+                    cursor.execute("UPDATE users SET preferred_language = %s WHERE id = %s", (preferred_language, user_id))
             
             conn.commit()
             
-            # Return updated preferences
+            # Return updated preferences with language preference
             cursor.execute("""
-                SELECT email_notifications, default_view, theme, expiring_soon_days, 
-                       notification_frequency, notification_time, timezone, currency_symbol, date_format, notification_channel, apprise_notification_time, apprise_notification_frequency, apprise_timezone, currency_position, paperless_view_in_app
-                FROM user_preferences 
-                WHERE user_id = %s
+                SELECT up.email_notifications, up.default_view, up.theme, up.expiring_soon_days, 
+                       up.notification_frequency, up.notification_time, up.timezone, up.currency_symbol, up.date_format, up.notification_channel, up.apprise_notification_time, up.apprise_notification_frequency, up.apprise_timezone, up.currency_position, up.paperless_view_in_app,
+                       u.preferred_language
+                FROM user_preferences up
+                JOIN users u ON up.user_id = u.id
+                WHERE up.user_id = %s
             """, (user_id,))
             
             preferences_data = cursor.fetchone()
@@ -1055,7 +1079,8 @@ def update_preferences():
                     'apprise_notification_frequency': preferences_data[11] if preferences_data[11] else 'daily',
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
                     'currency_position': preferences_data[13] if preferences_data[13] else 'left',
-                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False
+                    'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False,
+                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en'
                 }
             else:
                 preferences = {
@@ -1073,7 +1098,8 @@ def update_preferences():
                     'apprise_notification_time': apprise_notification_time or '09:00',
                     'apprise_notification_frequency': apprise_notification_frequency or 'daily',
                     'apprise_timezone': apprise_timezone or 'UTC',
-                    'paperless_view_in_app': paperless_view_in_app if paperless_view_in_app is not None else False
+                    'paperless_view_in_app': paperless_view_in_app if paperless_view_in_app is not None else False,
+                    'preferred_language': preferred_language or 'en'
                 }
             
             return jsonify(preferences), 200
@@ -1163,4 +1189,4 @@ def verify_email_change():
 
     # For simplicity, return a basic response
     # In a full implementation, this would verify the token and update the email
-    return jsonify({'message': 'Email verification functionality not fully implemented in this simplified version'}), 501 
+    return jsonify({'message': 'Email verification functionality not fully implemented in this simplified version'}), 501

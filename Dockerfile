@@ -46,6 +46,7 @@ COPY backend/oidc_handler.py /app/backend/
 COPY backend/apprise_handler.py /app/backend/
 COPY backend/notifications.py /app/backend/
 COPY backend/paperless_handler.py /app/backend/
+COPY backend/localization.py /app/backend/
 
 # Copy other utility scripts and migrations
 COPY backend/fix_permissions.py .
@@ -60,6 +61,13 @@ COPY frontend/manifest.json /var/www/html/manifest.json
 # Add favicon and images
 COPY frontend/favicon.ico /var/www/html/
 COPY frontend/img/ /var/www/html/img/
+# Copy frontend JS directory for localization
+COPY frontend/js/ /var/www/html/js/
+
+# Copy localization files
+COPY locales/ /app/locales/
+COPY locales/ /var/www/html/locales/
+COPY babel.cfg /app/
 
 # Configure nginx site
 RUN rm /etc/nginx/sites-enabled/default
@@ -73,6 +81,8 @@ echo "Running database migrations..."\n\
 python /app/migrations/apply_migrations.py\n\
 echo "Running fix permissions script..."\n\
 python /app/fix_permissions.py\n\
+echo "Compiling translations..."\n\
+cd /app && python -c "import subprocess; subprocess.run([\"pybabel\", \"compile\", \"-d\", \"locales\"], check=False)"\n\
 echo "Setup script finished successfully."\n\
 # The actual services (gunicorn, nginx) will be started by Supervisor below\n\
 exit 0 # Exit successfully, Supervisor takes over\n\

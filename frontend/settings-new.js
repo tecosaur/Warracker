@@ -1,6 +1,7 @@
 // DOM Elements
 const darkModeToggle = document.getElementById('darkModeToggle');
 const darkModeToggleSetting = document.getElementById('darkModeToggleSetting');
+const languageSelect = document.getElementById('languageSelect');
 const defaultViewSelect = document.getElementById('defaultView');
 const expiringSoonDaysInput = document.getElementById('expiringSoonDays');
 const notificationChannel = document.getElementById('notificationChannel');
@@ -164,6 +165,38 @@ async function loadCurrenciesForSettings() {
             `;
         }
     }
+}
+
+/**
+ * Initialize language selector
+ */
+function initLanguageSelector() {
+    if (!languageSelect) return;
+    
+    // Get current language
+    const currentLang = window.i18n?.getCurrentLanguage() || 'en';
+    languageSelect.value = currentLang;
+    
+    // Add event listener for language changes
+    languageSelect.addEventListener('change', async function() {
+        const selectedLanguage = this.value;
+        console.log('Language changed to:', selectedLanguage);
+        
+        if (window.i18n?.changeLanguage) {
+            try {
+                await window.i18n.changeLanguage(selectedLanguage);
+                showToast(window.t('messages.saved') || 'Language changed successfully', 'success');
+                
+                // Reload page after a short delay to apply all translations
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (error) {
+                console.error('Failed to change language:', error);
+                showToast(window.t('messages.error') || 'Failed to change language', 'error');
+            }
+        }
+    });
 }
 
 /**
@@ -340,6 +373,9 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 function initPage() {
     console.log('Initializing settings page');
+    
+    // Initialize language selector
+    initLanguageSelector();
     
     // Check authentication
     if (window.auth) {
@@ -910,6 +946,65 @@ async function loadPreferences() {
                 } else {
                     console.log('No timezone preference found in API or timezone select element missing.');
                 }
+
+                                // Load and set language preference
+                if (apiPrefs.preferred_language && languageSelect) {
+                    console.log('API provided language:', apiPrefs.preferred_language);
+                    // Ensure the option exists before setting
+                    if (Array.from(languageSelect.options).some(option => option.value === apiPrefs.preferred_language)) {
+                        languageSelect.value = apiPrefs.preferred_language;
+                        console.log('Applied language from API:', languageSelect.value);
+                        
+                        // Trigger language change if different from current
+                        if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                            const currentLang = window.i18n.getCurrentLanguage();
+                            if (apiPrefs.preferred_language !== currentLang) {
+                                console.log(`Language preference (${apiPrefs.preferred_language}) differs from current (${currentLang}), changing language`);
+                                window.i18n.changeLanguage(apiPrefs.preferred_language).catch(error => {
+                                    console.error('Failed to change language from API preference:', error);
+                                });
+                            }
+                        }
+                    } else {
+                        console.warn(`Language '${apiPrefs.preferred_language}' from API not found in dropdown.`);
+                    }
+                } else {
+                    // Load from localStorage if no API preference
+                    const storedLanguage = localStorage.getItem('preferred_language') || 'en';
+                    if (languageSelect) {
+                        languageSelect.value = storedLanguage;
+                        console.log('Applied language from localStorage:', storedLanguage);
+                        
+                        // Trigger language change if different from current
+                        if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                            const currentLang = window.i18n.getCurrentLanguage();
+                            if (storedLanguage !== currentLang) {
+                                console.log(`Stored language (${storedLanguage}) differs from current (${currentLang}), changing language`);
+                                window.i18n.changeLanguage(storedLanguage).catch(error => {
+                                    console.error('Failed to change language from localStorage:', error);
+                                });
+                            }
+                        }
+                    }
+                }
+    } else {
+        // No API preferences, load language from localStorage
+        const storedLanguage = localStorage.getItem('preferred_language') || 'en';
+        if (languageSelect) {
+            languageSelect.value = storedLanguage;
+            console.log('Applied language from localStorage (no API):', storedLanguage);
+            
+            // Trigger language change if different from current
+            if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                const currentLang = window.i18n.getCurrentLanguage();
+                if (storedLanguage !== currentLang) {
+                    console.log(`Stored language (${storedLanguage}) differs from current (${currentLang}), changing language`);
+                    window.i18n.changeLanguage(storedLanguage).catch(error => {
+                        console.error('Failed to change language from localStorage (no API):', error);
+                    });
+                }
+            }
+        }
     }
     
     // Reset the loading flag
@@ -1435,6 +1530,7 @@ async function savePreferences() {
         date_format: dateFormatSelect ? dateFormatSelect.value : 'MDY',
         theme: isDark ? 'dark' : 'light',  // Use current UI state, not old localStorage
         paperless_view_in_app: paperlessViewInAppToggle ? paperlessViewInAppToggle.checked : false,
+        preferred_language: languageSelect ? languageSelect.value : 'en',  // Include language preference
     };
 
     // Handle currency symbol (standard or custom)
@@ -1471,6 +1567,7 @@ async function savePreferences() {
     console.log(`[SavePrefs Debug] Final currencyCode value determined: ${currencyCode}`);
     console.log(`[SavePrefs Debug] Currency Position Value: ${currencyPosition}`);
     console.log(`[SavePrefs Debug] Theme being saved: ${preferencesToSave.theme} (from isDark: ${isDark})`);
+    console.log(`[SavePrefs Debug] Language being saved: ${preferencesToSave.preferred_language}`);
     // +++ END DEBUG LOGGING +++
 
     // Apply the theme to the UI (this updates localStorage too)
@@ -1485,6 +1582,7 @@ async function savePreferences() {
     localStorage.setItem(`${prefix}currencyPosition`, preferencesToSave.currency_position);
     localStorage.setItem(`${prefix}expiringSoonDays`, preferencesToSave.expiring_soon_days);
     localStorage.setItem(`${prefix}paperlessViewInApp`, preferencesToSave.paperless_view_in_app);
+    localStorage.setItem('preferred_language', preferencesToSave.preferred_language); // Save language preference
 
     console.log('Preferences saved to localStorage (prefix:', prefix, '):', preferencesToSave);
     console.log(`Value of dateFormat in localStorage: ${localStorage.getItem('dateFormat')}`);
@@ -1508,6 +1606,23 @@ async function savePreferences() {
             if (response.ok) {
                 showToast('Preferences saved successfully.', 'success');
                 console.log('Preferences successfully saved to API.');
+                
+                // If language was changed, trigger the actual language change
+                if (preferencesToSave.preferred_language && window.i18n?.changeLanguage) {
+                    const currentLang = window.i18n.getCurrentLanguage ? window.i18n.getCurrentLanguage() : 'en';
+                    if (preferencesToSave.preferred_language !== currentLang) {
+                        console.log(`Language changed from ${currentLang} to ${preferencesToSave.preferred_language}, triggering page translation`);
+                        try {
+                            await window.i18n.changeLanguage(preferencesToSave.preferred_language);
+                            // Reload page after a short delay to apply all translations
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } catch (error) {
+                            console.error('Failed to change language after saving preferences:', error);
+                        }
+                    }
+                }
             } else {
                 console.error('Preferences save failed. Response status:', response.status);
                 console.error('Response headers:', Object.fromEntries(response.headers.entries()));

@@ -1,5 +1,104 @@
 # Changelog
 
+## 0.10.1.5  - 2025-07-08
+
+### Enhanced
+- **Comprehensive Cache Busting Implementation:** Updated all frontend assets with consistent cache versioning to ensure users receive the latest files immediately.
+  - **Unified Cache Version:** Applied consistent cache busting version `v=20250118001` across all frontend assets:
+    - **CSS Files:** `style.css`, `settings-styles.css`, `header-fix.css`, `mobile-header.css`
+    - **JavaScript Files:** `script.js`, `auth.js`, `settings-new.js`, `status.js`, `theme-loader.js`, `footer-fix.js`, `footer-content.js`
+    - **Authentication Scripts:** `auth-redirect.js`, `registration-status.js`, `file-utils.js`, `include-auth-new.js`, `fix-auth-buttons-loader.js`
+    - **Internationalization:** `js/i18n.js`, `js/i18n-debug.js`, and all i18next library files
+    - **Chart Library:** `chart.js`
+  - **Complete HTML Coverage:** Updated cache busting across all application pages:
+    - **Main Pages:** `index.html`, `status.html`, `settings-new.html`
+    - **Authentication Pages:** `login.html`, `register.html`, `reset-password.html`, `reset-password-request.html`
+    - **Utility Pages:** `about.html`, `auth-redirect.html`, `debug-export.html`
+  - **Service Worker Integration:** Updated Progressive Web App caching with new cache name `warracker-cache-v20250118001`:
+    - **Cache Name Update:** Incremented service worker cache version to force cache refresh
+    - **Asset Registry:** Added all cache-busted files to service worker's cached asset list
+    - **Cache Invalidation:** Old cached versions automatically cleared on service worker activation
+  - **Performance Benefits:**
+    - **Immediate Updates:** Users automatically receive latest file versions without manual cache clearing
+    - **Consistent Experience:** Eliminates mixed version issues from partial cache updates
+    - **Developer Control:** Simplified cache management for future deployments
+    - **PWA Compatibility:** Service worker properly synchronized with new asset versions
+  - _Files: All HTML files, `frontend/sw.js`_
+
+### Added
+- **Multi-Language Support Expansion:** Warracker now provides comprehensive internationalization support with **17 languages**, making warranty management accessible to users worldwide.
+  - **Complete Localization Coverage:** Full application translation including UI elements, navigation, settings, status pages, and user messaging across all supported languages
+  - **Right-to-Left (RTL) Language Support:** Native RTL text direction support for Arabic and Persian languages with proper layout adjustments
+  - **Supported Languages:**
+    - **Arabic (ar)** – *RTL Support*
+    - **Czech (cs)** – Čeština
+    - **German (de)** – Deutsch  
+    - **English (en)** – English *(Default)*
+    - **Spanish (es)** – Español
+    - **Persian (fa)** – فارسی *(RTL Support)*
+    - **French (fr)** – Français
+    - **Hindi (hi)** – हिन्दी
+    - **Italian (it)** – Italiano
+    - **Japanese (ja)** – 日本語
+    - **Korean (ko)** – 한국어
+    - **Dutch (nl)** – Nederlands
+    - **Portuguese (pt)** – Português
+    - **Russian (ru)** – Русский
+    - **Ukrainian (uk)** – Українська
+    - **Chinese (Simplified) (zh_CN)** – 简体中文
+    - **Chinese (Hong Kong) (zh_HK)** – 繁體中文 (香港)
+  - **Language Selection Features:**
+    - **Auto-Detection:** Browser language automatically detected on first visit
+    - **User Preference:** Individual language selection saved to user profile
+    - **Native Names:** Language dropdown displays options in their native scripts for better user recognition
+    - **Instant Switching:** Real-time language changes without page reload
+
+## Frontend Enhancements
+
+* Language dropdown updated to list all 17 languages using native names.
+* UI elements across navigation, settings, and status pages are fully localized.
+* Translation files updated with keys for status, warranties, and user settings.
+* Full support for pluralization and dynamic content in all languages.
+
+  * *Files: `frontend/js/i18n.js`, `frontend/settings-new.html`, `frontend/status.js`, `frontend/status.html`, `frontend/version-checker.js`*
+
+## Backend and Database Updates
+
+* Language code validation extended to all 17 languages in user preference APIs.
+* Database constraints updated to allow the new language codes.
+
+  * *Files: `backend/auth_routes.py`, `backend/app.py`, `backend/localization.py`, `backend/migrations/039_update_language_constraint.sql`, `backend/migrations/041_update_language_constraint_again.py`*
+
+## Translation Files
+
+* New translation files added for all supported languages under `locales/`.
+* All existing translation files updated to include standardized language names.
+* Gettext `.po` files updated to reflect new keys.
+
+  * *Files: `locales/*/translation.json`, `locales/*/LC_MESSAGES/messages.po`, `scripts/manage_translations.py`, `run_language_migration.py`*
+
+## Status Page Localization
+
+* Status dashboard, chart labels, and table headers are fully translatable.
+* Dynamic labels (e.g., warranty statuses, chart titles, empty states) now reflect the selected language.
+* Proper pluralization support implemented for all time-based units.
+* Missing or inconsistent keys added across all language files:
+
+  * `dashboard_title`, `global_dashboard_title`, `overview`
+  * `purchase_date`, `expiration_date`, `status`, `expiring_soon`
+  * `recent_expirations_empty`, `active`, and others
+  * *Files: `frontend/status.js`, `locales/*/translation.json`*
+
+### Fixed
+
+- **Paperless-ngx Auto-Linking After Add Warranty:** Fixed an issue where uploading invoices or manuals to Paperless-ngx when adding a new warranty did not automatically link the documents to the warranty (auto-link/search logic was not triggered). Now, after adding a warranty, any uploaded Paperless-ngx documents (invoice or manual) are automatically searched and linked, matching the behavior of the edit warranty modal. This works for both invoices and manuals, provided their storage is set to "paperless".
+  - **Root Cause:** The auto-link logic was running after the form reset, which cleared file inputs and prevented document linking.
+  - **Solution:** The auto-link logic now runs before the form reset, using pre-upload file info and storage type to ensure correct document association.
+  - **Impact:** Users can now add warranties and have their uploaded Paperless-ngx invoices/manuals automatically linked, just like in the edit modal.
+  - _Files: `frontend/script.js`_
+
+- **Toast Error Adding Warranty:** When skipping a missing field in a form, the application now displays only a single warning message instead of multiple repeated warnings. This improves user experience by preventing redundant alerts when required fields are missing or skipped.
+
 ## 0.10.1.4  - 2025-06-24
 
 ### Enhanced

@@ -44,6 +44,16 @@ from dateutil.relativedelta import relativedelta
 import mimetypes
 import requests
 
+# Configure logging FIRST - before any other initialization
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Import localization
+try:
+    from backend.localization import init_babel, get_current_language, set_language, _, _n, _l
+except ImportError:
+    from localization import init_babel, get_current_language, set_language, _, _n, _l
+
 app = Flask(__name__)
 
 # Configure Flask to trust forwarded headers from reverse proxy (Nginx)
@@ -52,6 +62,14 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(
     app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
 )
+
+# Initialize localization
+try:
+    babel = init_babel(app)
+    logger.info("Localization initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize localization: {e}")
+    babel = None
 
 # Memory optimization configurations
 app.config['JSON_SORT_KEYS'] = False  # Disable JSON key sorting to save CPU/memory
@@ -75,9 +93,7 @@ bcrypt = Bcrypt(app)
 
 oauth.init_app(app) # Initialize Authlib OAuth with the app instance
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Logger already configured at top of file
 
 # Import Apprise notification handler (after logger is defined)
 try:
@@ -4781,3 +4797,65 @@ def get_paperless_url():
     finally:
         if conn:
             release_db_connection(conn)
+
+@app.route('/api/user/language-preference', methods=['PUT'])
+@token_required
+def save_language_preference():
+    """Save user's language preference"""
+    conn = None
+    try:
+        data = request.get_json()
+        if not data or 'preferred_language' not in data:
+            return jsonify({'error': 'Invalid request'}), 400
+        
+        language = data['preferred_language']
+        
+        # Validate language code
+        valid_languages = ['en', 'fr', 'es', 'de', 'it', 'cs', 'nl', 'hi', 'fa', 'ar']
+        if language not in valid_languages:
+            return jsonify({'error': 'Invalid language code'}), 400
+        
+        # Get current user ID from token
+        token_header = request.headers.get('Authorization', '').replace('Bearer ', '')
+        try:
+            payload = decode_token(token_header)
+            user_id = payload['user_id']
+        except Exception as e:
+            return jsonify({'error': 'Invalid token'}), 401
+        
+        # Update user's language preference
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE users 
+                SET preferred_language = %s 
+                WHERE id = %s
+            """, (language, user_id))
+            conn.commit()
+        
+        logger.info(f"User {user_id} language preference updated to {language}")
+        return jsonify({'message': 'Language preference saved successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error saving language preference: {e}")
+        return jsonify({'error': 'Failed to save language preference'}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@app.route('/api/locales', methods=['GET'])
+def get_supported_locales():
+    """Get list of supported locales"""
+    locales = {
+        'en': 'English',
+        'fr': 'Français', 
+        'es': 'Español',
+        'de': 'Deutsch',
+        'it': 'Italiano'
+    }
+    
+    return jsonify({
+        'supported_languages': ['en', 'fr', 'es', 'de', 'it'],
+        'locales': locales,
+        'default': 'en'
+    })

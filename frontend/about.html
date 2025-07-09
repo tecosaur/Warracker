@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <!-- Basic Meta Tags -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About - Warracker</title>
+    <title data-i18n="about.title">About - Warracker</title>
 
     <!-- Favicons -->
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
@@ -14,17 +14,23 @@
     <link rel="manifest" href="manifest.json">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="style.css"> <!-- Main stylesheet -->
-    <link rel="stylesheet" href="styles.css"> <!-- Additional styles -->
+    <link rel="stylesheet" href="style.css?v=20250118003"> <!-- Main stylesheet -->
+    <link rel="stylesheet" href="styles.css?v=20250118003"> <!-- Additional styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <!-- Font Awesome -->
-    <link rel="stylesheet" href="header-fix.css"> <!-- Header specific styles -->
+    <link rel="stylesheet" href="header-fix.css?v=20250118003"> <!-- Header specific styles -->
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css">
+    <link rel="stylesheet" href="mobile-header.css?v=20250118003">
 
     <!-- Scripts loaded in head -->
-    <script src="theme-loader.js"></script> <!-- Apply theme early -->
-    <script src="include-auth-new.js"></script> <!-- Handles auth state display -->
-    <script src="fix-auth-buttons-loader.js"></script> <!-- Fixes auth button display timing -->
+    <script src="theme-loader.js?v=20250118003"></script> <!-- Apply theme early -->
+    <script src="include-auth-new.js?v=20250118003"></script> <!-- Handles auth state display -->
+    <script src="fix-auth-buttons-loader.js?v=20250118003"></script> <!-- Fixes auth button display timing -->
+    <!-- i18next Local Scripts -->
+    <script src="js/lib/i18next.min.js?v=20250118003"></script>
+    <script src="js/lib/i18nextHttpBackend.min.js?v=20250118003"></script>
+    <script src="js/lib/i18nextBrowserLanguageDetector.min.js?v=20250118003"></script>
+    <!-- i18n initialization script -->
+    <script src="js/i18n.js?v=20250118003"></script>
 
     <style>
         .about-hero {
@@ -261,10 +267,10 @@
             </div>
             <div class="nav-links">
                 <a href="index.html" class="nav-link">
-                    <i class="fas fa-home"></i> Home
+                    <i class="fas fa-home"></i> <span data-i18n="nav.home">Home</span>
                 </a>
                 <a href="status.html" class="nav-link">
-                    <i class="fas fa-chart-pie"></i> Status
+                    <i class="fas fa-chart-pie"></i> <span data-i18n="nav.status">Status</span>
                 </a>
             </div>
             <!-- Group for right-aligned elements -->
@@ -289,15 +295,15 @@
                         </div>
                         <div class="user-menu-item">
                             <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                                <i class="fas fa-cog"></i> Settings
+                                <i class="fas fa-cog"></i> <span data-i18n="nav.settings">Settings</span>
                             </a>
                         </div>
                         <div class="user-menu-item">
                             <i class="fas fa-info-circle"></i>
-                            <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
+                            <a href="about.html" style="text-decoration: none; color: inherit;" data-i18n="nav.about">About</a>
                         </div>
                         <div class="user-menu-item" id="logoutMenuItem">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                            <i class="fas fa-sign-out-alt"></i> <span data-i18n="auth.logout">Logout</span>
                         </div>
                     </div>
                 </div>
@@ -312,18 +318,18 @@
             <!-- Hero Section -->
             <div class="about-hero">
                 <h1><i class="fas fa-shield-alt"></i> Warracker</h1>
-                <div class="version">Version v0.10.1.4</div>
-                <p class="description">
+                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.5</div>
+                <p class="description" data-i18n="about.description">
                     A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.
                 </p>
             </div>
 
             <!-- Update Status Card -->
             <div class="update-status">
-                <h4><i class="fas fa-sync-alt"></i> Update Status</h4>
-                <p id="updateStatus">Checking for updates...</p>
+                <h4><i class="fas fa-sync-alt"></i> <span data-i18n="about.update_status">Update Status</span></h4>
+                <p id="updateStatus" data-i18n="about.checking_updates">Checking for updates...</p>
                 <a id="updateLink" href="#" target="_blank" rel="noopener noreferrer" style="display: none; color: var(--primary-color); text-decoration: none;">
-                    <i class="fas fa-external-link-alt"></i> View Release Notes
+                    <i class="fas fa-external-link-alt"></i> <span data-i18n="about.view_release_notes">View Release Notes</span>
                 </a>
             </div>
 
@@ -331,45 +337,45 @@
             <div class="about-cards">
                 <!-- Project Information -->
                 <div class="about-card">
-                    <h3><i class="fas fa-info-circle"></i> Project Information</h3>
-                    <p>Warracker is an open-source warranty management system built with modern web technologies. It provides a secure and intuitive way to manage product warranties, track expiration dates, and organize important documents.</p>
+                    <h3><i class="fas fa-info-circle"></i> <span data-i18n="about.project_info">Project Information</span></h3>
+                    <p data-i18n="about.project_description">Warracker is an open-source warranty management system built with modern web technologies. It provides a secure and intuitive way to manage product warranties, track expiration dates, and organize important documents.</p>
                     
                     <div class="social-links">
                         <a href="https://github.com/sassanix/Warracker" target="_blank" rel="noopener noreferrer" class="social-link github">
-                            <i class="fab fa-github"></i> GitHub Repository
+                            <i class="fab fa-github"></i> <span data-i18n="about.github_repository">GitHub Repository</span>
                         </a>
                         <a href="https://github.com/sassanix/Warracker/releases" target="_blank" rel="noopener noreferrer" class="social-link releases">
-                            <i class="fas fa-tags"></i> Releases
+                            <i class="fas fa-tags"></i> <span data-i18n="about.releases">Releases</span>
                         </a>
                     </div>
                 </div>
 
                 <!-- Community & Support -->
                 <div class="about-card">
-                    <h3><i class="fas fa-users"></i> Community & Support</h3>
-                    <p>Join our community for support, discussions, and updates. Report bugs, request features, or get help from other users and contributors.</p>
+                    <h3><i class="fas fa-users"></i> <span data-i18n="about.community_support">Community & Support</span></h3>
+                    <p data-i18n="about.community_description">Join our community for support, discussions, and updates. Report bugs, request features, or get help from other users and contributors.</p>
                     
                     <div class="social-links">
                         <a href="https://discord.gg/PGxVS3U2Nw" target="_blank" rel="noopener noreferrer" class="social-link discord">
-                            <i class="fab fa-discord"></i> Discord Community
+                            <i class="fab fa-discord"></i> <span data-i18n="about.discord_community">Discord Community</span>
                         </a>
                         <a href="https://github.com/sassanix/Warracker/issues" target="_blank" rel="noopener noreferrer" class="social-link issues">
-                            <i class="fas fa-bug"></i> Report Issues
+                            <i class="fas fa-bug"></i> <span data-i18n="about.report_issues">Report Issues</span>
                         </a>
                     </div>
                 </div>
 
                 <!-- Developer Information -->
                 <div class="about-card">
-                    <h3><i class="fas fa-code"></i> Developer Information</h3>
-                    <p>Warracker is developed and maintained by Sassanix. The project is open-source and welcomes contributions from the community.</p>
+                    <h3><i class="fas fa-code"></i> <span data-i18n="about.developer_info">Developer Information</span></h3>
+                    <p data-i18n="about.developer_description">Warracker is developed and maintained by Sassanix. The project is open-source and welcomes contributions from the community.</p>
                     
                     <div class="social-links">
                         <a href="https://github.com/sassanix" target="_blank" rel="noopener noreferrer" class="social-link github">
-                            <i class="fab fa-github"></i> Sassanix
+                            <i class="fab fa-github"></i> <span data-i18n="about.sassanix">Sassanix</span>
                         </a>
                         <a href="https://github.com/sassanix/Warracker/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="social-link license">
-                            <i class="fas fa-balance-scale"></i> AGPL-3.0 License
+                            <i class="fas fa-balance-scale"></i> <span data-i18n="about.agpl_license">AGPL-3.0 License</span>
                         </a>
                     </div>
                 </div>
@@ -377,8 +383,8 @@
 
             <!-- Support the Project -->
             <div class="coffee-section">
-                <h3><i class="fas fa-coffee"></i> Support the Project</h3>
-                <p>If you find Warracker useful, consider supporting its development!</p>
+                <h3><i class="fas fa-coffee"></i> <span data-i18n="about.support_project">Support the Project</span></h3>
+                <p data-i18n="about.support_description">If you find Warracker useful, consider supporting its development!</p>
                 <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="sassanix" data-color="#FFDD00" data-emoji=""  data-font="Poppins" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
             </div>
 
@@ -406,6 +412,13 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             console.log('About page: DOMContentLoaded triggered');
+            
+            // Update version display dynamically
+            const versionDisplay = document.getElementById('versionDisplay');
+            if (versionDisplay && window.i18next) {
+                const currentVersion = '0.10.1.4'; // This should match version-checker.js
+                versionDisplay.textContent = window.i18next.t('about.version') + ' v' + currentVersion;
+            }
             
             // Add safe loading functions for about page
             window.showLoading = function() {

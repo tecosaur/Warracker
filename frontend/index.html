@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <!-- Authentication redirect script -->
-    <script src="auth-redirect.js" data-protected="true"></script>
+    <script src="auth-redirect.js?v=20250118003" data-protected="true"></script>
     
     <!-- Include authentication script first to handle login state immediately -->
-    <script src="include-auth-new.js"></script>
+    <script src="include-auth-new.js?v=20250118003"></script>
     
     <!-- File utilities script for secure file handling -->
-    <script src="file-utils.js"></script>
+    <script src="file-utils.js?v=20250118003"></script>
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,17 +22,25 @@
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=20250529005">
-    <script src="theme-loader.js"></script> <!-- Apply theme early -->
+    <link rel="stylesheet" href="style.css?v=20250118003">
+    <script src="theme-loader.js?v=20250118003"></script> <!-- Apply theme early -->
 
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
-    <link rel="stylesheet" href="header-fix.css?v=20250529005">
+    <link rel="stylesheet" href="header-fix.css?v=20250118003">
     <!-- Load fix for auth buttons -->
-    <script src="fix-auth-buttons-loader.js"></script>
+    <script src="fix-auth-buttons-loader.js?v=20250118003"></script>
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css?v=20250529005">
+    <link rel="stylesheet" href="mobile-header.css?v=20250118003">
+    
+    <!-- i18next Local Scripts -->
+    <script src="js/lib/i18next.min.js?v=20250118003"></script>
+    <script src="js/lib/i18nextHttpBackend.min.js?v=20250118003"></script>
+    <script src="js/lib/i18nextBrowserLanguageDetector.min.js?v=20250118003"></script>
+    
+    <!-- i18n Configuration -->
+    <script src="js/i18n.js?v=20250118003"></script>
 
     <!-- Immediate authentication check script -->
     <script>
@@ -86,8 +94,8 @@
         })();
     </script>
     
-    <!-- Registration status check script -->
-    <script src="registration-status.js"></script>
+    <!-- Registration status check script -->        
+            <script src="registration-status.js?v=20250118003"></script>
 </head>
 <body>
     <!-- Header -->
@@ -99,20 +107,20 @@
             </div>
             <div class="nav-links">
                 <a href="index.html" class="nav-link active">
-                    <i class="fas fa-home"></i> Home
+                    <i class="fas fa-home"></i> <span data-i18n="nav.home">Home</span>
                 </a>
                 <a href="status.html" class="nav-link">
-                    <i class="fas fa-chart-pie"></i> Status
+                    <i class="fas fa-chart-pie"></i> <span data-i18n="nav.status">Status</span>
                 </a>
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
                 <div id="authContainer" class="auth-buttons">
                     <a href="login.html" class="auth-btn login-btn">
-                        <i class="fas fa-sign-in-alt"></i> Login
+                        <i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.login">Login</span>
                     </a>
                     <a href="register.html" class="auth-btn register-btn">
-                        <i class="fas fa-user-plus"></i> Register
+                        <i class="fas fa-user-plus"></i> <span data-i18n="auth.register">Register</span>
                     </a>
                 </div>
                 <div id="userMenu" class="user-menu" style="display: none;">
@@ -127,15 +135,15 @@
                         </div>
                         <div class="user-menu-item">
                             <a href="settings-new.html" style="color: inherit; text-decoration: none; display: block;">
-                                <i class="fas fa-cog"></i> Settings
+                                <i class="fas fa-cog"></i> <span data-i18n="nav.settings">Settings</span>
                             </a>
                         </div>
                         <div class="user-menu-item">
                             <i class="fas fa-info-circle"></i>
-                            <a href="about.html" style="text-decoration: none; color: inherit;">About</a>
+                            <a href="about.html" style="text-decoration: none; color: inherit;" data-i18n="nav.about">About</a>
                         </div>
                         <div class="user-menu-item" id="logoutMenuItem">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                            <i class="fas fa-sign-out-alt"></i> <span data-i18n="auth.logout">Logout</span>
                         </div>
                     </div>
                 </div>
@@ -151,15 +159,15 @@
             <div class="warranties-panel">
                 <!-- Panel Header -->
                 <div class="panel-header">
-                    <h2 id="warrantiesPanelTitle">Your Warranties</h2>
+                    <h2 id="warrantiesPanelTitle" data-i18n="warranties.title">Your Warranties</h2>
                     <!-- ADD BUTTON CONTAINER AND REFRESH BUTTON WRAPPER HERE -->
                     <div class="panel-header-actions">
                         <div class="add-warranty-button-container">
                             <button id="showAddWarrantyBtn" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> Add New Warranty
+                                <i class="fas fa-plus"></i> <span data-i18n="warranties.add_new">Add New Warranty</span>
                             </button>
                         </div>
-                        <button id="refreshBtn" class="btn btn-secondary btn-sm" title="Refresh List">
+                        <button id="refreshBtn" class="btn btn-secondary btn-sm" data-i18n-title="actions.refresh" title="Refresh List">
                             <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
@@ -172,20 +180,20 @@
                             <button id="searchBtn" class="search-btn" title="Search">
                                 <i class="fas fa-search"></i>
                             </button>
-                            <input type="text" id="searchWarranties" placeholder="Find by name, vendors, notes, tag, or serial number..." style="width: 100%; min-width: 200px;">
+                            <input type="text" id="searchWarranties" data-i18n-placeholder="warranties.search_placeholder" placeholder="Find by name, vendors, notes, tag, or serial number..." style="width: 100%; min-width: 200px;">
                             <button id="clearSearch" class="clear-search-btn" title="Clear search" style="display: none;">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
                         <div style="display: flex; gap: 8px; flex-wrap: nowrap; flex-shrink: 0; min-width: 0;">
                             <button id="exportBtn" class="export-btn" title="Export warranties" style="white-space: nowrap;">
-                                <i class="fas fa-file-export"></i> Export
+                                <i class="fas fa-file-export"></i> <span data-i18n="actions.export">Export</span>
                             </button>
                             <button id="importBtn" class="import-btn" title="Import warranties from CSV" style="white-space: nowrap;">
-                                <i class="fas fa-file-import"></i> Import
+                                <i class="fas fa-file-import"></i> <span data-i18n="actions.import">Import</span>
                             </button>
                             <button id="globalManageTagsBtn" class="export-btn" title="Manage all tags" style="white-space: nowrap;">
-                                <i class="fas fa-tags"></i> Manage Tags
+                                <i class="fas fa-tags"></i> <span data-i18n="actions.manage_tags">Manage Tags</span>
                             </button>
                         </div>
                         <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
@@ -193,53 +201,53 @@
                     
                     <div class="filter-options">
                         <div class="filter-group">
-                            <label class="filter-label">Status</label>
+                            <label class="filter-label" data-i18n="filters.status">Status</label>
                             <select id="statusFilter" class="filter-select">
-                                <option value="all">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="expiring">Expiring Soon</option>
-                                <option value="expired">Expired</option>
+                                                <option value="all" data-i18n="filters.all_status">All Status</option>
+                <option value="active" data-i18n="warranties.active">Active</option>
+                <option value="expiring" data-i18n="warranties.expiring_soon">Expiring Soon</option>
+                <option value="expired" data-i18n="warranties.expired">Expired</option>
                             </select>
                         </div>
                         
                         <div class="filter-group">
-                            <label class="filter-label">Tag</label>
+                            <label class="filter-label" data-i18n="filters.tags">Tag</label>
                             <select id="tagFilter" class="filter-select">
-                                <option value="all">All Tags</option>
+                                <option value="all" data-i18n="filters.all_tags">All Tags</option>
                                 <!-- Tag options will be populated by JavaScript -->
                             </select>
                         </div>
                         
                         <div class="filter-group">
-                            <label class="filter-label">Vendor</label>
+                            <label class="filter-label" data-i18n="filters.vendor">Vendor</label>
                             <select id="vendorFilter" class="filter-select">
-                                <option value="all">All Vendors</option>
+                                <option value="all" data-i18n="filters.all_vendors">All Vendors</option>
                                 <!-- Vendor options will be populated by JavaScript -->
                             </select>
                         </div>
                         
                         <div class="filter-group">
-                            <label class="filter-label">Warranty Type</label>
+                            <label class="filter-label" data-i18n="filters.warranty_type">Warranty Type</label>
                             <select id="warrantyTypeFilter" class="filter-select">
-                                <option value="all">All Types</option>
+                                <option value="all" data-i18n="filters.all_types">All Types</option>
                                 <!-- Warranty type options will be populated by JavaScript -->
                             </select>
                         </div>
                         
                         <div class="filter-group">
-                            <label class="filter-label">Sort By</label>
+                            <label class="filter-label" data-i18n="filters.sort_by">Sort By</label>
                             <select id="sortBy" class="filter-select">
-                                <option value="expiration">Expiration Date</option>
-                                <option value="purchase">Purchase Date</option>
-                                <option value="age">Age</option>
-                                <option value="name">Product Name</option>
-                                <option value="vendor">Vendor</option>
-                                <option value="warranty_type">Warranty Type</option>
+                                <option value="expiration" data-i18n="filters.sort_expiration">Expiration Date</option>
+                                <option value="purchase" data-i18n="filters.sort_purchase">Purchase Date</option>
+                                <option value="age" data-i18n="filters.sort_age">Age</option>
+                                <option value="name" data-i18n="filters.sort_name">Product Name</option>
+                                <option value="vendor" data-i18n="filters.sort_vendor">Vendor</option>
+                                <option value="warranty_type" data-i18n="filters.sort_warranty_type">Warranty Type</option>
                             </select>
                         </div>
                         
                         <div class="view-switcher">
-                            <label class="filter-label">View</label>
+                            <label class="filter-label" data-i18n="filters.view">View</label>
                             <div class="view-buttons">
                                 <button id="gridViewBtn" class="view-btn active" title="Grid View">
                                     <i class="fas fa-th-large"></i>
@@ -255,7 +263,7 @@
                         
                         <!-- Scope View Toggle -->
                         <div class="admin-view-switcher" id="adminViewSwitcher" style="display: none;">
-                            <label class="filter-label">Scope</label>
+                            <label class="filter-label" data-i18n="filters.scope">Scope</label>
                             <div class="view-buttons">
                                 <button id="personalViewBtn" class="view-btn active" title="View your warranties only">
                                     <i class="fas fa-user"></i>
@@ -272,18 +280,18 @@
                     <!-- Table headers for table view -->
                     <div class="table-view-header">
                         <tr>
-                            <th>Product</th>
-                            <th>Purchase Date</th>
-                            <th>Expiration</th>
-                            <th>Status</th>
-                            <th>Actions</th>
+                                            <th data-i18n="warranties.product">Product</th>
+                <th data-i18n="warranties.purchase_date">Purchase Date</th>
+                <th data-i18n="warranties.expiration">Expiration</th>
+                <th data-i18n="warranties.status">Status</th>
+                <th data-i18n="warranties.actions">Actions</th>
                         </tr>
                     </div>
                     <!-- Warranties will be loaded here -->
                     <div class="empty-state" style="display: none;">
                         <i class="fas fa-box-open"></i>
-                        <h3>No warranties yet</h3>
-                        <p>Add your first warranty to get started</p>
+                                        <h3 data-i18n="warranties.no_warranties_title">No warranties yet</h3>
+                <p data-i18n="warranties.no_warranties_desc">Add your first warranty to get started</p>
                     </div>
                 </div>
             </div>
@@ -293,7 +301,7 @@
             <div id="addWarrantyModal" class="modal-backdrop">
                 <div class="modal" style="max-width: 700px;"> <!-- Adjusted max-width for the wizard -->
                     <div class="modal-header">
-                        <h3 class="modal-title">Add New Warranty</h3>
+                        <h3 class="modal-title" data-i18n="warranties.add_new">Add New Warranty</h3>
                         <button class="close-btn" data-dismiss="modal">×</button>
                     </div>
                     <div class="modal-body">
@@ -302,51 +310,51 @@
                             <!-- Form Tabs -->
                             <div class="form-tabs" data-step="0">
                                  <div class="form-tab active" data-tab="product-info" id="productInfoTabBtn">
-                                    <i class="fas fa-box"></i> Product
+                                    <i class="fas fa-box"></i> <span data-i18n="warranties.product">Product</span>
                                 </div>
                                 <div class="form-tab" data-tab="warranty-details" id="warrantyDetailsTabBtn">
-                                    <i class="fas fa-shield-alt"></i> Warranty
+                                    <i class="fas fa-shield-alt"></i> <span data-i18n="warranties.warranty">Warranty</span>
                                 </div>
                                 <div class="form-tab" data-tab="documents" id="documentsTabBtn">
-                                    <i class="fas fa-file-alt"></i> Documents
+                                    <i class="fas fa-file-alt"></i> <span data-i18n="warranties.documents">Documents</span>
                                 </div>
                                 <div class="form-tab" data-tab="tags" id="tagsTabBtn">
-                                    <i class="fas fa-tags"></i> Tags
+                                    <i class="fas fa-tags"></i> <span data-i18n="warranties.tags">Tags</span>
                                 </div>
                                 <div class="form-tab" data-tab="summary" id="summaryTabBtn">
-                                    <i class="fas fa-check-circle"></i> Summary
+                                    <i class="fas fa-check-circle"></i> <span data-i18n="warranties.summary">Summary</span>
                                 </div>
                             </div>
                             <!-- Warranty Form -->
-                            <form id="warrantyForm">
+                            <form id="warrantyForm" novalidate>
                                 <!-- Product Information Tab -->
                                 <div class="tab-content active" id="product-info">
                                     <div class="form-group">
-                                        <label for="productName">Product Name</label>
+                                        <label for="productName" data-i18n="warranties.product_name">Product Name</label>
                                         <input type="text" id="productName" name="product_name" class="form-control" required>
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label for="productUrl">Product URL (Optional)</label>
-                                        <input type="text" id="productUrl" name="product_url" class="form-control" placeholder="https://example.com/product">
+                                        <label for="productUrl" data-i18n="warranties.product_url_optional">Product URL (Optional)</label>
+                                        <input type="text" id="productUrl" name="product_url" class="form-control" data-i18n-placeholder="warranties.product_url_placeholder" placeholder="https://example.com/product">
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label>Serial Numbers</label>
+                                        <label data-i18n="warranties.serial_numbers">Serial Numbers</label>
                                         <div id="serialNumbersContainer">
                                             <!-- Serial number inputs will be added dynamically -->
-                                            <input type="text" name="serial_numbers[]" class="form-control" style="margin-bottom: 8px;" placeholder="Enter serial number">
+                                            <input type="text" name="serial_numbers[]" class="form-control" style="margin-bottom: 8px;" data-i18n-placeholder="warranties.enter_serial_number" placeholder="Enter serial number">
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label for="vendor">Vendor (Optional)</label>
-                                        <input type="text" id="vendor" name="vendor" class="form-control" placeholder="e.g. Amazon, Best Buy, etc.">
+                                        <label for="vendor" data-i18n="warranties.vendor_optional">Vendor (Optional)</label>
+                                        <input type="text" id="vendor" name="vendor" class="form-control" data-i18n-placeholder="warranties.vendor_placeholder" placeholder="e.g. Amazon, Best Buy, etc.">
                                     </div>
                                 </div>
                                 <!-- Warranty Details Tab -->
                                 <div class="tab-content" id="warranty-details">
                                     <div class="form-group">
-                                        <label for="purchaseDate">Purchase Date</label>
+                                        <label for="purchaseDate" data-i18n="warranties.purchase_date">Purchase Date</label>
                                         <input type="date" id="purchaseDate" name="purchase_date" class="form-control" required>
                                     </div>
                                     
@@ -354,41 +362,41 @@
                                     <div class="form-group">
                                         <label class="lifetime-label">
                                             <input type="checkbox" id="isLifetime" name="is_lifetime" value="true">
-                                            Lifetime Warranty
+                                            <span data-i18n="warranties.lifetime_warranty">Lifetime Warranty</span>
                                         </label>
                                     </div>
                                     <!-- End Lifetime Checkbox -->
                                     
                                     <!-- Warranty Entry Method Selection -->
                                     <div class="form-group" id="warrantyEntryMethod">
-                                        <label>Warranty Entry Method</label>
+                                        <label data-i18n="warranties.warranty_entry_method">Warranty Entry Method</label>
                                         <div class="warranty-method-options">
                                             <label class="radio-option">
                                                 <input type="radio" id="durationMethod" name="warranty_method" value="duration" checked>
-                                                <span>Warranty Duration</span>
+                                                <span data-i18n="warranties.warranty_duration_option">Warranty Duration</span>
                                             </label>
                                             <label class="radio-option">
                                                 <input type="radio" id="exactDateMethod" name="warranty_method" value="exact_date">
-                                                <span>Exact Expiration Date</span>
+                                                <span data-i18n="warranties.exact_expiration_option">Exact Expiration Date</span>
                                             </label>
                                         </div>
                                     </div>
                                     
                                     <div id="warrantyDurationFields">
                                         <div class="form-group">
-                                            <label for="warrantyDurationYears">Warranty Period</label>
+                                            <label for="warrantyDurationYears" data-i18n="warranties.warranty_period">Warranty Period</label>
                                             <div class="duration-inputs">
                                                 <div>
-                                                    <input type="number" id="warrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" placeholder="Years">
-                                                    <small>Years</small>
+                                                    <input type="number" id="warrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
+                                                    <small data-i18n="warranties.years">Years</small>
                                                 </div>
                                                 <div>
-                                                    <input type="number" id="warrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" placeholder="Months">
-                                                    <small>Months</small>
+                                                    <input type="number" id="warrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
+                                                    <small data-i18n="warranties.months">Months</small>
                                                 </div>
                                                 <div>
-                                                    <input type="number" id="warrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" placeholder="Days">
-                                                    <small>Days</small>
+                                                    <input type="number" id="warrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
+                                                    <small data-i18n="warranties.days">Days</small>
                                                 </div>
                                             </div>
                                         </div>
@@ -396,48 +404,48 @@
                                     
                                     <div id="exactExpirationField" style="display: none;">
                                         <div class="form-group">
-                                            <label for="exactExpirationDate">Expiration Date</label>
+                                            <label for="exactExpirationDate" data-i18n="warranties.expiration_date_label">Expiration Date</label>
                                             <input type="date" id="exactExpirationDate" name="exact_expiration_date" class="form-control">
                                         </div>
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label for="warrantyType">Warranty Type (Optional)</label>
+                                        <label for="warrantyType" data-i18n="warranties.warranty_type_optional">Warranty Type (Optional)</label>
                                         <select id="warrantyType" name="warranty_type" class="form-control">
-                                            <option value="">Select warranty type...</option>
-                                            <option value="Standard">Standard</option>
-                                            <option value="Extended">Extended</option>
-                                            <option value="Manufacturer">Manufacturer</option>
-                                            <option value="Third Party">Third Party</option>
-                                            <option value="Store">Store</option>
-                                            <option value="Premium">Premium</option>
-                                            <option value="Limited">Limited</option>
-                                            <option value="Full">Full</option>
-                                            <option value="Parts Only">Parts Only</option>
-                                            <option value="Labor Only">Labor Only</option>
-                                            <option value="International">International</option>
-                                            <option value="Accidental Damage">Accidental Damage</option>
-                                            <option value="other">Other (Custom)</option>
+                                            <option value="" data-i18n="warranties.select_warranty_type">Select warranty type...</option>
+                                            <option value="Standard" data-i18n="warranties.standard">Standard</option>
+                                            <option value="Extended" data-i18n="warranties.extended">Extended</option>
+                                            <option value="Manufacturer" data-i18n="warranties.manufacturer">Manufacturer</option>
+                                            <option value="Third Party" data-i18n="warranties.third_party">Third Party</option>
+                                            <option value="Store" data-i18n="warranties.store">Store</option>
+                                            <option value="Premium" data-i18n="warranties.premium">Premium</option>
+                                            <option value="Limited" data-i18n="warranties.limited">Limited</option>
+                                            <option value="Full" data-i18n="warranties.full">Full</option>
+                                            <option value="Parts Only" data-i18n="warranties.parts_only">Parts Only</option>
+                                            <option value="Labor Only" data-i18n="warranties.labor_only">Labor Only</option>
+                                            <option value="International" data-i18n="warranties.international">International</option>
+                                            <option value="Accidental Damage" data-i18n="warranties.accidental_damage">Accidental Damage</option>
+                                            <option value="other" data-i18n="warranties.other_custom">Other (Custom)</option>
                                         </select>
-                                        <input type="text" id="warrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
+                                        <input type="text" id="warrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" data-i18n-placeholder="warranties.enter_custom_warranty_type_placeholder" placeholder="Enter custom warranty type">
                                     </div>
                                                         <div class="form-group">
-                        <label for="currency">Currency</label>
+                        <label for="currency" data-i18n="warranties.currency">Currency</label>
                         <select id="currency" name="currency" class="form-control">
                             <option value="USD">USD - US Dollar ($)</option>
                             <!-- Currency options will be populated by JavaScript -->
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="purchasePrice">Purchase Price (Optional)</label>
+                        <label for="purchasePrice" data-i18n="warranties.purchase_price_optional">Purchase Price (Optional)</label>
                         <div class="price-input-wrapper" id="addPriceInputWrapper">
                             <span class="currency-symbol" id="addCurrencySymbol">$</span>
                             <input type="number" id="purchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
                         </div>
                     </div>
                                     <div class="form-group">
-                                        <label for="notes">Notes (Optional)</label>
-                                        <textarea id="notes" name="notes" class="form-control" rows="3" placeholder="Add any notes about this warranty..."></textarea>
+                                        <label for="notes" data-i18n="warranties.notes_optional">Notes (Optional)</label>
+                                        <textarea id="notes" name="notes" class="form-control" rows="3" data-i18n-placeholder="warranties.add_any_notes_placeholder" placeholder="Add any notes about this warranty..."></textarea>
                                     </div>
                                 </div>
                                 <!-- Documents Tab -->
@@ -449,10 +457,10 @@
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label>Product Photo (Optional)</label>
+                                        <label data-i18n="warranties.product_photo_optional">Product Photo (Optional)</label>
                                         <div class="file-input-wrapper">
                                             <label for="productPhoto" class="file-input-label">
-                                                <i class="fas fa-camera"></i> Choose Photo
+                                                <i class="fas fa-camera"></i> <span data-i18n="warranties.choose_photo">Choose Photo</span>
                                             </label>
                                             <input type="file" id="productPhoto" name="product_photo" class="file-input" accept=".png,.jpg,.jpeg,.webp">
                                         </div>
@@ -464,27 +472,27 @@
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label>Invoice/Receipt</label>
+                                        <label data-i18n="warranties.invoice_receipt">Invoice/Receipt</label>
                                         <!-- Storage Selection -->
                                         <div id="invoiceStorageSelection" class="storage-selection" style="display: none;">
                                             <div class="storage-options">
                                                 <label class="storage-option">
                                                     <input type="radio" name="invoiceStorage" value="local" checked>
                                                     <span class="storage-label">
-                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                        <i class="fas fa-hdd"></i> <span data-i18n="warranties.store_locally">Store Locally</span>
                                                     </span>
                                                 </label>
                                                 <label class="storage-option">
                                                     <input type="radio" name="invoiceStorage" value="paperless">
                                                     <span class="storage-label">
-                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                        <i class="fas fa-cloud"></i> <span data-i18n="warranties.store_in_paperless">Store in Paperless-ngx</span>
                                                     </span>
                                                 </label>
                                             </div>
                                         </div>
                                         <div class="file-input-wrapper">
                                             <label for="invoice" class="file-input-label">
-                                                <i class="fas fa-upload"></i> Choose File
+                                                <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                             </label>
                                             <input type="file" id="invoice" name="invoice" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                                         </div>
@@ -492,7 +500,7 @@
                                         <!-- Paperless Browse Button -->
                                         <div id="invoicePaperlessBrowse" class="paperless-browse-section" style="display: none;">
                                             <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('invoice')">
-                                                <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                                <i class="fas fa-search"></i> <span data-i18n="warranties.browse_paperless">Browse Paperless-ngx Documents</span>
                                             </button>
                                             <div id="selectedInvoiceFromPaperless" class="selected-paperless-doc" style="display: none;">
                                                 <span class="selected-doc-name"></span>
@@ -504,27 +512,27 @@
                                     </div>
                                     
                                     <div class="form-group">
-                                        <label>Product Manual (Optional)</label>
+                                        <label data-i18n="warranties.product_manual_optional">Product Manual (Optional)</label>
                                         <!-- Storage Selection -->
                                         <div id="manualStorageSelection" class="storage-selection" style="display: none;">
                                             <div class="storage-options">
                                                 <label class="storage-option">
                                                     <input type="radio" name="manualStorage" value="local" checked>
                                                     <span class="storage-label">
-                                                        <i class="fas fa-hdd"></i> Store Locally
+                                                        <i class="fas fa-hdd"></i> <span data-i18n="warranties.store_locally">Store Locally</span>
                                                     </span>
                                                 </label>
                                                 <label class="storage-option">
                                                     <input type="radio" name="manualStorage" value="paperless">
                                                     <span class="storage-label">
-                                                        <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                                        <i class="fas fa-cloud"></i> <span data-i18n="warranties.store_in_paperless">Store in Paperless-ngx</span>
                                                     </span>
                                                 </label>
                                             </div>
                                         </div>
                                         <div class="file-input-wrapper">
                                             <label for="manual" class="file-input-label">
-                                                <i class="fas fa-upload"></i> Choose File
+                                                <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                             </label>
                                             <input type="file" id="manual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                                         </div>
@@ -532,7 +540,7 @@
                                         <!-- Paperless Browse Button -->
                                         <div id="manualPaperlessBrowse" class="paperless-browse-section" style="display: none;">
                                             <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('manual')">
-                                                <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                                <i class="fas fa-search"></i> <span data-i18n="warranties.browse_paperless">Browse Paperless-ngx Documents</span>
                                             </button>
                                             <div id="selectedManualFromPaperless" class="selected-paperless-doc" style="display: none;">
                                                 <span class="selected-doc-name"></span>
@@ -543,10 +551,10 @@
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label>Files (ZIP/RAR, Optional)</label>
+                                        <label data-i18n="warranties.files_zip_rar_optional">Files (ZIP/RAR, Optional)</label>
                                         <div class="file-input-wrapper">
                                             <label for="otherDocument" class="file-input-label">
-                                                <i class="fas fa-upload"></i> Choose File
+                                                <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                             </label>
                                             <input type="file" id="otherDocument" name="other_document" class="file-input" accept=".zip,.rar">
                                         </div>
@@ -557,8 +565,8 @@
                                 <!-- Tags Tab -->
                                 <div class="tab-content" id="tags">
                                     <div class="form-group">
-                                        <label>Add Tags</label>
-                                        <p class="text-muted">Tags help you organize and filter your warranties</p>
+                                        <label data-i18n="warranties.add_tags">Add Tags</label>
+                                        <p class="text-muted" data-i18n="warranties.add_tags_desc">Tags help you organize and filter your warranties</p>
                                         
                                         <div class="tags-container">
                                             <div class="selected-tags" id="selectedTags">
@@ -566,7 +574,7 @@
                                             </div>
                                             
                                             <div class="tags-dropdown">
-                                                <input type="text" id="tagSearch" class="form-control" placeholder="Search or add new tag...">
+                                                <input type="text" id="tagSearch" class="form-control" data-i18n-placeholder="warranties.search_or_add_tag" placeholder="Search or add new tag...">
                                                 <div class="tags-list" id="tagsList">
                                                     <!-- Tag options will be populated by JavaScript -->
                                                 </div>
@@ -574,7 +582,7 @@
                                             
                                             <div class="mt-10">
                                                 <button type="button" id="manageTagsBtn" class="btn btn-secondary btn-sm">
-                                                    <i class="fas fa-cog"></i> Manage Tags
+                                                    <i class="fas fa-cog"></i> <span data-i18n="actions.manage_tags">Manage Tags</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -584,81 +592,81 @@
                                 <div class="tab-content" id="summary">
                                     <div class="summary-container">
                                         <div class="summary-section">
-                                            <h4><i class="fas fa-box"></i> Product Information</h4>
+                                            <h4><i class="fas fa-box"></i> <span data-i18n="warranties.product_information">Product Information</span></h4>
                                             <div class="summary-item">
-                                                <span class="summary-label">Product Name:</span>
+                                                <span class="summary-label" data-i18n="warranties.product_name">Product Name:</span>
                                                 <span id="summary-product-name" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Product URL:</span>
+                                                <span class="summary-label" data-i18n="warranties.product_url">Product URL:</span>
                                                 <span id="summary-product-url" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Serial Numbers:</span>
+                                                <span class="summary-label" data-i18n="warranties.serial_numbers">Serial Numbers:</span>
                                                 <span id="summary-serial-numbers" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Vendor:</span>
+                                                <span class="summary-label" data-i18n="warranties.vendor">Vendor:</span>
                                                 <span id="summary-vendor" class="summary-value">-</span>
                                             </div>
                                         </div>
                                         <div class="summary-section">
-                                            <h4><i class="fas fa-shield-alt"></i> Warranty Details</h4>
+                                            <h4><i class="fas fa-shield-alt"></i> <span data-i18n="warranties.warranty_details">Warranty Details</span></h4>
                                             <div class="summary-item">
-                                                <span class="summary-label">Purchase Date:</span>
+                                                <span class="summary-label" data-i18n="warranties.purchase_date">Purchase Date:</span>
                                                 <span id="summary-purchase-date" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Warranty Period:</span>
+                                                <span class="summary-label" data-i18n="warranties.warranty_period">Warranty Period:</span>
                                                 <span id="summary-warranty-duration" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Warranty Type:</span>
+                                                <span class="summary-label" data-i18n="warranties.warranty_type">Warranty Type:</span>
                                                 <span id="summary-warranty-type" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Purchase Price:</span>
+                                                <span class="summary-label" data-i18n="warranties.purchase_price">Purchase Price:</span>
                                                 <span id="summary-purchase-price" class="summary-value">-</span>
                                             </div>
                                         </div>
                                         <div class="summary-section">
-                                            <h4><i class="fas fa-file-alt"></i> Documents</h4>
+                                            <h4><i class="fas fa-file-alt"></i> <span data-i18n="warranties.documents">Documents</span></h4>
                                             <div class="summary-item">
-                                                <span class="summary-label">Product Photo:</span>
+                                                <span class="summary-label" data-i18n="warranties.product_photo">Product Photo:</span>
                                                 <span id="summary-product-photo" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Invoice/Receipt:</span>
+                                                <span class="summary-label" data-i18n="warranties.invoice_receipt">Invoice/Receipt:</span>
                                                 <span id="summary-invoice" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Product Manual:</span>
+                                                <span class="summary-label" data-i18n="warranties.product_manual">Product Manual:</span>
                                                 <span id="summary-manual" class="summary-value">-</span>
                                             </div>
                                             <div class="summary-item">
-                                                <span class="summary-label">Files:</span>
+                                                <span class="summary-label" data-i18n="warranties.files">Files:</span>
                                                 <span id="summary-other-document" class="summary-value">-</span>
                                             </div>
                                         </div>
                                         <div class="summary-section">
-                                            <h4><i class="fas fa-tags"></i> Tags</h4>
+                                            <h4><i class="fas fa-tags"></i> <span data-i18n="warranties.tags">Tags</span></h4>
                                             <div class="summary-item">
-                                                <span class="summary-label">Selected Tags:</span>
+                                                <span class="summary-label" data-i18n="warranties.selected_tags">Selected Tags:</span>
                                                 <div id="summary-tags" class="summary-value">-</div>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <button type="submit" class="btn btn-primary" id="submitWarrantyBtn">Add Warranty</button>
+                                        <button type="submit" class="btn btn-primary" id="submitWarrantyBtn" data-i18n="warranties.add_warranty">Add Warranty</button>
                                     </div>
                                 </div>
                                 <!-- Tab Navigation -->
                                 <div class="tab-navigation">
                                     <button type="button" class="btn btn-secondary prev-tab" id="prevTabBtn">
-                                        <i class="fas fa-arrow-left"></i> Previous
+                                        <i class="fas fa-arrow-left"></i> <span data-i18n="warranties.previous_tab">Previous</span>
                                     </button>
                                     <button type="button" class="btn btn-primary next-tab" id="nextTabBtn">
-                                        Next <i class="fas fa-arrow-right"></i>
+                                        <span data-i18n="warranties.next_tab">Next</span> <i class="fas fa-arrow-right"></i>
                                     </button>
                                 </div>
                             </form>
@@ -677,57 +685,57 @@
     <div id="editModal" class="modal-backdrop">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Edit Warranty</h3>
+                <h3 class="modal-title" data-i18n="warranties.edit_warranty">Edit Warranty</h3>
                 <button class="close-btn" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <!-- Tab Navigation -->
                 <div class="edit-tabs-nav">
                     <button type="button" class="edit-tab-btn active" data-tab="edit-product-info">
-                        <i class="fas fa-box"></i> Product
+                        <i class="fas fa-box"></i> <span data-i18n="warranties.product">Product</span>
                     </button>
                     <button type="button" class="edit-tab-btn" data-tab="edit-warranty-details">
-                        <i class="fas fa-shield-alt"></i> Warranty
+                        <i class="fas fa-shield-alt"></i> <span data-i18n="warranties.warranty">Warranty</span>
                     </button>
                     <button type="button" class="edit-tab-btn" data-tab="edit-documents">
-                        <i class="fas fa-file-alt"></i> Documents
+                        <i class="fas fa-file-alt"></i> <span data-i18n="warranties.documents">Documents</span>
                     </button>
                     <button type="button" class="edit-tab-btn" data-tab="edit-tags">
-                        <i class="fas fa-tags"></i> Tags
+                        <i class="fas fa-tags"></i> <span data-i18n="warranties.tags">Tags</span>
                     </button>
                 </div>
                 
-                <form id="editWarrantyForm">
+                <form id="editWarrantyForm" novalidate>
                     <input type="hidden" id="editWarrantyId">
                     
                     <!-- Product Info Tab -->
                     <div class="edit-tab-content active" id="edit-product-info">
                         <div class="form-group">
-                            <label for="editProductName">Product Name</label>
+                            <label for="editProductName" data-i18n="warranties.product_name">Product Name</label>
                             <input type="text" id="editProductName" name="product_name" class="form-control" required>
                         </div>
                         
                         <div class="form-group">
-                            <label for="editProductUrl">Product URL (Optional)</label>
-                            <input type="text" id="editProductUrl" name="product_url" class="form-control" placeholder="https://example.com/product">
+                            <label for="editProductUrl" data-i18n="warranties.product_url_optional">Product URL (Optional)</label>
+                            <input type="text" id="editProductUrl" name="product_url" class="form-control" data-i18n-placeholder="warranties.product_url_placeholder" placeholder="https://example.com/product">
                         </div>
                         
                         <div class="form-group">
-                            <label>Serial Numbers</label>
+                            <label data-i18n="warranties.serial_numbers">Serial Numbers</label>
                             <div id="editSerialNumbersContainer">
                                 <!-- Serial number inputs will be added dynamically -->
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="editVendor">Vendor (Optional)</label>
-                            <input type="text" id="editVendor" name="vendor" class="form-control" placeholder="e.g. Amazon, Best Buy, etc.">
+                            <label for="editVendor" data-i18n="warranties.vendor_optional">Vendor (Optional)</label>
+                            <input type="text" id="editVendor" name="vendor" class="form-control" data-i18n-placeholder="warranties.vendor_placeholder" placeholder="e.g. Amazon, Best Buy, etc.">
                         </div>
                     </div>
                     
                     <!-- Warranty Details Tab -->
                     <div class="edit-tab-content" id="edit-warranty-details">
                         <div class="form-group">
-                            <label for="editPurchaseDate">Purchase Date</label>
+                            <label for="editPurchaseDate" data-i18n="warranties.purchase_date">Purchase Date</label>
                             <input type="date" id="editPurchaseDate" name="purchase_date" class="form-control" required>
                         </div>
                         
@@ -735,41 +743,41 @@
                         <div class="form-group">
                             <label class="lifetime-label">
                                 <input type="checkbox" id="editIsLifetime" name="is_lifetime" value="true">
-                                Lifetime Warranty
+                                <span data-i18n="warranties.lifetime_warranty">Lifetime Warranty</span>
                             </label>
                         </div>
                         <!-- End Lifetime Checkbox -->
                         
                         <!-- Warranty Entry Method Selection -->
                         <div class="form-group" id="editWarrantyEntryMethod">
-                            <label>Warranty Entry Method</label>
+                            <label data-i18n="warranties.warranty_entry_method">Warranty Entry Method</label>
                             <div class="warranty-method-options">
                                 <label class="radio-option">
                                     <input type="radio" id="editDurationMethod" name="edit_warranty_method" value="duration" checked>
-                                    <span>Warranty Duration</span>
+                                    <span data-i18n="warranties.warranty_duration_option">Warranty Duration</span>
                                 </label>
                                 <label class="radio-option">
                                     <input type="radio" id="editExactDateMethod" name="edit_warranty_method" value="exact_date">
-                                    <span>Exact Expiration Date</span>
+                                    <span data-i18n="warranties.exact_expiration_option">Exact Expiration Date</span>
                                 </label>
                             </div>
                         </div>
                         
                         <div id="editWarrantyDurationFields">
                             <div class="form-group">
-                                <label for="editWarrantyDurationYears">Warranty Period</label>
+                                <label for="editWarrantyDurationYears" data-i18n="warranties.warranty_period">Warranty Period</label>
                                 <div class="duration-inputs">
                                     <div>
-                                        <input type="number" id="editWarrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" placeholder="Years">
-                                        <small>Years</small>
+                                        <input type="number" id="editWarrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
+                                        <small data-i18n="warranties.years">Years</small>
                                     </div>
                                     <div>
-                                        <input type="number" id="editWarrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" placeholder="Months">
-                                        <small>Months</small>
+                                        <input type="number" id="editWarrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
+                                        <small data-i18n="warranties.months">Months</small>
                                     </div>
                                     <div>
-                                        <input type="number" id="editWarrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" placeholder="Days">
-                                        <small>Days</small>
+                                        <input type="number" id="editWarrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
+                                        <small data-i18n="warranties.days">Days</small>
                                     </div>
                                 </div>
                             </div>
@@ -777,58 +785,58 @@
                         
                         <div id="editExactExpirationField" style="display: none;">
                             <div class="form-group">
-                                <label for="editExactExpirationDate">Expiration Date</label>
+                                <label for="editExactExpirationDate" data-i18n="warranties.expiration_date_label">Expiration Date</label>
                                 <input type="date" id="editExactExpirationDate" name="exact_expiration_date" class="form-control">
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="editWarrantyType">Warranty Type (Optional)</label>
+                            <label for="editWarrantyType" data-i18n="warranties.warranty_type_optional">Warranty Type (Optional)</label>
                             <select id="editWarrantyType" name="warranty_type" class="form-control">
-                                <option value="">Select warranty type...</option>
-                                <option value="Standard">Standard</option>
-                                <option value="Extended">Extended</option>
-                                <option value="Manufacturer">Manufacturer</option>
-                                <option value="Third Party">Third Party</option>
-                                <option value="Store">Store</option>
-                                <option value="Premium">Premium</option>
-                                <option value="Limited">Limited</option>
-                                <option value="Full">Full</option>
-                                <option value="Parts Only">Parts Only</option>
-                                <option value="Labor Only">Labor Only</option>
-                                <option value="International">International</option>
-                                <option value="Accidental Damage">Accidental Damage</option>
-                                <option value="other">Other (Custom)</option>
+                                <option value="" data-i18n="warranties.select_warranty_type">Select warranty type...</option>
+                                <option value="Standard" data-i18n="warranties.standard">Standard</option>
+                                <option value="Extended" data-i18n="warranties.extended">Extended</option>
+                                <option value="Manufacturer" data-i18n="warranties.manufacturer">Manufacturer</option>
+                                <option value="Third Party" data-i18n="warranties.third_party">Third Party</option>
+                                <option value="Store" data-i18n="warranties.store">Store</option>
+                                <option value="Premium" data-i18n="warranties.premium">Premium</option>
+                                <option value="Limited" data-i18n="warranties.limited">Limited</option>
+                                <option value="Full" data-i18n="warranties.full">Full</option>
+                                <option value="Parts Only" data-i18n="warranties.parts_only">Parts Only</option>
+                                <option value="Labor Only" data-i18n="warranties.labor_only">Labor Only</option>
+                                <option value="International" data-i18n="warranties.international">International</option>
+                                <option value="Accidental Damage" data-i18n="warranties.accidental_damage">Accidental Damage</option>
+                                <option value="other" data-i18n="warranties.other_custom">Other (Custom)</option>
                             </select>
-                            <input type="text" id="editWarrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" placeholder="Enter custom warranty type">
+                            <input type="text" id="editWarrantyTypeCustom" name="warranty_type_custom" class="form-control" style="display: none; margin-top: 8px;" data-i18n-placeholder="warranties.enter_custom_warranty_type_placeholder" placeholder="Enter custom warranty type">
                         </div>
                         <div class="form-group">
-                            <label for="editCurrency">Currency</label>
+                            <label for="editCurrency" data-i18n="warranties.currency">Currency</label>
                             <select id="editCurrency" name="currency" class="form-control">
                                 <option value="USD">USD - US Dollar ($)</option>
                                 <!-- Currency options will be populated by JavaScript -->
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="editPurchasePrice">Purchase Price (Optional)</label>
+                            <label for="editPurchasePrice" data-i18n="warranties.purchase_price_optional">Purchase Price (Optional)</label>
                             <div class="price-input-wrapper" id="editPriceInputWrapper">
                                 <span class="currency-symbol" id="editCurrencySymbol">$</span>
                                 <input type="number" id="editPurchasePrice" name="purchase_price" class="form-control" min="0" step="0.01" placeholder="0.00">
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="editNotes">Notes (Optional)</label>
-                            <textarea id="editNotes" name="notes" class="form-control" rows="3" placeholder="Add any notes about this warranty..."></textarea>
+                            <label for="editNotes" data-i18n="warranties.notes_optional">Notes (Optional)</label>
+                            <textarea id="editNotes" name="notes" class="form-control" rows="3" data-i18n-placeholder="warranties.add_any_notes_placeholder" placeholder="Add any notes about this warranty..."></textarea>
                         </div>
                     </div>
                     
                     <!-- Documents Tab -->
                     <div class="edit-tab-content" id="edit-documents">
                         <div class="form-group">
-                            <label>Product Photo (Optional)</label>
+                            <label data-i18n="warranties.product_photo_optional">Product Photo (Optional)</label>
                             <div class="file-input-wrapper">
                                 <label for="editProductPhoto" class="file-input-label">
-                                    <i class="fas fa-camera"></i> Choose Photo
+                                    <i class="fas fa-camera"></i> <span data-i18n="warranties.choose_photo">Choose Photo</span>
                                 </label>
                                 <input type="file" id="editProductPhoto" name="product_photo" class="file-input" accept=".png,.jpg,.jpeg,.webp">
                             </div>
@@ -837,42 +845,42 @@
                                 <img id="editProductPhotoImg" src="" alt="Product Photo Preview" style="max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 10px;">
                             </div>
                             <div id="currentProductPhoto" class="mt-10"></div>
-                            <button type="button" id="deleteProductPhotoBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Photo</button>
+                            <button type="button" id="deleteProductPhotoBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_photo">Delete Photo</span></button>
                             
                         </div>
                         
                         <div class="form-group">
-                            <label>Invoice/Receipt</label>
+                            <label data-i18n="warranties.invoice_receipt">Invoice/Receipt</label>
                             <!-- Storage Selection -->
                             <div id="editInvoiceStorageSelection" class="storage-selection" style="display: none;">
                                 <div class="storage-options">
                                     <label class="storage-option">
                                         <input type="radio" name="editInvoiceStorage" value="local" checked>
                                         <span class="storage-label">
-                                            <i class="fas fa-hdd"></i> Store Locally
+                                            <i class="fas fa-hdd"></i> <span data-i18n="warranties.store_locally">Store Locally</span>
                                         </span>
                                     </label>
                                     <label class="storage-option">
                                         <input type="radio" name="editInvoiceStorage" value="paperless">
                                         <span class="storage-label">
-                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                            <i class="fas fa-cloud"></i> <span data-i18n="warranties.store_in_paperless">Store in Paperless-ngx</span>
                                         </span>
                                     </label>
                                 </div>
                             </div>
                             <div class="file-input-wrapper">
                                 <label for="editInvoice" class="file-input-label">
-                                    <i class="fas fa-upload"></i> Choose File
+                                    <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                 </label>
                                 <input type="file" id="editInvoice" name="invoice" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                             </div>
                             <div id="editFileName" class="file-name"></div>
                             <div id="currentInvoice" class="mt-10"></div>
-                            <button type="button" id="deleteInvoiceBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Invoice</button>
+                            <button type="button" id="deleteInvoiceBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_invoice">Delete Invoice</span></button>
                             <!-- Paperless Browse Button -->
                             <div id="editInvoicePaperlessBrowse" class="paperless-browse-section" style="display: none;">
                                 <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('edit_invoice')">
-                                    <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                    <i class="fas fa-search"></i> <span data-i18n="warranties.browse_paperless">Browse Paperless-ngx Documents</span>
                                 </button>
                                 <div id="selectedEditInvoiceFromPaperless" class="selected-paperless-doc" style="display: none;">
                                     <span class="selected-doc-name"></span>
@@ -884,37 +892,37 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>Product Manual (Optional)</label>
+                            <label data-i18n="warranties.product_manual_optional">Product Manual (Optional)</label>
                             <!-- Storage Selection -->
                             <div id="editManualStorageSelection" class="storage-selection" style="display: none;">
                                 <div class="storage-options">
                                     <label class="storage-option">
                                         <input type="radio" name="editManualStorage" value="local" checked>
                                         <span class="storage-label">
-                                            <i class="fas fa-hdd"></i> Store Locally
+                                            <i class="fas fa-hdd"></i> <span data-i18n="warranties.store_locally">Store Locally</span>
                                         </span>
                                     </label>
                                     <label class="storage-option">
                                         <input type="radio" name="editManualStorage" value="paperless">
                                         <span class="storage-label">
-                                            <i class="fas fa-cloud"></i> Store in Paperless-ngx
+                                            <i class="fas fa-cloud"></i> <span data-i18n="warranties.store_in_paperless">Store in Paperless-ngx</span>
                                         </span>
                                     </label>
                                 </div>
                             </div>
                             <div class="file-input-wrapper">
                                 <label for="editManual" class="file-input-label">
-                                    <i class="fas fa-upload"></i> Choose File
+                                    <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                 </label>
                                 <input type="file" id="editManual" name="manual" class="file-input" accept=".pdf,.png,.jpg,.jpeg">
                             </div>
                             <div id="editManualFileName" class="file-name"></div>
                             <div id="currentManual" class="mt-10"></div>
-                            <button type="button" id="deleteManualBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Manual</button>
+                            <button type="button" id="deleteManualBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_manual">Delete Manual</span></button>
                             <!-- Paperless Browse Button -->
                             <div id="editManualPaperlessBrowse" class="paperless-browse-section" style="display: none;">
                                 <button type="button" class="btn btn-secondary btn-sm" onclick="openPaperlessBrowser('edit_manual')">
-                                    <i class="fas fa-search"></i> Browse Paperless-ngx Documents
+                                    <i class="fas fa-search"></i> <span data-i18n="warranties.browse_paperless">Browse Paperless-ngx Documents</span>
                                 </button>
                                 <div id="selectedEditManualFromPaperless" class="selected-paperless-doc" style="display: none;">
                                     <span class="selected-doc-name"></span>
@@ -925,16 +933,16 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Files (ZIP/RAR, Optional)</label>
+                            <label data-i18n="warranties.files_zip_rar_optional">Files (ZIP/RAR, Optional)</label>
                             <div class="file-input-wrapper">
                                 <label for="editOtherDocument" class="file-input-label">
-                                    <i class="fas fa-upload"></i> Choose File
+                                    <i class="fas fa-upload"></i> <span data-i18n="warranties.choose_file">Choose File</span>
                                 </label>
                                 <input type="file" id="editOtherDocument" name="other_document" class="file-input" accept=".zip,.rar">
                             </div>
                             <div id="editOtherDocumentFileName" class="file-name"></div>
                             <div id="currentOtherDocument" class="mt-10"></div>
-                            <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> Delete Files</button>
+                            <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_files">Delete Files</span></button>
                             
                         </div>
                     </div>
@@ -942,8 +950,8 @@
                     <!-- Tags Tab -->
                     <div class="edit-tab-content" id="edit-tags">
                         <div class="form-group">
-                            <label>Add Tags</label>
-                            <p class="text-muted">Tags help you organize and filter your warranties</p>
+                            <label data-i18n="warranties.add_tags">Add Tags</label>
+                            <p class="text-muted" data-i18n="warranties.add_tags_desc">Tags help you organize and filter your warranties</p>
                             
                             <div class="tags-container">
                                 <div class="selected-tags" id="editSelectedTags">
@@ -951,7 +959,7 @@
                                 </div>
                                 
                                 <div class="tags-dropdown">
-                                    <input type="text" id="editTagSearch" class="form-control" placeholder="Search or add new tag...">
+                                    <input type="text" id="editTagSearch" class="form-control" data-i18n-placeholder="warranties.search_or_add_new_tag" placeholder="Search or add new tag...">
                                     <div class="tags-list" id="editTagsList">
                                         <!-- Tag options will be populated by JavaScript -->
                                     </div>
@@ -959,7 +967,7 @@
                                 
                                 <div class="mt-10">
                                     <button type="button" id="editManageTagsBtn" class="btn btn-secondary btn-sm">
-                                        <i class="fas fa-cog"></i> Manage Tags
+                                        <i class="fas fa-cog"></i> <span data-i18n="actions.manage_tags">Manage Tags</span>
                                     </button>
                                 </div>
                             </div>
@@ -968,26 +976,26 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-danger" data-dismiss="modal">Cancel</button>
-                <button id="saveWarrantyBtn" class="btn btn-primary">Save Changes</button>
+                <button class="btn btn-danger" data-dismiss="modal" data-i18n="actions.cancel">Cancel</button>
+                <button id="saveWarrantyBtn" class="btn btn-primary" data-i18n="warranties.save_changes">Save Changes</button>
             </div>
         </div>
-    </div>
+        </div>
     
     <!-- Confirm Delete Modal -->
     <div id="deleteModal" class="modal-backdrop">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Confirm Delete</h3>
+                <h3 class="modal-title" data-i18n="warranties.confirm_delete">Confirm Delete</h3>
                 <button class="close-btn" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this warranty? This action cannot be undone.</p>
-                <p><strong>Product:</strong> <span id="deleteProductName"></span></p>
+                <p data-i18n="warranties.confirm_delete_message">Are you sure you want to delete this warranty? This action cannot be undone.</p>
+                <p><strong><span data-i18n="warranties.product">Product</span>:</strong> <span id="deleteProductName"></span></p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                <button id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+                <button class="btn btn-secondary" data-dismiss="modal" data-i18n="actions.cancel">Cancel</button>
+                <button id="confirmDeleteBtn" class="btn btn-danger" data-i18n="actions.delete">Delete</button>
             </div>
         </div>
     </div>
@@ -996,23 +1004,23 @@
     <div id="tagManagementModal" class="modal-backdrop">
         <div class="modal">
             <div class="modal-header">
-                <h3 class="modal-title">Manage Tags</h3>
+                <h3 class="modal-title" data-i18n="actions.manage_tags">Manage Tags</h3>
                 <button class="close-btn" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="newTagForm" class="tag-form">
-                    <input type="text" id="newTagName" class="form-control" placeholder="New tag name" required>
+                    <input type="text" id="newTagName" class="form-control" data-i18n-placeholder="warranties.new_tag_name" placeholder="New tag name" required>
                     <input type="color" id="newTagColor" value="#808080">
-                    <button type="submit" class="btn btn-primary">Add Tag</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="warranties.add_tag">Add Tag</button>
                 </form>
                 
-                <h4 class="mt-20">Existing Tags</h4>
+                <h4 class="mt-20" data-i18n="warranties.existing_tags">Existing Tags</h4>
                 <div id="existingTags" class="existing-tags">
                     <!-- Tags will be populated here by JavaScript -->
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button class="btn btn-secondary" data-dismiss="modal" data-i18n="actions.close">Close</button>
             </div>
         </div>
     </div>
@@ -1082,14 +1090,14 @@
         <div class="loading-spinner"></div>
     </div>
     
-    <script src="auth.js"></script>
-    <script src="script.js?v=20250617018"></script>
+    <script src="auth.js?v=20250118003"></script>
+    <script src="script.js?v=20250118003"></script>
 
     <!-- Footer Width Fix -->
-    <script src="footer-fix.js"></script>
+    <script src="footer-fix.js?v=20250118003"></script>
     
     <!-- Footer Content Manager -->
-    <script src="footer-content.js"></script>
+    <script src="footer-content.js?v=20250118003"></script>
 
     <!-- Powered by Warracker Footer -->
     <footer class="warracker-footer" id="warrackerFooter">

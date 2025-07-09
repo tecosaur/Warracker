@@ -362,7 +362,13 @@
     function updateDashboardTitle() {
         const dashboardTitle = document.getElementById('dashboardTitle');
         if (dashboardTitle) {
-            dashboardTitle.textContent = isGlobalView ? 'Global Warranty Status Dashboard' : 'Warranty Status Dashboard';
+            if (window.i18next && window.i18next.t) {
+                dashboardTitle.textContent = isGlobalView ? 
+                    window.i18next.t('status.global_dashboard_title') : 
+                    window.i18next.t('status.dashboard_title');
+            } else {
+                dashboardTitle.textContent = isGlobalView ? 'Global Warranty Status Dashboard' : 'Warranty Status Dashboard';
+            }
         }
     }
 
@@ -415,10 +421,15 @@
         const trulyActive = Math.max(0, active - expiringSoon);
         
         try {
+            // Get translated labels for chart
+            const activeLabel = i18next.t('warranties.active');
+            const expiringSoonLabel = i18next.t('warranties.expiring_soon');
+            const expiredLabel = i18next.t('warranties.expired');
+            
             statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Active', 'Expiring Soon', 'Expired'],
+                    labels: [activeLabel, expiringSoonLabel, expiredLabel],
                     datasets: [{ data: [trulyActive, expiringSoon, expired], backgroundColor: ['#4CAF50', '#FF9800', '#F44336'], borderWidth: 1 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
@@ -485,11 +496,14 @@
         }
 
         try {
+            // Get translated label for timeline chart
+            const timelineLabel = i18next.t('status.expiration_timeline');
+            
             timelineChart = new Chart(ctx, {
                 type: 'bar',
                 data: { 
                     labels: labels, 
-                    datasets: [{ label: 'Warranties Expiring', data: counts, backgroundColor: '#3498db', borderWidth: 1 }] 
+                    datasets: [{ label: timelineLabel, data: counts, backgroundColor: '#3498db', borderWidth: 1 }] 
                 },
                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
             });
@@ -539,7 +553,8 @@
 
         if (!allWarranties || allWarranties.length === 0) {
             const colspan = isGlobalView ? 5 : 4;
-            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">No recently expired or expiring warranties.</td></tr>`;
+            const noWarrantiesMessage = i18next.t('status.recent_expirations_empty', 'No recently expired or expiring warranties.');
+            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">${noWarrantiesMessage}</td></tr>`;
             return;
         }
 
@@ -602,7 +617,8 @@
 
         if (displayWarranties.length === 0) {
             const colspan = isGlobalView ? 5 : 4;
-            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">No warranties match your search criteria.</td></tr>`;
+            const noMatchMessage = i18next.t('messages.no_results', 'No results found');
+            tableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center; padding: 20px;">${noMatchMessage}</td></tr>`;
             return;
         }
 
@@ -615,26 +631,35 @@
             const todayForStatus = new Date(); todayForStatus.setHours(0,0,0,0);
 
             if (warranty.is_lifetime) {
-                statusText = 'Lifetime';
+                statusText = i18next.t('warranties.lifetime');
                 statusClass = 'status-lifetime';
             } else {
                 const expirationDate = new Date(warranty.expiration_date);
                 expirationDate.setHours(0,0,0,0);
-                if (expirationDate <= todayForStatus) { statusText = 'Expired'; statusClass = 'status-expired'; }
-                else {
+                if (expirationDate <= todayForStatus) { 
+                    statusText = i18next.t('warranties.expired'); 
+                    statusClass = 'status-expired'; 
+                } else {
                     const timeDiff = expirationDate - todayForStatus;
                     const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-                    if (daysDiff <= EXPIRING_SOON_DAYS) { statusText = 'Expiring Soon'; statusClass = 'status-expiring'; }
-                    else { statusText = 'Active'; statusClass = 'status-active'; }
+                    if (daysDiff <= EXPIRING_SOON_DAYS) { 
+                        statusText = i18next.t('warranties.expiring_soon'); 
+                        statusClass = 'status-expiring'; 
+                    } else { 
+                        statusText = i18next.t('warranties.active'); 
+                        statusClass = 'status-active'; 
+                    }
                 }
             }
             row.className = statusClass;
 
             // Build row HTML based on current view mode
+            const lifetimeText = i18next.t('warranties.lifetime');
+            const naText = i18next.t('warranties.na', 'N/A');
             let rowHTML = `
                 <td title="${escapeHTML(warranty.product_name)}">${escapeHTML(warranty.product_name)}</td>
-                <td>${warranty.purchase_date ? formatDateYYYYMMDD(new Date(warranty.purchase_date)) : 'N/A'}</td>
-                <td>${warranty.is_lifetime ? 'Lifetime' : (warranty.expiration_date ? formatDateYYYYMMDD(new Date(warranty.expiration_date)) : 'N/A')}</td>
+                <td>${warranty.purchase_date ? formatDateYYYYMMDD(new Date(warranty.purchase_date)) : naText}</td>
+                <td>${warranty.is_lifetime ? lifetimeText : (warranty.expiration_date ? formatDateYYYYMMDD(new Date(warranty.expiration_date)) : naText)}</td>
                 <td><span class="${statusClass}">${statusText}</span></td>
             `;
             
@@ -743,9 +768,9 @@
             dHtml += `<p><strong>Warranty Type:</strong> ${escapeHTML(warrantyDetails.warranty_type || '') || 'N/A'}</p></div>`;
             
             dHtml += '<div style="flex: 1 1 300px;"><h4>Documents & Files</h4>';
-            if(warrantyDetails.invoice_path) dHtml += `<p><strong>Invoice:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.invoice_path)}'); return false;">View Invoice</a></p>`; else dHtml += '<p><strong>Invoice:</strong> N/A</p>';
-            if(warrantyDetails.manual_path) dHtml += `<p><strong>Manual:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.manual_path)}'); return false;">View Manual</a></p>`; else dHtml += '<p><strong>Manual:</strong> N/A</p>';
-            if(warrantyDetails.other_document_path) dHtml += `<p><strong>Other Files:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.other_document_path)}'); return false;">View Files</a></p>`; else dHtml += '<p><strong>Other Files:</strong> N/A</p>';
+            if(warrantyDetails.invoice_path) dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.invoice_path)}'); return false;">View Invoice</a></p>`; else dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> N/A</p>`;
+            if(warrantyDetails.manual_path) dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.manual_path)}'); return false;">View Manual</a></p>`; else dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> N/A</p>`;
+            if(warrantyDetails.other_document_path) dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.other_document_path)}'); return false;">View Files</a></p>`; else dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> N/A</p>`;
             dHtml += '</div>';
 
             // DEBUG: Log serial numbers before rendering them in details view
@@ -1194,7 +1219,7 @@
         }
         
         isDOMHandlerAttached = true;
-        console.log('Status page DOM loaded (status.js IIFE). Initializing dashboard and listeners.');
+        console.log('Status page DOM loaded (status.js IIFE). Waiting for i18n initialization...');
         
         const headerDarkModeToggle = document.getElementById('darkModeToggle');
         if (headerDarkModeToggle) {
@@ -1206,7 +1231,29 @@
             console.log('Header darkModeToggle not found by status.js for direct listener attachment. Theme changes via localStorage/theme-loader.js should still work.');
         }
         
-        initDashboard(); // Call IIFE's initDashboard
+        // Wait for i18n to be ready before initializing dashboard
+        function waitForI18nAndInit() {
+            if (window.i18n && window.i18n.t) {
+                console.log('i18n is ready, initializing dashboard...');
+                initDashboard(); // Call IIFE's initDashboard
+            } else {
+                console.log('Waiting for i18n ready event...');
+                window.addEventListener('i18nReady', function(event) {
+                    console.log('i18n ready event received, initializing dashboard...', event.detail);
+                    initDashboard(); // Call IIFE's initDashboard
+                }, { once: true });
+                
+                // Fallback timeout in case i18n event doesn't fire
+                setTimeout(() => {
+                    if (!window.i18n || !window.i18n.t) {
+                        console.warn('i18n initialization timeout, proceeding anyway...');
+                        initDashboard();
+                    }
+                }, 5000);
+            }
+        }
+        
+        waitForI18nAndInit();
 
         // Setup event listeners for status page specific controls
         if (refreshDashboardBtn) refreshDashboardBtn.addEventListener('click', refreshDashboard);
