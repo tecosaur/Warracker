@@ -61,7 +61,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
-| 📖 **Localization Support**       | Full multilingual UI with 17 languages, RTL support, instant language switching, and native name display |
+| 📖 **Localization Support**       | [Full multilingual UI with 17 languages](https://github.com/sassanix/Warracker/blob/main/README.md#-localization-support), RTL support, instant language switching, and native name display |
 
 ---
 
