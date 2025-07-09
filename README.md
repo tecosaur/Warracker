@@ -79,10 +79,9 @@ The essential features are reliable and ready for everyday use. Development is o
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/7fd27771-c6f6-4c90-9e04-fb8acb455107)
+![image](https://github.com/user-attachments/assets/cb8d7d4c-3d5d-41ba-bfcc-13ed30be42aa)
 
-
-![image](https://github.com/user-attachments/assets/3b4aa67a-9e2c-4f85-9f42-beea35b22814)
+![image](https://github.com/user-attachments/assets/e657d9f3-b906-4646-b31a-b5c58df95767)
 
 **Status Dashboard**  
 
