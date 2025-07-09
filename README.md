@@ -193,25 +193,25 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 
 ### Supported Languages
 
-| Language                | Code     | Native Name           | Notes           |
-|-------------------------|----------|----------------------|-----------------|
-| Arabic                  | ar       | العربية               | *RTL Support*   |
-| Czech                   | cs       | Čeština               |                 |
-| German                  | de       | Deutsch               |                 |
-| English                 | en       | English               | *Default*       |
-| Spanish                 | es       | Español               |                 |
-| Persian                 | fa       | فارسی                 | *RTL Support*   |
-| French                  | fr       | Français              |                 |
-| Hindi                   | hi       | हिन्दी                |                 |
-| Italian                 | it       | Italiano              |                 |
-| Japanese                | ja       | 日本語                 |                 |
-| Korean                  | ko       | 한국어                 |                 |
-| Dutch                   | nl       | Nederlands            |                 |
-| Portuguese              | pt       | Português             |                 |
-| Russian                 | ru       | Русский               |                 |
-| Ukrainian               | uk       | Українська            |                 |
-| Chinese (Simplified)    | zh_CN    | 简体中文               |                 |
-| Chinese (Hong Kong)     | zh_HK    | 繁體中文 (香港)        |                 |
+| Language                 | Code     | Native Name           | Notes           |
+|--------------------------|----------|----------------------|-----------------|
+| Arabic 🇸🇦               | ar       | العربية               | *RTL Support*   |
+| Czech 🇨🇿                | cs       | Čeština               |                 |
+| German 🇩🇪               | de       | Deutsch               |                 |
+| English 🇬🇧              | en       | English               | *Default*       |
+| Spanish 🇪🇸              | es       | Español               |                 |
+| Persian 🇮🇷              | fa       | فارسی                 | *RTL Support*   |
+| French 🇫🇷               | fr       | Français              |                 |
+| Hindi 🇮🇳                | hi       | हिन्दी                |                 |
+| Italian 🇮🇹              | it       | Italiano              |                 |
+| Japanese 🇯🇵             | ja       | 日本語                 |                 |
+| Korean 🇰🇷               | ko       | 한국어                 |                 |
+| Dutch 🇳🇱                | nl       | Nederlands            |                 |
+| Portuguese 🇵🇹           | pt       | Português             |                 |
+| Russian 🇷🇺              | ru       | Русский               |                 |
+| Ukrainian 🇺🇦            | uk       | Українська            |                 |
+| Chinese (Simplified) 🇨🇳 | zh_CN    | 简体中文               |                 |
+| Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
 
 ### Language Selection Features
 
