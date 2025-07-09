@@ -63,40 +63,6 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
 | 📖 **Localization Support**       | Full multilingual UI with 17 languages, RTL support, instant language switching, and native name display |
 
-
-## 🌐 Localization Support
-
-Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
-
-### Supported Languages
-
-| Language                | Code     | Native Name           | Notes           |
-|-------------------------|----------|----------------------|-----------------|
-| Arabic                  | ar       | العربية               | *RTL Support*   |
-| Czech                   | cs       | Čeština               |                 |
-| German                  | de       | Deutsch               |                 |
-| English                 | en       | English               | *Default*       |
-| Spanish                 | es       | Español               |                 |
-| Persian                 | fa       | فارسی                 | *RTL Support*   |
-| French                  | fr       | Français              |                 |
-| Hindi                   | hi       | हिन्दी                |                 |
-| Italian                 | it       | Italiano              |                 |
-| Japanese                | ja       | 日本語                 |                 |
-| Korean                  | ko       | 한국어                 |                 |
-| Dutch                   | nl       | Nederlands            |                 |
-| Portuguese              | pt       | Português             |                 |
-| Russian                 | ru       | Русский               |                 |
-| Ukrainian               | uk       | Українська            |                 |
-| Chinese (Simplified)    | zh_CN    | 简体中文               |                 |
-| Chinese (Hong Kong)     | zh_HK    | 繁體中文 (香港)        |                 |
-
-### Language Selection Features
-
-- **Auto-Detection:** Automatically detects browser language on first visit  
-- **User Preference:** Saves individual language choice to user profile  
-- **Native Names:** Dropdown displays language names in native scripts for clarity  
-- **Instant Switching:** Change languages in real-time without page reload  
-
 ---
 
 ## Project Status
@@ -220,6 +186,40 @@ To get the docker compose file with environemts and .env example for warracker a
 | **Vendor**       | Text                                      | ❌ No (Optional)                                        | Name of the vendor or seller where the product was purchased.        |
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
 
+---
+## 🌐 Localization Support
+
+Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
+
+### Supported Languages
+
+| Language                | Code     | Native Name           | Notes           |
+|-------------------------|----------|----------------------|-----------------|
+| Arabic                  | ar       | العربية               | *RTL Support*   |
+| Czech                   | cs       | Čeština               |                 |
+| German                  | de       | Deutsch               |                 |
+| English                 | en       | English               | *Default*       |
+| Spanish                 | es       | Español               |                 |
+| Persian                 | fa       | فارسی                 | *RTL Support*   |
+| French                  | fr       | Français              |                 |
+| Hindi                   | hi       | हिन्दी                |                 |
+| Italian                 | it       | Italiano              |                 |
+| Japanese                | ja       | 日本語                 |                 |
+| Korean                  | ko       | 한국어                 |                 |
+| Dutch                   | nl       | Nederlands            |                 |
+| Portuguese              | pt       | Português             |                 |
+| Russian                 | ru       | Русский               |                 |
+| Ukrainian               | uk       | Українська            |                 |
+| Chinese (Simplified)    | zh_CN    | 简体中文               |                 |
+| Chinese (Hong Kong)     | zh_HK    | 繁體中文 (香港)        |                 |
+
+### Language Selection Features
+
+- **Auto-Detection:** Automatically detects browser language on first visit  
+- **User Preference:** Saves individual language choice to user profile  
+- **Native Names:** Dropdown displays language names in native scripts for clarity  
+- **Instant Switching:** Change languages in real-time without page reload  
+---
 
 ## Why I Built This
 
