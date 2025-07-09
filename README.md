@@ -107,11 +107,11 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ OIDC SSO Functionality
 * ✅ Advanced User/Admin Controls
 * ✅ Paperless-ngx integration
+* ✅ Localization Support
 * [ ] Audit trail
 * [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
-* [ ] Localization Support
-
+      
 ## 🚀Setup
 
 ### Prerequisites
