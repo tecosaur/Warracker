@@ -470,7 +470,16 @@
     "preferences_saved_locally_failed_sync": "Préférences enregistrées localement, mais échec de la synchronisation avec le serveur : ",
     "preferences_saved_locally": "Préférences enregistrées localement.",
     "correct_errors_in_tab": "Veuillez corriger les erreurs dans l'onglet mis en évidence avant de continuer.",
-    "please_fill_out_this_field": "Veuillez remplir ce champ."
+    "please_fill_out_this_field": "Veuillez remplir ce champ.",
+    "warranty_added_successfully": "Garantie ajoutée avec succès",
+    "tag_name_required": "Le nom du tag est requis",
+    "tag_creation_function_not_found": "Fonction de création de tag non trouvée",
+    "tag_created_successfully": "Tag créé avec succès",
+    "tag_updated_successfully": "Tag mis à jour avec succès",
+    "tag_deleted_successfully": "Tag supprimé avec succès",
+    "failed_to_create_tag": "Échec de la création du tag",
+    "failed_to_update_tag": "Échec de la mise à jour du tag",
+    "failed_to_delete_tag": "Échec de la suppression du tag"
   },
   "languages": {
     "en": "English",

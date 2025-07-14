@@ -471,7 +471,16 @@
     "preferences_saved_locally_failed_sync": "Preferences saved locally, but failed to sync with server: ",
     "preferences_saved_locally": "Preferences saved locally.",
     "correct_errors_in_tab": "Please correct the errors in the highlighted tab before continuing.",
-    "please_fill_out_this_field": "Please fill out this field."
+    "please_fill_out_this_field": "Please fill out this field.",
+    "warranty_added_successfully": "Warranty added successfully",
+    "tag_name_required": "Tag name is required",
+    "tag_creation_function_not_found": "Tag creation function not found",
+    "tag_created_successfully": "Tag created successfully",
+    "tag_updated_successfully": "Tag updated successfully",
+    "tag_deleted_successfully": "Tag deleted successfully",
+    "failed_to_create_tag": "Failed to create tag",
+    "failed_to_update_tag": "Failed to update tag",
+    "failed_to_delete_tag": "Failed to delete tag"
   },
   "languages": {
     "en": "English",

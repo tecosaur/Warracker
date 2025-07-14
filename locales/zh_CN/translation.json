@@ -469,7 +469,16 @@
     "preferences_saved_locally_failed_sync": "偏好设置已本地保存，但与服务器同步失败：",
     "preferences_saved_locally": "偏好设置已本地保存。",
     "correct_errors_in_tab": "请在继续之前更正突出显示的选项卡中的错误。",
-    "please_fill_out_this_field": "请填写此字段。"
+    "please_fill_out_this_field": "请填写此字段。",
+    "warranty_added_successfully": "保修添加成功",
+    "tag_name_required": "标签名称是必需的",
+    "tag_creation_function_not_found": "未找到标签创建功能",
+    "tag_created_successfully": "标签创建成功",
+    "tag_updated_successfully": "标签更新成功",
+    "tag_deleted_successfully": "标签删除成功",
+    "failed_to_create_tag": "创建标签失败",
+    "failed_to_update_tag": "更新标签失败",
+    "failed_to_delete_tag": "删除标签失败"
   },
   "languages": {
     "en": "English",

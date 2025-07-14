@@ -467,7 +467,16 @@
     "preferences_saved_locally_failed_sync": "प्राथमिकताएं स्थानीय रूप से सहेजी गईं, लेकिन सर्वर के साथ सिंक करने में विफल: ",
     "preferences_saved_locally": "प्राथमिकताएं स्थानीय रूप से सहेजी गईं।",
     "correct_errors_in_tab": "कृपया जारी रखने से पहले हाइलाइट किए गए टैब में त्रुटियों को सुधारें।",
-    "please_fill_out_this_field": "कृपया इस फ़ील्ड को भरें।"
+    "please_fill_out_this_field": "कृपया इस फ़ील्ड को भरें।",
+    "warranty_added_successfully": "वारंटी सफलतापूर्वक जोड़ी गई",
+    "tag_name_required": "टैग नाम आवश्यक है",
+    "tag_creation_function_not_found": "टैग निर्माण फ़ंक्शन नहीं मिला",
+    "tag_created_successfully": "टैग सफलतापूर्वक बनाया गया",
+    "tag_updated_successfully": "टैग सफलतापूर्वक अपडेट किया गया",
+    "tag_deleted_successfully": "टैग सफलतापूर्वक हटाया गया",
+    "failed_to_create_tag": "टैग बनाने में विफल",
+    "failed_to_update_tag": "टैग अपडेट करने में विफल",
+    "failed_to_delete_tag": "टैग हटाने में विफल"
   },
   "languages": {
     "en": "अंग्रेज़ी",

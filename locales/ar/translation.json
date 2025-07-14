@@ -476,7 +476,16 @@
     "preferences_saved_locally_failed_sync": "تم حفظ التفضيلات محليًا، لكن فشل في المزامنة مع الخادم: ",
     "preferences_saved_locally": "تم حفظ التفضيلات محليًا.",
     "correct_errors_in_tab": "يرجى تصحيح الأخطاء في التبويب المظلل قبل المتابعة.",
-    "please_fill_out_this_field": "يرجى ملء هذا الحقل."
+    "please_fill_out_this_field": "يرجى ملء هذا الحقل.",
+    "warranty_added_successfully": "تم إضافة الضمان بنجاح",
+    "tag_name_required": "اسم العلامة مطلوب",
+    "tag_creation_function_not_found": "وظيفة إنشاء العلامة غير موجودة",
+    "tag_created_successfully": "تم إنشاء العلامة بنجاح",
+    "tag_updated_successfully": "تم تحديث العلامة بنجاح",
+    "tag_deleted_successfully": "تم حذف العلامة بنجاح",
+    "failed_to_create_tag": "فشل في إنشاء العلامة",
+    "failed_to_update_tag": "فشل في تحديث العلامة",
+    "failed_to_delete_tag": "فشل في حذف العلامة"
   },
   "languages": {
     "en": "English",

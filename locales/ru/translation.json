@@ -475,7 +475,16 @@
     "preferences_saved_locally_failed_sync": "Настройки сохранены локально, но не удалось синхронизировать с сервером: ",
     "preferences_saved_locally": "Настройки сохранены локально.",
     "correct_errors_in_tab": "Пожалуйста, исправьте ошибки в выделенной вкладке перед продолжением.",
-    "please_fill_out_this_field": "Пожалуйста, заполните это поле."
+    "please_fill_out_this_field": "Пожалуйста, заполните это поле.",
+    "warranty_added_successfully": "Гарантия успешно добавлена",
+    "tag_name_required": "Имя тега обязательно",
+    "tag_creation_function_not_found": "Функция создания тега не найдена",
+    "tag_created_successfully": "Тег успешно создан",
+    "tag_updated_successfully": "Тег успешно обновлен",
+    "tag_deleted_successfully": "Тег успешно удален",
+    "failed_to_create_tag": "Ошибка создания тега",
+    "failed_to_update_tag": "Ошибка обновления тега",
+    "failed_to_delete_tag": "Ошибка удаления тега"
   },
   "languages": {
     "en": "English",

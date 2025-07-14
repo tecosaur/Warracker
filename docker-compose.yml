@@ -46,9 +46,6 @@ services:
     restart: unless-stopped
     command: >
       bash -c "
-        cd /app && ls -la /app/migrations &&
-        python /app/migrations/apply_migrations.py &&
-        python /app/fix_permissions.py &&
         exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
       "
     

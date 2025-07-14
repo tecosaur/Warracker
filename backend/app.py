@@ -43,6 +43,7 @@ import io   # Added for CSV import
 from dateutil.relativedelta import relativedelta
 import mimetypes
 import requests
+from dateutil.parser import parse as date_parse
 
 # Configure logging FIRST - before any other initialization
 logging.basicConfig(level=logging.INFO)
@@ -494,15 +495,10 @@ def add_warranty():
 
                     if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
                         return jsonify({"error": "Warranty duration components cannot be negative."}), 400
-                    if warranty_duration_months >= 12:
-                        return jsonify({"error": "Warranty months must be less than 12."}), 400
-                    # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
-                    if warranty_duration_days >= 366: # A bit more than a typical month
-                        return jsonify({"error": "Warranty days seem too high."}), 400
                     if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
                         return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
-                    if warranty_duration_years > 100: # Keep a reasonable upper limit for years
-                         return jsonify({"error": "Warranty years must be 100 or less"}), 400
+                    if warranty_duration_years > 999:
+                         return jsonify({"error": "Warranty years must be 999 or less"}), 400
 
                 except ValueError:
                     return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
@@ -898,15 +894,10 @@ def update_warranty(warranty_id):
 
                         if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
                             return jsonify({"error": "Warranty duration components cannot be negative."}), 400
-                        if warranty_duration_months >= 12:
-                            return jsonify({"error": "Warranty months must be less than 12."}), 400
-                        # Add a reasonable upper limit for days, e.g., 365, though relativedelta handles it.
-                        if warranty_duration_days >= 366: # A bit more than a typical month
-                            return jsonify({"error": "Warranty days seem too high."}), 400
                         if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
                             return jsonify({"error": "Warranty duration must be specified for non-lifetime warranties."}), 400
-                        if warranty_duration_years > 100: # Keep a reasonable upper limit for years
-                             return jsonify({"error": "Warranty years must be 100 or less"}), 400
+                        if warranty_duration_years > 999:
+                             return jsonify({"error": "Warranty years must be 999 or less"}), 400
 
                     except ValueError:
                         return jsonify({"error": "Warranty duration components must be valid numbers."}), 400
@@ -3472,9 +3463,10 @@ def import_warranties():
 
                     # --- Type/Format Validation --- 
                     try:
-                        purchase_date = datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
+                        purchase_date_dt = date_parse(purchase_date_str)
+                        purchase_date = purchase_date_dt.date()
                     except ValueError:
-                        errors.append("Invalid PurchaseDate format. Use YYYY-MM-DD.")
+                        errors.append("Invalid PurchaseDate format.")
                         purchase_date = None # Set to None to prevent further errors
 
                     is_lifetime = is_lifetime_str == 'true'
@@ -3491,14 +3483,10 @@ def import_warranties():
 
                             if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
                                 errors.append("Warranty duration components cannot be negative.")
-                            if warranty_duration_months >= 12:
-                                errors.append("WarrantyDurationMonths must be less than 12.")
-                            if warranty_duration_days >= 366: # Basic check
-                                errors.append("WarrantyDurationDays seems too high.")
                             if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
                                 errors.append("Warranty duration (Years, Months, or Days) is required unless IsLifetime is TRUE.")
-                            if warranty_duration_years > 100:
-                                errors.append("WarrantyDurationYears must be 100 or less.")
+                            if warranty_duration_years > 999:
+                                errors.append("WarrantyDurationYears must be 999 or less.")
                         except ValueError:
                             errors.append("WarrantyDurationYears, WarrantyDurationMonths, WarrantyDurationDays must be valid numbers.")
                     
@@ -4259,8 +4247,9 @@ def paperless_upload():
             logger.warning(f"Upload failed: {message}")
             return jsonify({
                 "success": False,
+                "document_id": document_id,
                 "error": message
-            }), 500
+            }), 200
         
     except Exception as e:
         logger.error(f"Error in Paperless upload proxy: {e}", exc_info=True)

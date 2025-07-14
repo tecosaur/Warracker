@@ -470,7 +470,16 @@
     "preferences_saved_locally_failed_sync": "Preferencias guardadas localmente, pero falló la sincronización con el servidor: ",
     "preferences_saved_locally": "Preferencias guardadas localmente.",
     "correct_errors_in_tab": "Por favor, corrija los errores en la pestaña resaltada antes de continuar.",
-    "please_fill_out_this_field": "Por favor, complete este campo."
+    "please_fill_out_this_field": "Por favor, complete este campo.",
+    "warranty_added_successfully": "Garantía agregada con éxito",
+    "tag_name_required": "El nombre de la etiqueta es requerido",
+    "tag_creation_function_not_found": "Función de creación de etiquetas no encontrada",
+    "tag_created_successfully": "Etiqueta creada con éxito",
+    "tag_updated_successfully": "Etiqueta actualizada con éxito",
+    "tag_deleted_successfully": "Etiqueta eliminada con éxito",
+    "failed_to_create_tag": "Error al crear etiqueta",
+    "failed_to_update_tag": "Error al actualizar etiqueta",
+    "failed_to_delete_tag": "Error al eliminar etiqueta"
   },
   "languages": {
     "en": "English",

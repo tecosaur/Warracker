@@ -175,3 +175,6 @@ msgstr "Une erreur s'est produite"
 #~ msgid "Lifetime"
 #~ msgstr "À vie"
 
+msgid "warranty_added_successfully"
+msgstr "Garantie ajoutée avec succès"
+

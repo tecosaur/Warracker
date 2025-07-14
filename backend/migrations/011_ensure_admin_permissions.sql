@@ -10,7 +10,7 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %(db_user)s;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO %(db_user)s;
 
 -- Ensure role can create and manage roles
-ALTER ROLE %(db_user)s WITH CREATEROLE;
+-- ALTER ROLE %(db_user)s WITH CREATEROLE;
 
 -- Create a function to ensure the db_user is the owner of all database objects
 DO $$

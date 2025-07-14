@@ -469,7 +469,16 @@
     "preferences_saved_locally_failed_sync": "偏好設定已本地儲存，但與服務器同步失敗：",
     "preferences_saved_locally": "偏好設定已本地儲存。",
     "correct_errors_in_tab": "請在繼續之前更正突出顯示的分頁中的錯誤。",
-    "please_fill_out_this_field": "請填寫此欄位。"
+    "please_fill_out_this_field": "請填寫此欄位。",
+    "warranty_added_successfully": "保修已成功新增",
+    "tag_name_required": "標籤名稱是必需的",
+    "tag_creation_function_not_found": "未找到標籤創建功能",
+    "tag_created_successfully": "標籤創建成功",
+    "tag_updated_successfully": "標籤更新成功",
+    "tag_deleted_successfully": "標籤刪除成功",
+    "failed_to_create_tag": "創建標籤失敗",
+    "failed_to_update_tag": "更新標籤失敗",
+    "failed_to_delete_tag": "刪除標籤失敗"
   },
   "languages": {
     "en": "English",

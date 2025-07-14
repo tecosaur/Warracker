@@ -523,7 +523,16 @@
     "preferences_saved_locally_failed_sync": "Preferenze salvate localmente, ma impossibile sincronizzare con il server: ",
     "preferences_saved_locally": "Preferenze salvate localmente.",
     "correct_errors_in_tab": "Si prega di correggere gli errori nella scheda evidenziata prima di continuare.",
-    "please_fill_out_this_field": "Si prega di compilare questo campo."
+    "please_fill_out_this_field": "Si prega di compilare questo campo.",
+    "warranty_added_successfully": "Garanzia aggiunta con successo",
+    "tag_name_required": "Il nome del tag è richiesto",
+    "tag_creation_function_not_found": "Funzione di creazione tag non trovata",
+    "tag_created_successfully": "Tag creato con successo",
+    "tag_updated_successfully": "Tag aggiornato con successo",
+    "tag_deleted_successfully": "Tag eliminato con successo",
+    "failed_to_create_tag": "Errore nella creazione del tag",
+    "failed_to_update_tag": "Errore nell'aggiornamento del tag",
+    "failed_to_delete_tag": "Errore nell'eliminazione del tag"
   },
   "languages": {
     "en": "English",

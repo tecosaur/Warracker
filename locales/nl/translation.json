@@ -468,7 +468,16 @@
     "preferences_saved_locally_failed_sync": "Voorkeuren lokaal opgeslagen, maar kon niet synchroniseren met server: ",
     "preferences_saved_locally": "Voorkeuren lokaal opgeslagen.",
     "correct_errors_in_tab": "Corrigeer de fouten in het gemarkeerde tabblad voordat u doorgaat.",
-    "please_fill_out_this_field": "Vul dit veld in."
+    "please_fill_out_this_field": "Vul dit veld in.",
+    "warranty_added_successfully": "Garantie succesvol toegevoegd",
+    "tag_name_required": "Tag naam is vereist",
+    "tag_creation_function_not_found": "Tag aanmaak functie niet gevonden",
+    "tag_created_successfully": "Tag succesvol aangemaakt",
+    "tag_updated_successfully": "Tag succesvol bijgewerkt",
+    "tag_deleted_successfully": "Tag succesvol verwijderd",
+    "failed_to_create_tag": "Fout bij aanmaken tag",
+    "failed_to_update_tag": "Fout bij bijwerken tag",
+    "failed_to_delete_tag": "Fout bij verwijderen tag"
   },
   "languages": {
     "en": "Engels",

@@ -83,7 +83,7 @@
     "warranty_entry_method": "Metoda zadání záruky",
     "warranty_duration_option": "Doba záruky",
     "exact_expiration_option": "Přesné datum vypršení",
-    "warranty_period": "Záruční doba",
+    "warranties_period": "Záruční doba",
     "expiration_date_label": "Datum vypršení",
     "currency": "Měna",
     "add_tags": "Přidat tagy",
@@ -474,7 +474,16 @@
     "preferences_saved_locally_failed_sync": "Předvolby byly uloženy lokálně, ale nepodařilo se je synchronizovat se serverem: ",
     "preferences_saved_locally": "Předvolby byly uloženy lokálně.",
     "correct_errors_in_tab": "Před pokračováním opravte chyby v zvýrazněné záložce.",
-    "please_fill_out_this_field": "Prosím vyplňte toto pole."
+    "please_fill_out_this_field": "Prosím vyplňte toto pole.",
+    "warranty_added_successfully": "Záruka byla úspěšně přidána",
+    "tag_name_required": "Název tagu je vyžadován",
+    "tag_creation_function_not_found": "Funkce pro vytvoření tagu nebyla nalezena",
+    "tag_created_successfully": "Tag byl úspěšně vytvořen",
+    "tag_updated_successfully": "Tag byl úspěšně aktualizován",
+    "tag_deleted_successfully": "Tag byl úspěšně smazán",
+    "failed_to_create_tag": "Chyba při vytváření tagu",
+    "failed_to_update_tag": "Chyba při aktualizaci tagu",
+    "failed_to_delete_tag": "Chyba při mazání tagu"
   },
   "languages": {
     "en": "Angličtina",

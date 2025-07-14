@@ -2,13 +2,13 @@
 <html>
 <head>
     <!-- Authentication redirect script -->
-    <script src="auth-redirect.js?v=20250118003" data-protected="true"></script>
+    <script src="auth-redirect.js?v=20250119001" data-protected="true"></script>
     
     <!-- Include authentication script first to handle login state immediately -->
-    <script src="include-auth-new.js?v=20250118003"></script>
+    <script src="include-auth-new.js?v=20250119001"></script>
     
     <!-- File utilities script for secure file handling -->
-    <script src="file-utils.js?v=20250118003"></script>
+    <script src="file-utils.js?v=20250119001"></script>
     
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,25 +22,25 @@
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=20250118003">
-    <script src="theme-loader.js?v=20250118003"></script> <!-- Apply theme early -->
+    <link rel="stylesheet" href="style.css?v=20250119001">
+    <script src="theme-loader.js?v=20250119001"></script> <!-- Apply theme early -->
 
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
-    <link rel="stylesheet" href="header-fix.css?v=20250118003">
+    <link rel="stylesheet" href="header-fix.css?v=20250119001">
     <!-- Load fix for auth buttons -->
-    <script src="fix-auth-buttons-loader.js?v=20250118003"></script>
+    <script src="fix-auth-buttons-loader.js?v=20250119001"></script>
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css?v=20250118003">
+    <link rel="stylesheet" href="mobile-header.css?v=20250119001">
     
     <!-- i18next Local Scripts -->
-    <script src="js/lib/i18next.min.js?v=20250118003"></script>
-    <script src="js/lib/i18nextHttpBackend.min.js?v=20250118003"></script>
-    <script src="js/lib/i18nextBrowserLanguageDetector.min.js?v=20250118003"></script>
+    <script src="js/lib/i18next.min.js?v=20250119001"></script>
+    <script src="js/lib/i18nextHttpBackend.min.js?v=20250119001"></script>
+    <script src="js/lib/i18nextBrowserLanguageDetector.min.js?v=20250119001"></script>
     
     <!-- i18n Configuration -->
-    <script src="js/i18n.js?v=20250118003"></script>
+    <script src="js/i18n.js?v=20250119001"></script>
 
     <!-- Immediate authentication check script -->
     <script>
@@ -95,7 +95,7 @@
     </script>
     
     <!-- Registration status check script -->        
-            <script src="registration-status.js?v=20250118003"></script>
+            <script src="registration-status.js?v=20250119001"></script>
 </head>
 <body>
     <!-- Header -->
@@ -387,15 +387,15 @@
                                             <label for="warrantyDurationYears" data-i18n="warranties.warranty_period">Warranty Period</label>
                                             <div class="duration-inputs">
                                                 <div>
-                                                    <input type="number" id="warrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
+                                                    <input type="number" id="warrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="999" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
                                                     <small data-i18n="warranties.years">Years</small>
                                                 </div>
                                                 <div>
-                                                    <input type="number" id="warrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
+                                                    <input type="number" id="warrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="999" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
                                                     <small data-i18n="warranties.months">Months</small>
                                                 </div>
                                                 <div>
-                                                    <input type="number" id="warrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
+                                                    <input type="number" id="warrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="9999" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
                                                     <small data-i18n="warranties.days">Days</small>
                                                 </div>
                                             </div>
@@ -768,15 +768,15 @@
                                 <label for="editWarrantyDurationYears" data-i18n="warranties.warranty_period">Warranty Period</label>
                                 <div class="duration-inputs">
                                     <div>
-                                        <input type="number" id="editWarrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="100" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
+                                        <input type="number" id="editWarrantyDurationYears" name="warranty_duration_years" class="form-control" min="0" max="999" data-i18n-placeholder="warranties.years_placeholder" placeholder="Years">
                                         <small data-i18n="warranties.years">Years</small>
                                     </div>
                                     <div>
-                                        <input type="number" id="editWarrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="11" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
+                                        <input type="number" id="editWarrantyDurationMonths" name="warranty_duration_months" class="form-control" min="0" max="999" data-i18n-placeholder="warranties.months_placeholder" placeholder="Months">
                                         <small data-i18n="warranties.months">Months</small>
                                     </div>
                                     <div>
-                                        <input type="number" id="editWarrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="365" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
+                                        <input type="number" id="editWarrantyDurationDays" name="warranty_duration_days" class="form-control" min="0" max="9999" data-i18n-placeholder="warranties.days_placeholder" placeholder="Days">
                                         <small data-i18n="warranties.days">Days</small>
                                     </div>
                                 </div>
@@ -1090,14 +1090,14 @@
         <div class="loading-spinner"></div>
     </div>
     
-    <script src="auth.js?v=20250118003"></script>
-    <script src="script.js?v=20250118003"></script>
+    <script src="auth.js?v=20250119001"></script>
+    <script src="script.js?v=20250119001"></script>
 
     <!-- Footer Width Fix -->
-    <script src="footer-fix.js?v=20250118003"></script>
+    <script src="footer-fix.js?v=20250119001"></script>
     
     <!-- Footer Content Manager -->
-    <script src="footer-content.js?v=20250118003"></script>
+    <script src="footer-content.js?v=20250119001"></script>
 
     <!-- Powered by Warracker Footer -->
     <footer class="warracker-footer" id="warrackerFooter">

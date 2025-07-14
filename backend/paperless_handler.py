@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Dict, Any, Tuple
 import os
 from io import BytesIO
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -59,21 +60,104 @@ class PaperlessHandler:
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
     
-    def upload_document(self, file_content: bytes, filename: str, title: Optional[str] = None, 
-                       tags: Optional[list] = None, correspondent: Optional[str] = None) -> Tuple[bool, Optional[int], str]:
+    def find_document_by_checksum(self, checksum: str) -> Tuple[bool, Optional[int], str]:
+
         """
-        Upload a document to Paperless-ngx
+
+        Find a document by its checksum in Paperless-ngx
+
         
+
         Args:
-            file_content: Binary content of the file
-            filename: Original filename
-            title: Optional title for the document
-            tags: Optional list of tag names
-            correspondent: Optional correspondent name
+
+            checksum: Document checksum to search for
+
             
+
         Returns:
+
             (success: bool, document_id: Optional[int], message: str)
+
         """
+
+        try:
+
+            logger.info(f"Searching for document by checksum: {checksum}")
+
+            
+
+            response = self.session.get(
+
+                f'{self.paperless_url}/api/documents/',
+
+                params={
+
+                    'checksum': checksum,
+
+                    'ordering': '-created',
+
+                    'page_size': 1
+
+                },
+
+                timeout=15
+
+            )
+
+            
+
+            response.raise_for_status()
+
+            result = response.json()
+
+            
+
+            if 'results' in result and result['results']:
+
+                document = result['results'][0]
+
+                document_id = document.get('id')
+
+                logger.info(f"Found existing document with checksum {checksum}: ID {document_id}")
+
+                return True, document_id, f"Found existing document: ID {document_id}"
+
+            else:
+
+                return False, None, "No document found with matching checksum"
+
+                
+
+        except requests.exceptions.HTTPError as e:
+
+            logger.error(f"HTTP error searching by checksum: {e}")
+
+            return False, None, f"Search failed: HTTP {e.response.status_code}"
+
+        except Exception as e:
+
+            logger.error(f"Error searching by checksum: {e}")
+
+            return False, None, f"Search failed: {str(e)}"
+
+    
+
+    def upload_document(self, file_content: bytes, filename: str, title: Optional[str] = None, 
+
+                       tags: Optional[list] = None, correspondent: Optional[str] = None) -> Tuple[bool, Optional[int], str]:
+
+        # Check for duplicate by checksum before uploading
+
+        checksum = hashlib.md5(file_content).hexdigest()
+
+        success, existing_id, msg = self.find_document_by_checksum(checksum)
+
+        if success:
+
+            return False, existing_id, "The file that is being uploaded to Paperless is a duplicate."
+
+        
+
         try:
             # Detect MIME type from filename
             import mimetypes

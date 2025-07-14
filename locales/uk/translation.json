@@ -475,7 +475,16 @@
     "preferences_saved_locally_failed_sync": "Налаштування збережено локально, але не вдалося синхронізувати з сервером: ",
     "preferences_saved_locally": "Налаштування збережено локально.",
     "correct_errors_in_tab": "Будь ласка, виправте помилки у виділеній вкладці перед продовженням.",
-    "please_fill_out_this_field": "Будь ласка, заповніть це поле."
+    "please_fill_out_this_field": "Будь ласка, заповніть це поле.",
+    "warranty_added_successfully": "Гарантія успішно додана",
+    "tag_name_required": "Назва тегу обов'язкова",
+    "tag_creation_function_not_found": "Функція створення тегу не знайдена",
+    "tag_created_successfully": "Тег успішно створено",
+    "tag_updated_successfully": "Тег успішно оновлено",
+    "tag_deleted_successfully": "Тег успішно видалено",
+    "failed_to_create_tag": "Не вдалося створити тег",
+    "failed_to_update_tag": "Не вдалося оновити тег",
+    "failed_to_delete_tag": "Не вдалося видалити тег"
   },
   "languages": {
     "en": "English",

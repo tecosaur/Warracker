@@ -469,7 +469,16 @@
     "preferences_saved_locally_failed_sync": "تنظیمات محلی ذخیره شد، اما همگام‌سازی با سرور ناموفق بود: ",
     "preferences_saved_locally": "تنظیمات محلی ذخیره شد.",
     "correct_errors_in_tab": "لطفاً خطاهای موجود در تب برجسته شده را قبل از ادامه تصحیح کنید.",
-    "please_fill_out_this_field": "لطفاً این فیلد را پر کنید."
+    "please_fill_out_this_field": "لطفاً این فیلد را پر کنید.",
+    "warranty_added_successfully": "گارانتی با موفقیت اضافه شد",
+    "tag_name_required": "نام برچسب الزامی است",
+    "tag_creation_function_not_found": "تابع ایجاد برچسب پیدا نشد",
+    "tag_created_successfully": "برچسب با موفقیت ایجاد شد",
+    "tag_updated_successfully": "برچسب با موفقیت به‌روزرسانی شد",
+    "tag_deleted_successfully": "برچسب با موفقیت حذف شد",
+    "failed_to_create_tag": "ایجاد برچسب ناموفق بود",
+    "failed_to_update_tag": "به‌روزرسانی برچسب ناموفق بود",
+    "failed_to_delete_tag": "حذف برچسب ناموفق بود"
   },
   "languages": {
     "en": "انگلیسی",

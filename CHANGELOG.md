@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.10.1.6  - 2025-07-13
+
+### Fixed
+- **Warranty Card Layout Improvement:** Moved warranty status row to the bottom of warranty cards in both grid and list views for better visual hierarchy and consistent card structure.
+  - **Root Cause:** Status information appeared in the middle of warranty cards, breaking visual flow.
+  - **Solution:** Relocated warranty status row to appear after document links and tags at the bottom of each card.
+  - **Impact:** Improved card readability and consistent layout across all view modes.
+  - _Files: `frontend/script.js`_
+
+- **Tag Management Real-Time Updates:** Fixed issue where tag changes (color updates, name changes) in the manage tags modal did not immediately reflect in warranty cards and UI elements.
+  - **Root Cause:** Tag updates only refreshed the management modal but not the main warranty display or related UI components.
+  - **Solution:** Enhanced updateTag() and deleteTag() functions to update all UI elements including warranty cards, selected tags, filter dropdowns, and edit forms.
+  - **Impact:** Tag changes now appear instantly throughout the application without requiring page refresh.
+  - _Files: `frontend/script.js`_
+
+- **Missing Tag-Related Translations:** Resolved issue where tag management success and error messages displayed as translation keys instead of localized text across all supported languages.
+  - **Root Cause:** Tag-related message keys (tag_updated_successfully, tag_created_successfully, etc.) were missing from translation files.
+  - **Solution:** Added complete set of tag management translations to all 17 language files including success messages, error messages, and validation text.
+  - **Impact:** Users now see properly localized tag management messages in their preferred language.
+  - **Languages Updated:** English, French, Spanish, German, Italian, Dutch, Russian, Czech, Portuguese, Japanese, Korean, Chinese (Simplified & Traditional), Hindi, Arabic, Persian, Ukrainian.
+  - _Files: All `locales/*/translation.json` files_
+
+- **Update Caching Issues:** Resolved errors during application updates caused by browser and service worker caching of outdated assets.
+  - Configured `nginx.conf` with no-cache headers for `sw.js` to ensure fresh service worker loads on updates.
+  - Updated service worker cache name in `frontend/sw.js` to 'warracker-cache-v20250119001' and added version parameters to all cached assets.
+  - Incremented version query parameters (?v=20250119001) across all HTML files to force cache busting for CSS, JS, and other assets.
+  - Temporarily added version parameter to service worker registration in `frontend/script.js`, removed after nginx configuration handles it going forward.
+  - Verified complete removal of previous version strings and consistent application across all frontend files.
+
+_Files: `nginx.conf`, `frontend/sw.js`, `frontend/script.js`, all frontend HTML files (index.html, status.html, settings-new.html, login.html, register.html, reset-password-request.html, reset-password.html, about.html, auth-redirect.html, debug-export.html)_
+
+- **Docker Compose Command Duplication Fix:** Resolved update issues by removing redundant migration and permission commands from the root `docker-compose.yml`, preventing duplicated execution and startup errors.
+
+_Files: `docker-compose.yml`_
+
+- **Flexible Date Parsing in CSV Import:** Enhanced CSV import to support multiple date formats for the PurchaseDate field using dateutil.parser, removing the strict YYYY-MM-DD requirement.
+  - **Root Cause:** Import required exact YYYY-MM-DD format, failing on other common formats.
+  - **Solution:** Replaced strict datetime.strptime with flexible dateutil.parser.parse in backend/app.py.
+  - **Impact:** Users can now import warranties with various date formats without manual reformatting.
+  - _Files: `backend/app.py`_
+
+- **Warranty Duration Selection Limit:** Fixed limitation preventing selection above 11 months for warranty durations. Removed backend validation caps on months (<12) and days (<366), increased years limit to 999, and updated frontend input maximums to 999 months and 9999 days for flexible entry. Added migration to adjust database constraints accordingly.
+  - _Files: `backend/app.py`, `frontend/index.html`, `frontend/status.html`, `backend/migrations/042_allow_higher_duration_components.sql`_
+- **Paperless-ngx Duplicate Document Handling:** Added detection of duplicate documents during upload to Paperless-ngx. When a duplicate is found, the system automatically links to the existing document and displays an informative message to the user.
+  - **Root Cause:** Previous implementation did not check for duplicates before upload, leading to generic error messages.
+  - **Solution:** Added checksum-based duplicate check before upload in backend/paperless_handler.py and handled linking in frontend/script.js.
+  - **Impact:** Users now get clear feedback about duplicates and automatic linking instead of upload failures.
+  - _Files: `backend/paperless_handler.py`, `backend/app.py`, `frontend/script.js`_
+
+  - **Database Migration Permission Fix:** Resolved 'no permission to create role' errors during initial setup by granting CREATEROLE privilege to the db_user in a new early migration and removing duplicate grants in later migrations. This ensures smooth database initialization without requiring superuser privileges.
+  - _Files: `backend/migrations/009z_grant_createrole_to_db_user.sql`, `backend/migrations/011_ensure_admin_permissions.sql`_
+
+- **Missing Translation for Warranty Addition Success Message:** Resolved issue where the success message displayed as a placeholder key ('messages.warranty_added_successfully') instead of the translated text.
+  - Added the key and appropriate translations to all supported languages in `translation.json` files.
+  - Updated English and French `.po` files for backend consistency.
+  - Ensures proper localized success messages appear when adding warranties in any language.
+
+  _Files: All `locales/*/translation.json`, `locales/en/LC_MESSAGES/messages.po`, `locales/fr/LC_MESSAGES/messages.po`_
+
+- **Product Photo Loading Fix:** Fixed issue where product photos would disappear when navigating between pages, specifically when returning from the status page to the homepage.
+  - **Root Cause:** The renderWarranties function was calling a non-existent `initializeSecureImages()` function, causing JavaScript errors that prevented secure image loading.
+  - **Solution:** Replaced the incorrect `initializeSecureImages()` function call with the correct `loadSecureImages()` function.
+  - **Impact:** Product photos now load consistently across all page navigation scenarios with proper authentication.
+  - _Files: `frontend/script.js`_
+
 ## 0.10.1.5  - 2025-07-08
 
 ### Enhanced
@@ -575,8 +640,6 @@
   - **Code Organization:** Improved code readability and maintainability by removing confusing commented-out legacy implementations
   - **Blueprint Verification:** Confirmed `oidc_bp` Blueprint is properly registered and functional at `/api/oidc/*` endpoints
   - _Files: `backend/app.py`_
-
-
 
 ##  0.10.1.0 - 2025-06-10
 

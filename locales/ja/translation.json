@@ -469,7 +469,16 @@
     "preferences_saved_locally_failed_sync": "環境設定はローカルに保存されましたが、サーバーとの同期に失敗しました：",
     "preferences_saved_locally": "環境設定がローカルに保存されました。",
     "correct_errors_in_tab": "続行する前に、ハイライトされたタブのエラーを修正してください。",
-    "please_fill_out_this_field": "このフィールドを入力してください。"
+    "please_fill_out_this_field": "このフィールドを入力してください。",
+    "warranty_added_successfully": "保証が正常に追加されました",
+    "tag_name_required": "タグ名は必須です",
+    "tag_creation_function_not_found": "タグ作成機能が見つかりません",
+    "tag_created_successfully": "タグが正常に作成されました",
+    "tag_updated_successfully": "タグが正常に更新されました",
+    "tag_deleted_successfully": "タグが正常に削除されました",
+    "failed_to_create_tag": "タグの作成に失敗しました",
+    "failed_to_update_tag": "タグの更新に失敗しました",
+    "failed_to_delete_tag": "タグの削除に失敗しました"
   },
   "languages": {
     "en": "English",

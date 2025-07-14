@@ -1754,8 +1754,8 @@ function processWarrantyData(warranty) {
                 window.i18next.t('warranties.day', {count: daysRemaining}) :
                 `day${daysRemaining !== 1 ? 's' : ''}`;
             processedWarranty.statusText = window.i18next ? 
-                window.i18next.t('warranties.expiring_soon_days', {days: daysRemaining, dayText: dayText}) :
-                `Expiring Soon (${daysRemaining} day${daysRemaining !== 1 ? 's' : ''})`;
+                window.i18next.t('warranties.days_remaining', {days: daysRemaining, dayText: dayText}) :
+                `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
         } else {
             processedWarranty.status = 'active';
             const dayText = window.i18next ? 
@@ -2285,6 +2285,8 @@ async function renderWarranties(warrantiesToRender) {
             notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> ${notesLabel}</a>`;
         }
         
+        const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || hasNotes;
+        
         // Get current user ID to check warranty ownership
         const currentUserId = (() => {
             try {
@@ -2358,9 +2360,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
-                <div class="warranty-status-row status-${statusClass}">
-                    <span>${statusText}</span>
-                </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
@@ -2374,7 +2374,11 @@ async function renderWarranties(warrantiesToRender) {
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
             `;
         } else if (currentView === 'list') {
             // List view HTML structure
@@ -2417,9 +2421,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
-                <div class="warranty-status-row status-${statusClass}">
-                    <span>${statusText}</span>
-                </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
@@ -2433,7 +2435,11 @@ async function renderWarranties(warrantiesToRender) {
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
             `;
         } else if (currentView === 'table') {
             // Table view HTML structure
@@ -2479,6 +2485,7 @@ async function renderWarranties(warrantiesToRender) {
                 <div class="warranty-status-row status-${statusClass}">
                     <span>${statusText}</span>
                 </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
@@ -2492,6 +2499,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
             `;
         }
@@ -2542,7 +2550,56 @@ async function renderWarranties(warrantiesToRender) {
     });
     
     // Load secure images with authentication after rendering
-    setTimeout(() => loadSecureImages(), 100); // Small delay to ensure DOM is updated
+    loadSecureImages();
+
+    // Improved: Align card heights after all images have loaded
+    if (currentView === 'grid') {
+        const cards = warrantiesList.querySelectorAll('.warranty-card');
+        if (cards.length > 0) {
+            const images = warrantiesList.querySelectorAll('.secure-image');
+            let loadedCount = 0;
+            const totalImages = images.length;
+
+            const alignHeights = () => {
+                let maxHeight = 0;
+                cards.forEach(card => {
+                    card.style.minHeight = ''; // Reset
+                    const height = card.getBoundingClientRect().height;
+                    if (height > maxHeight) maxHeight = height;
+                });
+                cards.forEach(card => {
+                    card.style.minHeight = `${maxHeight}px`;
+                });
+            };
+
+            if (totalImages === 0) {
+                alignHeights(); // No images, align immediately
+            } else {
+                images.forEach(img => {
+                    if (img.complete) {
+                        loadedCount++;
+                        if (loadedCount === totalImages) alignHeights();
+                    } else {
+                        img.addEventListener('load', () => {
+                            loadedCount++;
+                            if (loadedCount === totalImages) alignHeights();
+                        });
+                        img.addEventListener('error', () => {
+                            loadedCount++;
+                            if (loadedCount === totalImages) alignHeights();
+                        });
+                    }
+                });
+            }
+        }
+    }
+
+    // Update the timeline chart if on the status page or appropriate
+    if (typeof updateTimelineChart === 'function') {
+        updateTimelineChart();
+    }
+
+    console.log('Warranties rendered successfully');
 }
 
 function filterWarranties() {
@@ -4475,14 +4532,40 @@ function updateTag(id, name, color) {
             selectedTags[selectedIndex].color = color;
         }
         
+        // Update tag in editSelectedTags if present
+        const editSelectedIndex = editSelectedTags.findIndex(tag => tag.id === id);
+        if (editSelectedIndex !== -1) {
+            editSelectedTags[editSelectedIndex].name = name;
+            editSelectedTags[editSelectedIndex].color = color;
+        }
+        
+        // Update tags in warranties array
+        warranties.forEach(warranty => {
+            if (warranty.tags && Array.isArray(warranty.tags)) {
+                warranty.tags.forEach(tag => {
+                    if (tag.id === id) {
+                        tag.name = name;
+                        tag.color = color;
+                    }
+                });
+            }
+        });
+        
         // Rerender existing tags and selected tags
         renderExistingTags();
         renderSelectedTags();
+        renderEditSelectedTags();
         
         // Update summary if needed
         if (document.getElementById('summary-tags')) {
             updateSummary();
         }
+        
+        // Update tag filter dropdown
+        populateTagFilter();
+        
+        // Re-render warranty cards to show updated tag colors
+        renderWarranties(warranties);
         
         showToast(window.t('messages.tag_updated_successfully'), 'success');
     })
@@ -4535,11 +4618,19 @@ function deleteTag(id) {
         selectedTags = selectedTags.filter(tag => tag.id !== id);
         editSelectedTags = editSelectedTags.filter(tag => tag.id !== id);
         
+        // Remove tag from warranties array
+        warranties.forEach(warranty => {
+            if (warranty.tags && Array.isArray(warranty.tags)) {
+                warranty.tags = warranty.tags.filter(tag => tag.id !== id);
+            }
+        });
+        
         // --- FIX: Re-render UI elements ---
         renderExistingTags(); // Update the list in the modal
         renderSelectedTags(); // Update selected tags in the add form
         renderEditSelectedTags(); // Update selected tags in the edit form
         populateTagFilter(); // Update the filter dropdown on the main page
+        renderWarranties(warranties); // Update warranty cards to remove deleted tag
         // --- END FIX ---
         
         showToast(window.t('messages.tag_deleted_successfully'), 'success');
@@ -6839,7 +6930,8 @@ async function uploadToPaperlessNgx(file, documentType) {
         return {
             success: true,
             document_id: result.document_id,
-            message: result.message
+            message: result.message,
+            error: result.error  // Add this
         };
         
     } catch (error) {
@@ -6878,7 +6970,7 @@ async function processPaperlessNgxUploads(formData) {
                 // Upload to Paperless-ngx
                 const uploadResult = await uploadToPaperlessNgx(file, docType);
                 console.log(`[DEBUG][processPaperlessNgxUploads] uploadResult for ${docType}:`, uploadResult);
-                if (uploadResult.success) {
+                if (uploadResult.success || (uploadResult.error && uploadResult.error.includes("duplicate") && uploadResult.document_id)) {
                     // Map frontend document types to database column names
                     const fieldMapping = {
                         'productPhoto': 'paperless_photo_id',
@@ -6888,11 +6980,13 @@ async function processPaperlessNgxUploads(formData) {
                     };
                     const dbField = fieldMapping[docType];
                     if (dbField && uploadResult.document_id) {
-                        // Only store the ID if we actually got a document ID (not a task ID)
                         uploads[dbField] = uploadResult.document_id;
-                        console.log(`[Paperless-ngx] ${docType} uploaded successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        console.log(`[Paperless-ngx] ${docType} uploaded/linked successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
                         // Hide loading screen immediately for direct uploads
                         hidePaperlessUploadLoading();
+                        if (uploadResult.error && uploadResult.error.includes("duplicate")) {
+                            showToast("Duplicate document detected in Paperless-ngx. Linked to existing document.", 'info');
+                        }
                     } else if (dbField && !uploadResult.document_id) {
                         console.log(`[Paperless-ngx] ${docType} uploaded successfully but no document ID received (async processing). Not storing reference.`);
                         // Don't hide loading screen yet - auto-link will handle it
@@ -6945,7 +7039,7 @@ async function processEditPaperlessNgxUploads(formData) {
                 // Upload to Paperless-ngx
                 const uploadResult = await uploadToPaperlessNgx(file, docType);
                 
-                if (uploadResult.success) {
+                if (uploadResult.success || (uploadResult.error && uploadResult.error.includes("duplicate") && uploadResult.document_id)) {
                     // Map frontend document types to database column names
                     const fieldMapping = {
                         'productPhoto': 'paperless_photo_id',
@@ -6956,11 +7050,13 @@ async function processEditPaperlessNgxUploads(formData) {
                     
                     const dbField = fieldMapping[docType];
                     if (dbField && uploadResult.document_id) {
-                        // Only store the ID if we actually got a document ID (not a task ID)
                         uploads[dbField] = uploadResult.document_id;
-                        console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        console.log(`[Paperless-ngx] ${docType} uploaded/linked successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
                         // Hide loading screen immediately for direct uploads
                         hidePaperlessUploadLoading();
+                        if (uploadResult.error && uploadResult.error.includes("duplicate")) {
+                            showToast("Duplicate document detected in Paperless-ngx. Linked to existing document.", 'info');
+                        }
                     } else if (dbField && !uploadResult.document_id) {
                         console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit) but no document ID received (async processing). Not storing reference.`);
                         // Don't hide loading screen yet - auto-link will handle it
