@@ -22,7 +22,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 [![Discord](https://img.shields.io/badge/discord-chat-green?logo=discord)](https://discord.gg/PGxVS3U2Nw)
 
 <p align="center">
-  <img src="images/demo.gif" alt="Warracker Demo" width="600">
+  <img src="images/demowarracker.gif" alt="Warracker Demo" width="650">
 </p>
 
 
