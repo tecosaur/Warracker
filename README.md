@@ -61,9 +61,9 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
+| 📖 **Localization Support**       | [Full multilingual UI with 17 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
 
 ---
-
 
 ## Project Status
 
@@ -79,10 +79,9 @@ The essential features are reliable and ready for everyday use. Development is o
 
 **Home Page**
 
-![image](https://github.com/user-attachments/assets/7fd27771-c6f6-4c90-9e04-fb8acb455107)
+![image](https://github.com/user-attachments/assets/cb8d7d4c-3d5d-41ba-bfcc-13ed30be42aa)
 
-
-![image](https://github.com/user-attachments/assets/3b4aa67a-9e2c-4f85-9f42-beea35b22814)
+![image](https://github.com/user-attachments/assets/e657d9f3-b906-4646-b31a-b5c58df95767)
 
 **Status Dashboard**  
 
@@ -108,11 +107,11 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ OIDC SSO Functionality
 * ✅ Advanced User/Admin Controls
 * ✅ Paperless-ngx integration
+* ✅ Localization Support
 * [ ] Audit trail
 * [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
-* [ ] Localization Support
-
+      
 ## 🚀Setup
 
 ### Prerequisites
@@ -187,6 +186,40 @@ To get the docker compose file with environemts and .env example for warracker a
 | **Vendor**       | Text                                      | ❌ No (Optional)                                        | Name of the vendor or seller where the product was purchased.        |
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
 
+---
+## 🌐 Localization Support
+
+Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
+
+### Supported Languages
+
+| Language                 | Code     | Native Name           | Notes           |
+|--------------------------|----------|----------------------|-----------------|
+| Arabic 🇸🇦               | ar       | العربية               | *RTL Support*   |
+| Czech 🇨🇿                | cs       | Čeština               |                 |
+| German 🇩🇪               | de       | Deutsch               |                 |
+| English 🇬🇧              | en       | English               | *Default*       |
+| Spanish 🇪🇸              | es       | Español               |                 |
+| Persian 🇮🇷              | fa       | فارسی                 | *RTL Support*   |
+| French 🇫🇷               | fr       | Français              |                 |
+| Hindi 🇮🇳                | hi       | हिन्दी                |                 |
+| Italian 🇮🇹              | it       | Italiano              |                 |
+| Japanese 🇯🇵             | ja       | 日本語                 |                 |
+| Korean 🇰🇷               | ko       | 한국어                 |                 |
+| Dutch 🇳🇱                | nl       | Nederlands            |                 |
+| Portuguese 🇵🇹           | pt       | Português             |                 |
+| Russian 🇷🇺              | ru       | Русский               |                 |
+| Ukrainian 🇺🇦            | uk       | Українська            |                 |
+| Chinese (Simplified) 🇨🇳 | zh_CN    | 简体中文               |                 |
+| Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
+
+### Language Selection Features
+
+- **Auto-Detection:** Automatically detects browser language on first visit  
+- **User Preference:** Saves individual language choice to user profile  
+- **Native Names:** Dropdown displays language names in native scripts for clarity  
+- **Instant Switching:** Change languages in real-time without page reload  
+---
 
 ## Why I Built This
 
@@ -255,6 +288,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 *   Docker
 *   Chart.js
 *   Apprise
+*   i18next
 
 
 ## ⭐Star History
