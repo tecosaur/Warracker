@@ -264,7 +264,7 @@ We welcome contributions and appreciate your interest in improving this project!
 [<img src="https://avatars.githubusercontent.com/u/8194208?u=7ee82feed0044f85bcfc39f001643fe81a188f66&v=4&s=50" width="50"/>](https://github.com/SirSpidey)
 [<img src="https://avatars.githubusercontent.com/u/6196195?v=4&s=50" width="50"/>](https://github.com/keithellis74)
 [<img src="https://avatars.githubusercontent.com/u/79404036?v=4&s=50" width="50"/>](https://github.com/CristianKerr)
-
+[<img src="https://avatars.githubusercontent.com/u/145632931?v=4&s=50" width="50"/>](https://github.com/rssmithtx)
 
 
 
