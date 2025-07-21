@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.1.7  - 2025-07-16
+## 0.10.1.7  - 2025-07-20
 
 ### Fixed
 - **Configuration Precedence Fix:** Fixed critical issue where environment variables were being ignored in favor of database settings on fresh installations, preventing proper configuration of OIDC, Apprise, and email settings via environment variables.
