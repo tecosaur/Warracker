@@ -38,6 +38,7 @@ COPY backend/gunicorn_config.py .
 # Create the backend package directory in /app and copy modules into it
 RUN mkdir -p /app/backend
 COPY backend/__init__.py /app/backend/
+COPY backend/config.py /app/backend/
 COPY backend/auth_utils.py /app/backend/
 COPY backend/auth_routes.py /app/backend/
 COPY backend/db_handler.py /app/backend/
@@ -47,6 +48,12 @@ COPY backend/apprise_handler.py /app/backend/
 COPY backend/notifications.py /app/backend/
 COPY backend/paperless_handler.py /app/backend/
 COPY backend/localization.py /app/backend/
+COPY backend/warranties_routes.py /app/backend/
+COPY backend/admin_routes.py /app/backend/
+COPY backend/statistics_routes.py /app/backend/
+COPY backend/tags_routes.py /app/backend/
+COPY backend/utils.py /app/backend/
+COPY backend/file_routes.py /app/backend/
 
 # Copy other utility scripts and migrations
 COPY backend/fix_permissions.py .
@@ -169,7 +176,7 @@ stderr_logfile_maxbytes=0
 priority=10                   ; Start after setup
 
 [program:gunicorn]
-command=gunicorn --config /app/gunicorn_config.py app:app ; Start Gunicorn
+command=gunicorn --config /app/gunicorn_config.py "backend:create_app()" ; Start Gunicorn with Application Factory
 directory=/app
 autostart=true
 autorestart=true              ; Restart Gunicorn if it crashes

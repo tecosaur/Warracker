@@ -6,7 +6,10 @@ from functools import wraps
 import re
 
 # IMPORTANT: We need to import db_handler here for the decorators
-from backend import db_handler
+try:
+    from . import db_handler
+except ImportError:
+    import db_handler
 
 def generate_token(user_id):
     """Generate a JWT token for the user"""

@@ -152,23 +152,27 @@ def format_expiration_email(user, warranties, get_db_connection, release_db_conn
     """
     subject = "Warracker: Upcoming Warranty Expirations"
     
-    # Get email base URL from settings
-    conn = None
-    email_base_url = 'http://localhost:8080'  # Default fallback
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
-            result = cur.fetchone()
-            if result:
-                email_base_url = result[0]
-            else:
-                logger.warning("email_base_url setting not found, using default.")
-    except Exception as e:
-        logger.error(f"Error fetching email_base_url from settings: {e}. Using default.")
-    finally:
-        if conn:
-            release_db_connection(conn)
+    # Get email base URL from settings with correct precedence
+    # Priority: Environment Variable > Database Setting > Hardcoded Default
+    email_base_url = os.environ.get('APP_BASE_URL')
+    if email_base_url is None:
+        # Fall back to database setting if environment variable is not set
+        conn = None
+        email_base_url = 'http://localhost:8080'  # Default fallback
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
+                result = cur.fetchone()
+                if result:
+                    email_base_url = result[0]
+                else:
+                    logger.warning("email_base_url setting not found, using default.")
+        except Exception as e:
+            logger.error(f"Error fetching email_base_url from settings: {e}. Using default.")
+        finally:
+            if conn:
+                release_db_connection(conn)
     
     # Ensure base URL doesn't end with a slash
     email_base_url = email_base_url.rstrip('/')

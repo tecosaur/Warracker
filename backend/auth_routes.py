@@ -10,16 +10,22 @@ import pytz
 import psycopg2
 
 # Use relative imports for project modules
-from . import db_handler, notifications
-from .auth_utils import generate_token, token_required, is_valid_email, is_valid_password
-from .localization import SUPPORTED_LANGUAGES
-
-# Import bcrypt from app since it's initialized with the app
 try:
-    from .app import bcrypt
+    from . import db_handler, notifications
+    from .auth_utils import generate_token, token_required, is_valid_email, is_valid_password
+    from .localization import SUPPORTED_LANGUAGES
 except ImportError:
     # Fallback for development environment
-    from app import bcrypt
+    import db_handler, notifications
+    from auth_utils import generate_token, token_required, is_valid_email, is_valid_password
+    from localization import SUPPORTED_LANGUAGES
+
+# Import bcrypt from extensions since it's initialized with the app
+try:
+    from .extensions import bcrypt
+except ImportError:
+    # Fallback for development environment
+    from extensions import bcrypt
 
 auth_bp = Blueprint('auth_bp', __name__)
 
@@ -353,17 +359,21 @@ def request_password_reset():
             
             conn.commit()
 
-            # Get email base URL from settings
-            email_base_url = 'http://localhost:8080' # Default fallback
-            try:
-                cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
-                result = cur.fetchone()
-                if result:
-                    email_base_url = result[0]
-                else:
-                    current_app.logger.warning("email_base_url setting not found for password reset, using default.")
-            except Exception as e:
-                 current_app.logger.error(f"Error fetching email_base_url from settings for password reset: {e}. Using default.")
+            # Get email base URL from settings with correct precedence
+            # Priority: Environment Variable > Database Setting > Hardcoded Default
+            email_base_url = os.environ.get('APP_BASE_URL')
+            if email_base_url is None:
+                # Fall back to database setting if environment variable is not set
+                email_base_url = 'http://localhost:8080' # Default fallback
+                try:
+                    cur.execute("SELECT value FROM site_settings WHERE key = 'email_base_url'")
+                    result = cur.fetchone()
+                    if result:
+                        email_base_url = result[0]
+                    else:
+                        current_app.logger.warning("email_base_url setting not found for password reset, using default.")
+                except Exception as e:
+                     current_app.logger.error(f"Error fetching email_base_url from settings for password reset: {e}. Using default.")
             
             # Ensure base URL doesn't end with a slash
             email_base_url = email_base_url.rstrip('/')

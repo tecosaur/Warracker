@@ -76,48 +76,54 @@ class AppriseNotificationHandler:
             return
             
         try:
-            # Load from database first
-            self.enabled = get_site_setting('apprise_enabled', 'false').lower() == 'true'
-            urls_str = get_site_setting('apprise_urls', '')
-            expiration_days_str = get_site_setting('apprise_expiration_days', '7,30')
-            self.notification_time = get_site_setting('apprise_notification_time', '09:00')
-            self.title_prefix = get_site_setting('apprise_title_prefix', '[Warracker]')
-
-            # Parse notification URLs
-            if urls_str:
-                self.notification_urls = [url.strip() for url in urls_str.split(',') if url.strip()]
-
-            # Parse expiration days
-            if expiration_days_str:
-                try:
-                    self.expiration_days = [int(day.strip()) for day in expiration_days_str.split(',') if day.strip()]
-                except ValueError:
-                    logger.warning(f"Invalid expiration days format: {expiration_days_str}, using defaults")
-                    self.expiration_days = [7, 30]
-
-            # Override with environment variables if present
+            # Priority: Environment Variable > Database Setting > Hardcoded Default
+            
+            # Load APPRISE_ENABLED with correct precedence
             env_enabled = os.getenv('APPRISE_ENABLED')
-            if env_enabled:
+            if env_enabled is not None:
                 self.enabled = env_enabled.lower() == 'true'
+            else:
+                self.enabled = get_site_setting('apprise_enabled', 'false').lower() == 'true'
 
+            # Load APPRISE_URLS with correct precedence
             env_urls = os.getenv('APPRISE_URLS')
-            if env_urls:
+            if env_urls is not None:
                 self.notification_urls = [url.strip() for url in env_urls.split(',') if url.strip()]
+            else:
+                urls_str = get_site_setting('apprise_urls', '')
+                if urls_str:
+                    self.notification_urls = [url.strip() for url in urls_str.split(',') if url.strip()]
 
+            # Load APPRISE_EXPIRATION_DAYS with correct precedence
             env_days = os.getenv('APPRISE_EXPIRATION_DAYS')
-            if env_days:
+            if env_days is not None:
                 try:
                     self.expiration_days = [int(day.strip()) for day in env_days.split(',') if day.strip()]
                 except ValueError:
                     logger.warning(f"Invalid environment expiration days: {env_days}")
+                    self.expiration_days = [7, 30]
+            else:
+                expiration_days_str = get_site_setting('apprise_expiration_days', '7,30')
+                if expiration_days_str:
+                    try:
+                        self.expiration_days = [int(day.strip()) for day in expiration_days_str.split(',') if day.strip()]
+                    except ValueError:
+                        logger.warning(f"Invalid expiration days format: {expiration_days_str}, using defaults")
+                        self.expiration_days = [7, 30]
 
+            # Load APPRISE_NOTIFICATION_TIME with correct precedence
             env_time = os.getenv('APPRISE_NOTIFICATION_TIME')
-            if env_time:
+            if env_time is not None:
                 self.notification_time = env_time
+            else:
+                self.notification_time = get_site_setting('apprise_notification_time', '09:00')
 
+            # Load APPRISE_TITLE_PREFIX with correct precedence
             env_prefix = os.getenv('APPRISE_TITLE_PREFIX')
-            if env_prefix:
+            if env_prefix is not None:
                 self.title_prefix = env_prefix
+            else:
+                self.title_prefix = get_site_setting('apprise_title_prefix', '[Warracker]')
 
             # Initialize Apprise object if enabled
             if self.enabled and self.notification_urls:

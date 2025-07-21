@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.10.1.7  - 2025-07-16
+
+### Fixed
+- **Configuration Precedence Fix:** Fixed critical issue where environment variables were being ignored in favor of database settings on fresh installations, preventing proper configuration of OIDC, Apprise, and email settings via environment variables.
+  - **Root Cause:** The configuration loading logic was checking database settings first, and since migration scripts insert default values (e.g., `oidc_enabled: 'false'`), the code would use these database values instead of checking environment variables. This violated the expected precedence hierarchy and made it impossible to configure the application via `.env` files on fresh deployments. Additionally, the `/api/auth/oidc-status` endpoint was not using the same precedence logic, causing the frontend to show "SSO is not enabled" even when users configured OIDC in the GUI but had conflicting environment variables.
+  - **Solution:** Updated configuration loading in `init_oidc_client()`, `_load_configuration()`, email base URL handling, and OIDC status endpoint to follow proper precedence: Environment Variable > Database Setting > Hardcoded Default. Fixed all OIDC settings (`OIDC_ENABLED`, `OIDC_PROVIDER_NAME`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_ISSUER_URL`, `OIDC_SCOPE`), all Apprise settings (`APPRISE_ENABLED`, `APPRISE_URLS`, `APPRISE_EXPIRATION_DAYS`, `APPRISE_NOTIFICATION_TIME`, `APPRISE_TITLE_PREFIX`), and email base URL (`APP_BASE_URL`) to check environment variables first using proper `if env_var is not None:` logic. Updated the `get_oidc_status_route()` function to apply the same precedence logic as the backend initialization.
+  - **Impact:** Environment variables now take precedence over database settings as expected. Fresh installations can be properly configured using Docker `.env` files. OIDC SSO, Apprise notifications, and email links now work correctly when configured via environment variables. The frontend SSO button now correctly reflects the actual OIDC configuration state. Existing deployments using database settings continue to work unchanged.
+  - _Files: `backend/__init__.py`, `backend/apprise_handler.py`, `backend/auth_routes.py`, `backend/notifications.py`, `backend/oidc_handler.py`_
+
+- **PostgreSQL Migration Permission Fix:** Fixed migration failures on standard PostgreSQL user setups that don't have `CREATEROLE` privileges, preventing application startup with error "keine Berechtigung, um Rolle zu ändern" (no permission to alter role).
+  - **Root Cause:** Migrations `009z_grant_createrole_to_db_user.sql`, `010_configure_admin_roles.sql`, and `011_ensure_admin_permissions.sql` were attempting to grant `CREATEROLE` privileges and create admin roles, but these operations require superuser or `CREATEROLE` privileges that standard database users don't have. This caused migration failures on secure, standard PostgreSQL setups.
+  - **Solution:** Updated all role management migrations to use PostgreSQL `DO` blocks with exception handling. The migrations now attempt advanced role operations but gracefully continue with informative notices if permissions are insufficient. Core application functionality is preserved while optional advanced features are skipped when permissions don't allow them.
+  - **Impact:** Applications can now successfully start and run on standard PostgreSQL user setups without requiring elevated database privileges. The application works fully with basic user permissions while optional role management features are gracefully disabled when not available. Migration errors no longer prevent application startup.
+  - _Files: `backend/migrations/009z_grant_createrole_to_db_user.sql`, `backend/migrations/010_configure_admin_roles.sql`, `backend/migrations/011_ensure_admin_permissions.sql`_
+  
+- **Warranty Routes Refactoring:** Extracted all warranty-related functionality from main application file into dedicated Flask Blueprint for improved code organization and maintainability.
+  - **Root Cause:** Warranty routes were contained within the main `app.py` file, making the codebase monolithic and harder to maintain as the application grew.
+  - **Solution:** Created new `warranties_routes.py` Blueprint containing all 9 warranty routes including CRUD operations, CSV import, global view, and tag management. Updated route decorators from `@app.route()` to `@warranties_bp.route()`, registered blueprint with `/api` prefix, and resolved import issues for both Docker and development environments.
+  - **Impact:** Reduced main application file by ~1,500 lines of code while maintaining 100% API compatibility. Warranty functionality is now properly isolated in a 1,589-line dedicated module, making future maintenance and feature development easier.
+  - _Files: `backend/warranties_routes.py` (new), `backend/app.py`, `Dockerfile`_
+
+- **Admin Routes Refactoring:** Extracted all administrative functionality from main application file into dedicated Flask Blueprint for improved code organization and maintainability.
+  - **Root Cause:** Admin routes were scattered throughout the main `app.py` file, making the codebase harder to maintain and reducing code modularity.
+  - **Solution:** Created new `admin_routes.py` Blueprint containing all 16 admin routes including user management, site settings, notifications, and Apprise integration. Updated route decorators from `@app.route()` to `@admin_bp.route()`, registered blueprint with `/api/admin` prefix, and ensured proper import handling for both Docker and development environments.
+  - **Impact:** Reduced main application file by ~635 lines of code while maintaining 100% API compatibility. Admin functionality is now properly isolated and modularized, making future maintenance and feature development easier.
+  - _Files: `backend/admin_routes.py` (new), `backend/app.py`, `Dockerfile`_
+
+- **Statistics Routes Refactoring:** Extracted statistics functionality from main application file into dedicated Flask Blueprint for improved code organization and maintainability.
+  - **Root Cause:** Statistics routes were embedded within the main `app.py` file, contributing to a monolithic codebase structure.
+  - **Solution:** Created new `statistics_routes.py` Blueprint containing both statistics routes (`/api/statistics` and `/api/statistics/global`) along with the `convert_decimals()` helper function. Updated route decorators from `@app.route()` to `@statistics_bp.route()`, registered blueprint with `/api` prefix, and ensured proper import handling for both Docker and development environments.
+  - **Impact:** Reduced main application file by ~390 lines of code while maintaining 100% API compatibility. Statistics functionality is now properly isolated, ensuring Status page dashboard continues working seamlessly.
+  - _Files: `backend/statistics_routes.py` (new), `backend/app.py`, `Dockerfile`_
+
+- **Tag Management Routes Refactoring:** Extracted all tag management functionality from main application files into dedicated Flask Blueprint for improved code organization and maintainability.
+  - **Root Cause:** Tag management routes were scattered across multiple files (`app.py` and `warranties_routes.py`), making tag-related functionality harder to maintain and reducing code modularity.
+  - **Solution:** Created new `tags_routes.py` Blueprint containing all 6 tag-related routes including direct tag management (`/api/tags` CRUD operations) and warranty-tag association (`/api/warranties/{id}/tags`). Updated route decorators from `@app.route()` and `@warranties_bp.route()` to `@tags_bp.route()`, registered blueprint with `/api` prefix, and ensured proper import handling for both Docker and development environments.
+  - **Impact:** Reduced main application files by ~323 lines of code while maintaining 100% API compatibility. Tag functionality is now properly consolidated in a single 336-line dedicated module, making tag management operations easier to maintain and extend.
+  - _Files: `backend/tags_routes.py` (new), `backend/app.py`, `backend/warranties_routes.py`, `Dockerfile`_
+
+- **File Handling Routes Refactoring:** Extracted all file handling and Paperless-ngx integration functionality from main application file into dedicated Flask Blueprint for improved code organization and maintainability.
+  - **Root Cause:** File handling routes and Paperless-ngx integration were embedded within the main `app.py` file, contributing to a monolithic codebase structure and making file-related functionality harder to maintain.
+  - **Solution:** Created new `file_routes.py` Blueprint containing all 13 file-related routes including local file serving (`/api/files/<path:filename>`, `/api/secure-file/<path:filename>`, `/api/paperless-file/<int:paperless_id>`) and Paperless-ngx integration (`/api/paperless/upload`, `/api/paperless/test`, `/api/paperless/search`, `/api/paperless/tags`, `/api/paperless/debug`, `/api/paperless/test-upload`, `/api/paperless/debug-document/<int:document_id>`, `/api/paperless/cleanup-invalid`, `/api/paperless-search-and-link`, `/api/paperless/url`). Created shared `utils.py` module with `allowed_file()` function. Updated route decorators from `@app.route()` to `@file_bp.route()`, registered blueprint with `/api` prefix, and cleaned up unused imports (`secure_filename`, `send_from_directory`, `mimetypes`).
+  - **Impact:** Reduced main application file by ~781 lines of code (from 1,769 to 988 lines) while maintaining 100% API compatibility. File handling and Paperless-ngx functionality is now properly isolated in a 933-line dedicated module, making file operations and third-party integrations easier to maintain and extend.
+  - _Files: `backend/file_routes.py` (new), `backend/utils.py` (new), `backend/app.py`, `backend/warranties_routes.py`, `Dockerfile`_
+
+- **Application Factory Pattern Implementation:** Implemented Flask Application Factory Pattern to transform the application architecture from a monolithic script to a professional, modular, and testable structure following Flask community best practices.
+  - **Root Cause:** The application used a global Flask app object created at import time, making it difficult to test, configure for different environments, and maintain as the codebase grew. Configuration was scattered throughout `app.py`, extensions were initialized directly in the main module, and the application couldn't be easily instantiated for testing purposes.
+  - **Solution:** Created centralized `config.py` with environment-specific configuration classes (Development, Production, Testing), unified `extensions.py` module for Flask extension initialization with lazy loading pattern, implemented `create_app()` factory function in `__init__.py` for on-demand application creation, and simplified `app.py` to a 42-line entry point that uses the factory. Updated Dockerfile to use `gunicorn "backend:create_app()"` command and fixed blueprint imports to use extensions module instead of the old app module.
+  - **Impact:** Reduced main application file by ~1,101 lines of code (from 1,143 to 42 lines) while maintaining 100% API compatibility. Application now supports multiple environments (development/production/testing), can be easily tested with isolated app instances, follows Flask best practices with proper extension management, and provides a clean separation of concerns between configuration, extensions, application creation, and entry point logic.
+  - _Files: `backend/config.py` (new), `backend/extensions.py` (enhanced), `backend/__init__.py` (enhanced), `backend/app.py` (simplified), `backend/auth_routes.py` (import fix), `Dockerfile`_
+
+- **Missing API Endpoints After Refactoring:** Restored critical API endpoints that were accidentally removed during the Application Factory Pattern implementation, causing 404 errors in the frontend.
+  - **Root Cause:** During the blueprint refactoring, two essential endpoints (`/api/currencies` and `/api/settings/global-view-status`) were removed from the application, causing the frontend to fail when loading currency data and checking global view permissions.
+  - **Solution:** Added missing `/api/currencies` endpoint to `warranties_routes.py` returning comprehensive list of 85+ world currencies with symbols, codes, and names. Added missing `/api/settings/global-view-status` endpoint to `statistics_routes.py` to check global view permissions based on user admin status and site settings. Updated frontend currency loading functions in `script.js` and `settings-new.js` to include authentication tokens in requests.
+  - **Impact:** Resolved 404 errors preventing currency dropdown population and global view functionality. Frontend now properly loads currency data and global view permissions with proper authentication.
+  - _Files: `backend/warranties_routes.py`, `backend/statistics_routes.py`, `frontend/script.js`, `frontend/settings-new.js`_
+
+- **Status Page Warranty Details Functionality:** Fixed status page warranty detail expansion that was failing due to missing API endpoint and frontend JavaScript errors.
+  - **Root Cause:** The status page was attempting to fetch detailed warranty information from `/api/debug/warranty/{id}` endpoint that didn't exist, and the toast notification system had a null reference error when trying to add event listeners.
+  - **Solution:** Added new `/api/debug/warranty/<int:warranty_id>` GET endpoint in `warranties_routes.py` that returns complete warranty details including serial numbers, tags, and user information with proper permission checks. Fixed toast function in `status.js` to safely check for element existence before adding event listeners. Enhanced status page to display both local and Paperless-ngx documents with proper visual indicators.
+  - **Impact:** Status page warranty rows now expand properly when clicked, showing detailed warranty information, documents, and serial numbers. Toast notifications work without JavaScript errors.
+  - _Files: `backend/warranties_routes.py`, `frontend/status.js`_
+
+- **Paperless-ngx Document Visibility on Warranty Cards:** Fixed issue where documents added from Paperless-ngx weren't appearing on warranty cards in the main view, despite being properly stored and visible in edit modals.
+  - **Root Cause:** The frontend logic for determining whether to show the document links section (`hasDocuments` calculation) only checked for local file paths but ignored Paperless-ngx document IDs. Status page document display also only showed local files.
+  - **Solution:** Enhanced `hasDocuments` calculation in `script.js` to include Paperless-ngx document IDs (`paperless_invoice_id`, `paperless_manual_id`, `paperless_photo_id`, `paperless_other_id`) alongside local file paths. Updated status page document display logic to show both local and Paperless-ngx documents with cloud icon indicators. Exposed `openPaperlessDocument` and `openSecureFile` functions to window object for global access.
+  - **Impact:** Warranty cards now properly display document links when Paperless-ngx documents are attached. Users can access both local files and Paperless-ngx documents from warranty cards and status page, with visual distinction between storage types.
+  - _Files: `frontend/script.js`, `frontend/status.js`_
+
 ## 0.10.1.6  - 2025-07-13
 
 ### Fixed
@@ -28,6 +97,12 @@
   - Incremented version query parameters (?v=20250119001) across all HTML files to force cache busting for CSS, JS, and other assets.
   - Temporarily added version parameter to service worker registration in `frontend/script.js`, removed after nginx configuration handles it going forward.
   - Verified complete removal of previous version strings and consistent application across all frontend files.
+
+- **Database Migration Format String Errors:** Fixed critical migration failures preventing new Warracker instances from starting up due to PostgreSQL parameter format string conflicts in migration files.
+  - **Root Cause:** Migration files `011_ensure_admin_permissions.sql` and `031_add_owner_role.sql` contained mixed parameter format styles that caused psycopg2 to fail with "argument formats can't be mixed" and "too many parameters specified for RAISE" errors. The issue occurred when Python-style parameter placeholders (`%(db_user)s`) were mixed with PostgreSQL format specifiers (`%`) in `RAISE NOTICE` statements within the same SQL file.
+  - **Solution:** Fixed format string conflicts in `011_ensure_admin_permissions.sql` by escaping literal `%` characters as `%%` in `RAISE NOTICE` statements to avoid conflicts with Python parameter substitution. Fixed parameter count issues in `031_add_owner_role.sql` by correcting `RAISE NOTICE` statements to use proper single `%` for parameter placeholders instead of double `%%` which was causing parameter count mismatches.
+  - **Impact:** New Warracker instances can now start up successfully without migration failures. All 42 database migrations (000 through 042) now complete successfully, allowing proper creation of the `site_settings` table and elimination of "relation 'site_settings' does not exist" errors during startup.
+  - _Files: `backend/migrations/011_ensure_admin_permissions.sql`, `backend/migrations/031_add_owner_role.sql`_
 
 _Files: `nginx.conf`, `frontend/sw.js`, `frontend/script.js`, all frontend HTML files (index.html, status.html, settings-new.html, login.html, register.html, reset-password-request.html, reset-password.html, about.html, auth-redirect.html, debug-export.html)_
 

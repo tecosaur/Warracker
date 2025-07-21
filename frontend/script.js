@@ -2285,7 +2285,8 @@ async function renderWarranties(warrantiesToRender) {
             notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> ${notesLabel}</a>`;
         }
         
-        const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || hasNotes;
+        const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || 
+                            warranty.paperless_invoice_id || warranty.paperless_manual_id || warranty.paperless_photo_id || warranty.paperless_other_id || hasNotes;
         
         // Get current user ID to check warranty ownership
         const currentUserId = (() => {
@@ -6229,7 +6230,12 @@ function getCurrencyCode() {
 // Function to load currencies from API and populate dropdowns
 async function loadCurrencies() {
     try {
-        const response = await fetch('/api/currencies');
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        const response = await fetch('/api/currencies', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         if (!response.ok) {
             throw new Error('Failed to fetch currencies');
         }
@@ -8474,5 +8480,7 @@ window.loadAllPaperlessDocuments = loadAllPaperlessDocuments;
 window.selectPaperlessDocument = selectPaperlessDocument;
 window.clearPaperlessSelection = clearPaperlessSelection;
 window.changePage = changePage;
+window.openPaperlessDocument = openPaperlessDocument;
+window.openSecureFile = openSecureFile;
 
 // ===== END PAPERLESS BROWSER FUNCTIONALITY =====

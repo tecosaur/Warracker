@@ -144,7 +144,10 @@
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
         toast.innerHTML = `${message} <button class="toast-close">&times;</button>`;
-        toast.querySelector('.toast-close').addEventListener('click', () => toast.remove());
+        const closeButton = toast.querySelector('.toast-close');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => toast.remove());
+        }
         toastContainer.appendChild(toast);
         setTimeout(() => { if (toast.parentElement) toast.remove(); }, 3000);
     }
@@ -768,9 +771,34 @@
             dHtml += `<p><strong>Warranty Type:</strong> ${escapeHTML(warrantyDetails.warranty_type || '') || 'N/A'}</p></div>`;
             
             dHtml += '<div style="flex: 1 1 300px;"><h4>Documents & Files</h4>';
-            if(warrantyDetails.invoice_path) dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.invoice_path)}'); return false;">View Invoice</a></p>`; else dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> N/A</p>`;
-            if(warrantyDetails.manual_path) dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.manual_path)}'); return false;">View Manual</a></p>`; else dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> N/A</p>`;
-            if(warrantyDetails.other_document_path) dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.other_document_path)}'); return false;">View Files</a></p>`; else dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> N/A</p>`;
+            
+            // Invoice - check both local and Paperless-ngx
+            if(warrantyDetails.invoice_path) {
+                dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.invoice_path)}'); return false;">View Invoice</a></p>`;
+            } else if(warrantyDetails.paperless_invoice_id) {
+                dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> <a href="#" onclick="window.openPaperlessDocument(${warrantyDetails.paperless_invoice_id}); return false;">View Invoice</a> <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i></p>`;
+            } else {
+                dHtml += `<p><strong data-i18n="warranties.invoice_receipt_short">Invoice:</strong> N/A</p>`;
+            }
+            
+            // Manual - check both local and Paperless-ngx
+            if(warrantyDetails.manual_path) {
+                dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.manual_path)}'); return false;">View Manual</a></p>`;
+            } else if(warrantyDetails.paperless_manual_id) {
+                dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> <a href="#" onclick="window.openPaperlessDocument(${warrantyDetails.paperless_manual_id}); return false;">View Manual</a> <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i></p>`;
+            } else {
+                dHtml += `<p><strong data-i18n="warranties.product_manual_short">Manual:</strong> N/A</p>`;
+            }
+            
+            // Other Files - check both local and Paperless-ngx
+            if(warrantyDetails.other_document_path) {
+                dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> <a href="#" onclick="window.openSecureFile('${escapeHTML(warrantyDetails.other_document_path)}'); return false;">View Files</a></p>`;
+            } else if(warrantyDetails.paperless_other_id) {
+                dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> <a href="#" onclick="window.openPaperlessDocument(${warrantyDetails.paperless_other_id}); return false;">View Files</a> <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i></p>`;
+            } else {
+                dHtml += `<p><strong data-i18n="warranties.files_short">Other Files:</strong> N/A</p>`;
+            }
+            
             dHtml += '</div>';
 
             // DEBUG: Log serial numbers before rendering them in details view

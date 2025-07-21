@@ -238,18 +238,29 @@ def get_oidc_status_route():
             cur.execute("SELECT key, value FROM site_settings WHERE key IN ('oidc_enabled', 'oidc_only_mode', 'oidc_provider_name')")
             settings = {row[0]: row[1] for row in cur.fetchall()}
             
-            oidc_is_enabled = False
-            if settings.get('oidc_enabled') and str(settings['oidc_enabled']).lower() == 'true':
-                oidc_is_enabled = True
+            # Apply same precedence logic as init_oidc_client()
+            # Priority: Environment Variable > Database Setting > Hardcoded Default
             
-            oidc_only_mode = False
-            if settings.get('oidc_only_mode') and str(settings['oidc_only_mode']).lower() == 'true':
-                oidc_only_mode = True
+            # Check OIDC enabled status with correct precedence
+            oidc_enabled_from_env = os.environ.get('OIDC_ENABLED')
+            if oidc_enabled_from_env is not None:
+                oidc_is_enabled = oidc_enabled_from_env.lower() == 'true'
+            else:
+                oidc_is_enabled = settings.get('oidc_enabled', 'false').lower() == 'true'
             
-            oidc_provider_name = 'SSO Provider' # Default button text
-            if settings.get('oidc_provider_name'):
-                raw_name = settings['oidc_provider_name']
-                # Simple capitalization for display
+            # Check OIDC only mode with correct precedence
+            oidc_only_mode_from_env = os.environ.get('OIDC_ONLY_MODE')
+            if oidc_only_mode_from_env is not None:
+                oidc_only_mode = oidc_only_mode_from_env.lower() == 'true'
+            else:
+                oidc_only_mode = settings.get('oidc_only_mode', 'false').lower() == 'true'
+            
+            # Check provider name with correct precedence
+            oidc_provider_name_from_env = os.environ.get('OIDC_PROVIDER_NAME')
+            if oidc_provider_name_from_env is not None:
+                oidc_provider_name = oidc_provider_name_from_env.capitalize()
+            else:
+                raw_name = settings.get('oidc_provider_name', 'SSO Provider')
                 oidc_provider_name = raw_name.capitalize() if raw_name else 'SSO Provider'
 
             return jsonify({
@@ -259,11 +270,16 @@ def get_oidc_status_route():
             }), 200
     except Exception as e:
         logger.error(f"[OIDC_HANDLER] Error fetching OIDC status: {e}")
+        # On error, check environment variables as fallback
+        oidc_enabled_from_env = os.environ.get('OIDC_ENABLED')
+        oidc_only_mode_from_env = os.environ.get('OIDC_ONLY_MODE')
+        oidc_provider_name_from_env = os.environ.get('OIDC_PROVIDER_NAME')
+        
         return jsonify({
-            "oidc_enabled": False, 
-            "oidc_only_mode": False,
-            "oidc_provider_display_name": "SSO Provider"
-        }), 200 # Default to false on error
+            "oidc_enabled": oidc_enabled_from_env.lower() == 'true' if oidc_enabled_from_env else False,
+            "oidc_only_mode": oidc_only_mode_from_env.lower() == 'true' if oidc_only_mode_from_env else False,
+            "oidc_provider_display_name": oidc_provider_name_from_env.capitalize() if oidc_provider_name_from_env else "SSO Provider"
+        }), 200
     finally:
         if conn:
             release_db_connection(conn)

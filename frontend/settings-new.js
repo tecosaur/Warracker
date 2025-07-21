@@ -121,7 +121,12 @@ let globalCurrenciesData = [];
  */
 async function loadCurrenciesForSettings() {
     try {
-        const response = await fetch('/api/currencies');
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        const response = await fetch('/api/currencies', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
         if (!response.ok) {
             throw new Error('Failed to fetch currencies');
         }
