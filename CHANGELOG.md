@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.10.1.8 - 2025-07-24
+
+### Fixed
+- **Notification System Initialization:** Fixed critical issue where warranty expiration notifications were not working due to scheduler initialization failures in Docker ultra-light mode.
+  - **Root Cause:** The notification scheduler initialization code was located in `backend/app.py` but Gunicorn was using the application factory pattern from `backend/__init__.py`, causing the scheduler to never be initialized. Additionally, the scheduler detection logic incorrectly identified single-worker ultra-light mode as multi-worker, preventing scheduler startup. Missing API endpoints `/api/timezones` and `/api/locales` were causing frontend errors and preventing proper settings configuration.
+  - **Solution:** Moved scheduler initialization into the `create_app()` factory function to ensure it runs during application startup. Enhanced `should_run_scheduler()` detection logic to properly handle ultra-light mode with single sync worker. Added missing `/api/timezones` endpoint returning timezone data grouped by region (including America/Halifax) and `/api/locales` endpoint returning supported languages. Fixed timezone API to return array format expected by frontend and removed authentication requirement from locales endpoint for public access. Implemented comprehensive memory mode compatibility ensuring scheduler works correctly across all deployment configurations.
+  - **Impact:** Notification scheduler now properly initializes and runs in all Docker memory modes (ultra-light, optimized, and performance). In multi-worker modes, only worker-0 runs the scheduler to prevent conflicts and resource waste. Automatic warranty expiration notifications work correctly, checking every 2 minutes for warranties to notify about. Settings page timezone and language dropdowns now load properly. Admin "Check Scheduler Status" button shows `scheduler_running: true` and active notification jobs. Manual notification testing via admin panel now functions correctly across all memory configurations.
+  - _Files: `backend/__init__.py`, `backend/notifications.py`, `backend/warranties_routes.py`_
+
+- **Mobile Button Text Overflow:** Fixed an issue where the "Manage Tags" button text would overflow on smaller mobile screens. The text is now hidden on screens narrower than 480px, showing only the icon to save space.
+  - _Files: `frontend/mobile-header.css`_
+
+  - **Mobile List View Optimization:** Fixed oversized warranty cards in list view on mobile browsers that were causing poor user experience with excessive scrolling and large interface elements.
+  - **Root Cause:** The list view was using desktop-sized elements on mobile devices, including 180px × 180px product images, excessive padding, and large text that made warranty cards too large for mobile viewports.
+  - **Solution:** Implemented comprehensive mobile-specific CSS optimizations with progressive size reduction across different screen sizes. Added responsive image sizing (80px → 60px → 50px for 768px → 480px → 360px screens), reduced card spacing and padding, optimized text and icon sizes, changed warranty info layout from horizontal to vertical on mobile, and disabled hover transforms that caused layout jumping on touch devices.
+  - **Impact:** Warranty cards in list view are now significantly more compact and mobile-friendly. Users can now comfortably browse warranties on mobile devices without excessive scrolling. The interface adapts progressively to different mobile screen sizes while maintaining full functionality and readability.
+  - _Files: `frontend/mobile-header.css`, `frontend/style.css`_
+
 ## 0.10.1.7  - 2025-07-20
 
 ### Fixed

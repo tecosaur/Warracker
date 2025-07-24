@@ -12,6 +12,9 @@ from dateutil.parser import parse as date_parse
 import mimetypes
 from flask import Response
 
+# Add pytz import for timezone functionality
+import pytz
+
 # Use relative imports for project modules
 try:
     from .db_handler import get_db_connection, release_db_connection
@@ -1645,5 +1648,124 @@ def get_warranty_debug(warranty_id):
     finally:
         if conn:
             release_db_connection(conn)
+
+@warranties_bp.route('/timezones', methods=['GET'])
+@token_required
+def get_timezones():
+    """Get list of available timezones grouped by region"""
+    try:
+        # Get all timezones and group them by region
+        all_timezones = pytz.all_timezones
+        grouped_timezones = {}
+        
+        for tz in sorted(all_timezones):
+            # Skip deprecated/non-standard timezones
+            if '/' not in tz or tz.startswith(('Etc/', 'SystemV/', 'US/', 'posix/', 'right/')):
+                continue
+                
+            region = tz.split('/')[0]
+            if region not in grouped_timezones:
+                grouped_timezones[region] = []
+            
+            # Create display name (replace underscores with spaces)
+            display_name = tz.split('/', 1)[1].replace('_', ' ')
+            grouped_timezones[region].append({
+                'value': tz,
+                'label': display_name,
+                'full_name': tz
+            })
+        
+        # Convert to frontend expected format: array of objects with region and timezones
+        timezone_groups_array = []
+        for region, timezones in grouped_timezones.items():
+            timezone_groups_array.append({
+                'region': region,
+                'timezones': timezones
+            })
+        
+        return jsonify(timezone_groups_array), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting timezones: {e}")
+        # Return a basic fallback list in correct format
+        fallback_timezones = [
+            {
+                'region': 'UTC',
+                'timezones': [{'value': 'UTC', 'label': 'UTC', 'full_name': 'UTC'}]
+            },
+            {
+                'region': 'America',
+                'timezones': [
+                    {'value': 'America/New_York', 'label': 'New York', 'full_name': 'America/New_York'},
+                    {'value': 'America/Chicago', 'label': 'Chicago', 'full_name': 'America/Chicago'},
+                    {'value': 'America/Denver', 'label': 'Denver', 'full_name': 'America/Denver'},
+                    {'value': 'America/Los_Angeles', 'label': 'Los Angeles', 'full_name': 'America/Los_Angeles'},
+                    {'value': 'America/Halifax', 'label': 'Halifax', 'full_name': 'America/Halifax'}
+                ]
+            },
+            {
+                'region': 'Europe',
+                'timezones': [
+                    {'value': 'Europe/London', 'label': 'London', 'full_name': 'Europe/London'},
+                    {'value': 'Europe/Paris', 'label': 'Paris', 'full_name': 'Europe/Paris'},
+                    {'value': 'Europe/Berlin', 'label': 'Berlin', 'full_name': 'Europe/Berlin'}
+                ]
+            }
+        ]
+        return jsonify(fallback_timezones), 200
+
+@warranties_bp.route('/locales', methods=['GET'])
+def get_locales():
+    """Get list of supported locales/languages"""
+    try:
+        # Import the supported languages from localization
+        try:
+            from .localization import SUPPORTED_LANGUAGES
+        except ImportError:
+            from localization import SUPPORTED_LANGUAGES
+        
+        # Language code to name mapping
+        language_names = {
+            'en': 'English',
+            'fr': 'Français',
+            'es': 'Español', 
+            'de': 'Deutsch',
+            'it': 'Italiano',
+            'cs': 'Čeština',
+            'nl': 'Nederlands',
+            'hi': 'हिन्दी',
+            'fa': 'فارسی',
+            'ar': 'العربية',
+            'ru': 'Русский',
+            'uk': 'Українська',
+            'zh_CN': '简体中文',
+            'zh_HK': '繁體中文',
+            'ja': '日本語',
+            'pt': 'Português',
+            'ko': '한국어'
+        }
+        
+        locales = []
+        for lang_code in SUPPORTED_LANGUAGES:
+            locales.append({
+                'code': lang_code,
+                'name': language_names.get(lang_code, lang_code),
+                'native_name': language_names.get(lang_code, lang_code)
+            })
+        
+        return jsonify(locales), 200
+        
+    except ImportError:
+        # Fallback if localization module is not available
+        fallback_locales = [
+            {'code': 'en', 'name': 'English', 'native_name': 'English'},
+            {'code': 'fr', 'name': 'French', 'native_name': 'Français'},
+            {'code': 'es', 'name': 'Spanish', 'native_name': 'Español'},
+            {'code': 'de', 'name': 'German', 'native_name': 'Deutsch'}
+        ]
+        return jsonify(fallback_locales), 200
+    except Exception as e:
+        logger.error(f"Error getting locales: {e}")
+        return jsonify([{'code': 'en', 'name': 'English', 'native_name': 'English'}]), 500
 
  

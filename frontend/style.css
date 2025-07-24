@@ -2986,6 +2986,22 @@ input.invalid {
     flex-direction: column;
     gap: 5px;
   }
+  
+  /* Additional mobile list view optimizations */
+  .warranties-list.list-view {
+    gap: 10px !important;
+    margin-top: 15px !important;
+  }
+  
+  .list-view .warranty-card {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid var(--border-color) !important;
+  }
+  
+  .list-view .warranty-card:hover {
+    transform: none !important; /* Disable hover transform on mobile */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  }
 }
 
 /* GitHub link styling */
@@ -4369,104 +4385,103 @@ html.dark-mode .warracker-footer a:hover {
 
 
 /* RTL Language Support */
-[dir=\
-rtl\] {
+[dir="rtl"] {
     text-align: right;
 }
 
-[dir=\rtl\] .container {
+[dir="rtl"] .container {
     direction: rtl;
 }
 
-[dir=\rtl\] .header-right-group {
+[dir="rtl"] .header-right-group {
     flex-direction: row-reverse;
 }
 
-[dir=\rtl\] .nav-links {
+[dir="rtl"] .nav-links {
     flex-direction: row-reverse;
 }
 
-[dir=\rtl\] .nav-link {
+[dir="rtl"] .nav-link {
     margin-left: 0;
     margin-right: 20px;
 }
 
-[dir=\rtl\] .nav-link:last-child {
+[dir="rtl"] .nav-link:last-child {
     margin-right: 0;
 }
 
-[dir=\rtl\] .form-group {
+[dir="rtl"] .form-group {
     text-align: right;
 }
 
-[dir=\rtl\] .form-control {
+[dir="rtl"] .form-control {
     text-align: right;
 }
 
-[dir=\rtl\] .btn {
+[dir="rtl"] .btn {
     text-align: center;
 }
 
-[dir=\rtl\] .card {
+[dir="rtl"] .card {
     text-align: right;
 }
 
-[dir=\rtl\] .card-header {
+[dir="rtl"] .card-header {
     text-align: right;
 }
 
-[dir=\rtl\] .user-menu {
+[dir="rtl"] .user-menu {
     margin-left: 0;
     margin-right: 15px;
 }
 
-[dir=\rtl\] .user-menu-dropdown {
+[dir="rtl"] .user-menu-dropdown {
     left: 0;
     right: auto;
 }
 
-[dir=\rtl\] .auth-buttons {
+[dir="rtl"] .auth-buttons {
     flex-direction: row-reverse;
 }
 
-[dir=\rtl\] .social-links {
+[dir="rtl"] .social-links {
     justify-content: flex-end;
 }
 
-[dir=\rtl\] .about-card h3 {
+[dir="rtl"] .about-card h3 {
     flex-direction: row-reverse;
 }
 
-[dir=\rtl\] .about-card h3 i {
+[dir="rtl"] .about-card h3 i {
     margin-left: 10px;
     margin-right: 0;
 }
 
-[dir=\rtl\] .social-link {
+[dir="rtl"] .social-link {
     flex-direction: row-reverse;
 }
 
-[dir=\rtl\] .social-link i {
+[dir="rtl"] .social-link i {
     margin-left: 8px;
     margin-right: 0;
 }
 
-[dir=\rtl\] .preference-item {
+[dir="rtl"] .preference-item {
     text-align: right;
 }
 
-[dir=\rtl\] .preference-item label {
+[dir="rtl"] .preference-item label {
     text-align: right;
 }
 
-[dir=\rtl\] .collapsible-header {
+[dir="rtl"] .collapsible-header {
     text-align: right;
 }
 
-[dir=\rtl\] .collapse-icon {
+[dir="rtl"] .collapse-icon {
     transform: rotate(180deg);
 }
 
-[dir=\rtl\] .collapse-icon.rotated {
+[dir="rtl"] .collapse-icon.rotated {
     transform: rotate(0deg);
 }

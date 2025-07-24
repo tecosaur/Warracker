@@ -1,4 +1,5 @@
 # backend/auth_routes.py
+# Updated: 2025-01-24 - Fixed API endpoints for notifications
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 import uuid

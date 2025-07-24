@@ -1,4 +1,5 @@
 # backend/app.py
+# Updated: 2025-01-24 - Fixed scheduler detection for ultra-light mode
 """
 Warracker Flask Application Entry Point
 

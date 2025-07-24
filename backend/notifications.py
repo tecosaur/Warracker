@@ -1,5 +1,6 @@
 """
 Warranty Expiration Notification System
+Updated: 2025-01-24 - Fixed scheduler initialization in application factory
 
 This module handles all notification-related functionality for the Warracker application,
 including email notifications, scheduling, and Apprise integration.
@@ -807,21 +808,36 @@ def should_run_scheduler():
     """Check if this is the main process that should run the scheduler"""
     worker_id = os.environ.get('GUNICORN_WORKER_ID', '0')
     worker_name = os.environ.get('GUNICORN_WORKER_PROCESS_NAME', '')
+    worker_class = os.environ.get('GUNICORN_WORKER_CLASS', '')
+    memory_mode = os.environ.get('WARRACKER_MEMORY_MODE', '').lower()
     
     # For gunicorn - only run in worker 0
     if worker_name == 'worker-0' or worker_id == '0':
         logger.info(f"Scheduler will run in Gunicorn worker (ID: {worker_id}, Name: {worker_name})")
         return True
+    
+    # Special case: Ultra-light mode with single worker - always run scheduler
+    if memory_mode == 'ultra-light':
+        logger.info(f"Scheduler will run in ultra-light mode (single worker expected)")
+        return True
+    
     # For development server or single-worker mode
-    elif __name__ == '__main__':
+    if __name__ == '__main__':
         logger.info("Scheduler will run in development server")
         return True
+    
     # Check if we're not in a multi-worker environment (fallback)
-    elif not os.environ.get('GUNICORN_WORKER_CLASS'):
+    if not worker_class:
         logger.info("Scheduler will run - no multi-worker environment detected")
         return True
     
-    logger.info(f"Scheduler will NOT run in this worker (ID: {worker_id}, Name: {worker_name})")
+    # If we have worker class but no specific worker identification, 
+    # assume single worker mode for sync workers (common in Docker)
+    if worker_class == 'sync' and not worker_name and worker_id == '0':
+        logger.info(f"Scheduler will run in single sync worker mode (worker_class: {worker_class})")
+        return True
+    
+    logger.info(f"Scheduler will NOT run in this worker (ID: {worker_id}, Name: {worker_name}, Class: {worker_class}, Mode: {memory_mode})")
     return False
 
 def init_scheduler(get_db_connection, release_db_connection):

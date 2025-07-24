@@ -256,6 +256,27 @@ def create_app(config_name=None):
         # Ensure an owner exists on startup
         ensure_owner_exists()
         
+        # Initialize the notification scheduler with the app context
+        try:
+            from .notifications import init_scheduler
+            from .db_handler import get_db_connection, release_db_connection
+            
+            init_scheduler(get_db_connection, release_db_connection)
+            logger.info("✅ Notification scheduler initialized successfully in factory")
+        except ImportError:
+            try:
+                from notifications import init_scheduler
+                from db_handler import get_db_connection, release_db_connection
+                
+                init_scheduler(get_db_connection, release_db_connection)
+                logger.info("✅ Notification scheduler initialized successfully in factory (dev mode)")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize notification scheduler: {e}")
+                # Continue without notifications - the app can still function
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize notification scheduler: {e}")
+            # Continue without notifications - the app can still function
+        
         logger.info("Application factory completed successfully")
     
     return app
