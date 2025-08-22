@@ -224,7 +224,11 @@ def format_expiration_email(user, warranties, get_db_connection, release_db_conn
     # Create a MIMEMultipart object for both text and HTML
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
-    msg['From'] = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
+    # use SMTP_FROM_ADDRESS if provided, otherwise use SMTP_USERNAME or a default value as below
+    _from_address = os.environ.get('SMTP_FROM_ADDRESS')
+    if _from_address is None:
+        _from_address = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
+    msg['From'] = _from_address
     msg['To'] = user['email']
 
     part1 = MIMEText(text_body, 'plain')
