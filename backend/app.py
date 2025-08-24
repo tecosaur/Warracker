@@ -26,7 +26,11 @@ try:
         from . import notifications
         
         with app.app_context():
+<<<<<<< HEAD
             notifications.init_scheduler(app, db_handler.get_db_connection, db_handler.release_db_connection)
+=======
+            notifications.init_scheduler(db_handler.get_db_connection, db_handler.release_db_connection)
+>>>>>>> 2ece8d0d5323f65d629e5f49573feb0ecd36c9ee
             logger.info("Notification scheduler initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize notification scheduler: {e}")
@@ -45,7 +49,11 @@ except ImportError:
         import notifications
         
         with app.app_context():
+<<<<<<< HEAD
             notifications.init_scheduler(app, db_handler.get_db_connection, db_handler.release_db_connection)
+=======
+            notifications.init_scheduler(db_handler.get_db_connection, db_handler.release_db_connection)
+>>>>>>> 2ece8d0d5323f65d629e5f49573feb0ecd36c9ee
             logger.info("Notification scheduler initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize notification scheduler: {e}")
