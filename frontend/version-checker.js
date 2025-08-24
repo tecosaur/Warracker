@@ -1,8 +1,9 @@
 // Version checker for Warracker
 document.addEventListener('DOMContentLoaded', () => {
-    const currentVersion = '0.9.9.8'; // Current version of the application
+    const currentVersion = '0.10.1.9'; // Current version of the application
     const updateStatus = document.getElementById('updateStatus');
     const updateLink = document.getElementById('updateLink');
+    const versionDisplay = document.getElementById('versionDisplay');
 
     // Function to compare versions
     function compareVersions(v1, v2) {
@@ -32,20 +33,48 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (comparison > 0) {
                 // New version available
-                updateStatus.textContent = `New version ${data.tag_name} available!`;
+                if (window.i18next && window.i18next.t) {
+                    updateStatus.textContent = window.i18next.t('about.new_version_available', { version: data.tag_name });
+                } else {
+                    updateStatus.textContent = `New version ${data.tag_name} available!`;
+                }
                 updateStatus.style.color = 'var(--success-color)';
                 updateLink.href = data.html_url;
                 updateLink.style.display = 'inline-block';
             } else {
                 // Up to date
-                updateStatus.textContent = 'You are using the latest version';
+                if (window.i18next && window.i18next.t) {
+                    updateStatus.textContent = window.i18next.t('about.latest_version');
+                } else {
+                    updateStatus.textContent = 'You are using the latest version';
+                }
                 updateStatus.style.color = 'var(--success-color)';
             }
         } catch (error) {
             console.error('Error checking for updates:', error);
-            updateStatus.textContent = 'Failed to check for updates';
+            if (window.i18next && window.i18next.t) {
+                updateStatus.textContent = window.i18next.t('about.update_check_failed');
+            } else {
+                updateStatus.textContent = 'Failed to check for updates';
+            }
             updateStatus.style.color = 'var(--error-color)';
         }
+    }
+
+    // Update version display if element exists
+    if (versionDisplay) {
+        // Wait for i18next to be ready
+        const updateVersionDisplay = () => {
+            if (window.i18next && window.i18next.t) {
+                versionDisplay.textContent = window.i18next.t('about.version') + ' v' + currentVersion;
+            } else {
+                versionDisplay.textContent = 'Version v' + currentVersion;
+            }
+        };
+        
+        // Try immediately and also after a delay for i18next
+        updateVersionDisplay();
+        setTimeout(updateVersionDisplay, 500);
     }
 
     // Check for updates when the page loads

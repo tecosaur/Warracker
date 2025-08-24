@@ -9,7 +9,7 @@ console.log('fix-auth-buttons.js loaded and executing');
 // Function to check if user is authenticated
 function isAuthenticated() {
     const token = localStorage.getItem('auth_token');
-    console.log('Auth token check:', !!token);
+    // console.log('Auth token check:', !!token); // Keep console logs minimal here if auth.js is primary
     return !!token;
 }
 
@@ -21,165 +21,56 @@ function getElementsByText(selector, text) {
 
 // Function to hide login and register buttons if user is authenticated
 function updateAuthButtons() {
-    console.log('updateAuthButtons executing...');
-    
-    // Check if user is authenticated
+    // console.log('fix-auth-buttons.js: updateAuthButtons executing...'); // Keep console logs minimal here
     if (isAuthenticated()) {
-        console.log('User is authenticated, hiding login/register buttons');
-        
-        // Find login and register buttons using valid selectors
+        // console.log('fix-auth-buttons.js: User is authenticated, hiding login/register buttons');
         const loginButtons = document.querySelectorAll('a[href="login.html"], .login-btn, .auth-btn.login-btn');
         const registerButtons = document.querySelectorAll('a[href="register.html"], .register-btn, .auth-btn.register-btn');
-        
-        // Find buttons by text content
-        const loginButtonsByText = getElementsByText('a, button', 'Login');
-        const registerButtonsByText = getElementsByText('a, button', 'Register');
-        
-        const allLoginButtons = [...loginButtons, ...loginButtonsByText];
-        const allRegisterButtons = [...registerButtons, ...registerButtonsByText];
-        
-        console.log('Found login buttons:', allLoginButtons.length);
-        console.log('Found register buttons:', allRegisterButtons.length);
-        
-        // Hide buttons if they exist
-        allLoginButtons.forEach(button => {
-            console.log('Hiding login button:', button);
-            button.style.display = 'none';
-            button.style.visibility = 'hidden';
-        });
-        
-        allRegisterButtons.forEach(button => {
-            console.log('Hiding register button:', button);
-            button.style.display = 'none';
-            button.style.visibility = 'hidden';
-        });
-        
-        // Hide auth container if it exists
         const authContainer = document.getElementById('authContainer');
-        if (authContainer) {
-            console.log('Hiding auth container');
-            authContainer.style.display = 'none';
-            authContainer.style.visibility = 'hidden';
-        }
-        
-        // Also try to hide by class
-        const authButtonsContainers = document.querySelectorAll('.auth-buttons');
-        console.log('Found auth buttons containers:', authButtonsContainers.length);
-        authButtonsContainers.forEach(container => {
-            console.log('Hiding auth buttons container');
-            container.style.display = 'none';
-            container.style.visibility = 'hidden';
-        });
-        
-        // Show user menu if it exists
-        const userMenu = document.getElementById('userMenu');
-        if (userMenu) {
-            console.log('Showing user menu');
-            userMenu.style.display = 'block';
-            userMenu.style.visibility = 'visible';
-        }
-        
-        // Show username if it exists
+        const userMenu = document.getElementById('userMenu'); // Ensure this ID is consistent or use userMenuBtn's parent
+
+        loginButtons.forEach(button => { button.style.display = 'none'; button.style.visibility = 'hidden'; });
+        registerButtons.forEach(button => { button.style.display = 'none'; button.style.visibility = 'hidden'; });
+        if (authContainer) { authContainer.style.display = 'none'; authContainer.style.visibility = 'hidden';}
+        if (userMenu) { userMenu.style.display = 'block'; userMenu.style.visibility = 'visible'; }
+
         const userInfo = localStorage.getItem('user_info');
         if (userInfo) {
             try {
                 const user = JSON.parse(userInfo);
-                const username = user.username || 'User';
-                console.log('Setting username to:', username);
-                
-                // Find username display elements
-                const usernameDisplays = document.querySelectorAll('.user-name, #userDisplayName, #userName');
-                usernameDisplays.forEach(display => {
-                    if (display) {
-                        display.textContent = username;
-                        display.style.display = 'inline-block';
-                    }
-                });
-                
-                // Set user email if element exists
-                const userEmail = document.getElementById('userEmail');
-                if (userEmail && user.email) {
-                    userEmail.textContent = user.email;
+                const displayName = user.first_name || user.username || 'User';
+                const userDisplayName = document.getElementById('userDisplayName');
+                if (userDisplayName) userDisplayName.textContent = displayName;
+
+                const userNameMenu = document.getElementById('userName');
+                if (userNameMenu) {
+                    userNameMenu.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || 'User Name';
                 }
-            } catch (error) {
-                console.error('Error parsing user info:', error);
-            }
+                const userEmailMenu = document.getElementById('userEmail');
+                if (userEmailMenu && user.email) userEmailMenu.textContent = user.email;
+            } catch (error) { /* console.error('fix-auth-buttons.js: Error parsing user info:', error); */ }
         }
     } else {
-        console.log('User is not authenticated, showing login/register buttons');
-        
-        // Find login and register buttons in the new UI
+        // console.log('fix-auth-buttons.js: User is not authenticated, showing login/register buttons');
         const loginButtons = document.querySelectorAll('a[href="login.html"], .login-btn, .auth-btn.login-btn');
         const registerButtons = document.querySelectorAll('a[href="register.html"], .register-btn, .auth-btn.register-btn');
-        
-        // Show buttons if they exist
-        loginButtons.forEach(button => {
-            button.style.display = 'inline-block';
-            button.style.visibility = 'visible';
-        });
-        
-        registerButtons.forEach(button => {
-            button.style.display = 'inline-block';
-            button.style.visibility = 'visible';
-        });
-        
-        // Show auth container if it exists
         const authContainer = document.getElementById('authContainer');
-        if (authContainer) {
-            authContainer.style.display = 'flex';
-            authContainer.style.visibility = 'visible';
-        }
-        
-        // Also try to show by class
-        const authButtonsContainers = document.querySelectorAll('.auth-buttons');
-        authButtonsContainers.forEach(container => {
-            container.style.display = 'flex';
-            container.style.visibility = 'visible';
-        });
-        
-        // Hide user menu if it exists
         const userMenu = document.getElementById('userMenu');
-        if (userMenu) {
-            userMenu.style.display = 'none';
-            userMenu.style.visibility = 'hidden';
-        }
-    }
-}
 
-// --- USER MENU DROPDOWN UNIVERSAL FIX (IMPROVED) ---
-function setupUserMenuDropdown() {
-    const userMenuBtn = document.getElementById('userMenuBtn') || document.getElementById('userBtn');
-    const userMenuDropdown = document.getElementById('userMenuDropdown');
-    if (userMenuBtn && userMenuDropdown) {
-        // Remove all previous click listeners by replacing the node
-        const newBtn = userMenuBtn.cloneNode(true);
-        userMenuBtn.parentNode.replaceChild(newBtn, userMenuBtn);
-        newBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            userMenuDropdown.classList.toggle('active');
-        });
-        // Only add one document-level listener
-        if (!window._userMenuDropdownListenerAdded) {
-            document.addEventListener('click', function(e) {
-                if (userMenuDropdown.classList.contains('active') &&
-                    !userMenuDropdown.contains(e.target) &&
-                    !newBtn.contains(e.target)) {
-                    userMenuDropdown.classList.remove('active');
-                }
-            });
-            window._userMenuDropdownListenerAdded = true;
-        }
+        loginButtons.forEach(button => { button.style.display = 'inline-block'; button.style.visibility = 'visible'; });
+        registerButtons.forEach(button => { button.style.display = 'inline-block'; button.style.visibility = 'visible'; });
+        if (authContainer) { authContainer.style.display = 'flex'; authContainer.style.visibility = 'visible'; }
+        if (userMenu) { userMenu.style.display = 'none'; userMenu.style.visibility = 'hidden'; }
     }
 }
 
 // Run immediately
-console.log('Running updateAuthButtons immediately');
+// console.log('Running updateAuthButtons immediately from fix-auth-buttons.js');
 updateAuthButtons();
-setupUserMenuDropdown();
 
 // Update auth buttons when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOMContentLoaded event triggered, updating auth buttons');
+    // console.log('DOMContentLoaded event triggered in fix-auth-buttons.js, updating auth buttons');
     updateAuthButtons();
-    setupUserMenuDropdown();
+    // REMOVE: setupUserMenuDropdown();
 });

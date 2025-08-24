@@ -1,19 +1,24 @@
-// alert('script.js loaded!'); // Remove alert after confirming script loads
+console.log('[SCRIPT VERSION] 20250529-005 - Added CSS cache busting for consistent styling across domains');
 console.log('[DEBUG] script.js loaded and running');
+
+// alert('script.js loaded!'); // Remove alert after confirming script loads
 
 // Global variables
 let warranties = [];
+let warrantiesLoaded = false; // Track if warranties have been loaded from API
 let currentTabIndex = 0;
 let tabContents = []; // Initialize as empty array
 let editMode = false;
 let currentWarrantyId = null;
 let userPreferencePrefix = null; // <<< ADDED GLOBAL PREFIX VARIABLE
+let isGlobalView = false; // Track if admin is viewing all users' warranties
 let currentFilters = {
     status: 'all',
     tag: 'all',
     search: '',
     sortBy: 'expiration',
-    vendor: 'all' // Added vendor filter
+    vendor: 'all', // Added vendor filter
+    warranty_type: 'all' // Added warranty type filter
 };
 
 // Tag related variables
@@ -35,11 +40,18 @@ const clearSearchBtn = document.getElementById('clearSearch');
 const statusFilter = document.getElementById('statusFilter');
 const sortBySelect = document.getElementById('sortBy');
 const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
+const warrantyTypeFilter = document.getElementById('warrantyTypeFilter'); // Added warranty type filter select
 const exportBtn = document.getElementById('exportBtn');
 const gridViewBtn = document.getElementById('gridViewBtn');
 const listViewBtn = document.getElementById('listViewBtn');
 const tableViewBtn = document.getElementById('tableViewBtn');
 const tableViewHeader = document.querySelector('.table-view-header');
+
+// Admin view controls
+const adminViewSwitcher = document.getElementById('adminViewSwitcher');
+const personalViewBtn = document.getElementById('personalViewBtn');
+const globalViewBtn = document.getElementById('globalViewBtn');
+const warrantiesPanelTitle = document.getElementById('warrantiesPanelTitle');
 const fileInput = document.getElementById('invoice');
 const fileName = document.getElementById('fileName');
 const manualInput = document.getElementById('manual');
@@ -84,9 +96,30 @@ const editWarrantyDurationYearsInput = document.getElementById('editWarrantyDura
 const editWarrantyDurationMonthsInput = document.getElementById('editWarrantyDurationMonths');
 const editWarrantyDurationDaysInput = document.getElementById('editWarrantyDurationDays');
 
+// Warranty Type DOM Elements
+const warrantyTypeInput = document.getElementById('warrantyType');
+const warrantyTypeCustomInput = document.getElementById('warrantyTypeCustom');
+const editWarrantyTypeInput = document.getElementById('editWarrantyType');
+const editWarrantyTypeCustomInput = document.getElementById('editWarrantyTypeCustom');
+
+// Warranty method selection elements
+const durationMethodRadio = document.getElementById('durationMethod');
+const exactDateMethodRadio = document.getElementById('exactDateMethod');
+const exactExpirationField = document.getElementById('exactExpirationField');
+const exactExpirationDateInput = document.getElementById('exactExpirationDate');
+
+const editDurationMethodRadio = document.getElementById('editDurationMethod');
+const editExactDateMethodRadio = document.getElementById('editExactDateMethod');
+const editExactExpirationField = document.getElementById('editExactExpirationField');
+const editExactExpirationDateInput = document.getElementById('editExactExpirationDate');
+
 // Add near other DOM Element declarations
 const showAddWarrantyBtn = document.getElementById('showAddWarrantyBtn');
 const addWarrantyModal = document.getElementById('addWarrantyModal');
+
+// Currency dropdown elements
+const currencySelect = document.getElementById('currency');
+const editCurrencySelect = document.getElementById('editCurrency');
 const serialNumbersContainer = document.getElementById('serialNumbersContainer'); // Ensure this is defined
 
 /**
@@ -104,11 +137,224 @@ function getUserType() {
 }
 
 /**
+ * Initialize view controls for all authenticated users
+ */
+async function initViewControls() {
+    // Check if global view is enabled
+    try {
+        const response = await fetch('/api/settings/global-view-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.enabled && adminViewSwitcher) {
+                // Global view is enabled, show view switcher
+                adminViewSwitcher.style.display = 'flex';
+                
+                // Add event listeners for view buttons
+                if (personalViewBtn) {
+                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
+                }
+                if (globalViewBtn) {
+                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
+                }
+                
+                // Load and apply saved view scope preference
+                const savedScope = loadViewScopePreference();
+                if (savedScope === 'global') {
+                    // Apply global view silently without saving preference again
+                    isGlobalView = true;
+                    personalViewBtn.classList.remove('active');
+                    globalViewBtn.classList.add('active');
+                    updateWarrantiesPanelTitle(true);
+                } else {
+                    // Apply personal view (default)
+                    isGlobalView = false;
+                    personalViewBtn.classList.add('active');
+                    globalViewBtn.classList.remove('active');
+                    updateWarrantiesPanelTitle(false);
+                }
+            } else if (adminViewSwitcher) {
+                // Global view is disabled, hide view switcher
+                adminViewSwitcher.style.display = 'none';
+                
+                // If currently in global view, switch back to personal view
+                if (isGlobalView) {
+                    isGlobalView = false;
+                    updateWarrantiesPanelTitle(false);
+                    // Reload warranties
+                    await loadWarranties(true);
+                    applyFilters();
+                }
+            }
+        } else {
+            console.error('Failed to check global view status');
+            // Default to showing view switcher if check fails
+            if (adminViewSwitcher) {
+                adminViewSwitcher.style.display = 'flex';
+                
+                // Add event listeners for view buttons
+                if (personalViewBtn) {
+                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
+                }
+                if (globalViewBtn) {
+                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error checking global view status:', error);
+        // Default to showing view switcher if check fails
+        if (adminViewSwitcher) {
+            adminViewSwitcher.style.display = 'flex';
+            
+            // Add event listeners for view buttons
+            if (personalViewBtn) {
+                personalViewBtn.addEventListener('click', () => switchToPersonalView());
+            }
+            if (globalViewBtn) {
+                globalViewBtn.addEventListener('click', () => switchToGlobalView());
+            }
+        }
+    }
+}
+
+/**
+ * Switch to personal view (user's own warranties)
+ */
+async function switchToPersonalView() {
+    if (!personalViewBtn || !globalViewBtn) return;
+    
+    isGlobalView = false;
+    personalViewBtn.classList.add('active');
+    globalViewBtn.classList.remove('active');
+    
+    // Save view preference
+    saveViewScopePreference('personal');
+    
+    // Update title
+    updateWarrantiesPanelTitle(false);
+    
+    // Reload warranties
+    try {
+        const token = window.auth.getToken();
+        if (token) {
+            await loadWarranties(true);
+            applyFilters();
+        }
+    } catch (error) {
+        console.error('Error switching to personal view:', error);
+        showToast(window.t('messages.error_loading_personal_warranties'), 'error');
+    }
+}
+
+/**
+ * Switch to global view (all users' warranties) - available to all users
+ */
+async function switchToGlobalView() {
+    if (!personalViewBtn || !globalViewBtn) return;
+    
+    // Check if global view is still enabled
+    try {
+        const response = await fetch('/api/settings/global-view-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (!result.enabled) {
+                showToast(window.t('messages.global_view_disabled'), 'error');
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Error checking global view status:', error);
+    }
+    
+    isGlobalView = true;
+    personalViewBtn.classList.remove('active');
+    globalViewBtn.classList.add('active');
+    
+    // Save view preference
+    saveViewScopePreference('global');
+    
+    // Update title
+    updateWarrantiesPanelTitle(true);
+    
+    // Reload warranties
+    try {
+        const token = window.auth.getToken();
+        if (token) {
+            await loadWarranties(true);
+            applyFilters();
+        }
+    } catch (error) {
+        console.error('Error switching to global view:', error);
+        showToast(window.t('messages.error_loading_global_warranties'), 'error');
+    }
+}
+
+/**
+ * Update warranties panel title with proper translation
+ * @param {boolean} isGlobal - Whether to show global or personal title
+ */
+function updateWarrantiesPanelTitle(isGlobal = false) {
+    if (warrantiesPanelTitle) {
+        if (window.i18next && window.i18next.t) {
+            warrantiesPanelTitle.textContent = isGlobal ? 
+                window.i18next.t('warranties.title_global') : 
+                window.i18next.t('warranties.title');
+        } else {
+            warrantiesPanelTitle.textContent = isGlobal ? 'All Users\' Warranties' : 'Your Warranties';
+        }
+    }
+}
+
+/**
  * Get the appropriate localStorage key prefix based on user type
  * @returns {string} The prefix to use for localStorage keys
  */
 function getPreferenceKeyPrefix() {
     return getUserType() === 'admin' ? 'admin_' : 'user_';
+}
+
+/**
+ * Save view scope preference to localStorage
+ * @param {string} scope - 'personal' or 'global'
+ */
+function saveViewScopePreference(scope) {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        localStorage.setItem(`${prefix}viewScope`, scope);
+        console.log(`Saved view scope preference: ${scope} with prefix: ${prefix}`);
+    } catch (error) {
+        console.error('Error saving view scope preference:', error);
+    }
+}
+
+/**
+ * Load view scope preference from localStorage
+ * @returns {string} The saved preference ('personal', 'global', or 'personal' as default)
+ */
+function loadViewScopePreference() {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        const savedScope = localStorage.getItem(`${prefix}viewScope`);
+        console.log(`Loaded view scope preference: ${savedScope} with prefix: ${prefix}`);
+        return savedScope || 'personal'; // Default to personal view
+    } catch (error) {
+        console.error('Error loading view scope preference:', error);
+        return 'personal'; // Default to personal view on error
+    }
 }
 
 // Theme Management - Simplified
@@ -196,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const name = tagNameInput ? tagNameInput.value.trim() : '';
                 const color = tagColorInput ? tagColorInput.value : '#808080';
                 if (!name) {
-                    showToast('Tag name is required', 'error');
+                    showToast(window.t('messages.tag_name_required'), 'error');
                     return;
                 }
                 // Use the existing createTag function if available
@@ -208,10 +454,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             renderExistingTags && renderExistingTags();
                         })
                         .catch((err) => {
-                            showToast((err && err.message) || 'Failed to create tag', 'error');
+                            showToast((err && err.message) || window.t('messages.failed_to_create_tag'), 'error');
                         });
                 } else {
-                    showToast('Tag creation function not found', 'error');
+                    showToast(window.t('messages.tag_creation_function_not_found'), 'error');
                 }
             });
         }
@@ -271,34 +517,70 @@ document.addEventListener('DOMContentLoaded', function() {
         handleLifetimeChange({ target: lifetimeCheckbox }); // Initial check
     }
 
-    // --- LOAD WARRANTIES AFTER AUTH --- 
-    // Listen for an event from auth.js indicating authentication is complete and user context is ready.
-    // ** IMPORTANT: Replace 'authStateReady' with the actual event name fired by auth.js **
-    window.addEventListener('authStateReady', async function handleAuthReady() { // <-- Make handler async
-        console.log('[DEBUG] authStateReady handler called');
-        console.log("Auth state ready event received. Preparing preferences and warranties...");
-        // Ensure this listener runs only once
-        window.removeEventListener('authStateReady', handleAuthReady);
+    // Initialize warranty method selection handlers
+    if (durationMethodRadio && exactDateMethodRadio) {
+        durationMethodRadio.addEventListener('change', handleWarrantyMethodChange);
+        exactDateMethodRadio.addEventListener('change', handleWarrantyMethodChange);
+        handleWarrantyMethodChange(); // Initial setup
+    }
+
+    if (editDurationMethodRadio && editExactDateMethodRadio) {
+        editDurationMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        handleEditWarrantyMethodChange(); // Initial setup for edit form
+    }
+
+    // --- LOAD WARRANTIES AFTER AUTH ---
+    let authStateHandled = false;
+
+    async function runAuthenticatedTasks(isAuthenticated) { // Added isAuthenticated parameter
+        if (!isAuthenticated) {
+            console.log('[DEBUG] runAuthenticatedTasks: Called with isAuthenticated = false. Not running tasks yet.');
+            // Do not set authStateHandled = true here, allow a subsequent call with true.
+            return;
+        }
+        // If we reach here, isAuthenticated is true.
+        if (authStateHandled) {
+            console.log('[DEBUG] runAuthenticatedTasks: Tasks already handled (or in progress by another call).');
+            return;
+        }
+        authStateHandled = true; // Set flag only when tasks are actually starting with isAuthenticated = true.
+        console.log('[DEBUG] runAuthenticatedTasks: Executing with isAuthenticated = true.');
 
         // Set prefix
         userPreferencePrefix = getPreferenceKeyPrefix();
-        console.log(`[authStateReady] Determined and stored global prefix: ${userPreferencePrefix}`);
+        console.log(`[runAuthenticatedTasks] Determined and stored global prefix: ${userPreferencePrefix}`);
 
-        // Load preferences
-        await loadAndApplyUserPreferences();
-        await loadTags(); // Ensure all available tags are loaded after authentication
+        // Re-check auth status just before critical data loads
+        const currentAuthStatus = window.auth && window.auth.isAuthenticated();
+        console.log(`[runAuthenticatedTasks] Current auth status before loading prefs/warranties: ${currentAuthStatus}`);
 
-        // Load warranty data (fetches, processes, populates global array)
-        if (document.getElementById('warrantiesList')) {
-            console.log("[authStateReady] Loading warranty data...");
-            await loadWarranties(); // Waits for fetch/process
-            console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+        if (currentAuthStatus) {
+            await loadAndApplyUserPreferences(true); // Pass true, as we've confirmed auth
+            await loadTags(); // Ensure all available tags are loaded
+            await loadCurrencies(); // Load currencies for dropdowns
+            
+            // Initialize Paperless-ngx integration
+            await initPaperlessNgxIntegration();
+            
+            // Initialize view controls for all users
+            initViewControls();
+
+            if (document.getElementById('warrantiesList')) {
+                console.log("[runAuthenticatedTasks] Loading warranty data...");
+                await loadWarranties(true); // Pass true
+                console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+            } else {
+                console.log("[runAuthenticatedTasks] Warranties list element not found.");
+            }
         } else {
-            console.log("[authStateReady] Warranties list element not found.");
+            console.warn("[runAuthenticatedTasks] Auth status became false before loading data. Aborting data load.");
+            // Optionally, reset authStateHandled if we want to allow another attempt
+            // authStateHandled = false; 
         }
 
         // Now that data and preferences are ready, apply view/currency and render via applyFilters
-        console.log("[authStateReady] Applying preferences and rendering...");
+        console.log("[runAuthenticatedTasks] Applying preferences and rendering...");
         loadViewPreference(); // Sets currentView and UI classes/buttons
         updateCurrencySymbols(); // Update symbols
         
@@ -306,8 +588,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.getElementById('warrantiesList')) { 
             applyFilters(); 
         }
+    }
 
-    }, { once: true }); // Use { once: true } as a fallback if removeEventListener isn't reliable across scripts
+    // Listener for the 'authStateReady' event
+    window.addEventListener('authStateReady', async function handleAuthEvent(event) {
+        console.log('[DEBUG] authStateReady event received in script.js. Detail:', event.detail);
+        // Pass the isAuthenticated status from the event detail to runAuthenticatedTasks
+        await runAuthenticatedTasks(event.detail && event.detail.isAuthenticated);
+    }); // Removed { once: true } to allow re-evaluation if auth state changes
+
+    // Proactive check after a brief delay to allow auth.js to initialize
+    setTimeout(async () => {
+        console.log('[DEBUG] Proactive auth check in script.js (after timeout).');
+        if (window.auth) {
+            // Pass the current authentication status to runAuthenticatedTasks
+            await runAuthenticatedTasks(window.auth.isAuthenticated());
+        } else {
+            console.log('[DEBUG] Proactive check: window.auth not available. Event listener should handle it.');
+            // Call with false if auth module isn't ready, to avoid tasks running prematurely.
+            await runAuthenticatedTasks(false);
+        }
+    }, 500); // Delay
     // --- END LOAD WARRANTIES AFTER AUTH ---
 
     // updateCurrencySymbols(); // Call removed, rely on loadWarranties triggering render with correct symbol
@@ -330,6 +631,19 @@ let expiringSoonDays = 30; // Default value, will be updated from user preferenc
 
 // API URL
 const API_URL = '/api/warranties';
+
+// Utility function to escape HTML
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
 
 // Form tab navigation variables (simplified)
 let formTabs = []; // Changed from const to let, initialized as empty
@@ -354,7 +668,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
             // Get auth token
             const token = localStorage.getItem('auth_token');
             if (!token) {
-                showToast('Authentication required', 'error');
+                showToast(window.t('messages.authentication_required'), 'error');
                 return;
             }
             showLoadingSpinner();
@@ -369,12 +683,29 @@ let formTabs = []; // Changed from const to let, initialized as empty
                     formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
                     formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
                     formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
+                    
+                    // If all duration fields are 0 but we have an expiration date, this was created with exact date method
+                    const isExactDateWarranty = (notesModalWarrantyObj.warranty_duration_years || 0) === 0 &&
+                                              (notesModalWarrantyObj.warranty_duration_months || 0) === 0 &&
+                                              (notesModalWarrantyObj.warranty_duration_days || 0) === 0 &&
+                                              notesModalWarrantyObj.expiration_date;
+                    
+                    if (isExactDateWarranty) {
+                        // For exact date warranties, send the expiration date as exact_expiration_date
+                        formData.append('exact_expiration_date', notesModalWarrantyObj.expiration_date.split('T')[0]);
+                    }
                 }
                 if (notesModalWarrantyObj.product_url) {
                     formData.append('product_url', notesModalWarrantyObj.product_url);
                 }
                 if (notesModalWarrantyObj.purchase_price !== null && notesModalWarrantyObj.purchase_price !== undefined) {
                     formData.append('purchase_price', notesModalWarrantyObj.purchase_price);
+                }
+                if (notesModalWarrantyObj.vendor) {
+                    formData.append('vendor', notesModalWarrantyObj.vendor);
+                }
+                if (notesModalWarrantyObj.warranty_type) {
+                    formData.append('warranty_type', notesModalWarrantyObj.warranty_type);
                 }
                 if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
                     notesModalWarrantyObj.serial_numbers.forEach(sn => {
@@ -405,7 +736,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
                     throw new Error(data.error || 'Failed to update notes');
                 }
                 hideLoadingSpinner();
-                showToast('Notes updated successfully', 'success');
+                showToast(window.t('messages.notes_updated_successfully'), 'success');
                 // Close the modal
                 const notesModal = document.getElementById('notesModal');
                 if (notesModal) notesModal.style.display = 'none';
@@ -415,7 +746,7 @@ let formTabs = []; // Changed from const to let, initialized as empty
             } catch (error) {
                 hideLoadingSpinner();
                 console.error('Error updating notes:', error);
-                showToast(error.message || 'Failed to update notes', 'error');
+                showToast(error.message || window.t('messages.failed_to_update_notes'), 'error');
             }
         };
     }
@@ -607,23 +938,25 @@ function updateCompletedTabs() {
 // Validate a specific tab
 function validateTab(tabIndex) {
     const tabContent = tabContents[tabIndex];
-    // Get all relevant form controls within the tab
     const controls = tabContent.querySelectorAll('input, textarea, select');
     let isTabValid = true;
 
     controls.forEach(control => {
-        // Check the native HTML5 validity state
-        if (!control.validity.valid) {
+        // Clear previous validation state
+        control.classList.remove('invalid');
+        let validationMessageElement = control.nextElementSibling;
+        if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
+            validationMessageElement.remove();
+        }
+
+        // Manual validation for required fields
+        if (control.hasAttribute('required') && control.value.trim() === '') {
             isTabValid = false;
             control.classList.add('invalid');
-            // Ensure a validation message placeholder exists or is updated by showValidationErrors
-        } else {
-            control.classList.remove('invalid');
-            // Remove validation message if control is now valid and message exists
-            let validationMessageElement = control.nextElementSibling;
-            if (validationMessageElement && validationMessageElement.classList.contains('validation-message')) {
-                validationMessageElement.remove();
-            }
+            // Mark as invalid, message will be added by showValidationErrors
+        } else if (!control.validity.valid) { // For other HTML5 validation issues (e.g., type mismatch)
+            isTabValid = false;
+            control.classList.add('invalid');
         }
     });
     return isTabValid;
@@ -634,6 +967,7 @@ function showValidationErrors(tabIndex) {
     const tabContent = tabContents[tabIndex];
     const controls = tabContent.querySelectorAll('input, textarea, select');
     let firstInvalidControl = null;
+    let validationToast = document.querySelector('.validation-toast'); // Check for existing validation toast
 
     controls.forEach(control => {
         if (!control.validity.valid) {
@@ -647,7 +981,11 @@ function showValidationErrors(tabIndex) {
                 validationMessageElement.className = 'validation-message';
                 control.parentNode.insertBefore(validationMessageElement, control.nextSibling);
             }
-            validationMessageElement.textContent = control.validationMessage || 'This field is invalid.';
+            if (control.hasAttribute('required') && control.value.trim() === '') {
+                validationMessageElement.textContent = window.i18next ? window.i18next.t('messages.please_fill_out_this_field') : 'Please fill out this field.';
+            } else {
+                validationMessageElement.textContent = control.validationMessage || (window.i18next ? window.i18next.t('messages.field_is_invalid') : 'This field is invalid.');
+            }
         } else {
             // Ensure invalid class is removed if somehow missed by validateTab (shouldn't happen)
             control.classList.remove('invalid');
@@ -661,7 +999,15 @@ function showValidationErrors(tabIndex) {
 
     // The browser will attempt to focus the first invalid field when form submission is prevented.
     // Switching to the tab containing the error (done by handleFormSubmit) is key.
-    showToast('Please correct the errors in the current tab.', 'error');
+    
+    // Manage a single validation toast
+    if (!validationToast) {
+        validationToast = showToast(window.t('messages.correct_errors_in_tab'), 'error', 0); // 0 duration = persistent
+        validationToast.classList.add('validation-toast'); // Add a class to identify it
+    } else {
+        // Update existing toast message if needed (optional)
+        validationToast.querySelector('span').textContent = window.t('messages.correct_errors_in_tab');
+    }
 }
 
 // Update summary tab with current form values
@@ -729,31 +1075,70 @@ function updateSummary() {
     const summaryWarrantyDuration = document.getElementById('summary-warranty-duration'); // Use new ID
 
     if (summaryWarrantyDuration) {
-        if (isLifetime) {
-            summaryWarrantyDuration.textContent = 'Lifetime';
+                if (isLifetime) {
+            summaryWarrantyDuration.textContent = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         } else {
             const years = parseInt(warrantyDurationYearsInput?.value || 0);
             const months = parseInt(warrantyDurationMonthsInput?.value || 0);
             const days = parseInt(warrantyDurationDaysInput?.value || 0);
-            
+
             let durationParts = [];
-            if (years > 0) durationParts.push(`${years} year${years !== 1 ? 's' : ''}`);
-            if (months > 0) durationParts.push(`${months} month${months !== 1 ? 's' : ''}`);
-            if (days > 0) durationParts.push(`${days} day${days !== 1 ? 's' : ''}`);
-            
+            if (years > 0) {
+                const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+                durationParts.push(`${years} ${yearText}`);
+            }
+            if (months > 0) {
+                const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+                durationParts.push(`${months} ${monthText}`);
+            }
+            if (days > 0) {
+                const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+                durationParts.push(`${days} ${dayText}`);
+            }
+
             summaryWarrantyDuration.textContent = durationParts.length > 0 ? durationParts.join(', ') : '-';
         }
     }
     
+    // Warranty type - handle dropdown and custom input
+    const warrantyTypeSelect = document.getElementById('warrantyType');
+    const warrantyTypeCustom = document.getElementById('warrantyTypeCustom');
+    const summaryWarrantyType = document.getElementById('summary-warranty-type');
+    if (summaryWarrantyType) {
+        let warrantyTypeText = 'Not specified';
+        if (warrantyTypeSelect && warrantyTypeSelect.value) {
+            if (warrantyTypeSelect.value === 'other' && warrantyTypeCustom && warrantyTypeCustom.value.trim()) {
+                warrantyTypeText = warrantyTypeCustom.value.trim();
+            } else if (warrantyTypeSelect.value !== 'other') {
+                warrantyTypeText = warrantyTypeSelect.value;
+            }
+        }
+        summaryWarrantyType.textContent = warrantyTypeText;
+    }
+    
     // Purchase price
     const purchasePrice = document.getElementById('purchasePrice')?.value;
+    const currency = document.getElementById('currency')?.value;
     const summaryPurchasePrice = document.getElementById('summary-purchase-price');
     if (summaryPurchasePrice) {
-        summaryPurchasePrice.textContent = purchasePrice ? 
-            `$${parseFloat(purchasePrice).toFixed(2)}` : 'Not specified';
+        if (purchasePrice) {
+            const symbol = getCurrencySymbol();
+            const position = getCurrencyPosition();
+            const amount = parseFloat(purchasePrice).toFixed(2);
+            summaryPurchasePrice.innerHTML = formatCurrencyHTML(amount, symbol, position);
+        } else {
+            summaryPurchasePrice.textContent = 'Not specified';
+        }
     }
     
     // Documents
+    const productPhotoFile = document.getElementById('productPhoto')?.files[0];
+    const summaryProductPhoto = document.getElementById('summary-product-photo');
+    if (summaryProductPhoto) {
+        summaryProductPhoto.textContent = productPhotoFile ? 
+            productPhotoFile.name : 'No photo selected';
+    }
+    
     const invoiceFile = document.getElementById('invoice')?.files[0];
     const summaryInvoice = document.getElementById('summary-invoice');
     if (summaryInvoice) {
@@ -831,18 +1216,32 @@ function resetForm() {
     switchToTab(0);
     
     // Clear any file input displays
+    const productPhotoFileName = document.getElementById('productPhotoFileName');
+    if (productPhotoFileName) productPhotoFileName.textContent = '';
     fileName.textContent = '';
     manualFileName.textContent = '';
-    if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
+    if (otherDocumentFileName) otherDocumentFileName.textContent = '';
+    
+    // Reset photo preview
+    const productPhotoPreview = document.getElementById('productPhotoPreview');
+    if (productPhotoPreview) {
+        productPhotoPreview.style.display = 'none';
+    } 
 }
 
 async function exportWarranties() {
+    console.log('[EXPORT DEBUG] Starting export process');
+    console.log('[EXPORT DEBUG] Total warranties in memory:', warranties.length);
+    console.log('[EXPORT DEBUG] Current filters:', currentFilters);
+    
     // Get filtered warranties
     let warrantiesToExport = [...warranties];
+    console.log('[EXPORT DEBUG] Initial warranties to export:', warrantiesToExport.length);
     
     // Apply current filters
     if (currentFilters.search) {
         const searchTerm = currentFilters.search.toLowerCase();
+        console.log('[EXPORT DEBUG] Applying search filter:', searchTerm);
         warrantiesToExport = warrantiesToExport.filter(warranty => {
             // Check if product name contains search term
             const productNameMatch = warranty.product_name.toLowerCase().includes(searchTerm);
@@ -857,22 +1256,48 @@ async function exportWarranties() {
             // Return true if either product name, tag name, or vendor name matches
             return productNameMatch || tagMatch || vendorMatch;
         });
+        console.log('[EXPORT DEBUG] After search filter:', warrantiesToExport.length);
     }
     
     if (currentFilters.status !== 'all') {
+        console.log('[EXPORT DEBUG] Applying status filter:', currentFilters.status);
         warrantiesToExport = warrantiesToExport.filter(warranty => 
             warranty.status === currentFilters.status
         );
+        console.log('[EXPORT DEBUG] After status filter:', warrantiesToExport.length);
     }
     
     // Apply tag filter
     if (currentFilters.tag !== 'all') {
         const tagId = parseInt(currentFilters.tag);
+        console.log('[EXPORT DEBUG] Applying tag filter:', tagId);
         warrantiesToExport = warrantiesToExport.filter(warranty => 
             warranty.tags && Array.isArray(warranty.tags) &&
             warranty.tags.some(tag => tag.id === tagId)
         );
+        console.log('[EXPORT DEBUG] After tag filter:', warrantiesToExport.length);
     }
+    
+    // Apply vendor filter
+    if (currentFilters.vendor !== 'all') {
+        console.log('[EXPORT DEBUG] Applying vendor filter:', currentFilters.vendor);
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            (warranty.vendor || '').toLowerCase() === currentFilters.vendor.toLowerCase()
+        );
+        console.log('[EXPORT DEBUG] After vendor filter:', warrantiesToExport.length);
+    }
+    
+    // Apply warranty type filter
+    if (currentFilters.warranty_type !== 'all') {
+        console.log('[EXPORT DEBUG] Applying warranty type filter:', currentFilters.warranty_type);
+        warrantiesToExport = warrantiesToExport.filter(warranty => 
+            (warranty.warranty_type || '').toLowerCase() === currentFilters.warranty_type.toLowerCase()
+        );
+        console.log('[EXPORT DEBUG] After warranty type filter:', warrantiesToExport.length);
+    }
+    
+    console.log('[EXPORT DEBUG] Final warranties to export:', warrantiesToExport.length);
+    console.log('[EXPORT DEBUG] Warranty IDs being exported:', warrantiesToExport.map(w => w.id));
     
     // Create CSV content
     let csvContent = "data:text/csv;charset=utf-8,";
@@ -927,11 +1352,11 @@ async function exportWarranties() {
     document.body.removeChild(link);
     
     // Show success notification
-    showToast('Warranties exported successfully', 'success');
+    showToast(window.t('messages.exported_warranties_successfully', {count: warrantiesToExport.length}), 'success');
 }
 
 // Switch view of warranties list
-async function switchView(viewType) { // Added async
+async function switchView(viewType, saveToApi = true) { // Added saveToApi parameter with default true
     console.log(`Switching to view: ${viewType}`);
     currentView = viewType;
 
@@ -950,8 +1375,8 @@ async function switchView(viewType) { // Added async
         console.log(`View preference (${viewKey}) already set to ${viewType} in localStorage.`);
     }
 
-    // --- BEGIN ADDED: Save preference to API --- 
-    if (window.auth && window.auth.isAuthenticated()) {
+    // --- MODIFIED: Only save preference to API if saveToApi is true --- 
+    if (saveToApi && window.auth && window.auth.isAuthenticated()) {
         const token = window.auth.getToken();
         if (token) {
             try {
@@ -981,10 +1406,12 @@ async function switchView(viewType) { // Added async
         } else {
             console.warn('Cannot save view preference to API: No auth token found.');
         }
+    } else if (!saveToApi) {
+        console.log('Skipping API save as saveToApi is false (likely called from loadViewPreference).');
     } else {
         console.warn('Cannot save view preference to API: User not authenticated or auth module not loaded.');
     }
-    // --- END ADDED: Save preference to API ---
+    // --- END MODIFIED: Save preference to API ---
 
     // Make sure warrantiesList exists before modifying classes
     if (warrantiesList) {
@@ -1008,8 +1435,8 @@ async function switchView(viewType) { // Added async
         tableViewHeader.classList.toggle('visible', viewType === 'table');
     }
 
-    // Re-render warranties only if warrantiesList exists
-    if (warrantiesList) {
+    // Re-render warranties only if warrantiesList exists AND warranties have been loaded from API
+    if (warrantiesList && warrantiesLoaded) {
         renderWarranties(filterWarranties()); // Assuming filterWarranties() returns the correct array
     }
 }
@@ -1040,10 +1467,10 @@ function loadViewPreference() {
     // Default to grid view if no preference is saved
     savedView = savedView || 'grid';
 
-    console.log(`Applying view preference: ${savedView}`);
+    console.log(`Applying view preference from loadViewPreference: ${savedView}`);
     // Switch view only if view buttons exist (implying it's the main page)
     if (gridViewBtn || listViewBtn || tableViewBtn) {
-        switchView(savedView);
+        switchView(savedView, false); // Pass false to prevent API save on initial load
     }
 }
 
@@ -1080,7 +1507,11 @@ function addSerialNumberInput(container = serialNumbersContainer) {
     input.type = 'text';
     input.className = 'form-control';
     input.name = 'serial_numbers[]';
-    input.placeholder = 'Enter serial number';
+    input.placeholder = window.i18next ? window.i18next.t('warranties.enter_serial_number') : 'Enter serial number';
+    console.log('i18next available for serial number placeholder:', !!window.i18next);
+    if (window.i18next) {
+        console.log('Translation for warranties.enter_serial_number:', window.i18next.t('warranties.enter_serial_number'));
+    }
     
     // Check if this is the first serial number input
     const isFirstInput = container.querySelectorAll('.serial-number-input').length === 0;
@@ -1116,7 +1547,11 @@ function addSerialNumberInput(container = serialNumbersContainer) {
         const addButton = document.createElement('button');
         addButton.type = 'button';
         addButton.className = 'btn btn-sm btn-secondary add-serial';
-        addButton.innerHTML = '<i class="fas fa-plus"></i> Add Serial Number';
+        addButton.innerHTML = '<i class="fas fa-plus"></i> ' + (window.i18next ? window.i18next.t('warranties.add_serial_number') : 'Add Serial Number');
+        console.log('i18next available in addSerialNumberInput:', !!window.i18next);
+        if (window.i18next) {
+            console.log('Translation for warranties.add_serial_number:', window.i18next.t('warranties.add_serial_number'));
+        }
         
         addButton.addEventListener('click', function() {
             addSerialNumberInput(container);
@@ -1128,47 +1563,109 @@ function addSerialNumberInput(container = serialNumbersContainer) {
 
 // Functions
 function showLoading() {
-    loadingContainer.classList.add('active');
+    let localLoadingContainer = window.loadingContainer || document.getElementById('loadingContainer');
+    if (localLoadingContainer) {
+        localLoadingContainer.classList.add('active');
+        window.loadingContainer = localLoadingContainer; // Update global reference if found
+    } else {
+        console.error('WarrackerDebug: loadingContainer element not found by showLoading(). Ensure it exists in the HTML and script.js is loaded after it.');
+    }
 }
 
 function hideLoading() {
-    loadingContainer.classList.remove('active');
+    let localLoadingContainer = window.loadingContainer || document.getElementById('loadingContainer');
+    if (localLoadingContainer) {
+        localLoadingContainer.classList.remove('active');
+        window.loadingContainer = localLoadingContainer; // Update global reference if found
+    } else {
+        console.error('WarrackerDebug: loadingContainer element not found by hideLoading().');
+    }
 }
 
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', duration = 5000) {
+    // Check if a toast with the same message and type already exists
+    const existingToasts = document.querySelectorAll(`.toast.toast-${type}`);
+    for (let i = 0; i < existingToasts.length; i++) {
+        const span = existingToasts[i].querySelector('span');
+        if (span && span.textContent === message) {
+            return existingToasts[i]; // Don't create a new one
+        }
+    }
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        ${message}
-        <button class="toast-close">&times;</button>
-    `;
     
-    // Add close event
-    toast.querySelector('.toast-close').addEventListener('click', () => {
-        toast.remove();
-    });
+    const icon = document.createElement('i');
+    switch (type) {
+        case 'success':
+            icon.className = 'fas fa-check-circle';
+            break;
+        case 'error':
+            icon.className = 'fas fa-exclamation-circle';
+            break;
+        case 'warning':
+            icon.className = 'fas fa-exclamation-triangle';
+            break;
+        default:
+            icon.className = 'fas fa-info-circle';
+    }
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    toast.appendChild(icon);
+    toast.appendChild(messageSpan);
     
     toastContainer.appendChild(toast);
     
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        if (toast.parentElement) {
+    // Add a method to remove the toast
+    toast.remove = function() {
+        toast.classList.add('toast-fade-out');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    };
+    
+    // Auto-hide toast after specified duration (if not 0)
+    if (duration > 0) {
+        setTimeout(() => {
             toast.remove();
-        }
-    }, 3000);
+        }, duration);
+    }
+    
+    return toast;
 }
 
 // Update file name display when a file is selected
 function updateFileName(event, inputId = 'invoice', outputId = 'fileName') {
-    const input = event ? event.target : document.getElementById(inputId);
+    const file = event.target.files[0];
     const output = document.getElementById(outputId);
     
-    if (!input || !output) return;
-    
-    if (input.files && input.files[0]) {
-        output.textContent = input.files[0].name;
-    } else {
+    if (file && output) {
+        output.textContent = file.name;
+    } else if (output) {
         output.textContent = '';
+    }
+    
+    // Handle photo preview for product photo
+    if (inputId === 'productPhoto' || inputId === 'editProductPhoto') {
+        const previewId = inputId === 'productPhoto' ? 'productPhotoPreview' : 'editProductPhotoPreview';
+        const imgId = inputId === 'productPhoto' ? 'productPhotoImg' : 'editProductPhotoImg';
+        const preview = document.getElementById(previewId);
+        const img = document.getElementById(imgId);
+        
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            preview.style.display = 'none';
+        }
     }
 }
 
@@ -1233,7 +1730,7 @@ function processWarrantyData(warranty) {
     // --- Lifetime Handling ---
     if (processedWarranty.is_lifetime) {
         processedWarranty.status = 'active';
-        processedWarranty.statusText = 'Lifetime';
+        processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         processedWarranty.daysRemaining = Infinity;
         // Ensure duration components are 0 for lifetime
         processedWarranty.warranty_duration_years = 0;
@@ -1250,17 +1747,64 @@ function processWarrantyData(warranty) {
 
         if (daysRemaining < 0) {
             processedWarranty.status = 'expired';
-            processedWarranty.statusText = 'Expired';
+            processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.expired') : 'Expired';
         } else if (daysRemaining < expiringSoonDays) {
             processedWarranty.status = 'expiring';
-            processedWarranty.statusText = `Expiring Soon (${daysRemaining} day${daysRemaining !== 1 ? 's' : ''})`;
+            const dayText = window.i18next ? 
+                window.i18next.t('warranties.day', {count: daysRemaining}) :
+                `day${daysRemaining !== 1 ? 's' : ''}`;
+            processedWarranty.statusText = window.i18next ? 
+                window.i18next.t('warranties.days_remaining', {days: daysRemaining, dayText: dayText}) :
+                `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
         } else {
             processedWarranty.status = 'active';
-            processedWarranty.statusText = `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
+            const dayText = window.i18next ? 
+                window.i18next.t('warranties.day', {count: daysRemaining}) :
+                `day${daysRemaining !== 1 ? 's' : ''}`;
+            processedWarranty.statusText = window.i18next ? 
+                window.i18next.t('warranties.days_remaining', {days: daysRemaining, dayText: dayText}) :
+                `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`;
+        }
+        
+        // Preserve original duration values to detect input method
+        const originalYears = processedWarranty.warranty_duration_years || 0;
+        const originalMonths = processedWarranty.warranty_duration_months || 0;
+        const originalDays = processedWarranty.warranty_duration_days || 0;
+        
+        // Track the original input method based on duration values
+        const wasExactDateMethod = originalYears === 0 && originalMonths === 0 && originalDays === 0;
+        processedWarranty.original_input_method = wasExactDateMethod ? 'exact_date' : 'duration';
+        
+        // Calculate duration from dates if all duration components are 0 (exact date method was used)
+        const hasNoDuration = originalYears === 0 && originalMonths === 0 && originalDays === 0;
+        
+        if (hasNoDuration && purchaseDateObj && processedWarranty.expirationDate) {
+            console.log('[DEBUG] Calculating duration from dates for exact date warranty');
+            const calculatedDuration = calculateDurationFromDates(
+                purchaseDateObj.toISOString().split('T')[0], 
+                processedWarranty.expirationDate.toISOString().split('T')[0]
+            );
+            if (calculatedDuration) {
+                // Store calculated duration for display purposes
+                processedWarranty.display_duration_years = calculatedDuration.years;
+                processedWarranty.display_duration_months = calculatedDuration.months;
+                processedWarranty.display_duration_days = calculatedDuration.days;
+                console.log('[DEBUG] Calculated duration:', calculatedDuration);
+                
+                // Keep original values at 0 to preserve input method detection
+                processedWarranty.warranty_duration_years = 0;
+                processedWarranty.warranty_duration_months = 0;
+                processedWarranty.warranty_duration_days = 0;
+            }
+        } else {
+            // Use original duration values for display
+            processedWarranty.display_duration_years = originalYears;
+            processedWarranty.display_duration_months = originalMonths;
+            processedWarranty.display_duration_days = originalDays;
         }
     } else {
         processedWarranty.status = 'unknown';
-        processedWarranty.statusText = 'Unknown Status';
+        processedWarranty.statusText = window.i18next ? window.i18next.t('warranties.unknown_status') : 'Unknown Status';
         processedWarranty.daysRemaining = null;
     }
 
@@ -1277,13 +1821,17 @@ function processAllWarranties() {
     console.log('Processed warranties:', warranties);
 }
 
-async function loadWarranties() {
+async function loadWarranties(isAuthenticated) { // Added isAuthenticated parameter
     // +++ REMOVED: Ensure Preferences are loaded FIRST (Now handled by authStateReady) +++
     // await loadAndApplyUserPreferences(); 
     // +++ Preferences Loaded +++
     
     try {
-        console.log('[DEBUG] Entered loadWarranties');
+        console.log('[DEBUG] Entered loadWarranties, isAuthenticated:', isAuthenticated);
+        
+        // Reset the flag when starting to load warranties
+        warrantiesLoaded = false;
+        
         showLoading();
         
         // Fetch user preferences (including date format) before loading warranties
@@ -1351,13 +1899,20 @@ async function loadWarranties() {
         */
         // --- END REDUNDANT PREFERENCE FETCH ---
         
-        // Use the full URL to avoid path issues
-        const apiUrl = window.location.origin + '/api/warranties';
+        // Check saved view scope preference to determine which API endpoint to use
+        const savedScope = loadViewScopePreference();
+        const shouldUseGlobalView = savedScope === 'global';
         
-        // Check if auth is available and user is authenticated
-        if (!window.auth || !window.auth.isAuthenticated()) {
-            console.log('[DEBUG] Early return: User not authenticated');
-            renderEmptyState('Please log in to view your warranties.');
+        // Use the appropriate API endpoint based on saved preference
+        const baseUrl = window.location.origin;
+        const apiUrl = shouldUseGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`;
+        
+        console.log(`[DEBUG] Using API endpoint based on saved preference '${savedScope}': ${apiUrl}`);
+        
+        // Check if auth is available and user is authenticated using the passed parameter
+        if (!isAuthenticated) {
+            console.log('[DEBUG] loadWarranties: Early return - User not authenticated based on passed parameter.');
+            renderEmptyState(window.t('messages.login_to_view_warranties'));
             hideLoading();
             return;
         }
@@ -1365,7 +1920,7 @@ async function loadWarranties() {
         const token = window.auth.getToken();
         if (!token) {
             console.log('[DEBUG] Early return: No auth token available');
-            renderEmptyState('Authentication error. Please log in again.');
+            renderEmptyState(window.t('messages.authentication_error_login_again'));
             hideLoading();
             return;
         }
@@ -1391,6 +1946,10 @@ async function loadWarranties() {
         if (!Array.isArray(data)) {
             console.error('[DEBUG] API did not return an array! Data:', data);
         }
+        
+        // Update isGlobalView to match the loaded data
+        isGlobalView = shouldUseGlobalView;
+        console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
         // Process each warranty to calculate status and days remaining
         warranties = Array.isArray(data) ? data.map(warranty => {
             const processed = processWarrantyData(warranty);
@@ -1398,22 +1957,29 @@ async function loadWarranties() {
             return processed;
         }) : [];
         console.log('[DEBUG] Final warranties array:', warranties);
+        console.log('[DEBUG] Total warranties loaded:', warranties.length);
+        console.log('[DEBUG] Warranty IDs loaded:', warranties.map(w => w.id));
+        
+        // Set flag to indicate warranties have been loaded from API
+        warrantiesLoaded = true;
         
         if (warranties.length === 0) {
             console.log('No warranties found, showing empty state');
-            renderEmptyState('No warranties found. Add your first warranty using the form.');
+            renderEmptyState(window.t('messages.no_warranties_found_add_first'));
         } else {
             console.log('Applying filters to display warranties');
             
             // Populate tag filter dropdown with tags from warranties
             populateTagFilter();
             populateVendorFilter(); // Added call to populate vendor filter
+            populateWarrantyTypeFilter(); // Added call to populate warranty type filter
             
             // REMOVED: applyFilters(); // Now called from authStateReady after data and prefs are loaded
         }
     } catch (error) {
         console.error('[DEBUG] Error loading warranties:', error);
-        renderEmptyState('Error loading warranties. Please try again later.');
+        warrantiesLoaded = false; // Reset flag on error
+        renderEmptyState(window.t('messages.error_loading_warranties_try_again'));
     } finally {
         hideLoading();
     }
@@ -1481,6 +2047,83 @@ function formatDateYYYYMMDD(date) {
     return `${year}-${month}-${day}`;
 }
 
+/**
+ * Calculate the age of a product from purchase date to now
+ * @param {string|Date} purchaseDate - The purchase date
+ * @returns {string} - Formatted age string (e.g., "2 years, 3 months", "6 months", "15 days")
+ */
+function calculateProductAge(purchaseDate) {
+    if (!purchaseDate) return 'Unknown';
+    
+    const purchase = new Date(purchaseDate);
+    const now = new Date();
+    
+    if (isNaN(purchase.getTime()) || purchase > now) {
+        return 'Unknown';
+    }
+    
+    // Calculate the difference
+    let years = now.getFullYear() - purchase.getFullYear();
+    let months = now.getMonth() - purchase.getMonth();
+    let days = now.getDate() - purchase.getDate();
+    
+    // Adjust for negative days
+    if (days < 0) {
+        months--;
+        const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += lastMonth.getDate();
+    }
+    
+    // Adjust for negative months
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    
+    // Format the result
+    const parts = [];
+    if (years > 0) {
+        const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+        parts.push(`${years} ${yearText}`);
+    }
+    if (months > 0) {
+        const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+        parts.push(`${months} ${monthText}`);
+    }
+    if (days > 0 && years === 0) { // Only show days if less than a year old
+        const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+        parts.push(`${days} ${dayText}`);
+    }
+    
+    if (parts.length === 0) {
+        return 'Today'; // Purchased today
+    }
+    
+    return parts.join(', ');
+}
+
+/**
+ * Calculate the age of a product in days for sorting purposes
+ * @param {string|Date} purchaseDate - The purchase date
+ * @returns {number} - Age in days (0 if invalid date)
+ */
+function calculateProductAgeInDays(purchaseDate) {
+    if (!purchaseDate) return 0;
+    
+    const purchase = new Date(purchaseDate);
+    const now = new Date();
+    
+    if (isNaN(purchase.getTime()) || purchase > now) {
+        return 0;
+    }
+    
+    // Calculate difference in milliseconds and convert to days
+    const diffTime = now.getTime() - purchase.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+}
+
 async function renderWarranties(warrantiesToRender) {
     console.log('renderWarranties called with:', warrantiesToRender);
 
@@ -1498,7 +2141,7 @@ async function renderWarranties(warrantiesToRender) {
     }
     
     const today = new Date();
-    const symbol = getCurrencySymbol(); // Get the correct symbol HERE
+    const globalSymbol = getCurrencySymbol(); // Get the global symbol as fallback
     
     warrantiesList.innerHTML = '';
     
@@ -1509,8 +2152,12 @@ async function renderWarranties(warrantiesToRender) {
                 return (a.product_name || '').toLowerCase().localeCompare((b.product_name || '').toLowerCase());
             case 'purchase':
                 return new Date(b.purchase_date || 0) - new Date(a.purchase_date || 0);
+            case 'age': // Added age sorting
+                return calculateProductAgeInDays(b.purchase_date) - calculateProductAgeInDays(a.purchase_date); // Oldest first
             case 'vendor': // Added vendor sorting
                 return (a.vendor || '').toLowerCase().localeCompare((b.vendor || '').toLowerCase());
+            case 'warranty_type': // Added warranty type sorting
+                return (a.warranty_type || '').toLowerCase().localeCompare((b.warranty_type || '').toLowerCase());
             case 'expiration':
             default:
                 const dateA = new Date(a.expiration_date || 0);
@@ -1552,26 +2199,72 @@ async function renderWarranties(warrantiesToRender) {
         const statusClass = warranty.status || 'unknown';
         const statusText = warranty.statusText || 'Unknown Status';
         // Format warranty duration text
-        let warrantyDurationText = 'N/A';
+        let warrantyDurationText = window.i18next ? window.i18next.t('warranties.na') : 'N/A';
         if (isLifetime) {
-            warrantyDurationText = 'Lifetime';
+            warrantyDurationText = window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime';
         } else {
-            const years = warranty.warranty_duration_years || 0;
-            const months = warranty.warranty_duration_months || 0;
-            const days = warranty.warranty_duration_days || 0;
-            let parts = [];
-            if (years > 0) parts.push(`${years} year${years !== 1 ? 's' : ''}`);
-            if (months > 0) parts.push(`${months} month${months !== 1 ? 's' : ''}`);
-            if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
-            if (parts.length > 0) {
-                warrantyDurationText = parts.join(', ');
+            // Use display_duration values if available, otherwise fall back to warranty_duration values
+            const years = warranty.display_duration_years !== undefined ? warranty.display_duration_years : (warranty.warranty_duration_years || 0);
+            const months = warranty.display_duration_months !== undefined ? warranty.display_duration_months : (warranty.warranty_duration_months || 0);
+            const days = warranty.display_duration_days !== undefined ? warranty.display_duration_days : (warranty.warranty_duration_days || 0);
+            
+            // If all duration fields are 0 but we have expiration date, calculate from dates
+            if (years === 0 && months === 0 && days === 0 && warranty.expiration_date && warranty.purchase_date) {
+                const calculatedDuration = calculateDurationFromDates(warranty.purchase_date, warranty.expiration_date);
+                if (calculatedDuration) {
+                    let parts = [];
+                    if (calculatedDuration.years > 0) {
+                        const yearText = window.i18next ? window.i18next.t('warranties.year', {count: calculatedDuration.years}) : `year${calculatedDuration.years !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.years} ${yearText}`);
+                    }
+                    if (calculatedDuration.months > 0) {
+                        const monthText = window.i18next ? window.i18next.t('warranties.month', {count: calculatedDuration.months}) : `month${calculatedDuration.months !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.months} ${monthText}`);
+                    }
+                    if (calculatedDuration.days > 0) {
+                        const dayText = window.i18next ? window.i18next.t('warranties.day', {count: calculatedDuration.days}) : `day${calculatedDuration.days !== 1 ? 's' : ''}`;
+                        parts.push(`${calculatedDuration.days} ${dayText}`);
+                    }
+                    if (parts.length > 0) {
+                        warrantyDurationText = parts.join(', ');
+                    }
+                }
+            } else {
+                // Use the stored/calculated duration fields
+                let parts = [];
+                if (years > 0) {
+                    const yearText = window.i18next ? window.i18next.t('warranties.year', {count: years}) : `year${years !== 1 ? 's' : ''}`;
+                    parts.push(`${years} ${yearText}`);
+                }
+                if (months > 0) {
+                    const monthText = window.i18next ? window.i18next.t('warranties.month', {count: months}) : `month${months !== 1 ? 's' : ''}`;
+                    parts.push(`${months} ${monthText}`);
+                }
+                if (days > 0) {
+                    const dayText = window.i18next ? window.i18next.t('warranties.day', {count: days}) : `day${days !== 1 ? 's' : ''}`;
+                    parts.push(`${days} ${dayText}`);
+                }
+                if (parts.length > 0) {
+                    warrantyDurationText = parts.join(', ');
+                }
             }
         }
-        const expirationDateText = isLifetime ? 'Lifetime' : formatDate(expirationDate);
+        const expirationDateText = isLifetime ? (window.i18next ? window.i18next.t('warranties.lifetime') : 'Lifetime') : formatDate(expirationDate);
+        
+        // Calculate product age
+        const productAge = calculateProductAge(warranty.purchase_date);
+        
         // Make sure serial numbers array exists and is valid
         const validSerialNumbers = Array.isArray(warranty.serial_numbers) 
             ? warranty.serial_numbers.filter(sn => sn && typeof sn === 'string' && sn.trim() !== '')
             : [];
+        // Prepare user info HTML for global view
+        let userInfoHtml = '';
+        if (isGlobalView && warranty.user_display_name) {
+            const ownerLabel = window.i18next ? window.i18next.t('warranties.owner') : 'Owner';
+            userInfoHtml = `<div><strong>${ownerLabel}:</strong> <span>${warranty.user_display_name}</span></div>`;
+        }
+        
         // Prepare tags HTML
         const tagsHtml = warranty.tags && warranty.tags.length > 0 
             ? `<div class="tags-row">
@@ -1588,173 +2281,226 @@ async function renderWarranties(warrantiesToRender) {
         // Remove the button, and instead prepare a notes link for document-links-row
         let notesLinkHtml = '';
         if (hasNotes) {
-            notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> Notes</a>`;
+            const notesLabel = window.i18next ? window.i18next.t('warranties.notes') : 'Notes';
+            notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> ${notesLabel}</a>`;
         }
         
+        const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || 
+                            warranty.paperless_invoice_id || warranty.paperless_manual_id || warranty.paperless_photo_id || warranty.paperless_other_id || hasNotes;
+        
+        // Get current user ID to check warranty ownership
+        const currentUserId = (() => {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return userInfo.id;
+            } catch (e) {
+                return null;
+            }
+        })();
+        
+        // Check if current user can edit/delete this warranty
+        // Allow if: not in global view, user owns the warranty, or user is admin
+        const isAdmin = getUserType() === 'admin';
+        const canEdit = !isGlobalView || (warranty.user_id === currentUserId) || isAdmin;
+        
+        // Generate action buttons HTML based on permissions
+        const actionButtonsHtml = canEdit ? `
+            <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
+                <i class="fas fa-trash"></i>
+            </button>
+        ` : `
+            <span class="action-btn-placeholder" title="View only - not your warranty">
+                <i class="fas fa-eye" style="color: #666;"></i>
+            </span>
+        `;
+
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
         
         if (currentView === 'grid') {
             // Grid view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Warranty: <span>${warrantyDurationText}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
-                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${userInfoHtml}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div class="serial-numbers">
-                                <strong>Serial Numbers:</strong>
-                                <ul>
-                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                                </ul>
-                            </div>
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
                         ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
-                <div class="warranty-status-row status-${statusClass}">
-                    <span>${statusText}</span>
-                </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
             `;
         } else if (currentView === 'list') {
             // List view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 180px; height: 180px; object-fit: cover; border-radius: 6px; border: 2px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Warranty: <span>${warrantyDurationText}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
-                        ${warranty.purchase_price ? `<div><span>Price: </span><span class="currency-symbol">${symbol}</span><span>${parseFloat(warranty.purchase_price).toFixed(2)}</span></div>` : ''}
-                        ${warranty.vendor ? `<div>Vendor: <span>${warranty.vendor}</span></div>` : ''}
+                        ${userInfoHtml}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
                         ${validSerialNumbers.length > 0 ? `
-                            <div class="serial-numbers">
-                                <strong>Serial Numbers:</strong>
-                                <ul>
-                                    ${validSerialNumbers.map(sn => `<li>${sn}</li>`).join('')}
-                                </ul>
-                            </div>
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
                         ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
-                <div class="warranty-status-row status-${statusClass}">
-                    <span>${statusText}</span>
-                </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
+                <div class="warranty-status-row status-${statusClass}">
+                    <span>${statusText}</span>
+                </div>
             `;
         } else if (currentView === 'table') {
             // Table view HTML structure
+            const photoThumbnailHtml = warranty.product_photo_path && warranty.product_photo_path !== 'null' ? `
+                <div class="product-photo-thumbnail">
+                    <a href="#" onclick="openSecureFile('${warranty.product_photo_path}'); return false;" title="Click to view full size image">
+                        <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Product Photo" 
+                             style="width: 55px; height: 55px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border-color); cursor: pointer;"
+                             onerror="this.style.display='none'" class="secure-image">
+                    </a>
+                </div>
+            ` : '';
+            
             cardElement.innerHTML = `
                 <div class="product-name-header">
-                    <h3 class="warranty-title">${warranty.product_name || 'Unnamed Product'}</h3>
+                    <h3 class="warranty-title" title="${warranty.product_name || 'Unnamed Product'}">${warranty.product_name || 'Unnamed Product'}</h3>
                     <div class="warranty-actions">
-                        <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        ${actionButtonsHtml}
                     </div>
                 </div>
                 <div class="warranty-content">
+                    ${photoThumbnailHtml}
                     <div class="warranty-info">
-                        <div>Purchased: <span>${formatDate(purchaseDate)}</span></div>
-                        <div>Expires: <span>${expirationDateText}</span></div>
+                        ${userInfoHtml}
+                        <div><i class="fas fa-calendar"></i> ${window.i18next ? window.i18next.t('warranties.age') : 'Age'}: <span>${productAge}</span></div>
+                        <div><i class="fas fa-file-alt"></i> ${window.i18next ? window.i18next.t('warranties.warranty') : 'Warranty'}: <span>${warrantyDurationText}</span></div>
+                        <div><i class="fas fa-wrench"></i> ${window.i18next ? window.i18next.t('warranties.warranty_ends') : 'Warranty Ends'}: <span>${expirationDateText}</span></div>
+                        ${warranty.purchase_price ? `<div><i class="fas fa-coins"></i> ${window.i18next ? window.i18next.t('warranties.price') : 'Price'}: <span>${formatCurrencyHTML(warranty.purchase_price, warranty.currency ? getCurrencySymbolByCode(warranty.currency) : getCurrencySymbol(), getCurrencyPosition())}</span></div>` : ''}
+                        ${validSerialNumbers.length > 0 ? `
+                            <div><i class="fas fa-barcode"></i> ${window.i18next ? window.i18next.t('warranties.serial_number') : 'Serial Number'}: <span>${validSerialNumbers[0]}</span></div>
+                            ${validSerialNumbers.length > 1 ? `
+                                <div style="margin-left: 28px;">
+                                    <ul style="margin-top: 5px;">
+                                        ${validSerialNumbers.slice(1).map(sn => `<li>${sn}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        ` : ''}
+                        ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
+                        ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
                 </div>
                 <div class="warranty-status-row status-${statusClass}">
                     <span>${statusText}</span>
                 </div>
+                ${hasDocuments ? `
                 <div class="document-links-row">
                     <div class="document-links-inner-container">
                         ${warranty.product_url ? `
                             <a href="${warranty.product_url}" class="product-link" target="_blank">
-                                <i class="fas fa-globe"></i> Product Website
+                                <i class="fas fa-globe"></i> ${window.i18next ? window.i18next.t('warranties.product_website') : 'Product Website'}
                             </a>
                         ` : ''}
-                        ${warranty.invoice_path && warranty.invoice_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.invoice_path}'); return false;" class="invoice-link">
-                                <i class="fas fa-file-invoice"></i> Invoice
-                            </a>` : ''}
-                        ${warranty.manual_path && warranty.manual_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.manual_path}'); return false;" class="manual-link">
-                                <i class="fas fa-book"></i> Manual
-                            </a>` : ''}
-                        ${warranty.other_document_path && warranty.other_document_path !== 'null' ? `
-                            <a href="#" onclick="openSecureFile('${warranty.other_document_path}'); return false;" class="other-document-link">
-                                <i class="fas fa-file-alt"></i> Files
-                            </a>` : ''}
+                        ${generateDocumentLink(warranty, 'invoice')}
+                        ${generateDocumentLink(warranty, 'manual')}
+                        ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
                     </div>
                 </div>
+                ` : ''}
                 ${tagsHtml}
             `;
         }
@@ -1762,24 +2508,99 @@ async function renderWarranties(warrantiesToRender) {
         // Add event listeners
         warrantiesList.appendChild(cardElement);
         
-        // Edit button event listener
-        cardElement.querySelector('.edit-btn').addEventListener('click', () => {
-            openEditModal(warranty);
-        });
-        
-        // Delete button event listener
-        cardElement.querySelector('.delete-btn').addEventListener('click', () => {
-            openDeleteModal(warranty.id, warranty.product_name);
-        });
+        // Add event listeners only if user can edit (buttons exist)
+        if (canEdit) {
+            // Edit button event listener
+            const editBtn = cardElement.querySelector('.edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', async () => {
+                    console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
+                    // Find the current warranty data instead of using the potentially stale warranty object
+                    const currentWarranty = warranties.find(w => w.id === warranty.id);
+                    console.log('[DEBUG] Found current warranty:', currentWarranty ? 'Yes' : 'No', currentWarranty?.notes);
+                    if (currentWarranty) {
+                        await openEditModal(currentWarranty);
+                    } else {
+                        showToast(window.t('messages.warranty_not_found_refresh'), 'error');
+                    }
+                });
+            }
+            
+            // Delete button event listener
+            const deleteBtn = cardElement.querySelector('.delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                    openDeleteModal(warranty.id, warranty.product_name);
+                });
+            }
+        }
         // View notes button event listener
         const notesLink = cardElement.querySelector('.notes-link');
         if (notesLink) {
             notesLink.addEventListener('click', (e) => {
                 e.preventDefault();
-                showNotesModal(warranty.notes, warranty);
+                // Find the current warranty data instead of using the potentially stale warranty object
+                const currentWarranty = warranties.find(w => w.id === warranty.id);
+                if (currentWarranty) {
+                    showNotesModal(currentWarranty.notes, currentWarranty);
+                } else {
+                    showToast(window.t('messages.warranty_not_found_refresh'), 'error');
+                }
             });
         }
     });
+    
+    // Load secure images with authentication after rendering
+    loadSecureImages();
+
+    // Improved: Align card heights after all images have loaded
+    if (currentView === 'grid') {
+        const cards = warrantiesList.querySelectorAll('.warranty-card');
+        if (cards.length > 0) {
+            const images = warrantiesList.querySelectorAll('.secure-image');
+            let loadedCount = 0;
+            const totalImages = images.length;
+
+            const alignHeights = () => {
+                let maxHeight = 0;
+                cards.forEach(card => {
+                    card.style.minHeight = ''; // Reset
+                    const height = card.getBoundingClientRect().height;
+                    if (height > maxHeight) maxHeight = height;
+                });
+                cards.forEach(card => {
+                    card.style.minHeight = `${maxHeight}px`;
+                });
+            };
+
+            if (totalImages === 0) {
+                alignHeights(); // No images, align immediately
+            } else {
+                images.forEach(img => {
+                    if (img.complete) {
+                        loadedCount++;
+                        if (loadedCount === totalImages) alignHeights();
+                    } else {
+                        img.addEventListener('load', () => {
+                            loadedCount++;
+                            if (loadedCount === totalImages) alignHeights();
+                        });
+                        img.addEventListener('error', () => {
+                            loadedCount++;
+                            if (loadedCount === totalImages) alignHeights();
+                        });
+                    }
+                });
+            }
+        }
+    }
+
+    // Update the timeline chart if on the status page or appropriate
+    if (typeof updateTimelineChart === 'function') {
+        updateTimelineChart();
+    }
+
+    console.log('Warranties rendered successfully');
 }
 
 function filterWarranties() {
@@ -1840,7 +2661,8 @@ function filterWarranties() {
 }
 
 function applyFilters() {
-    console.log('Applying filters with:', currentFilters);
+    console.log('[FILTER DEBUG] Applying filters with:', currentFilters);
+    console.log('[FILTER DEBUG] Total warranties before filtering:', warranties.length);
     
     // Filter warranties based on currentFilters
     const filtered = warranties.filter(warranty => {
@@ -1861,6 +2683,11 @@ function applyFilters() {
 
         // Vendor filter
         if (currentFilters.vendor !== 'all' && (warranty.vendor || '').toLowerCase() !== currentFilters.vendor.toLowerCase()) {
+            return false;
+        }
+        
+        // Warranty type filter
+        if (currentFilters.warranty_type !== 'all' && (warranty.warranty_type || '').toLowerCase() !== currentFilters.warranty_type.toLowerCase()) {
             return false;
         }
         
@@ -1888,14 +2715,23 @@ function applyFilters() {
         return true;
     });
     
-    console.log('Filtered warranties:', filtered);
+    console.log('[FILTER DEBUG] Filtered warranties:', filtered.length);
+    console.log('[FILTER DEBUG] Filtered warranty IDs:', filtered.map(w => w.id));
     
     // Render the filtered warranties
     renderWarranties(filtered);
 }
 
-function openEditModal(warranty) {
+async function openEditModal(warranty) {
+    // Close any existing modals first
+    closeModals();
+    
     currentWarrantyId = warranty.id;
+    
+    // Load currencies for the dropdown and wait for it to complete
+    await loadCurrencies();
+    
+    console.log('[DEBUG] Opening edit modal for warranty:', warranty.id, 'with notes:', warranty.notes);
     
     // Populate form fields
     document.getElementById('editProductName').value = warranty.product_name;
@@ -1907,7 +2743,38 @@ function openEditModal(warranty) {
     document.getElementById('editWarrantyDurationDays').value = warranty.warranty_duration_days || 0;
     
     document.getElementById('editPurchasePrice').value = warranty.purchase_price || '';
+    
+    // Set currency dropdown
+    const editCurrencySelect = document.getElementById('editCurrency');
+    if (editCurrencySelect && warranty.currency) {
+        editCurrencySelect.value = warranty.currency;
+    }
     document.getElementById('editVendor').value = warranty.vendor || '';
+    
+    // Handle warranty type - check if it's a predefined option or custom
+    const editWarrantyTypeSelect = document.getElementById('editWarrantyType');
+    const editWarrantyTypeCustom = document.getElementById('editWarrantyTypeCustom');
+    if (editWarrantyTypeSelect && warranty.warranty_type) {
+        // Check if the warranty type exists as an option in the dropdown
+        const options = Array.from(editWarrantyTypeSelect.options);
+        const matchingOption = options.find(option => option.value === warranty.warranty_type);
+        
+        if (matchingOption) {
+            // It's a predefined option
+            editWarrantyTypeSelect.value = warranty.warranty_type;
+            if (editWarrantyTypeCustom) editWarrantyTypeCustom.style.display = 'none';
+        } else {
+            // It's a custom value
+            editWarrantyTypeSelect.value = 'other';
+            if (editWarrantyTypeCustom) {
+                editWarrantyTypeCustom.style.display = 'block';
+                editWarrantyTypeCustom.value = warranty.warranty_type;
+            }
+        }
+    } else if (editWarrantyTypeSelect) {
+        editWarrantyTypeSelect.value = '';
+        if (editWarrantyTypeCustom) editWarrantyTypeCustom.style.display = 'none';
+    }
     
     // Clear existing serial number inputs
     const editSerialNumbersContainer = document.getElementById('editSerialNumbersContainer');
@@ -1939,9 +2806,9 @@ function openEditModal(warranty) {
         const firstInput = document.createElement('div');
         firstInput.className = 'serial-number-input';
         firstInput.innerHTML = `
-            <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[0]}">
+            <input type="text" name="serial_numbers[]" class="form-control" placeholder="${i18next.t('warranties.enter_serial_number')}" value="${validSerialNumbers[0]}">
             <button type="button" class="btn btn-sm btn-primary add-serial-number">
-                <i class="fas fa-plus"></i> Add Another
+                <i class="fas fa-plus"></i> ${i18next.t('warranties.add_serial_number')}
             </button>
         `;
 
@@ -1958,9 +2825,9 @@ function openEditModal(warranty) {
             const newInput = document.createElement('div');
             newInput.className = 'serial-number-input';
             newInput.innerHTML = `
-                <input type="text" name="serial_numbers[]" class="form-control" placeholder="Enter serial number" value="${validSerialNumbers[i]}">
+                <input type="text" name="serial_numbers[]" class="form-control" placeholder="${i18next.t('warranties.enter_serial_number')}" value="${validSerialNumbers[i]}">
                 <button type="button" class="btn btn-sm btn-danger remove-serial-number">
-                    <i class="fas fa-minus"></i> Remove
+                    <i class="fas fa-minus"></i> ${i18next.t('actions.delete')}
                 </button>
             `;
 
@@ -1977,24 +2844,36 @@ function openEditModal(warranty) {
     const currentInvoiceElement = document.getElementById('currentInvoice');
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
     if (currentInvoiceElement && deleteInvoiceBtn) {
-        if (warranty.invoice_path && warranty.invoice_path !== 'null') {
+        const hasLocalInvoice = warranty.invoice_path && warranty.invoice_path !== 'null';
+        const hasPaperlessInvoice = warranty.paperless_invoice_id && warranty.paperless_invoice_id !== null;
+        
+        if (hasLocalInvoice) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current invoice: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_invoice')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.invoice_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
+                </span>
+            `;
+            deleteInvoiceBtn.style.display = '';
+        } else if (hasPaperlessInvoice) {
+            currentInvoiceElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_invoice')}: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_invoice_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteInvoiceBtn.style.display = '';
         } else {
-            currentInvoiceElement.innerHTML = '<span>No invoice uploaded</span>';
+            currentInvoiceElement.innerHTML = `<span>${i18next.t('warranties.no_invoice_uploaded')}</span>`;
             deleteInvoiceBtn.style.display = 'none';
         }
         // Reset delete state
         deleteInvoiceBtn.dataset.delete = 'false';
         deleteInvoiceBtn.onclick = function() {
             deleteInvoiceBtn.dataset.delete = 'true';
-            currentInvoiceElement.innerHTML = '<span class="text-danger">Invoice will be deleted on save</span>';
+            currentInvoiceElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.invoice_will_be_deleted')}</span>`;
             deleteInvoiceBtn.style.display = 'none';
         };
     }
@@ -2002,63 +2881,189 @@ function openEditModal(warranty) {
     const currentManualElement = document.getElementById('currentManual');
     const deleteManualBtn = document.getElementById('deleteManualBtn');
     if (currentManualElement && deleteManualBtn) {
-        if (warranty.manual_path && warranty.manual_path !== 'null') {
+        const hasLocalManual = warranty.manual_path && warranty.manual_path !== 'null';
+        const hasPaperlessManual = warranty.paperless_manual_id && warranty.paperless_manual_id !== null;
+        
+        if (hasLocalManual) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current manual: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_manual')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.manual_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
+                </span>
+            `;
+            deleteManualBtn.style.display = '';
+        } else if (hasPaperlessManual) {
+            currentManualElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_manual')}: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_manual_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
             deleteManualBtn.style.display = '';
         } else {
-            currentManualElement.innerHTML = '<span>No manual uploaded</span>';
+            currentManualElement.innerHTML = `<span>${i18next.t('warranties.no_manual_uploaded')}</span>`;
             deleteManualBtn.style.display = 'none';
         }
         // Reset delete state
         deleteManualBtn.dataset.delete = 'false';
         deleteManualBtn.onclick = function() {
             deleteManualBtn.dataset.delete = 'true';
-            currentManualElement.innerHTML = '<span class="text-danger">Manual will be deleted on save</span>';
+            currentManualElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.manual_will_be_deleted')}</span>`;
             deleteManualBtn.style.display = 'none';
         };
     }
 
+    // Show current product photo if exists
+    const currentProductPhotoElement = document.getElementById('currentProductPhoto');
+    const deleteProductPhotoBtn = document.getElementById('deleteProductPhotoBtn');
+    if (currentProductPhotoElement && deleteProductPhotoBtn) {
+        const hasLocalPhoto = warranty.product_photo_path && warranty.product_photo_path !== 'null';
+        const hasPaperlessPhoto = warranty.paperless_photo_id && warranty.paperless_photo_id !== null;
+        
+        if (hasLocalPhoto) {
+            currentProductPhotoElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_photo')}: 
+                    <img data-secure-src="/api/secure-file/${warranty.product_photo_path.replace('uploads/', '')}" alt="Current Photo" class="secure-image" 
+                         style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; margin-left: 10px; border: 2px solid var(--border-color);"
+                         onerror="this.style.display='none'">
+                    <br><small>(${i18next.t('warranties.upload_new_photo_replace')})</small>
+                </span>
+            `;
+            deleteProductPhotoBtn.style.display = '';
+        } else if (hasPaperlessPhoto) {
+            currentProductPhotoElement.innerHTML = `
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_photo')}: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_photo_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
+                    <br><small>(${i18next.t('warranties.upload_new_photo_replace')})</small>
+                </span>
+            `;
+            deleteProductPhotoBtn.style.display = '';
+        } else {
+            currentProductPhotoElement.innerHTML = `<span>${i18next.t('warranties.no_photo_uploaded')}</span>`;
+            deleteProductPhotoBtn.style.display = 'none';
+        }
+        // Reset delete state
+        deleteProductPhotoBtn.dataset.delete = 'false';
+        deleteProductPhotoBtn.onclick = function() {
+            deleteProductPhotoBtn.dataset.delete = 'true';
+            currentProductPhotoElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.photo_will_be_deleted')}</span>`;
+            deleteProductPhotoBtn.style.display = 'none';
+        };
+    }
+    
     // Show current other document if exists
     const currentOtherDocumentElement = document.getElementById('currentOtherDocument'); 
     const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
     if (currentOtherDocumentElement && deleteOtherDocumentBtn) { 
-        if (warranty.other_document_path && warranty.other_document_path !== 'null') { 
+        const hasLocalOther = warranty.other_document_path && warranty.other_document_path !== 'null';
+        const hasPaperlessOther = warranty.paperless_other_id && warranty.paperless_other_id !== null;
+        
+        if (hasLocalOther) { 
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
-                    <i class="fas fa-check-circle"></i> Current other document: 
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_other_document')}: 
                     <a href="#" class="view-document-link" onclick="openSecureFile('${warranty.other_document_path}'); return false;">View</a>
-                    (Upload a new file to replace)
+                    (${i18next.t('warranties.upload_new_file_replace')})
+                </span>
+            `; 
+            deleteOtherDocumentBtn.style.display = ''; 
+        } else if (hasPaperlessOther) {
+            currentOtherDocumentElement.innerHTML = ` 
+                <span class="text-success">
+                    <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_other_document')}: 
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_other_id}); return false;">View</a>
+                    <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `; 
             deleteOtherDocumentBtn.style.display = ''; 
         } else { 
-            currentOtherDocumentElement.innerHTML = '<span>No other document uploaded</span>'; 
+            currentOtherDocumentElement.innerHTML = `<span>${i18next.t('warranties.no_other_document_uploaded')}</span>`; 
             deleteOtherDocumentBtn.style.display = 'none'; 
         } 
         // Reset delete state
         deleteOtherDocumentBtn.dataset.delete = 'false'; 
         deleteOtherDocumentBtn.onclick = function() { 
             deleteOtherDocumentBtn.dataset.delete = 'true'; 
-            currentOtherDocumentElement.innerHTML = '<span class="text-danger">Other document will be deleted on save</span>'; 
+            currentOtherDocumentElement.innerHTML = `<span class="text-danger">${i18next.t('warranties.other_document_will_be_deleted')}</span>`; 
             deleteOtherDocumentBtn.style.display = 'none'; 
         }; 
     } 
     
     // Reset file inputs
+    document.getElementById('editProductPhoto').value = '';
     document.getElementById('editInvoice').value = '';
     document.getElementById('editManual').value = '';
     document.getElementById('editOtherDocument').value = ''; 
+    document.getElementById('editProductPhotoFileName').textContent = '';
     document.getElementById('editFileName').textContent = '';
     document.getElementById('editManualFileName').textContent = '';
-    document.getElementById('editOtherDocumentFileName').textContent = ''; 
+    document.getElementById('editOtherDocumentFileName').textContent = '';
+    
+    // Reset photo preview
+    const editPhotoPreview = document.getElementById('editProductPhotoPreview');
+    if (editPhotoPreview) {
+        editPhotoPreview.style.display = 'none';
+    } 
+    
+    // Set storage options based on current document storage
+    if (paperlessNgxEnabled) {
+        // Set product photo storage option
+        const editProductPhotoStorageRadios = document.getElementsByName('editProductPhotoStorage');
+        if (editProductPhotoStorageRadios.length > 0) {
+            const isPaperlessPhoto = warranty.paperless_photo_id && warranty.paperless_photo_id !== null;
+            editProductPhotoStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessPhoto ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set invoice storage option
+        const editInvoiceStorageRadios = document.getElementsByName('editInvoiceStorage');
+        if (editInvoiceStorageRadios.length > 0) {
+            const isPaperlessInvoice = warranty.paperless_invoice_id && warranty.paperless_invoice_id !== null;
+            editInvoiceStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessInvoice ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set manual storage option
+        const editManualStorageRadios = document.getElementsByName('editManualStorage');
+        if (editManualStorageRadios.length > 0) {
+            const isPaperlessManual = warranty.paperless_manual_id && warranty.paperless_manual_id !== null;
+            editManualStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessManual ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        // Set other document storage option
+        const editOtherDocumentStorageRadios = document.getElementsByName('editOtherDocumentStorage');
+        if (editOtherDocumentStorageRadios.length > 0) {
+            const isPaperlessOther = warranty.paperless_other_id && warranty.paperless_other_id !== null;
+            editOtherDocumentStorageRadios.forEach(radio => {
+                radio.checked = isPaperlessOther ? (radio.value === 'paperless') : (radio.value === 'local');
+            });
+        }
+        
+        console.log('[Edit Modal] Storage options set based on current document storage:', {
+            photo: warranty.paperless_photo_id ? 'paperless' : 'local',
+            invoice: warranty.paperless_invoice_id ? 'paperless' : 'local',
+            manual: warranty.paperless_manual_id ? 'paperless' : 'local',
+            other: warranty.paperless_other_id ? 'paperless' : 'local'
+        });
+    }
     
     // Initialize file input event listeners
+    const editProductPhotoInput = document.getElementById('editProductPhoto');
+    if (editProductPhotoInput) {
+        editProductPhotoInput.addEventListener('change', function(event) {
+            updateFileName(event, 'editProductPhoto', 'editProductPhotoFileName');
+        });
+    }
+    
     const editInvoiceInput = document.getElementById('editInvoice');
     if (editInvoiceInput) {
         editInvoiceInput.addEventListener('change', function(event) {
@@ -2183,11 +3188,81 @@ function openEditModal(warranty) {
         console.error("Lifetime warranty elements or duration fields not found in edit form");
     }
 
+    // --- Set Warranty Method Selection ---
+    if (editDurationMethodRadio && editExactDateMethodRadio && editExactExpirationDateInput) {
+        console.log('[DEBUG Edit Modal] Warranty method detection:', {
+            originalInputMethod: warranty.original_input_method,
+            isLifetime: warranty.is_lifetime,
+            expirationDate: warranty.expiration_date,
+            warrantyDurationYears: warranty.warranty_duration_years,
+            warrantyDurationMonths: warranty.warranty_duration_months,
+            warrantyDurationDays: warranty.warranty_duration_days
+        });
+        
+        // Use the original input method if available, otherwise fall back to previous logic
+        if (!warranty.is_lifetime) {
+            if (warranty.original_input_method === 'exact_date') {
+                // Use exact date method
+                editExactDateMethodRadio.checked = true;
+                editDurationMethodRadio.checked = false;
+                editExactExpirationDateInput.value = warranty.expiration_date.split('T')[0];
+                console.log('[DEBUG Edit Modal] Selected exact date method based on original_input_method');
+            } else {
+                // Use duration method (either explicitly set or fallback)
+                editDurationMethodRadio.checked = true;
+                editExactDateMethodRadio.checked = false;
+                editExactExpirationDateInput.value = '';
+                console.log('[DEBUG Edit Modal] Selected duration method based on original_input_method or fallback');
+            }
+        }
+        
+        // Set up event listeners for warranty method change
+        editDurationMethodRadio.removeEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.removeEventListener('change', handleEditWarrantyMethodChange);
+        editDurationMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        editExactDateMethodRadio.addEventListener('change', handleEditWarrantyMethodChange);
+        
+        console.log('[DEBUG Edit Modal] Event listeners attached to warranty method radio buttons');
+        console.log('[DEBUG Edit Modal] Initial radio states:', {
+            durationChecked: editDurationMethodRadio.checked,
+            exactDateChecked: editExactDateMethodRadio.checked
+        });
+        
+        // Call handler to set initial state
+        handleEditWarrantyMethodChange();
+    }
+
     // Set notes
     const notesInput = document.getElementById('editNotes');
     if (notesInput) {
         notesInput.value = warranty.notes || '';
     }
+    
+    // Update currency symbols and positioning for the edit form
+    const symbol = getCurrencySymbol();
+    const position = getCurrencyPosition();
+    updateFormCurrencyPosition(symbol, position);
+    
+    // Trigger currency positioning after modal is visible
+    setTimeout(() => {
+        if (position === 'right') {
+            const editPriceInput = document.getElementById('editPurchasePrice');
+            const editCurrencySymbol = document.getElementById('editCurrencySymbol');
+            if (editPriceInput && editCurrencySymbol) {
+                // Force update the currency position now that modal is visible
+                const wrapper = editPriceInput.closest('.price-input-wrapper');
+                if (wrapper && wrapper.classList.contains('currency-right')) {
+                    const updateEvent = new Event('focus');
+                    editPriceInput.dispatchEvent(updateEvent);
+                    const blurEvent = new Event('blur');
+                    editPriceInput.dispatchEvent(blurEvent);
+                }
+            }
+        }
+    }, 200);
+    
+    // Load secure images with authentication for the edit modal
+    setTimeout(() => loadSecureImages(), 100); // Small delay to ensure DOM is updated
 }
 
 function openDeleteModal(warrantyId, productName) {
@@ -2246,38 +3321,78 @@ function validateFileSize(formData, maxSizeMB = 32) {
 }
 
 // Submit form function - event handler for form submit
-function handleFormSubmit(event) { // Renamed from submitForm
+async function handleFormSubmit(event) { // Made async to properly await paperless uploads
     event.preventDefault();
     
     const isLifetime = isLifetimeCheckbox.checked;
+    const isDurationMethod = durationMethodRadio && durationMethodRadio.checked;
     const years = parseInt(warrantyDurationYearsInput.value || 0);
     const months = parseInt(warrantyDurationMonthsInput.value || 0);
     const days = parseInt(warrantyDurationDaysInput.value || 0);
+    const exactDate = exactExpirationDateInput ? exactExpirationDateInput.value : '';
 
-    // --- Updated Lifetime Check ---
-    if (!isLifetime && years === 0 && months === 0 && days === 0) {
-        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
-        switchToTab(1); // Switch to warranty details tab
-        // Optionally focus the first duration input
-        if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
-        // Add invalid class to the container or individual inputs if needed
-        if (warrantyDurationFields) warrantyDurationFields.classList.add('invalid-duration'); // Example
-        return;
-    } else {
-         if (warrantyDurationFields) warrantyDurationFields.classList.remove('invalid-duration');
+    // --- Updated Lifetime and Method Check ---
+    if (!isLifetime) {
+        if (isDurationMethod) {
+            // Validate duration fields
+            if (years === 0 && months === 0 && days === 0) {
+                showValidationErrors(1);
+                switchToTab(1); // Switch to warranty details tab
+                // Optionally focus the first duration input
+                if (warrantyDurationYearsInput) warrantyDurationYearsInput.focus();
+                // Add invalid class to the container or individual inputs if needed
+                if (warrantyDurationFields) warrantyDurationFields.classList.add('invalid-duration'); // Example
+                return;
+            }
+        } else {
+            // Validate exact expiration date
+            if (!exactDate) {
+                showValidationErrors(1);
+                switchToTab(1); // Switch to warranty details tab
+                if (exactExpirationDateInput) exactExpirationDateInput.focus();
+                return;
+            }
+            
+            // Validate that expiration date is in the future relative to purchase date
+            const purchaseDate = document.getElementById('purchaseDate').value;
+            if (purchaseDate && exactDate <= purchaseDate) {
+                showToast(window.t('messages.expiration_date_after_purchase_date'), 'error');
+                switchToTab(1);
+                if (exactExpirationDateInput) exactExpirationDateInput.focus();
+                return;
+            }
+        }
     }
+    
+    // Remove invalid duration class if validation passes
+    if (warrantyDurationFields) warrantyDurationFields.classList.remove('invalid-duration');
     
     // Validate all tabs
     for (let i = 0; i < tabContents.length; i++) {
         if (!validateTab(i)) {
             // Switch to the first invalid tab
             switchToTab(i);
+            showValidationErrors(i);
             return;
         }
     }
     
     // Create form data object
     const formData = new FormData(warrantyForm);
+    
+    // Handle warranty type - use custom value if "other" is selected
+    const warrantyTypeSelect = document.getElementById('warrantyType');
+    const warrantyTypeCustom = document.getElementById('warrantyTypeCustom');
+    if (warrantyTypeSelect && warrantyTypeSelect.value === 'other' && warrantyTypeCustom && warrantyTypeCustom.value.trim()) {
+        formData.set('warranty_type', warrantyTypeCustom.value.trim());
+    }
+    
+    // Debug: Log all form data entries
+    console.log('=== DEBUG: Form Data Contents ===');
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    console.log('=== END DEBUG ===');
     
     // Product URL handling
     let productUrlValue = formData.get('product_url');
@@ -2322,6 +3437,15 @@ function handleFormSubmit(event) { // Renamed from submitForm
     // We need to explicitly add 'false' if it's not checked.
     if (!isLifetimeCheckbox.checked) {
         formData.append('is_lifetime', 'false');
+        
+        // Add warranty method and exact expiration date if using exact date method
+        if (!isDurationMethod && exactDate) {
+            formData.append('exact_expiration_date', exactDate);
+            // Ensure duration fields are 0 when using exact date
+            formData.set('warranty_duration_years', '0');
+            formData.set('warranty_duration_months', '0');
+            formData.set('warranty_duration_days', '0');
+        }
     } else {
         // Ensure duration fields are 0 if lifetime is checked
         formData.set('warranty_duration_years', '0');
@@ -2329,51 +3453,146 @@ function handleFormSubmit(event) { // Renamed from submitForm
         formData.set('warranty_duration_days', '0');
     }
 
-    // Add other_document file
-    const otherDocumentFile = document.getElementById('otherDocument').files[0]; 
-    if (otherDocumentFile) { 
-        formData.append('other_document', otherDocumentFile); 
-    } 
+    // Add other_document file (always, as no storage selection for this)
+    const otherDocumentFile = document.getElementById('otherDocument').files[0];
+    if (otherDocumentFile) {
+        formData.append('other_document', otherDocumentFile);
+    }
+
+    // --- Only append invoice/manual files to FormData if storage is 'local' ---
+    const invoiceFile = document.getElementById('invoice')?.files[0];
+    const manualFile = document.getElementById('manual')?.files[0];
+    let invoiceStorage = 'local';
+    let manualStorage = 'local';
+    const invoiceStorageRadio = document.querySelector('input[name="invoiceStorage"]:checked');
+    const manualStorageRadio = document.querySelector('input[name="manualStorage"]:checked');
+    if (invoiceStorageRadio) invoiceStorage = invoiceStorageRadio.value;
+    if (manualStorageRadio) manualStorage = manualStorageRadio.value;
+    formData.set('invoiceStorage', invoiceStorage);
+    formData.set('manualStorage', manualStorage);
+    console.log('[DEBUG] Invoice storage:', invoiceStorage, 'Manual storage:', manualStorage);
+    console.log('[DEBUG] Invoice file:', invoiceFile);
+    console.log('[DEBUG] Manual file:', manualFile);
+    if (invoiceStorage === 'local' && invoiceFile) {
+        console.log('[DEBUG] Appending invoice file to FormData (local storage)');
+        formData.append('invoice', invoiceFile);
+    }
+    if (manualStorage === 'local' && manualFile) {
+        console.log('[DEBUG] Appending manual file to FormData (local storage)');
+        formData.append('manual', manualFile);
+    }
+    if (invoiceStorage === 'paperless') {
+        console.log('[DEBUG] Invoice should be uploaded to Paperless-ngx');
+    }
+    if (manualStorage === 'paperless') {
+        console.log('[DEBUG] Manual should be uploaded to Paperless-ngx');
+    }
+
+    // Add selected Paperless documents (for linking existing docs, not uploads)
+    const selectedPaperlessProductPhoto = document.getElementById('selectedPaperlessProductPhoto');
+    const selectedPaperlessInvoice = document.getElementById('selectedPaperlessInvoice');
+    const selectedPaperlessManual = document.getElementById('selectedPaperlessManual');
+    const selectedPaperlessOtherDocument = document.getElementById('selectedPaperlessOtherDocument');
+    if (selectedPaperlessProductPhoto && selectedPaperlessProductPhoto.value) {
+        formData.append('paperless_photo_id', selectedPaperlessProductPhoto.value);
+    }
+    if (selectedPaperlessInvoice && selectedPaperlessInvoice.value) {
+        formData.append('paperless_invoice_id', selectedPaperlessInvoice.value);
+    }
+    if (selectedPaperlessManual && selectedPaperlessManual.value) {
+        formData.append('paperless_manual_id', selectedPaperlessManual.value);
+    }
+    if (selectedPaperlessOtherDocument && selectedPaperlessOtherDocument.value) {
+        formData.append('paperless_other_id', selectedPaperlessOtherDocument.value);
+    }
     
     // Show loading spinner
     showLoadingSpinner();
     
-    // Send the form data to the server
-    fetch('/api/warranties', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
-        },
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Failed to add warranty');
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoadingSpinner();
-        showToast('Warranty added successfully', 'success');
+    try {
+        // Process Paperless-ngx uploads if enabled
+        const paperlessUploads = await processPaperlessNgxUploads(formData);
         
-        // --- Close and reset the modal on success ---
+        // Add Paperless-ngx document IDs to form data
+        Object.keys(paperlessUploads).forEach(key => {
+            formData.append(key, paperlessUploads[key]);
+        });
+        
+        // Send the form data to the server
+        const response = await fetch('/api/warranties', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token')
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to add warranty');
+        }
+
+        const data = await response.json();
+        hideLoadingSpinner();
+        showToast(window.t('messages.warranty_added_successfully'), 'success');
+        
+        // Store the new warranty ID for auto-linking
+        const newWarrantyId = data.id;
+
+        // --- Store file info and storage type before upload for auto-link logic ---
+        const invoiceFileInput = document.getElementById('invoice');
+        const manualFileInput = document.getElementById('manual');
+        const invoiceFilePre = invoiceFileInput?.files[0];
+        const manualFilePre = manualFileInput?.files[0];
+        const invoiceStoragePre = formData.get('invoiceStorage');
+        const manualStoragePre = formData.get('manualStorage');
+
+        // Auto-link any documents that were uploaded to Paperless-ngx (match edit modal behavior)
+        const autoLinkTypes = [];
+        const fileInfo = {};
+        if (invoiceStoragePre === 'paperless' && invoiceFilePre) {
+            autoLinkTypes.push('invoice');
+            fileInfo.invoice = invoiceFilePre.name;
+        }
+        if (manualStoragePre === 'paperless' && manualFilePre) {
+            autoLinkTypes.push('manual');
+            fileInfo.manual = manualFilePre.name;
+        }
+        // Other document does not have a storage option, so skip unless you add support
+        // If you want to support auto-linking for 'other', add logic here
+        console.log('[Auto-Link DEBUG] newWarrantyId:', newWarrantyId, 'autoLinkTypes:', autoLinkTypes, 'fileInfo:', fileInfo, 'invoiceStorage:', invoiceStoragePre, 'manualStorage:', manualStoragePre);
+        if (autoLinkTypes.length > 0 && newWarrantyId) {
+            console.log('[Auto-Link] Starting automatic document linking after warranty creation (Paperless-ngx uploads only)', autoLinkTypes, fileInfo);
+            setTimeout(() => {
+                console.log('[Auto-Link DEBUG] Calling autoLinkRecentDocuments with:', newWarrantyId, autoLinkTypes, fileInfo);
+                autoLinkRecentDocuments(newWarrantyId, autoLinkTypes, 10, 10000, fileInfo);
+            }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
+        }
+
+        // Close and reset the modal on success
         if (addWarrantyModal) {
             addWarrantyModal.classList.remove('active');
         }
         resetAddWarrantyWizard(); // Reset the wizard form
-        // --- End modification ---
 
-        loadWarranties().then(() => {
+        try {
+            await loadWarranties(true);
+            console.log('Warranties reloaded after adding new warranty');
             applyFilters();
-        }); // Reload the list and update UI
-    })
-    .catch(error => {
+            
+            // Load secure images for the new cards
+            setTimeout(() => {
+                console.log('Loading secure images for new warranty cards');
+                loadSecureImages();
+            }, 200);
+        } catch (error) {
+            console.error('Error reloading warranties after adding:', error);
+        }
+    } catch (error) {
         hideLoadingSpinner();
         console.error('Error adding warranty:', error);
-        showToast(error.message || 'Failed to add warranty', 'error');
-    });
+        showToast(error.message || window.t('messages.failed_to_add_warranty'), 'error');
+    }
 }
 
 // Initialize page
@@ -2507,13 +3726,7 @@ function validateEditTab(tabId) {
 
 // Add this function for secure file access
 function openSecureFile(filePath) {
-    if (!filePath || filePath === 'null') {
-        console.error('Invalid file path:', filePath);
-        showToast('Invalid file path', 'error');
-        return false;
-    }
-    
-    console.log('Opening secure file:', filePath);
+    console.log(`[openSecureFile] Opening file: ${filePath}`);
     
     // Get the file name from the path, handling both uploads/ prefix and direct filenames
     let fileName = filePath;
@@ -2523,45 +3736,183 @@ function openSecureFile(filePath) {
         fileName = filePath.substring(9); // Remove '/uploads/' prefix
     }
     
-    // Get auth token
-    const token = window.auth.getToken();
+    console.log(`[openSecureFile] Processed filename: ${fileName}`);
+    
+    const token = auth.getToken();
+    
     if (!token) {
-        showToast('Authentication error. Please log in again.', 'error');
+        showToast(window.t('messages.login_to_access_files'), 'error');
         return false;
     }
     
-    // Use fetch with proper authorization header
-    fetch(`/api/secure-file/${fileName}`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('File not found. It may have been deleted or moved.');
-            } else if (response.status === 401) {
-                throw new Error('Authentication error. Please log in again.');
-            } else {
-                throw new Error(`Error: ${response.status} ${response.statusText}`);
+    // Enhanced fetch with retry logic and better error handling
+    const fetchWithRetry = async (url, options, retries = 2) => {
+        for (let i = 0; i <= retries; i++) {
+            try {
+                console.log(`[openSecureFile] Attempt ${i + 1} to fetch: ${url}`);
+                const response = await fetch(url, options);
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Authentication error. Please log in again.');
+                    } else if (response.status === 403) {
+                        throw new Error('You are not authorized to access this file.');
+                    } else if (response.status === 404) {
+                        throw new Error('File not found. It may have been deleted.');
+                    } else {
+                        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                    }
+                }
+
+                // Check if response has content-length header
+                const contentLength = response.headers.get('content-length');
+                console.log(`[openSecureFile] Response Content-Length: ${contentLength}`);
+                
+                // Convert to blob with error handling
+                const blob = await response.blob();
+                console.log(`[openSecureFile] Blob size: ${blob.size} bytes`);
+                
+                // Verify blob size matches content-length if available
+                if (contentLength && parseInt(contentLength) !== blob.size) {
+                    console.warn(`[openSecureFile] Content-Length mismatch: header=${contentLength}, blob=${blob.size}`);
+                    if (i < retries) {
+                        console.log(`[openSecureFile] Retrying due to content-length mismatch...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                        continue;
+                    } else {
+                        console.error(`[openSecureFile] Final attempt failed with content-length mismatch`);
+                    }
+                }
+                
+                return blob;
+                
+            } catch (error) {
+                console.error(`[openSecureFile] Attempt ${i + 1} failed:`, error);
+                
+                // If this is a content-length mismatch or network error, retry
+                if (i < retries && (
+                    error.message.includes('content-length') ||
+                    error.message.includes('Failed to fetch') ||
+                    error.name === 'TypeError'
+                )) {
+                    console.log(`[openSecureFile] Retrying after error: ${error.message}`);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+                    continue;
+                }
+                
+                throw error;
             }
         }
-        return response.blob();
+    };
+
+    fetchWithRetry(`/api/secure-file/${fileName}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+        }
     })
     .then(blob => {
+        console.log(`[openSecureFile] Successfully received blob of size: ${blob.size}`);
+        
         // Create a URL for the blob
         const blobUrl = window.URL.createObjectURL(blob);
         
         // Open in new tab
-        window.open(blobUrl, '_blank');
+        const newWindow = window.open(blobUrl, '_blank');
+        
+        // Clean up the blob URL after a delay to prevent memory leaks
+        setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+        }, 10000); // Clean up after 10 seconds
+        
+        // Check if window was blocked by popup blocker
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+            showToast(window.t('messages.popup_blocked'), 'warning');
+            window.URL.revokeObjectURL(blobUrl); // Clean up immediately if blocked
+        }
     })
     .catch(error => {
         console.error('Error fetching file:', error);
-        showToast('Error opening file: ' + error.message, 'error');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Error opening file';
+        if (error.message.includes('Authentication')) {
+            errorMessage = 'Authentication error. Please refresh and try again.';
+        } else if (error.message.includes('authorized')) {
+            errorMessage = 'You are not authorized to access this file.';
+        } else if (error.message.includes('not found')) {
+            errorMessage = 'File not found. It may have been deleted.';
+        } else if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+            errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+            errorMessage = `Error opening file: ${error.message}`;
+        }
+        
+        showToast(errorMessage, 'error');
     });
     
     return false;
+}
+
+/**
+ * Open a Paperless-ngx document by ID
+ */
+
+/**
+ * Generate document link HTML for both local and Paperless-ngx documents
+ */
+function generateDocumentLink(warranty, docType) {
+    const docConfig = {
+        invoice: {
+            localPath: warranty.invoice_path,
+            paperlessId: warranty.paperless_invoice_id,
+            icon: 'fas fa-file-invoice',
+            label: 'Invoice',
+            className: 'invoice-link'
+        },
+        manual: {
+            localPath: warranty.manual_path,
+            paperlessId: warranty.paperless_manual_id,
+            icon: 'fas fa-book',
+            label: 'Manual',
+            className: 'manual-link'
+        },
+        other: {
+            localPath: warranty.other_document_path,
+            paperlessId: warranty.paperless_other_id,
+            icon: 'fas fa-file-alt',
+            label: 'Files',
+            className: 'other-document-link'
+        },
+        photo: {
+            localPath: warranty.product_photo_path,
+            paperlessId: warranty.paperless_photo_id,
+            icon: 'fas fa-image',
+            label: 'Photo',
+            className: 'photo-link'
+        }
+    };
+    
+    const config = docConfig[docType];
+    if (!config) return '';
+    
+    const hasLocal = config.localPath && config.localPath !== 'null';
+    const hasPaperless = config.paperlessId && config.paperlessId !== null;
+
+    
+    if (hasLocal) {
+        return `<a href="#" onclick="openSecureFile('${config.localPath}'); return false;" class="${config.className}">
+            <i class="${config.icon}"></i> ${config.label}
+        </a>`;
+    } else if (hasPaperless) {
+        return `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}); return false;" class="${config.className}">
+            <i class="${config.icon}"></i> ${config.label} <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
+        </a>`;
+    }
+    
+    return '';
 }
 
 // Initialize the warranty form and all its components
@@ -2575,6 +3926,12 @@ function initWarrantyForm() {
     addSerialNumberInput();
     
     // Initialize file input display
+    if (document.getElementById('productPhoto')) {
+        document.getElementById('productPhoto').addEventListener('change', function(event) {
+            updateFileName(event, 'productPhoto', 'productPhotoFileName');
+        });
+    }
+    
     if (document.getElementById('invoice')) {
         document.getElementById('invoice').addEventListener('change', function(event) {
             updateFileName(event, 'invoice', 'fileName');
@@ -2926,10 +4283,27 @@ function renderEditSelectedTags() {
 // Update createTag to return a Promise
 function createTag(name) {
     return new Promise((resolve, reject) => {
-        const token = localStorage.getItem('auth_token');
+        // Enhanced auth manager availability check
+        if (!window.auth) {
+            console.error('[createTag] Auth manager not available');
+            reject(new Error('Authentication system not ready. Please try again.'));
+            return;
+        }
+        
+        // Use auth manager's getToken method instead of directly accessing localStorage
+        const token = window.auth.getToken();
+        console.log('[createTag] Debug info:', {
+            hasToken: !!token,
+            tokenLength: token ? token.length : 0,
+            hasUserInfo: !!localStorage.getItem('user_info'),
+            authManagerAvailable: !!window.auth,
+            isAuthenticated: window.auth.isAuthenticated(),
+            tokenSource: 'auth.getToken()'
+        });
+        
         if (!token) {
-            console.error('No authentication token found');
-            reject(new Error('No authentication token found'));
+            console.error('[createTag] No authentication token found');
+            reject(new Error('No authentication token found. Please try logging in again.'));
             return;
         }
         // Generate a random color for the tag
@@ -2947,12 +4321,34 @@ function createTag(name) {
         })
         .then(response => {
             if (!response.ok) {
-                if (response.status === 409) {
-                    reject(new Error('A tag with this name already exists'));
-                    return;
-                }
-                reject(new Error('Failed to create tag'));
-                return;
+                // Enhanced error handling to capture specific error details
+                return response.json().then(errorData => {
+                    console.error('[createTag] API Error Response:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorData: errorData
+                    });
+                    
+                    if (response.status === 409) {
+                        reject(new Error('A tag with this name already exists'));
+                        return;
+                    }
+                    if (response.status === 401) {
+                        reject(new Error('Authentication failed. Please try logging in again.'));
+                        return;
+                    }
+                    if (response.status === 403) {
+                        reject(new Error('Permission denied. You may not have access to create tags.'));
+                        return;
+                    }
+                    
+                    const errorMsg = errorData?.error || errorData?.message || 'Failed to create tag';
+                    reject(new Error(errorMsg));
+                }).catch(() => {
+                    // If response body is not JSON or is empty
+                    console.error('[createTag] Non-JSON error response:', response.status, response.statusText);
+                    reject(new Error(`Failed to create tag (${response.status})`));
+                });
             }
             return response.json();
         })
@@ -2966,12 +4362,12 @@ function createTag(name) {
             allTags.push(newTag);
             renderExistingTags();
             populateTagFilter();
-            showToast('Tag created successfully', 'success');
+            showToast(window.t('messages.tag_created_successfully'), 'success');
             resolve(newTag);
         })
         .catch(error => {
             console.error('Error creating tag:', error);
-            showToast(error.message || 'Failed to create tag', 'error');
+            showToast(error.message || window.t('messages.failed_to_create_tag'), 'error');
             reject(error);
         });
     });
@@ -3081,7 +4477,7 @@ function editTag(tag) {
         const newColor = tagInfoElement.querySelector('.edit-tag-color').value;
         
         if (!newName) {
-            showToast('Tag name is required', 'error');
+            showToast(window.t('messages.tag_name_required'), 'error');
             return;
         }
         
@@ -3096,7 +4492,7 @@ function editTag(tag) {
 
 // Update a tag
 function updateTag(id, name, color) {
-    const token = localStorage.getItem('auth_token');
+    const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
     if (!token) {
         console.error('No authentication token found');
         return;
@@ -3137,20 +4533,46 @@ function updateTag(id, name, color) {
             selectedTags[selectedIndex].color = color;
         }
         
+        // Update tag in editSelectedTags if present
+        const editSelectedIndex = editSelectedTags.findIndex(tag => tag.id === id);
+        if (editSelectedIndex !== -1) {
+            editSelectedTags[editSelectedIndex].name = name;
+            editSelectedTags[editSelectedIndex].color = color;
+        }
+        
+        // Update tags in warranties array
+        warranties.forEach(warranty => {
+            if (warranty.tags && Array.isArray(warranty.tags)) {
+                warranty.tags.forEach(tag => {
+                    if (tag.id === id) {
+                        tag.name = name;
+                        tag.color = color;
+                    }
+                });
+            }
+        });
+        
         // Rerender existing tags and selected tags
         renderExistingTags();
         renderSelectedTags();
+        renderEditSelectedTags();
         
         // Update summary if needed
         if (document.getElementById('summary-tags')) {
             updateSummary();
         }
         
-        showToast('Tag updated successfully', 'success');
+        // Update tag filter dropdown
+        populateTagFilter();
+        
+        // Re-render warranty cards to show updated tag colors
+        renderWarranties(warranties);
+        
+        showToast(window.t('messages.tag_updated_successfully'), 'success');
     })
     .catch(error => {
         console.error('Error updating tag:', error);
-        showToast(error.message || 'Failed to update tag', 'error');
+        showToast(error.message || window.t('messages.failed_to_update_tag'), 'error');
     });
 }
 
@@ -3163,7 +4585,7 @@ function deleteTag(id) {
     const token = localStorage.getItem('auth_token');
     if (!token) {
         console.error('No authentication token found');
-        showToast('Authentication required', 'error'); // Added toast for better feedback
+        showToast(window.t('messages.authentication_required'), 'error'); // Added toast for better feedback
         return;
     }
     
@@ -3197,18 +4619,26 @@ function deleteTag(id) {
         selectedTags = selectedTags.filter(tag => tag.id !== id);
         editSelectedTags = editSelectedTags.filter(tag => tag.id !== id);
         
+        // Remove tag from warranties array
+        warranties.forEach(warranty => {
+            if (warranty.tags && Array.isArray(warranty.tags)) {
+                warranty.tags = warranty.tags.filter(tag => tag.id !== id);
+            }
+        });
+        
         // --- FIX: Re-render UI elements ---
         renderExistingTags(); // Update the list in the modal
         renderSelectedTags(); // Update selected tags in the add form
         renderEditSelectedTags(); // Update selected tags in the edit form
         populateTagFilter(); // Update the filter dropdown on the main page
+        renderWarranties(warranties); // Update warranty cards to remove deleted tag
         // --- END FIX ---
         
-        showToast('Tag deleted successfully', 'success');
+        showToast(window.t('messages.tag_deleted_successfully'), 'success');
     })
     .catch(error => {
         console.error('Error deleting tag:', error);
-        showToast(error.message || 'Failed to delete tag', 'error'); // Show specific error message
+        showToast(error.message || window.t('messages.failed_to_delete_tag'), 'error'); // Show specific error message
     })
     .finally(() => {
         hideLoadingSpinner(); // Hide loading indicator
@@ -3291,22 +4721,25 @@ function setupUIEventListeners() {
     const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
     
     if (searchInput) {
+        // Debounce logic: only apply filters after user stops typing for 300ms
+        let searchDebounceTimeout;
         searchInput.addEventListener('input', () => {
             currentFilters.search = searchInput.value.toLowerCase();
-            
             // Show/hide clear button based on search input
             if (clearSearchBtn) {
                 clearSearchBtn.style.display = searchInput.value ? 'flex' : 'none';
             }
-            
             // Add visual feedback class to search box when active
             if (searchInput.value) {
                 searchInput.parentElement.classList.add('active-search');
             } else {
                 searchInput.parentElement.classList.remove('active-search');
             }
-            
-            applyFilters();
+            // Debounce applyFilters
+            if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
+            searchDebounceTimeout = setTimeout(() => {
+                applyFilters();
+            }, 300);
         });
     }
     
@@ -3340,6 +4773,13 @@ function setupUIEventListeners() {
     if (vendorFilter) { // Added event listener for vendor filter
         vendorFilter.addEventListener('change', () => {
             currentFilters.vendor = vendorFilter.value;
+            applyFilters();
+        });
+    }
+    
+    if (warrantyTypeFilter) { // Added event listener for warranty type filter
+        warrantyTypeFilter.addEventListener('change', () => {
+            currentFilters.warranty_type = warrantyTypeFilter.value;
             applyFilters();
         });
     }
@@ -3379,6 +4819,35 @@ function setupUIEventListeners() {
     // Refresh button
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadWarranties);
+    
+    // Warranty Type dropdown handlers for custom option
+    if (warrantyTypeInput && warrantyTypeCustomInput) {
+        warrantyTypeInput.addEventListener('change', () => {
+            if (warrantyTypeInput.value === 'other') {
+                warrantyTypeCustomInput.style.display = 'block';
+                warrantyTypeCustomInput.focus();
+            } else {
+                warrantyTypeCustomInput.style.display = 'none';
+                warrantyTypeCustomInput.value = '';
+            }
+            updateSummary(); // Update summary when warranty type changes
+        });
+        
+        // Also update summary when custom warranty type changes
+        warrantyTypeCustomInput.addEventListener('input', updateSummary);
+    }
+    
+    if (editWarrantyTypeInput && editWarrantyTypeCustomInput) {
+        editWarrantyTypeInput.addEventListener('change', () => {
+            if (editWarrantyTypeInput.value === 'other') {
+                editWarrantyTypeCustomInput.style.display = 'block';
+                editWarrantyTypeCustomInput.focus();
+            } else {
+                editWarrantyTypeCustomInput.style.display = 'none';
+                editWarrantyTypeCustomInput.value = '';
+            }
+        });
+    }
     
     // Save warranty changes
     const saveWarrantyBtn = document.getElementById('saveWarrantyBtn');
@@ -3441,10 +4910,166 @@ function hideLoadingSpinner() {
     }
 }
 
+// Paperless upload loading functions
+function showPaperlessUploadLoading(documentType) {
+    // Create or show the Paperless upload overlay
+    let overlay = document.getElementById('paperless-upload-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'paperless-upload-overlay';
+        overlay.innerHTML = `
+            <div class="paperless-upload-modal">
+                <div class="paperless-upload-content">
+                    <div class="paperless-upload-spinner"></div>
+                    <h3>Uploading to Paperless-ngx</h3>
+                    <p id="paperless-upload-status">Uploading document...</p>
+                    <div class="paperless-upload-progress">
+                        <div class="paperless-upload-progress-bar" id="paperless-progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        
+        // Add CSS styles
+        const style = document.createElement('style');
+        style.textContent = `
+            #paperless-upload-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                backdrop-filter: blur(2px);
+            }
+            
+            .paperless-upload-modal {
+                background: var(--card-bg, #fff);
+                border-radius: 12px;
+                padding: 2rem;
+                max-width: 400px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                border: 1px solid var(--border-color, #ddd);
+            }
+            
+            .paperless-upload-content h3 {
+                margin: 1rem 0 0.5rem 0;
+                color: var(--text-color, #333);
+                font-size: 1.2rem;
+            }
+            
+            .paperless-upload-content p {
+                margin: 0.5rem 0 1.5rem 0;
+                color: var(--text-secondary, #666);
+                font-size: 0.9rem;
+            }
+            
+            .paperless-upload-spinner {
+                width: 40px;
+                height: 40px;
+                border: 4px solid var(--border-color, #ddd);
+                border-top: 4px solid var(--primary-color, #007bff);
+                border-radius: 50%;
+                animation: paperless-spin 1s linear infinite;
+                margin: 0 auto 1rem auto;
+            }
+            
+            @keyframes paperless-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .paperless-upload-progress {
+                width: 100%;
+                height: 6px;
+                background: var(--border-color, #ddd);
+                border-radius: 3px;
+                overflow: hidden;
+                margin-top: 1rem;
+            }
+            
+            .paperless-upload-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, var(--primary-color, #007bff), var(--success-color, #28a745));
+                border-radius: 3px;
+                width: 0%;
+                transition: width 0.3s ease;
+                animation: paperless-progress-pulse 2s ease-in-out infinite;
+            }
+            
+            @keyframes paperless-progress-pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    overlay.style.display = 'flex';
+    
+    // Update status text
+    const statusEl = document.getElementById('paperless-upload-status');
+    if (statusEl) {
+        statusEl.textContent = `Uploading ${documentType} to Paperless-ngx...`;
+    }
+    
+    // Animate progress bar
+    const progressBar = document.getElementById('paperless-progress-bar');
+    if (progressBar) {
+        progressBar.style.width = '30%';
+        setTimeout(() => {
+            progressBar.style.width = '60%';
+        }, 1000);
+        setTimeout(() => {
+            progressBar.style.width = '80%';
+        }, 2000);
+    }
+}
+
+function updatePaperlessUploadStatus(message, isProcessing = false) {
+    const statusEl = document.getElementById('paperless-upload-status');
+    const progressBar = document.getElementById('paperless-progress-bar');
+    
+    if (statusEl) {
+        statusEl.textContent = message;
+    }
+    
+    if (isProcessing && progressBar) {
+        progressBar.style.width = '90%';
+    }
+}
+
+function hidePaperlessUploadLoading() {
+    const overlay = document.getElementById('paperless-upload-overlay');
+    if (overlay) {
+        // Complete the progress bar first
+        const progressBar = document.getElementById('paperless-progress-bar');
+        if (progressBar) {
+            progressBar.style.width = '100%';
+        }
+        
+        // Hide after a short delay to show completion
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            // Reset progress bar for next use
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+        }, 500);
+    }
+}
+
 // Delete warranty function
 function deleteWarranty() {
     if (!currentWarrantyId) {
-        showToast('No warranty selected for deletion', 'error');
+        showToast(window.t('messages.no_warranty_selected_for_deletion'), 'error');
         return;
     }
     
@@ -3494,7 +5119,7 @@ function deleteWarranty() {
 function saveWarranty() {
     console.log("[script.js] CORE saveWarranty (original from script.js) EXECUTING.");
     if (!currentWarrantyId) {
-        showToast('No warranty selected for update', 'error');
+        showToast(window.t('messages.no_warranty_selected_for_update'), 'error');
         return;
     }
     
@@ -3502,36 +5127,58 @@ function saveWarranty() {
     const productName = document.getElementById('editProductName').value.trim();
     const purchaseDate = document.getElementById('editPurchaseDate').value;
     const isLifetime = document.getElementById('editIsLifetime').checked;
+    const isDurationMethod = editDurationMethodRadio && editDurationMethodRadio.checked;
     // Get new duration values
     const years = parseInt(document.getElementById('editWarrantyDurationYears').value || 0);
     const months = parseInt(document.getElementById('editWarrantyDurationMonths').value || 0);
     const days = parseInt(document.getElementById('editWarrantyDurationDays').value || 0);
+    const exactDate = editExactExpirationDateInput ? editExactExpirationDateInput.value : '';
     
     // Basic validation
     if (!productName) {
-        showToast('Product name is required', 'error');
+        showToast(window.t('messages.product_name_required'), 'error');
         return;
     }
     
     if (!purchaseDate) {
-        showToast('Purchase date is required', 'error');
+        showToast(window.t('messages.purchase_date_required'), 'error');
         return;
     }
     
     // --- Updated Validation ---
-    if (!isLifetime && years === 0 && months === 0 && days === 0) {
-        showToast('Warranty duration (years, months, or days) is required unless it\'s a lifetime warranty', 'error');
-        // Optional: focus the years input again
-        const yearsInput = document.getElementById('editWarrantyDurationYears');
-        if (yearsInput) { // Check if element exists
-            yearsInput.focus();
-            // Add invalid class to container or inputs
-            if (editWarrantyDurationFields) editWarrantyDurationFields.classList.add('invalid-duration');
+    if (!isLifetime) {
+        if (isDurationMethod) {
+            // Validate duration fields
+            if (years === 0 && months === 0 && days === 0) {
+                showToast(window.t('messages.warranty_duration_required'), 'error');
+                // Optional: focus the years input again
+                const yearsInput = document.getElementById('editWarrantyDurationYears');
+                if (yearsInput) { // Check if element exists
+                    yearsInput.focus();
+                    // Add invalid class to container or inputs
+                    if (editWarrantyDurationFields) editWarrantyDurationFields.classList.add('invalid-duration');
+                }
+                return;
+            }
+        } else {
+            // Validate exact expiration date
+            if (!exactDate) {
+                showToast(window.t('messages.exact_expiration_date_required'), 'error');
+                if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
+                return;
+            }
+            
+            // Validate that expiration date is in the future relative to purchase date
+            if (purchaseDate && exactDate <= purchaseDate) {
+                showToast(window.t('messages.expiration_date_after_purchase_date'), 'error');
+                if (editExactExpirationDateInput) editExactExpirationDateInput.focus();
+                return;
+            }
         }
-        return;
-    } else {
-         if (editWarrantyDurationFields) editWarrantyDurationFields.classList.remove('invalid-duration');
     }
+    
+    // Remove invalid duration class if validation passes
+    if (editWarrantyDurationFields) editWarrantyDurationFields.classList.remove('invalid-duration');
     // --- End Updated Validation ---
     
     // Create form data
@@ -3549,8 +5196,12 @@ function saveWarranty() {
     }
     
     const purchasePrice = document.getElementById('editPurchasePrice').value;
+    const currency = document.getElementById('editCurrency').value;
     if (purchasePrice) {
         formData.append('purchase_price', purchasePrice);
+    }
+    if (currency) {
+        formData.append('currency', currency);
     }
     
     // Serial numbers (use correct name 'serial_numbers[]')
@@ -3588,6 +5239,12 @@ function saveWarranty() {
         formData.append('other_document', otherDocumentFile); 
     } 
     
+    // Product photo
+    const productPhotoFile = document.getElementById('editProductPhoto').files[0];
+    if (productPhotoFile) {
+        formData.append('product_photo', productPhotoFile);
+    }
+    
     // Document deletion flags
     const deleteInvoiceBtn = document.getElementById('deleteInvoiceBtn');
     if (deleteInvoiceBtn && deleteInvoiceBtn.dataset.delete === 'true') {
@@ -3600,14 +5257,27 @@ function saveWarranty() {
     const deleteOtherDocumentBtn = document.getElementById('deleteOtherDocumentBtn'); 
     if (deleteOtherDocumentBtn && deleteOtherDocumentBtn.dataset.delete === 'true') { 
         formData.append('delete_other_document', 'true'); 
+    }
+    const deleteProductPhotoBtn = document.getElementById('deleteProductPhotoBtn');
+    if (deleteProductPhotoBtn && deleteProductPhotoBtn.dataset.delete === 'true') {
+        formData.append('delete_product_photo', 'true');
     } 
     
     // --- Append is_lifetime and duration components ---
     formData.append('is_lifetime', isLifetime.toString());
     if (!isLifetime) {
-        formData.append('warranty_duration_years', years);
-        formData.append('warranty_duration_months', months);
-        formData.append('warranty_duration_days', days);
+        if (isDurationMethod) {
+            formData.append('warranty_duration_years', years);
+            formData.append('warranty_duration_months', months);
+            formData.append('warranty_duration_days', days);
+        } else {
+            // Using exact date method
+            formData.append('exact_expiration_date', exactDate);
+            // Ensure duration fields are 0 when using exact date
+            formData.append('warranty_duration_years', 0);
+            formData.append('warranty_duration_months', 0);
+            formData.append('warranty_duration_days', 0);
+        }
     } else {
         // Ensure duration is 0 if lifetime
         formData.append('warranty_duration_years', 0);
@@ -3627,6 +5297,50 @@ function saveWarranty() {
     const editVendorInput = document.getElementById('editVendor'); // Use the correct ID
     formData.append('vendor', editVendorInput ? editVendorInput.value.trim() : ''); // Use the correct variable
     
+    // Add warranty type to form data - handle custom type
+    const editWarrantyTypeInput = document.getElementById('editWarrantyType');
+    const editWarrantyTypeCustomInput = document.getElementById('editWarrantyTypeCustom');
+    let warrantyTypeValue = '';
+    if (editWarrantyTypeInput) {
+        if (editWarrantyTypeInput.value === 'other' && editWarrantyTypeCustomInput && editWarrantyTypeCustomInput.value.trim()) {
+            warrantyTypeValue = editWarrantyTypeCustomInput.value.trim();
+        } else {
+            warrantyTypeValue = editWarrantyTypeInput.value.trim();
+        }
+    }
+    formData.append('warranty_type', warrantyTypeValue);
+    
+    // Add selected Paperless documents for edit form
+    const selectedEditPaperlessProductPhoto = document.getElementById('selectedEditPaperlessProductPhoto');
+    const selectedEditPaperlessInvoice = document.getElementById('selectedEditPaperlessInvoice');
+    const selectedEditPaperlessManual = document.getElementById('selectedEditPaperlessManual');
+    const selectedEditPaperlessOtherDocument = document.getElementById('selectedEditPaperlessOtherDocument');
+    
+    if (selectedEditPaperlessProductPhoto && selectedEditPaperlessProductPhoto.value) {
+        formData.append('paperless_photo_id', selectedEditPaperlessProductPhoto.value);
+    }
+    if (selectedEditPaperlessInvoice && selectedEditPaperlessInvoice.value) {
+        formData.append('paperless_invoice_id', selectedEditPaperlessInvoice.value);
+    }
+    if (selectedEditPaperlessManual && selectedEditPaperlessManual.value) {
+        formData.append('paperless_manual_id', selectedEditPaperlessManual.value);
+    }
+    if (selectedEditPaperlessOtherDocument && selectedEditPaperlessOtherDocument.value) {
+        formData.append('paperless_other_id', selectedEditPaperlessOtherDocument.value);
+    }
+    
+    // DEBUG: Log what we're sending to the backend
+    console.log('[DEBUG saveWarranty] Form data being sent:');
+    console.log('[DEBUG saveWarranty] isLifetime:', isLifetime);
+    console.log('[DEBUG saveWarranty] isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG saveWarranty] exactDate:', exactDate);
+    console.log('[DEBUG saveWarranty] years/months/days:', years, months, days);
+    
+    // Log all form data entries
+    for (let [key, value] of formData.entries()) {
+        console.log(`[DEBUG saveWarranty] FormData: ${key} = ${value}`);
+    }
+    
     // Get auth token
     const token = localStorage.getItem('auth_token');
     if (!token) {
@@ -3636,90 +5350,71 @@ function saveWarranty() {
     
     showLoadingSpinner();
     
-    // Send request
-    fetch(`/api/warranties/${currentWarrantyId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': 'Bearer ' + token
-        },
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.error || 'Failed to update warranty');
+    // Process Paperless-ngx uploads if enabled
+    processEditPaperlessNgxUploads(formData)
+        .then(paperlessUploads => {
+            // Add Paperless-ngx document IDs to form data
+            Object.keys(paperlessUploads).forEach(key => {
+                formData.append(key, paperlessUploads[key]);
             });
-        }
-        return response.json();
-    })
-    .then(data => {
-        hideLoadingSpinner();
-        showToast('Warranty updated successfully', 'success');
-        closeModals();
-        // Instantly reload and re-render the warranties list
-        loadWarranties().then(() => {
+            
+            // Send request
+            return fetch(`/api/warranties/${currentWarrantyId}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: formData
+            });
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Failed to update warranty');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            hideLoadingSpinner();
+            showToast('Warranty updated successfully', 'success');
+            closeModals();
+        
+        // Always reload from server to ensure we get the latest data including product photo paths
+        console.log('Reloading warranties after edit to ensure latest data including product photos');
+        loadWarranties(true).then(() => {
+            console.log('Warranties reloaded after editing warranty');
             applyFilters();
+            // Load secure images for the updated cards - additional call to ensure they load
+            setTimeout(() => {
+                console.log('Loading secure images for updated warranty cards');
+                loadSecureImages();
+            }, 200); // Slightly longer delay to ensure everything is rendered
+            
             // Always close the notes modal if open, to ensure UI is in sync
             const notesModal = document.getElementById('notesModal');
             if (notesModal && notesModal.style.display === 'block') {
                 notesModal.style.display = 'none';
             }
-
-            // --- NEW: Refresh expanded details row if open and keep it open ---
-            // Find the row with details-expanded class (if any)
-            let expandedWarrantyId = null;
-            const expandedRow = document.querySelector('tr.details-expanded');
-            if (expandedRow) {
-                // Try to get the warranty id from the row (assume data-warranty-id or from first cell if needed)
-                expandedWarrantyId = expandedRow.dataset.warrantyId;
-                if (!expandedWarrantyId) {
-                    // Fallback: try to get from first cell if id is rendered there
-                    const firstCell = expandedRow.querySelector('td');
-                    if (firstCell && firstCell.dataset && firstCell.dataset.warrantyId) {
-                        expandedWarrantyId = firstCell.dataset.warrantyId;
-                    }
-                }
-                // If still not found, try to match by product name and purchase date (less robust)
-                if (!expandedWarrantyId && typeof allWarranties !== 'undefined') {
-                    const productName = expandedRow.cells[0]?.textContent?.trim();
-                    const purchaseDate = expandedRow.cells[1]?.textContent?.trim();
-                    const match = allWarranties.find(w => w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
-                    if (match) expandedWarrantyId = match.id;
-                }
-            }
-
-            // After re-render, re-expand the row for the same warranty ID
-            if (expandedWarrantyId) {
-                // Wait for DOM update (next tick)
+            
+            console.log('Warranty updated and reloaded from server');
+            
+            // Auto-link any documents that were uploaded to Paperless-ngx
+            if ((invoiceFile || manualFile || otherDocumentFile) && currentWarrantyId) {
+                console.log('[Auto-Link] Starting automatic document linking after warranty update');
+                
+                // Collect filename information for intelligent searching
+                const fileInfo = {};
+                if (invoiceFile) fileInfo.invoice = invoiceFile.name;
+                if (manualFile) fileInfo.manual = manualFile.name;
+                if (otherDocumentFile) fileInfo.other = otherDocumentFile.name;
+                
                 setTimeout(() => {
-                    // Find the new row for this warranty ID
-                    // Try by data-warranty-id attribute
-                    let newRow = document.querySelector(`tr[data-warranty-id="${expandedWarrantyId}"]`);
-                    // If not found, try to match by product name and purchase date (fallback)
-                    if (!newRow) {
-                        const allRows = document.querySelectorAll('tr');
-                        for (const row of allRows) {
-                            const productName = row.cells?.[0]?.textContent?.trim();
-                            const purchaseDate = row.cells?.[1]?.textContent?.trim();
-                            const match = allWarranties.find(w => w.id == expandedWarrantyId && w.product_name === productName && w.purchase_date && purchaseDate && w.purchase_date.startsWith(purchaseDate));
-                            if (match) {
-                                newRow = row;
-                                break;
-                            }
-                        }
-                    }
-                    if (newRow) {
-                        // Expand the details for this row
-                        if (typeof window.toggleWarrantyDetails === 'function') {
-                            window.toggleWarrantyDetails(expandedWarrantyId, newRow);
-                        } else if (typeof toggleWarrantyDetails === 'function') {
-                            toggleWarrantyDetails(expandedWarrantyId, newRow);
-                        }
-                        newRow.classList.add('details-expanded');
-                    }
-                }, 0);
+                    autoLinkRecentDocuments(currentWarrantyId, ['invoice', 'manual', 'other'], 10, 10000, fileInfo);
+                }, 3000); // Wait 3 seconds for Paperless-ngx to process the documents
             }
-            // --- END NEW ---
+        }).catch(error => {
+            console.error('Error reloading warranties after edit:', error);
         });
     })
     .catch(error => {
@@ -3803,6 +5498,39 @@ function populateVendorFilter() {
     });
 }
 
+// Function to populate warranty type filter dropdown
+function populateWarrantyTypeFilter() {
+    const warrantyTypeFilterElement = document.getElementById('warrantyTypeFilter');
+    if (!warrantyTypeFilterElement) return;
+
+    // Clear existing options (except "All Types")
+    while (warrantyTypeFilterElement.options.length > 1) {
+        warrantyTypeFilterElement.remove(1);
+    }
+
+    // Create a Set to store unique warranty types (case-insensitive)
+    const uniqueWarrantyTypes = new Set();
+
+    // Collect all unique, non-empty warranty types from warranties
+    warranties.forEach(warranty => {
+        if (warranty.warranty_type && warranty.warranty_type.trim() !== '') {
+            uniqueWarrantyTypes.add(warranty.warranty_type.trim().toLowerCase());
+        }
+    });
+
+    // Sort warranty types alphabetically
+    const sortedWarrantyTypes = Array.from(uniqueWarrantyTypes).sort((a, b) => a.localeCompare(b));
+
+    // Add options to the dropdown
+    sortedWarrantyTypes.forEach(warrantyType => {
+        const option = document.createElement('option');
+        option.value = warrantyType; // Use lowercase for value consistency
+        // Capitalize first letter for display
+        option.textContent = warrantyType.charAt(0).toUpperCase() + warrantyType.slice(1);
+        warrantyTypeFilterElement.appendChild(option);
+    });
+}
+
 // --- Updated Function ---
 function handleLifetimeChange(event) {
     const checkbox = event ? event.target : isLifetimeCheckbox;
@@ -3810,6 +5538,7 @@ function handleLifetimeChange(event) {
     const yearsInput = warrantyDurationYearsInput;
     const monthsInput = warrantyDurationMonthsInput;
     const daysInput = warrantyDurationDaysInput;
+    const warrantyEntryMethod = document.getElementById('warrantyEntryMethod');
 
     if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
         console.error("Lifetime or duration elements not found in add form");
@@ -3817,21 +5546,25 @@ function handleLifetimeChange(event) {
     }
 
     if (checkbox.checked) {
+        // Hide warranty method selection and both input methods
+        if (warrantyEntryMethod) warrantyEntryMethod.style.display = 'none';
         durationFields.style.display = 'none';
-        // Clear and make duration fields not required
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        
+        // Clear and make fields not required
         yearsInput.required = false;
         monthsInput.required = false;
         daysInput.required = false;
         yearsInput.value = '';
         monthsInput.value = '';
         daysInput.value = '';
+        if (exactExpirationDateInput) exactExpirationDateInput.value = '';
     } else {
-        durationFields.style.display = 'block';
-        // Make duration fields required (or handle validation differently)
-        // Note: Backend validation ensures at least one is > 0 if not lifetime
-        yearsInput.required = false; // Let backend handle combined validation
-        monthsInput.required = false;
-        daysInput.required = false;
+        // Show warranty method selection
+        if (warrantyEntryMethod) warrantyEntryMethod.style.display = 'block';
+        
+        // Call method change handler to show appropriate fields
+        handleWarrantyMethodChange();
     }
 }
 
@@ -3842,6 +5575,7 @@ function handleEditLifetimeChange(event) {
     const yearsInput = editWarrantyDurationYearsInput;
     const monthsInput = editWarrantyDurationMonthsInput;
     const daysInput = editWarrantyDurationDaysInput;
+    const editWarrantyEntryMethod = document.getElementById('editWarrantyEntryMethod');
 
     if (!checkbox || !durationFields || !yearsInput || !monthsInput || !daysInput) {
         console.error("Lifetime or duration elements not found in edit form");
@@ -3849,20 +5583,25 @@ function handleEditLifetimeChange(event) {
     }
 
     if (checkbox.checked) {
+        // Hide warranty method selection and both input methods
+        if (editWarrantyEntryMethod) editWarrantyEntryMethod.style.display = 'none';
         durationFields.style.display = 'none';
-        // Clear and make duration fields not required
+        if (editExactExpirationField) editExactExpirationField.style.display = 'none';
+        
+        // Clear and make fields not required
         yearsInput.required = false;
         monthsInput.required = false;
         daysInput.required = false;
         yearsInput.value = '';
         monthsInput.value = '';
         daysInput.value = '';
+        if (editExactExpirationDateInput) editExactExpirationDateInput.value = '';
     } else {
-        durationFields.style.display = 'block';
-        // Make duration fields required (or handle validation differently)
-        yearsInput.required = false; // Let backend handle combined validation
-        monthsInput.required = false;
-        daysInput.required = false;
+        // Show warranty method selection
+        if (editWarrantyEntryMethod) editWarrantyEntryMethod.style.display = 'block';
+        
+        // Call method change handler to show appropriate fields
+        handleEditWarrantyMethodChange();
     }
 }
 
@@ -3872,6 +5611,15 @@ function resetAddWarrantyWizard() {
     // Reset the form fields
     if (warrantyForm) {
         warrantyForm.reset();
+        
+        // Explicitly set storage options to 'local'
+        const storageTypes = ['invoice', 'manual'];
+        storageTypes.forEach(type => {
+            const localRadio = document.querySelector(`input[name="${type}Storage"][value="local"]`);
+            if (localRadio) {
+                localRadio.checked = true;
+            }
+        });
     }
 
     // Reset serial numbers container (remove all but the first input structure)
@@ -3885,13 +5633,15 @@ function resetAddWarrantyWizard() {
     if (manualFileName) manualFileName.textContent = '';
     if (otherDocumentFileName) otherDocumentFileName.textContent = ''; 
 
+    // Clear Paperless document selections (only for invoice and manual)
+    clearPaperlessSelection('invoice');
+    clearPaperlessSelection('manual');
+
     // Reset selected tags
     selectedTags = [];
     console.log('Resetting Add Warranty Wizard...');
-    // Reset the form fields
-    if (warrantyForm) {
-        warrantyForm.reset();
-    }
+    
+    // No need to reset the form again as we already did it above
 
     // Reset serial numbers container (remove all but the first input structure)
     if (serialNumbersContainer) {
@@ -3939,6 +5689,36 @@ function setupModalTriggers() {
             addWarrantyModal.classList.add('active');
             initFormTabs(); // Initialize tabs only when modal is shown
             switchToTab(0); // Ensure the first tab content is displayed correctly after reset
+            
+            // Set currency dropdown to user's preferred currency after form reset
+            const preferredCurrencyCode = getCurrencyCode();
+            if (currencySelect && preferredCurrencyCode) {
+                currencySelect.value = preferredCurrencyCode;
+                console.log(`[Modal Open] Set currency dropdown to user preference: ${preferredCurrencyCode}`);
+            }
+            
+            // Update currency symbols and positioning for the add form
+            const symbol = getCurrencySymbol();
+            const position = getCurrencyPosition();
+            updateFormCurrencyPosition(symbol, position);
+            
+            // Trigger currency positioning after modal is visible
+            setTimeout(() => {
+                if (position === 'right') {
+                    const addPriceInput = document.getElementById('purchasePrice');
+                    const addCurrencySymbol = document.getElementById('addCurrencySymbol');
+                    if (addPriceInput && addCurrencySymbol) {
+                        // Force update the currency position now that modal is visible
+                        const wrapper = addPriceInput.closest('.price-input-wrapper');
+                        if (wrapper && wrapper.classList.contains('currency-right')) {
+                            const updateEvent = new Event('focus');
+                            addPriceInput.dispatchEvent(updateEvent);
+                            const blurEvent = new Event('blur');
+                            addPriceInput.dispatchEvent(blurEvent);
+                        }
+                    }
+                }
+            }, 200);
         });
     }
 
@@ -4059,7 +5839,7 @@ async function handleImport(file) {
             await new Promise(resolve => setTimeout(resolve, 500));
             
             // Await the warranties load to ensure UI is updated
-            await loadWarranties();
+            await loadWarranties(true);
             
             // Force a UI refresh by reapplying filters
             applyFilters();
@@ -4086,23 +5866,23 @@ async function handleImport(file) {
 
 // --- Add Storage Event Listener for Real-time Sync ---
 window.addEventListener('storage', (event) => {
-    const prefix = getPreferenceKeyPrefix();
-    const viewKeys = [
-        `${prefix}defaultView`,
+    const currentPrefix = getPreferenceKeyPrefix(); // Re-calculate prefix
+    const viewKeysToWatch = [
+        `${currentPrefix}defaultView`,
         'viewPreference',
-        `${prefix}warrantyView`,
-        // Add `${prefix}viewPreference` if still used/relevant
-        `${prefix}viewPreference` 
+        `${currentPrefix}warrantyView`,
+        // Add `${currentPrefix}viewPreference` if still used/relevant
+        `${currentPrefix}viewPreference` 
     ];
 
     // Check for view preference changes
-    if (viewKeys.includes(event.key) && event.newValue) {
+    if (viewKeysToWatch.includes(event.key) && event.newValue) {
         console.log(`Storage event detected for view preference (${event.key}). New value: ${event.newValue}`);
         // Check if the new value is different from the current view to avoid loops
         if (event.newValue !== currentView) {
              // Ensure view buttons exist before switching (we're on the main page)
              if (gridViewBtn || listViewBtn || tableViewBtn) {
-                 switchView(event.newValue);
+                 switchView(event.newValue, false); // Apply change, don't re-save to API
              }
         } else {
              console.log('Storage event value matches current view, ignoring.');
@@ -4121,8 +5901,8 @@ window.addEventListener('storage', (event) => {
     // --- End Added Check ---
 
     // --- Added: Check for currency symbol changes ---
-    if (event.key === `${prefix}currencySymbol` && event.newValue) {
-        console.log(`Storage event detected for ${prefix}currencySymbol. New value: ${event.newValue}`);
+    if (event.key === `${currentPrefix}currencySymbol` && event.newValue) {
+        console.log(`Storage event detected for ${currentPrefix}currencySymbol. New value: ${event.newValue}`);
         if (warrantiesList) { // Only apply if on the main page
             updateCurrencySymbols(); // Update symbols outside cards (e.g., in forms if they exist)
             applyFilters(); // Re-render cards to update symbols inside them
@@ -4149,7 +5929,8 @@ if (!document.getElementById('notesModal')) {
                 <textarea id="notesModalTextarea" style="display:none;width:100%;min-height:100px;"></textarea>
             </div>
             <div class="modal-footer" id="notesModalFooter">
-                <button class="btn btn-secondary" id="editNotesBtn">Edit</button>
+                <button class="btn btn-secondary" id="editNotesBtn">Edit Notes</button>
+                <button class="btn btn-info" id="editWarrantyBtn">Edit Warranty</button>
                 <button class="btn btn-primary" id="saveNotesBtn" style="display:none;">Save</button>
                 <button class="btn btn-danger" id="cancelEditNotesBtn" style="display:none;">Cancel</button>
             </div>
@@ -4158,6 +5939,21 @@ if (!document.getElementById('notesModal')) {
     document.body.appendChild(notesModal);
     document.getElementById('closeNotesModal').addEventListener('click', () => {
         notesModal.classList.remove('active');
+    });
+    
+    // Add event listener for Edit Warranty button
+    document.getElementById('editWarrantyBtn').addEventListener('click', async () => {
+        // Find the current warranty data from the global array
+        const currentWarranty = warranties.find(w => w.id === notesModalWarrantyId);
+        if (currentWarranty) {
+            console.log('[DEBUG] Edit Warranty button clicked, opening edit modal with warranty:', currentWarranty.id, 'notes:', currentWarranty.notes);
+            // Close the notes modal first
+            notesModal.classList.remove('active');
+            // Open the edit modal with current data
+            await openEditModal(currentWarranty);
+        } else {
+            showToast(window.t('messages.warranty_not_found_refresh'), 'error');
+        }
     });
 }
 
@@ -4195,7 +5991,8 @@ function showNotesModal(notes, warrantyOrId = null) {
     editBtn.onclick = function() {
         notesModalContent.style.display = 'none';
         notesModalTextarea.style.display = '';
-        notesModalTextarea.value = notes;
+        // Use the current content from the modal display instead of the stale notes parameter
+        notesModalTextarea.value = notesModalContent.textContent;
         editBtn.style.display = 'none';
         saveBtn.style.display = '';
         cancelBtn.style.display = '';
@@ -4213,7 +6010,8 @@ function showNotesModal(notes, warrantyOrId = null) {
         if (!notesModalWarrantyObj.is_lifetime &&
             (parseInt(notesModalWarrantyObj.warranty_duration_years) || 0) === 0 &&
             (parseInt(notesModalWarrantyObj.warranty_duration_months) || 0) === 0 &&
-            (parseInt(notesModalWarrantyObj.warranty_duration_days) || 0) === 0) {
+            (parseInt(notesModalWarrantyObj.warranty_duration_days) || 0) === 0 &&
+            !notesModalWarrantyObj.expiration_date) {
             showToast('Cannot save notes: The warranty has an invalid duration. Please edit the full warranty details to set a valid duration first.', 'error', 7000); // Longer toast duration
             return; // Prevent API call
         }
@@ -4232,6 +6030,17 @@ function showNotesModal(notes, warrantyOrId = null) {
                 formData.append('warranty_duration_years', notesModalWarrantyObj.warranty_duration_years || 0);
                 formData.append('warranty_duration_months', notesModalWarrantyObj.warranty_duration_months || 0);
                 formData.append('warranty_duration_days', notesModalWarrantyObj.warranty_duration_days || 0);
+                
+                // If all duration fields are 0 but we have an expiration date, this was created with exact date method
+                const isExactDateWarranty = (notesModalWarrantyObj.warranty_duration_years || 0) === 0 &&
+                                          (notesModalWarrantyObj.warranty_duration_months || 0) === 0 &&
+                                          (notesModalWarrantyObj.warranty_duration_days || 0) === 0 &&
+                                          notesModalWarrantyObj.expiration_date;
+                
+                if (isExactDateWarranty) {
+                    // For exact date warranties, send the expiration date as exact_expiration_date
+                    formData.append('exact_expiration_date', notesModalWarrantyObj.expiration_date.split('T')[0]);
+                }
             }
             if (notesModalWarrantyObj.product_url) {
                 formData.append('product_url', notesModalWarrantyObj.product_url);
@@ -4284,6 +6093,12 @@ function showNotesModal(notes, warrantyOrId = null) {
             hideLoadingSpinner();
             showToast('Note updated', 'success');
 
+            // Update the warranty in the global warranties array immediately
+            const warrantyIndex = warranties.findIndex(w => w.id === notesModalWarrantyId);
+            if (warrantyIndex !== -1) {
+                warranties[warrantyIndex].notes = newNote;
+            }
+
             // --- Updated UI logic ---
              if (newNote === '') {
                 // If the note is now empty, close the modal
@@ -4304,7 +6119,7 @@ function showNotesModal(notes, warrantyOrId = null) {
              // --- End Updated UI logic ---
 
             // Refresh warranties list and THEN update UI
-            await loadWarranties(); // Wait for data refresh
+            await loadWarranties(true); // Wait for data refresh
             applyFilters(); // Re-render the list with updated data
 
         } catch (e) {
@@ -4367,14 +6182,291 @@ function getCurrencySymbol() {
     return symbol;
 }
 
+// Function to get user's preferred currency code
+function getCurrencyCode() {
+    // Use the global prefix determined after auth ready
+    let prefix = userPreferencePrefix;
+    if (!prefix) {
+        console.warn('[getCurrencyCode] User preference prefix not set yet, defaulting prefix to user_');
+        prefix = 'user_';
+    }
+    console.log(`[getCurrencyCode] Using determined prefix: ${prefix}`);
+    
+    // Default to USD
+    let currencyCode = 'USD';
+    
+    // Try to get currency code from localStorage
+    const rawValue = localStorage.getItem(`${prefix}currencyCode`);
+    console.log(`[getCurrencyCode Debug] Raw value read from localStorage key '${prefix}currencyCode':`, rawValue);
+    
+    if (rawValue) {
+        currencyCode = rawValue;
+        console.log(`[getCurrencyCode] Loaded currency code from individual key (${prefix}currencyCode): ${currencyCode}`);
+        return currencyCode;
+    }
+    
+    // Fallback: Try to derive currency code from symbol
+    const symbol = getCurrencySymbol();
+    const symbolToCurrencyMap = {
+        '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₹': 'INR', '₩': 'KRW',
+        'CHF': 'CHF', 'C$': 'CAD', 'A$': 'AUD', 'kr': 'SEK', 'zł': 'PLN', 
+        'Kč': 'CZK', 'Ft': 'HUF', '₽': 'RUB', 'R$': 'BRL', '₦': 'NGN',
+        '₪': 'ILS', '₺': 'TRY', '₨': 'PKR', '৳': 'BDT', '฿': 'THB',
+        '₫': 'VND', 'RM': 'MYR', 'S$': 'SGD', 'Rp': 'IDR', '₱': 'PHP',
+        'NT$': 'TWD', 'HK$': 'HKD', '₮': 'MNT', '₸': 'KZT', '₼': 'AZN',
+        '₾': 'GEL', '₴': 'UAH', 'NZ$': 'NZD'
+    };
+    
+    if (symbolToCurrencyMap[symbol]) {
+        currencyCode = symbolToCurrencyMap[symbol];
+        console.log(`[getCurrencyCode] Derived currency code from symbol '${symbol}': ${currencyCode}`);
+    } else {
+        console.log(`[getCurrencyCode] Could not derive currency code from symbol '${symbol}', using default: ${currencyCode}`);
+    }
+    
+    return currencyCode;
+}
+
+// Function to load currencies from API and populate dropdowns
+async function loadCurrencies() {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        const response = await fetch('/api/currencies', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch currencies');
+        }
+        
+        const currencies = await response.json();
+        
+        // Get user's preferred currency code for default selection
+        const preferredCurrencyCode = getCurrencyCode();
+        
+        // Populate add warranty currency dropdown
+        if (currencySelect) {
+            currencySelect.innerHTML = '';
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.code;
+                option.textContent = `${currency.code} - ${currency.name} (${currency.symbol})`;
+                currencySelect.appendChild(option);
+            });
+            
+            // Set default selection to user's preferred currency
+            console.log(`[loadCurrencies] Preferred currency code: ${preferredCurrencyCode}`);
+            console.log(`[loadCurrencies] Available currency options:`, Array.from(currencySelect.options).map(opt => opt.value));
+            
+            if (preferredCurrencyCode) {
+                // Use setTimeout to ensure DOM is fully updated
+                setTimeout(() => {
+                    currencySelect.value = preferredCurrencyCode;
+                    console.log(`[loadCurrencies] Set add warranty currency default to: ${preferredCurrencyCode}`);
+                    console.log(`[loadCurrencies] Current selected value: ${currencySelect.value}`);
+                    
+                    // Trigger change event to update any dependent UI
+                    const changeEvent = new Event('change', { bubbles: true });
+                    currencySelect.dispatchEvent(changeEvent);
+                }, 10);
+            } else {
+                console.log(`[loadCurrencies] No preferred currency code found, keeping default USD`);
+            }
+        }
+        
+        // Populate edit warranty currency dropdown
+        if (editCurrencySelect) {
+            editCurrencySelect.innerHTML = '';
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.code;
+                option.textContent = `${currency.code} - ${currency.name} (${currency.symbol})`;
+                editCurrencySelect.appendChild(option);
+            });
+        }
+        
+        console.log('Currencies loaded successfully');
+    } catch (error) {
+        console.error('Error loading currencies:', error);
+        // Fallback to USD if loading fails
+        if (currencySelect) {
+            currencySelect.innerHTML = '<option value="USD">USD - US Dollar ($)</option>';
+        }
+        if (editCurrencySelect) {
+            editCurrencySelect.innerHTML = '<option value="USD">USD - US Dollar ($)</option>';
+        }
+    }
+}
+
+function getCurrencySymbolByCode(currencyCode) {
+    const currencyMap = {
+        'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'CNY': '¥', 'INR': '₹', 'KRW': '₩',
+        'CHF': 'CHF', 'CAD': 'C$', 'AUD': 'A$', 'SEK': 'kr', 'NOK': 'kr', 'DKK': 'kr',
+        'PLN': 'zł', 'CZK': 'Kč', 'HUF': 'Ft', 'BGN': 'лв', 'RON': 'lei', 'HRK': 'kn',
+        'RUB': '₽', 'BRL': 'R$', 'MXN': '$', 'ARS': '$', 'CLP': '$', 'COP': '$',
+        'PEN': 'S/', 'VES': 'Bs', 'ZAR': 'R', 'EGP': '£', 'NGN': '₦', 'KES': 'KSh',
+        'GHS': '₵', 'MAD': 'DH', 'TND': 'DT', 'AED': 'AED', 'SAR': 'SR', 'QAR': 'QR',
+        'KWD': 'KD', 'BHD': 'BD', 'OMR': 'OR', 'JOD': 'JD', 'LBP': 'LL', 'ILS': '₪',
+        'TRY': '₺', 'IRR': '﷼', 'PKR': '₨', 'BDT': '৳', 'LKR': 'Rs', 'NPR': 'Rs',
+        'BTN': 'Nu', 'MMK': 'K', 'THB': '฿', 'VND': '₫', 'LAK': '₭', 'KHR': '៛',
+        'MYR': 'RM', 'SGD': 'S$', 'IDR': 'Rp', 'PHP': '₱', 'TWD': 'NT$', 'HKD': 'HK$',
+        'MOP': 'MOP', 'KPW': '₩', 'MNT': '₮', 'KZT': '₸', 'UZS': 'soʻm', 'TJS': 'SM',
+        'KGS': 'с', 'TMT': 'T', 'AFN': '؋', 'AMD': '֏', 'AZN': '₼', 'GEL': '₾',
+        'MDL': 'L', 'UAH': '₴', 'BYN': 'Br', 'RSD': 'дин', 'MKD': 'ден', 'ALL': 'L',
+        'BAM': 'KM', 'ISK': 'kr', 'FJD': 'FJ$', 'PGK': 'K', 'SBD': 'SI$', 'TOP': 'T$',
+        'VUV': 'VT', 'WST': 'WS$', 'XPF': '₣', 'NZD': 'NZ$'
+    };
+    return currencyMap[currencyCode] || currencyCode;
+}
+
+function getCurrencyPosition() {
+    let prefix = userPreferencePrefix;
+    if (!prefix) {
+        console.warn('[getCurrencyPosition] User preference prefix not set yet, defaulting prefix to user_');
+        prefix = 'user_';
+    }
+    
+    let position = 'left'; // Default position
+    const rawValue = localStorage.getItem(`${prefix}currencyPosition`);
+    console.log(`[getCurrencyPosition] Raw value from localStorage (${prefix}currencyPosition):`, rawValue);
+    
+    if (rawValue) {
+        position = rawValue;
+        console.log(`[getCurrencyPosition] Loaded position from localStorage: ${position}`);
+    } else {
+        console.log(`[getCurrencyPosition] No position found, using default: ${position}`);
+    }
+    
+    return position;
+}
+
+function formatCurrencyHTML(amount, symbol, position) {
+    const formattedAmount = parseFloat(amount).toFixed(2);
+    
+    if (position === 'right') {
+        return `<span>${formattedAmount}</span><span class="currency-symbol currency-right">${symbol}</span>`;
+    } else {
+        return `<span class="currency-symbol">${symbol}</span><span>${formattedAmount}</span>`;
+    }
+}
+
 function updateCurrencySymbols() {
     const symbol = getCurrencySymbol();
-    console.log(`Updating currency symbols to: ${symbol}`); // Log the symbol being applied
+    const position = getCurrencyPosition();
+    console.log(`Updating currency symbols to: ${symbol}, position: ${position}`);
+    
+    // Update all currency symbols
     const elements = document.querySelectorAll('.currency-symbol');
-    console.log(`Found ${elements.length} elements with class 'currency-symbol'.`); // Log how many elements are found
+    console.log(`Found ${elements.length} elements with class 'currency-symbol'.`);
     elements.forEach(el => {
-        // console.log('Updating element:', el); // Optional: Log each element being updated
         el.textContent = symbol;
+    });
+    
+    // Update form currency positioning
+    updateFormCurrencyPosition(symbol, position);
+}
+
+function updateFormCurrencyPosition(symbol, position) {
+    // Handle add warranty form
+    const addPriceWrapper = document.getElementById('addPriceInputWrapper');
+    const addCurrencySymbol = document.getElementById('addCurrencySymbol');
+    const addPriceInput = document.getElementById('purchasePrice');
+    
+    if (addPriceWrapper && addCurrencySymbol) {
+        addCurrencySymbol.textContent = symbol;
+        if (position === 'right') {
+            addPriceWrapper.classList.add('currency-right');
+            // Set up dynamic positioning for right-aligned currency
+            if (addPriceInput) {
+                setupDynamicCurrencyPosition(addPriceInput, addCurrencySymbol);
+            }
+        } else {
+            addPriceWrapper.classList.remove('currency-right');
+            // Reset any dynamic positioning
+            if (addCurrencySymbol) {
+                addCurrencySymbol.style.right = '';
+            }
+        }
+        console.log(`Updated add form currency position: ${position}`);
+    }
+    
+    // Handle edit warranty form
+    const editPriceWrapper = document.getElementById('editPriceInputWrapper');
+    const editCurrencySymbol = document.getElementById('editCurrencySymbol');
+    const editPriceInput = document.getElementById('editPurchasePrice');
+    
+    if (editPriceWrapper && editCurrencySymbol) {
+        editCurrencySymbol.textContent = symbol;
+        if (position === 'right') {
+            editPriceWrapper.classList.add('currency-right');
+            // Set up dynamic positioning for right-aligned currency
+            if (editPriceInput) {
+                setupDynamicCurrencyPosition(editPriceInput, editCurrencySymbol);
+            }
+        } else {
+            editPriceWrapper.classList.remove('currency-right');
+            // Reset any dynamic positioning
+            if (editCurrencySymbol) {
+                editCurrencySymbol.style.right = '';
+            }
+        }
+        console.log(`Updated edit form currency position: ${position}`);
+    }
+}
+
+function setupDynamicCurrencyPosition(input, currencySymbol) {
+    if (!input || !currencySymbol) return;
+    
+    function updatePosition() {
+        const wrapper = input.closest('.price-input-wrapper');
+        if (!wrapper || !wrapper.classList.contains('currency-right')) return;
+        
+        // Wait for elements to be fully rendered
+        if (wrapper.offsetWidth === 0) {
+            setTimeout(updatePosition, 50);
+            return;
+        }
+        
+        // Get the input value or placeholder
+        const text = input.value || input.placeholder || '0.00';
+        
+        // Create a temporary element to measure text width
+        const tempSpan = document.createElement('span');
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+        tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+        tempSpan.style.fontWeight = window.getComputedStyle(input).fontWeight;
+        tempSpan.style.letterSpacing = window.getComputedStyle(input).letterSpacing;
+        tempSpan.textContent = text;
+        
+        document.body.appendChild(tempSpan);
+        const textWidth = tempSpan.offsetWidth;
+        document.body.removeChild(tempSpan);
+        
+        // Calculate position: input padding + text width + small gap
+        const inputPaddingLeft = parseInt(window.getComputedStyle(input).paddingLeft) || 12;
+        const gap = 4; // Small gap between text and currency symbol
+        const wrapperWidth = wrapper.offsetWidth;
+        const rightPosition = Math.max(8, wrapperWidth - inputPaddingLeft - textWidth - gap - 20);
+        
+        currencySymbol.style.right = rightPosition + 'px';
+        console.log(`[Dynamic Currency] Positioned currency symbol at ${rightPosition}px from right for text: "${text}"`);
+    }
+    
+    // Update position on various events
+    input.addEventListener('input', updatePosition);
+    input.addEventListener('focus', updatePosition);
+    input.addEventListener('blur', updatePosition);
+    
+    // Initial positioning with better timing
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+        updatePosition();
+        // Also set up additional fallback timers
+        setTimeout(updatePosition, 100);
+        setTimeout(updatePosition, 300);
     });
 }
 
@@ -4386,10 +6478,22 @@ window.addEventListener('storage', function(e) {
         console.log(`Storage event detected for ${prefix}preferences. Updating currency symbols.`);
         updateCurrencySymbols();
     }
+    // Also update when currency position changes
+    if (e.key === `${prefix}currencyPosition`) {
+        console.log(`Storage event detected for ${prefix}currencyPosition. Re-rendering warranties to update currency position.`);
+        // Update forms immediately
+        const symbol = getCurrencySymbol();
+        const position = getCurrencyPosition();
+        updateFormCurrencyPosition(symbol, position);
+        // Re-render warranties to apply new currency position
+        if (typeof processAllWarranties === 'function') {
+            processAllWarranties();
+        }
+    }
 });
 
 // +++ NEW FUNCTION TO LOAD PREFS AND SAVE TO LOCALSTORAGE +++
-async function loadAndApplyUserPreferences() {
+async function loadAndApplyUserPreferences(isAuthenticated) { // Added isAuthenticated parameter
     // Use the global prefix determined after auth ready
     let prefix = userPreferencePrefix; // <<< CHANGED const to let
     if (!prefix) {
@@ -4399,16 +6503,17 @@ async function loadAndApplyUserPreferences() {
          // For now, let's try defaulting, but this might need review.
          prefix = 'user_'; 
     }
-    console.log(`[Prefs Loader] Attempting to load preferences using prefix: ${prefix}`);
+    console.log(`[Prefs Loader] Attempting to load preferences using prefix: ${prefix}, isAuthenticated: ${isAuthenticated}`);
     
-    if (window.auth && window.auth.isAuthenticated()) {
-        const token = window.auth.getToken();
+    if (isAuthenticated && window.auth) { // Use passed isAuthenticated and check if window.auth exists
+        const token = window.auth.getToken(); // Still need token for the API call
         if (!token) {
-            console.error('[Prefs Loader] Cannot load preferences: No auth token found.');
+            console.error('[Prefs Loader] Cannot load preferences: No auth token found, even though isAuthenticated was true.');
             return; // Exit if no token
         }
         
         try {
+            console.log('[Prefs Loader] Fetching /api/auth/preferences with token.');
             const response = await fetch('/api/auth/preferences', {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -4423,6 +6528,10 @@ async function loadAndApplyUserPreferences() {
                 if (apiPrefs.currency_symbol) {
                     localStorage.setItem(`${prefix}currencySymbol`, apiPrefs.currency_symbol);
                     console.log(`[Prefs Loader] Saved ${prefix}currencySymbol: ${apiPrefs.currency_symbol}`);
+                }
+                if (apiPrefs.currency_position) {
+                    localStorage.setItem(`${prefix}currencyPosition`, apiPrefs.currency_position);
+                    console.log(`[Prefs Loader] Saved ${prefix}currencyPosition: ${apiPrefs.currency_position}`);
                 }
                 if (apiPrefs.default_view) {
                     localStorage.setItem(`${prefix}defaultView`, apiPrefs.default_view);
@@ -4467,3 +6576,1911 @@ async function loadAndApplyUserPreferences() {
     }
 }
 // +++ END NEW FUNCTION +++
+
+// Warranty method change handlers
+function handleWarrantyMethodChange() {
+    console.log('[DEBUG] handleWarrantyMethodChange called');
+    const isLifetime = isLifetimeCheckbox && isLifetimeCheckbox.checked;
+    const isDurationMethod = durationMethodRadio && durationMethodRadio.checked;
+    
+    console.log('[DEBUG] isLifetime:', isLifetime, 'isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG] Elements found:', {
+        warrantyDurationFields: !!warrantyDurationFields,
+        exactExpirationField: !!exactExpirationField,
+        exactExpirationDateInput: !!exactExpirationDateInput
+    });
+    
+    if (isLifetime) {
+        // Hide both methods when lifetime is selected
+        console.log('[DEBUG] Lifetime selected, hiding both methods');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'none';
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        return;
+    }
+    
+    if (isDurationMethod) {
+        console.log('[DEBUG] Duration method selected');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'block';
+        if (exactExpirationField) exactExpirationField.style.display = 'none';
+        // Clear exact date when switching to duration
+        if (exactExpirationDateInput) exactExpirationDateInput.value = '';
+    } else {
+        console.log('[DEBUG] Exact date method selected');
+        if (warrantyDurationFields) warrantyDurationFields.style.display = 'none';
+        if (exactExpirationField) exactExpirationField.style.display = 'block';
+        // Clear duration fields when switching to exact date
+        if (warrantyDurationYearsInput) warrantyDurationYearsInput.value = '';
+        if (warrantyDurationMonthsInput) warrantyDurationMonthsInput.value = '';
+        if (warrantyDurationDaysInput) warrantyDurationDaysInput.value = '';
+    }
+}
+
+function handleEditWarrantyMethodChange() {
+    console.log('[DEBUG] handleEditWarrantyMethodChange called');
+    const isLifetime = editIsLifetimeCheckbox && editIsLifetimeCheckbox.checked;
+    const isDurationMethod = editDurationMethodRadio && editDurationMethodRadio.checked;
+    
+    console.log('[DEBUG Edit] isLifetime:', isLifetime, 'isDurationMethod:', isDurationMethod);
+    console.log('[DEBUG Edit] Radio button states:', {
+        editDurationMethodRadio: editDurationMethodRadio ? editDurationMethodRadio.checked : 'element not found',
+        editExactDateMethodRadio: editExactDateMethodRadio ? editExactDateMethodRadio.checked : 'element not found'
+    });
+    console.log('[DEBUG Edit] Elements found:', {
+        editWarrantyDurationFields: !!editWarrantyDurationFields,
+        editExactExpirationField: !!editExactExpirationField,
+        editExactExpirationDateInput: !!editExactExpirationDateInput
+    });
+    
+    if (isLifetime) {
+        // Hide both methods when lifetime is selected
+        console.log('[DEBUG Edit] Lifetime selected, hiding both methods');
+        if (editWarrantyDurationFields) editWarrantyDurationFields.style.display = 'none';
+        if (editExactExpirationField) editExactExpirationField.style.display = 'none';
+        return;
+    }
+    
+    if (isDurationMethod) {
+        console.log('[DEBUG Edit] Duration method selected');
+        if (editWarrantyDurationFields) {
+            editWarrantyDurationFields.style.display = 'block';
+            console.log('[DEBUG Edit] Set duration fields to block');
+        }
+        if (editExactExpirationField) {
+            editExactExpirationField.style.display = 'none';
+            console.log('[DEBUG Edit] Set exact date field to none');
+        }
+        // Clear exact date when switching to duration
+        if (editExactExpirationDateInput) editExactExpirationDateInput.value = '';
+    } else {
+        console.log('[DEBUG Edit] Exact date method selected');
+        if (editWarrantyDurationFields) {
+            editWarrantyDurationFields.style.display = 'none';
+            console.log('[DEBUG Edit] Set duration fields to none');
+        }
+        if (editExactExpirationField) {
+            editExactExpirationField.style.display = 'block';
+            console.log('[DEBUG Edit] Set exact date field to block');
+        }
+        // Clear duration fields when switching to exact date
+        if (editWarrantyDurationYearsInput) editWarrantyDurationYearsInput.value = '';
+        if (editWarrantyDurationMonthsInput) editWarrantyDurationMonthsInput.value = '';
+        if (editWarrantyDurationDaysInput) editWarrantyDurationDaysInput.value = '';
+    }
+}
+
+// Function to calculate duration between two dates
+function calculateDurationFromDates(startDate, endDate) {
+    if (!startDate || !endDate) return null;
+    
+    try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        
+        let years = end.getFullYear() - start.getFullYear();
+        let months = end.getMonth() - start.getMonth();
+        let days = end.getDate() - start.getDate();
+        
+        // Adjust for negative days
+        if (days < 0) {
+            months--;
+            const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+            days += prevMonth.getDate();
+        }
+        
+        // Adjust for negative months
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        
+        return { years, months, days };
+    } catch (error) {
+        console.error('Error calculating duration:', error);
+        return null;
+    }
+}
+
+/**
+ * Load secure images with authentication
+ */
+async function loadSecureImages() {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        console.log('[DEBUG] No auth token available for secure image loading');
+        return;
+    }
+
+    // Also find images that may already have src but need to be refreshed
+    const secureImages = document.querySelectorAll('img.secure-image[data-secure-src]');
+    console.log(`[DEBUG] Found ${secureImages.length} secure images to load/refresh`);
+
+    for (const img of secureImages) {
+        try {
+            const secureUrl = img.getAttribute('data-secure-src');
+            console.log(`[DEBUG] Loading secure image: ${secureUrl}`);
+            
+            // Clean up existing blob URL if present
+            const existingBlobUrl = img.getAttribute('data-blob-url');
+            if (existingBlobUrl) {
+                URL.revokeObjectURL(existingBlobUrl);
+                img.removeAttribute('data-blob-url');
+            }
+            
+            const response = await fetch(secureUrl, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                img.src = blobUrl;
+                
+                // Clean up blob URL when image is removed from DOM
+                img.addEventListener('load', () => {
+                    console.log(`[DEBUG] Secure image loaded successfully: ${secureUrl}`);
+                }, { once: true });
+                
+                // Store blob URL for cleanup
+                img.setAttribute('data-blob-url', blobUrl);
+            } else {
+                console.error(`[DEBUG] Failed to load secure image: ${secureUrl}, status: ${response.status}`);
+                img.style.display = 'none';
+            }
+        } catch (error) {
+            console.error(`[DEBUG] Error loading secure image:`, error);
+            img.style.display = 'none';
+        }
+    }
+}
+
+// ============================================================================
+// Paperless-ngx Integration Functions
+// ============================================================================
+
+// Global variable to store Paperless-ngx enabled state
+let paperlessNgxEnabled = false;
+
+/**
+ * Check if Paperless-ngx integration is enabled
+ */
+async function checkPaperlessNgxStatus() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return false;
+
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const settings = await response.json();
+            paperlessNgxEnabled = settings.paperless_enabled === 'true';
+            window.paperlessNgxEnabled = paperlessNgxEnabled; // Set global variable
+            console.log('[Paperless-ngx] Integration status:', paperlessNgxEnabled);
+            return paperlessNgxEnabled;
+        }
+    } catch (error) {
+        console.error('[Paperless-ngx] Error checking status:', error);
+    }
+    return false;
+}
+
+/**
+ * Initialize Paperless-ngx integration UI
+ */
+async function initPaperlessNgxIntegration() {
+    // Check if Paperless-ngx is enabled
+    const isEnabled = await checkPaperlessNgxStatus();
+    
+    if (isEnabled) {
+        // Show the info alert
+        const infoAlert = document.getElementById('paperlessInfoAlert');
+        if (infoAlert) {
+            infoAlert.style.display = 'block';
+        }
+        
+        // Show storage selection options for add modal (only invoice and manual)
+        const storageSelections = [
+            'invoiceStorageSelection',
+            'manualStorageSelection'
+        ];
+        
+        storageSelections.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = 'block';
+            }
+        });
+        
+        // Show storage selection options for edit modal (only invoice and manual)
+        const editStorageSelections = [
+            'editInvoiceStorageSelection',
+            'editManualStorageSelection'
+        ];
+        
+        editStorageSelections.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = 'block';
+            }
+        });
+        
+        // Show Paperless browse sections
+        console.log('[Paperless-ngx] Calling togglePaperlessBrowseSections...');
+        togglePaperlessBrowseSections();
+        
+        console.log('[Paperless-ngx] UI elements initialized and shown');
+    } else {
+        console.log('[Paperless-ngx] Integration disabled, hiding UI elements');
+        
+        // Hide Paperless browse sections
+        console.log('[Paperless-ngx] Calling togglePaperlessBrowseSections (disabled)...');
+        togglePaperlessBrowseSections();
+    }
+}
+
+/**
+ * Get selected storage option for a document type
+ * @param {string} documentType - The document type (productPhoto, invoice, manual, otherDocument)
+ * @param {boolean} isEdit - Whether this is for the edit modal
+ * @returns {string} - 'local' or 'paperless'
+ */
+function getStorageOption(documentType, isEdit = false) {
+    // Only allow Paperless-ngx storage for invoices and manuals
+    const paperlessAllowedTypes = ['invoice', 'manual'];
+    
+    if (!paperlessAllowedTypes.includes(documentType)) {
+        return 'local'; // Force local storage for productPhoto and otherDocument
+    }
+    
+    const prefix = isEdit ? 'edit' : '';
+    const capitalizedType = documentType.charAt(0).toUpperCase() + documentType.slice(1);
+    const name = `${prefix}${capitalizedType}Storage`;
+    const radio = document.querySelector(`input[name="${name}"]:checked`);
+    return radio ? radio.value : 'local';
+}
+
+/**
+ * Upload file to Paperless-ngx
+ * @param {File} file - The file to upload
+ * @param {string} documentType - The type of document for tagging
+ * @returns {Promise<Object>} - Upload result with document ID
+ */
+async function uploadToPaperlessNgx(file, documentType) {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            throw new Error('Authentication token not available');
+        }
+
+        // Show upload loading screen
+        showPaperlessUploadLoading(documentType);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('document_type', documentType);
+        formData.append('title', `Warracker ${documentType} - ${file.name}`);
+        
+        // Add tags for organization
+        const tags = ['warracker', documentType];
+        formData.append('tags', tags.join(','));
+        
+        console.log('[Paperless-ngx] Upload FormData contents:');
+        console.log('  - file:', file.name, '(' + file.size + ' bytes, ' + file.type + ')');
+        console.log('  - document_type:', documentType);
+        console.log('  - title:', `Warracker ${documentType} - ${file.name}`);
+        console.log('  - tags:', tags.join(','));
+
+        updatePaperlessUploadStatus('Uploading file to Paperless-ngx...');
+
+        const response = await fetch('/api/paperless/upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to upload to Paperless-ngx';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+                console.error('[Paperless-ngx] Server error details:', errorData);
+            } catch (parseError) {
+                console.error('[Paperless-ngx] Could not parse error response:', parseError);
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            hidePaperlessUploadLoading();
+            throw new Error(errorMessage);
+        }
+
+        const result = await response.json();
+        console.log('[Paperless-ngx] Upload successful:', result);
+        
+        // Update status based on result
+        if (result.document_id) {
+            updatePaperlessUploadStatus('Document uploaded and ready!');
+        } else {
+            updatePaperlessUploadStatus('Document uploaded, processing...', true);
+        }
+        
+        return {
+            success: true,
+            document_id: result.document_id,
+            message: result.message,
+            error: result.error  // Add this
+        };
+        
+    } catch (error) {
+        console.error('[Paperless-ngx] Upload error:', error);
+        hidePaperlessUploadLoading();
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * Handle warranty form submission with Paperless-ngx integration
+ * This extends the existing saveWarranty function
+ */
+async function processPaperlessNgxUploads(formData) {
+    if (!paperlessNgxEnabled) {
+        return {}; // Return empty object if not enabled
+    }
+
+    const uploads = {};
+    // Only process invoice and manual for Paperless-ngx uploads
+    const documentTypes = ['invoice', 'manual'];
+    
+    for (const docType of documentTypes) {
+        // Use storage option from formData, not DOM
+        const storageKey = docType + 'Storage';
+        const storageOption = formData.get(storageKey) || 'local';
+        const fileInput = document.getElementById(docType);
+        const file = fileInput?.files[0];
+        console.log(`[DEBUG][processPaperlessNgxUploads] docType:`, docType, '| storageOption (from formData):', storageOption, '| file:', file);
+        if (storageOption === 'paperless') {
+            if (file) {
+                console.log(`[Paperless-ngx] Uploading ${docType} to Paperless-ngx`);
+                // Upload to Paperless-ngx
+                const uploadResult = await uploadToPaperlessNgx(file, docType);
+                console.log(`[DEBUG][processPaperlessNgxUploads] uploadResult for ${docType}:`, uploadResult);
+                if (uploadResult.success || (uploadResult.error && uploadResult.error.includes("duplicate") && uploadResult.document_id)) {
+                    // Map frontend document types to database column names
+                    const fieldMapping = {
+                        'productPhoto': 'paperless_photo_id',
+                        'invoice': 'paperless_invoice_id', 
+                        'manual': 'paperless_manual_id',
+                        'otherDocument': 'paperless_other_id'
+                    };
+                    const dbField = fieldMapping[docType];
+                    if (dbField && uploadResult.document_id) {
+                        uploads[dbField] = uploadResult.document_id;
+                        console.log(`[Paperless-ngx] ${docType} uploaded/linked successfully, ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        // Hide loading screen immediately for direct uploads
+                        hidePaperlessUploadLoading();
+                        if (uploadResult.error && uploadResult.error.includes("duplicate")) {
+                            showToast("Duplicate document detected in Paperless-ngx. Linked to existing document.", 'info');
+                        }
+                    } else if (dbField && !uploadResult.document_id) {
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully but no document ID received (async processing). Not storing reference.`);
+                        // Don't hide loading screen yet - auto-link will handle it
+                        updatePaperlessUploadStatus('Document processing, searching for link...', true);
+                    }
+                    // ALWAYS remove the file from FormData since it's been uploaded to Paperless-ngx
+                    // This prevents the backend from also saving it locally
+                    if (formData.has(docType)) {
+                        formData.delete(docType);
+                        console.log(`[Paperless-ngx] Removed ${docType} from FormData to prevent local storage`);
+                    }
+                } else {
+                    console.error(`[Paperless-ngx] Failed to upload ${docType} to Paperless-ngx:`, uploadResult.error);
+                    throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
+                }
+            } else {
+                console.log(`[DEBUG][processPaperlessNgxUploads] No file found for ${docType} with paperless storage option.`);
+            }
+        } else {
+            console.log(`[DEBUG][processPaperlessNgxUploads] Skipping ${docType}, storageOption is not paperless.`);
+        }
+    }
+    
+    return uploads;
+}
+
+/**
+ * Handle warranty edit form submission with Paperless-ngx integration
+ * This extends the existing edit warranty functionality
+ */
+async function processEditPaperlessNgxUploads(formData) {
+    if (!paperlessNgxEnabled) {
+        return {}; // Return empty object if not enabled
+    }
+
+    const uploads = {};
+    // Only process invoice and manual for Paperless-ngx uploads
+    const documentTypes = ['invoice', 'manual'];
+    
+    for (const docType of documentTypes) {
+        const storageOption = getStorageOption(docType, true); // true for edit modal
+        
+        if (storageOption === 'paperless') {
+            const fileInput = document.getElementById(`edit${docType.charAt(0).toUpperCase() + docType.slice(1)}`);
+            const file = fileInput?.files[0];
+            
+            if (file) {
+                console.log(`[Paperless-ngx] Uploading ${docType} to Paperless-ngx (edit mode)`);
+                
+                // Upload to Paperless-ngx
+                const uploadResult = await uploadToPaperlessNgx(file, docType);
+                
+                if (uploadResult.success || (uploadResult.error && uploadResult.error.includes("duplicate") && uploadResult.document_id)) {
+                    // Map frontend document types to database column names
+                    const fieldMapping = {
+                        'productPhoto': 'paperless_photo_id',
+                        'invoice': 'paperless_invoice_id', 
+                        'manual': 'paperless_manual_id',
+                        'otherDocument': 'paperless_other_id'
+                    };
+                    
+                    const dbField = fieldMapping[docType];
+                    if (dbField && uploadResult.document_id) {
+                        uploads[dbField] = uploadResult.document_id;
+                        console.log(`[Paperless-ngx] ${docType} uploaded/linked successfully (edit), ID: ${uploadResult.document_id}, stored as: ${dbField}`);
+                        // Hide loading screen immediately for direct uploads
+                        hidePaperlessUploadLoading();
+                        if (uploadResult.error && uploadResult.error.includes("duplicate")) {
+                            showToast("Duplicate document detected in Paperless-ngx. Linked to existing document.", 'info');
+                        }
+                    } else if (dbField && !uploadResult.document_id) {
+                        console.log(`[Paperless-ngx] ${docType} uploaded successfully (edit) but no document ID received (async processing). Not storing reference.`);
+                        // Don't hide loading screen yet - auto-link will handle it
+                        updatePaperlessUploadStatus('Document processing, searching for link...', true);
+                    }
+                    
+                    // ALWAYS remove the file from FormData since it's been uploaded to Paperless-ngx
+                    // This prevents the backend from also saving it locally
+                    // Note: In edit mode, the form field names don't have 'edit' prefix in FormData
+                    if (formData.has(docType)) {
+                        formData.delete(docType);
+                        console.log(`[Paperless-ngx] Removed ${docType} from FormData to prevent local storage`);
+                    }
+                } else {
+                    throw new Error(`Failed to upload ${docType} to Paperless-ngx: ${uploadResult.error}`);
+                }
+            }
+        }
+    }
+    
+    return uploads;
+}
+
+// Initialize Paperless-ngx integration when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize after a short delay to ensure other components are loaded
+    setTimeout(() => {
+        initPaperlessNgxIntegration();
+    }, 1000);
+});
+
+/**
+ * Debug Paperless-ngx configuration
+ */
+async function debugPaperlessConfiguration() {
+    try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+            console.error('[Paperless Debug] No auth token found');
+            return null;
+        }
+
+        console.log('[Paperless Debug] Checking configuration...');
+        
+        const response = await fetch('/api/paperless/debug', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            console.error('[Paperless Debug] Debug endpoint failed:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('[Paperless Debug] Error response:', errorText);
+            return null;
+        }
+
+        const result = await response.json();
+        console.log('[Paperless Debug] Configuration:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('[Paperless Debug] Error:', error);
+        return null;
+    }
+}
+
+/**
+ * Open a Paperless-ngx document either in Warracker interface or in Paperless-ngx directly
+ */
+async function openPaperlessDocument(paperlessId) {
+    console.log(`[openPaperlessDocument] Opening Paperless document: ${paperlessId}`);
+    
+    // First, debug the Paperless configuration
+    const debugInfo = await debugPaperlessConfiguration();
+    if (debugInfo) {
+        console.log('[openPaperlessDocument] Debug info:', debugInfo);
+        
+        if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+            showToast('Paperless-ngx integration is not enabled', 'error');
+            return;
+        }
+        
+        if (!debugInfo.paperless_handler_available) {
+            showToast('Paperless-ngx is not properly configured. Please check the settings.', 'error');
+            console.error('[openPaperlessDocument] Paperless handler not available');
+            if (debugInfo.paperless_handler_error) {
+                console.error('[openPaperlessDocument] Handler error:', debugInfo.paperless_handler_error);
+            }
+            return;
+        }
+        
+        if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+            showToast(`Paperless-ngx connection failed: ${debugInfo.test_connection_result.message || debugInfo.test_connection_result.error}`, 'error');
+            return;
+        }
+    }
+    
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+        console.error('[openPaperlessDocument] No auth token available');
+        showToast('Authentication required', 'error');
+        return;
+    }
+    
+    // Check user preference for viewing documents
+    const viewInApp = await getUserPaperlessViewPreference();
+    console.log(`[openPaperlessDocument] User preference view in app: ${viewInApp}`);
+    
+    if (viewInApp) {
+        // Open document in Warracker interface
+        console.log(`[openPaperlessDocument] Opening document ${paperlessId} in Warracker interface`);
+        const documentUrl = `/api/paperless-file/${paperlessId}?token=${encodeURIComponent(token)}`;
+        
+        const newTab = window.open(documentUrl, '_blank');
+        if (!newTab) {
+            showToast('Please allow popups to view documents', 'warning');
+        } else {
+            showToast('Opening document in Warracker...', 'info');
+        }
+        return;
+    }
+    
+    // Default behavior: open in Paperless-ngx interface
+    try {
+        // Get the Paperless-ngx base URL
+        const response = await fetch('/api/paperless/url', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[openPaperlessDocument] URL endpoint failed:', response.status, errorText);
+            throw new Error(`Failed to get Paperless-ngx URL: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to get Paperless-ngx URL');
+        }
+        
+        // Construct the direct link to the document in Paperless-ngx
+        const paperlessUrl = result.url.replace(/\/$/, ''); // Remove trailing slash
+        const documentUrl = `${paperlessUrl}/documents/${paperlessId}/details`;
+        
+        console.log(`[openPaperlessDocument] Opening Paperless-ngx document at: ${documentUrl}`);
+        
+        // Open the document directly in Paperless-ngx interface
+        const newTab = window.open(documentUrl, '_blank');
+        if (!newTab) {
+            showToast('Please allow popups to view documents in Paperless-ngx', 'warning');
+        } else {
+            showToast('Opening document in Paperless-ngx...', 'info');
+        }
+        
+    } catch (error) {
+        console.error('Error opening Paperless document:', error);
+        showToast(`Error opening document: ${error.message}`, 'error');
+        
+        // Try to determine the base URL from debug info for fallback
+        if (debugInfo && debugInfo.paperless_url) {
+            const fallbackUrl = `${debugInfo.paperless_url.replace(/\/$/, '')}/documents/${paperlessId}/details`;
+            console.log(`[openPaperlessDocument] Trying fallback URL: ${fallbackUrl}`);
+            
+            const fallbackTab = window.open(fallbackUrl, '_blank');
+            if (fallbackTab) {
+                showToast('Opened with fallback URL - please check if Paperless-ngx is accessible', 'warning');
+            }
+        } else {
+            // Last resort fallback
+            const genericFallbackUrl = `${window.location.protocol}//${window.location.hostname}:8000/documents/${paperlessId}/details`;
+            console.log(`[openPaperlessDocument] Trying generic fallback URL: ${genericFallbackUrl}`);
+            
+            const genericTab = window.open(genericFallbackUrl, '_blank');
+            if (genericTab) {
+                showToast('Opened with generic fallback URL', 'warning');
+            }
+        }
+    }
+}
+
+/**
+ * Get user preference for viewing Paperless documents in app
+ */
+async function getUserPaperlessViewPreference() {
+    // First check localStorage
+    const prefix = getPreferenceKeyPrefix();
+    const localPreference = localStorage.getItem(`${prefix}paperlessViewInApp`);
+    if (localPreference !== null) {
+        return localPreference === 'true';
+    }
+    
+    // If not in localStorage, check API
+    if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+        try {
+            const response = await fetch('/api/auth/preferences', {
+                headers: {
+                    'Authorization': `Bearer ${window.auth.getToken()}`
+                }
+            });
+            if (response.ok) {
+                const prefs = await response.json();
+                return prefs.paperless_view_in_app || false;
+            }
+        } catch (e) {
+            console.warn('Failed to load preferences from API:', e);
+        }
+    }
+    
+    // Default to false (open in Paperless-ngx)
+    return false;
+}
+
+/**
+ * Debug function to test Paperless document status
+ */
+async function debugPaperlessDocument(paperlessId) {
+    console.log(`[debugPaperlessDocument] Debugging Paperless document: ${paperlessId}`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[debugPaperlessDocument] No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paperless/debug-document/${paperlessId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[debugPaperlessDocument] HTTP ${response.status}: ${errorText}`);
+            return;
+        }
+        
+        const debugInfo = await response.json();
+        console.log(`[debugPaperlessDocument] Debug info for document ${paperlessId}:`, debugInfo);
+        
+        // Show debug info in a more readable format
+        let debugMessage = `Debug info for Paperless document ${paperlessId}:\n\n`;
+        debugMessage += `Document exists: ${debugInfo.document_exists}\n`;
+        debugMessage += `Database references: ${debugInfo.database_references?.length || 0}\n\n`;
+        
+        debugMessage += 'Endpoint test results:\n';
+        for (const [endpoint, result] of Object.entries(debugInfo.endpoints_tested || {})) {
+            debugMessage += `- ${endpoint}: ${result.success ? 'SUCCESS' : 'FAILED'} (${result.status_code || result.error})\n`;
+        }
+        
+        if (debugInfo.recent_documents && Array.isArray(debugInfo.recent_documents)) {
+            debugMessage += `\nDocument in recent list: ${debugInfo.document_in_recent}\n`;
+            debugMessage += `Recent documents: ${debugInfo.recent_documents.map(d => `${d.id}: ${d.title}`).join(', ')}\n`;
+        }
+        
+        alert(debugMessage);
+        
+    } catch (error) {
+        console.error('Error debugging Paperless document:', error);
+        alert(`Debug failed: ${error.message}`);
+    }
+}
+
+/**
+ * Clean up invalid Paperless-ngx document references
+ */
+async function cleanupInvalidPaperlessDocuments() {
+    console.log('[cleanupInvalidPaperlessDocuments] Starting cleanup...');
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[cleanupInvalidPaperlessDocuments] No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/paperless/cleanup-invalid', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[cleanupInvalidPaperlessDocuments] HTTP ${response.status}: ${errorText}`);
+            return;
+        }
+        
+        const result = await response.json();
+        console.log('[cleanupInvalidPaperlessDocuments] Cleanup result:', result);
+        
+        // Show result to user
+        let message = result.message || 'Cleanup completed';
+        if (result.details) {
+            message += `\n\nDetails:\n`;
+            message += `- Documents checked: ${result.details.checked}\n`;
+            message += `- Invalid documents found: ${result.details.invalid_found}\n`;
+            message += `- References cleaned up: ${result.details.cleaned_up}\n`;
+            
+            if (result.details.errors && result.details.errors.length > 0) {
+                message += `\nErrors:\n${result.details.errors.join('\n')}`;
+            }
+        }
+        
+        alert(message);
+        
+        // Reload warranties to reflect changes
+        if (result.details && result.details.cleaned_up > 0) {
+            console.log('[cleanupInvalidPaperlessDocuments] Reloading warranties after cleanup...');
+            await loadWarranties(true);
+        }
+        
+    } catch (error) {
+        console.error('Error cleaning up Paperless documents:', error);
+        alert(`Cleanup failed: ${error.message}`);
+    }
+}
+
+/**
+ * Search for and link a Paperless document by title
+ * Used when documents were uploaded with async processing and we lost the document ID
+ */
+async function searchAndLinkPaperlessDocument(warrantyId, documentType, searchTitle) {
+    try {
+        console.log(`[Paperless-ngx] Searching for document: ${searchTitle}`);
+        
+        const response = await fetch('/api/paperless-search-and-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+            },
+            body: JSON.stringify({
+                warranty_id: warrantyId,
+                document_type: documentType,
+                search_title: searchTitle
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`[Paperless-ngx] Document linked successfully: ID ${result.document_id}`);
+            showToast('Document linked successfully! Refreshing...', 'success');
+            
+            // Reload warranties to show the updated document links
+            setTimeout(async () => {
+                console.log('🔄 [Search&Link] Reloading warranties to show updated document links...');
+                await loadWarranties(true);  // Pass isAuthenticated parameter
+                
+                // Force re-render of the warranty cards
+                applyFilters();
+                
+                // Also reload secure images to update cloud icons
+                await loadSecureImages();
+                
+                console.log('✅ [Search&Link] Warranties reloaded and UI updated');
+            }, 1000);
+            
+            return { success: true, document_id: result.document_id };
+        } else {
+            console.error(`[Paperless-ngx] Failed to link document: ${result.message}`);
+            showToast(`Failed to link document: ${result.message}`, 'error');
+            return { success: false, message: result.message };
+        }
+    } catch (error) {
+        console.error(`[Paperless-ngx] Error searching for document:`, error);
+        showToast('Error searching for document', 'error');
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Automatically search for and link recently uploaded documents
+ * This handles the case where Paperless-ngx async processing returns task_id instead of document_id
+ */
+async function autoLinkRecentDocuments(warrantyId, documentTypes = ['invoice', 'manual'], maxRetries = 10, retryDelay = 10000, fileInfo = {}) {
+    console.log(`[Auto-Link] Starting automatic document linking for warranty ${warrantyId}`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('[Auto-Link] No auth token available');
+        return;
+    }
+    
+    let attempt = 0;
+    let linkedDocuments = [];
+    
+    const tryLinking = async () => {
+        attempt++;
+        console.log(`[Auto-Link] Attempt ${attempt}/${maxRetries} for warranty ${warrantyId}`);
+        
+        try {
+            // First check if Paperless-ngx is properly configured
+            const debugInfo = await debugPaperlessConfiguration();
+            if (!debugInfo) {
+                console.error('[Auto-Link] Could not get Paperless debug info');
+                return;
+            }
+            
+            if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+                console.log('[Auto-Link] Paperless-ngx integration is not enabled, skipping auto-link');
+                return;
+            }
+            
+            if (!debugInfo.paperless_handler_available) {
+                console.error('[Auto-Link] Paperless handler not available:', debugInfo.paperless_handler_error || 'Unknown error');
+                return;
+            }
+            
+            if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+                console.error('[Auto-Link] Paperless connection test failed:', debugInfo.test_connection_result.message || debugInfo.test_connection_result.error);
+                return;
+            }
+            
+            console.log(`[Auto-Link] Using intelligent filename-based search. File info:`, fileInfo);
+            
+            // Strategy 1: Search by exact filename (most reliable)
+            let candidateDocuments = [];
+            
+            for (const [docType, filename] of Object.entries(fileInfo)) {
+                if (!documentTypes.includes(docType)) continue;
+                
+                console.log(`[Auto-Link] Searching for ${docType} with filename: "${filename}"`);
+                
+                // Remove file extension for searching
+                const baseFilename = filename.replace(/\.[^/.]+$/, '');
+                
+                // Try multiple search strategies
+                const searchQueries = [
+                    filename,                                    // Exact filename with extension
+                    baseFilename,                               // Filename without extension
+                    `"${filename}"`,                            // Quoted exact match
+                    `"${baseFilename}"`,                        // Quoted base filename
+                    `Warracker ${docType} - ${baseFilename}`    // Warracker format
+                ];
+                
+                for (const query of searchQueries) {
+                    try {
+                        console.log(`[Auto-Link] Trying search query: "${query}"`);
+                        
+                        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(query)}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            const docs = result.results || [];
+                            
+                            console.log(`[Auto-Link] Query "${query}" found ${docs.length} documents`);
+                            
+                            if (docs.length > 0) {
+                                // Filter for recent documents (last 24 hours)
+                                const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                                const recentDocs = docs.filter(doc => {
+                                    try {
+                                        const docDate = new Date(doc.created);
+                                        return docDate > oneDayAgo;
+                                    } catch {
+                                        return true; // Include if we can't parse the date
+                                    }
+                                });
+                                
+                                if (recentDocs.length > 0) {
+                                    console.log(`[Auto-Link] Found ${recentDocs.length} recent documents for ${docType}`);
+                                    candidateDocuments.push({
+                                        docType,
+                                        filename,
+                                        documents: recentDocs,
+                                        searchQuery: query
+                                    });
+                                    break; // Found documents, no need to try other queries for this file
+                                } else if (docs.length > 0) {
+                                    // If no recent docs but we found some documents, include them anyway
+                                    console.log(`[Auto-Link] Found ${docs.length} older documents for ${docType}, including them anyway`);
+                                    candidateDocuments.push({
+                                        docType,
+                                        filename,
+                                        documents: docs.slice(0, 3), // Take up to 3 most recent
+                                        searchQuery: query
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`[Auto-Link] Error searching with query "${query}":`, error);
+                    }
+                }
+            }
+            
+            // Strategy 2: Fallback to Warracker tag search if filename search fails
+            if (candidateDocuments.length === 0) {
+                console.log('[Auto-Link] No documents found by filename, trying Warracker tag search...');
+                
+                const response = await fetch('/api/paperless/search?ordering=-created&created__gte=' + 
+                    new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const searchResult = await response.json();
+                    let recentDocs = searchResult.results || [];
+                    
+                    // Filter for Warracker documents
+                    const warrackerDocs = recentDocs.filter(doc => 
+                        doc.title && doc.title.includes('Warracker')
+                    );
+                    
+                    console.log(`[Auto-Link] Found ${warrackerDocs.length} Warracker documents from last 2 hours`);
+                    
+                    // Group by document type
+                    for (const docType of documentTypes) {
+                        const typeDocs = warrackerDocs.filter(doc => 
+                            doc.title && doc.title.includes(docType)
+                        );
+                        
+                        if (typeDocs.length > 0) {
+                            candidateDocuments.push({
+                                docType,
+                                filename: fileInfo[docType] || `${docType} document`,
+                                documents: typeDocs,
+                                searchQuery: `Warracker ${docType}`
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Debug: Show what candidate documents we found
+            if (candidateDocuments.length > 0) {
+                console.log('[Auto-Link] Candidate documents found:');
+                candidateDocuments.forEach(candidate => {
+                    console.log(`   ${candidate.docType}: ${candidate.documents.length} documents found with query "${candidate.searchQuery}"`);
+                    candidate.documents.forEach((doc, i) => {
+                        console.log(`     ${i+1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+                    });
+                });
+            }
+            
+            // Try to link the best candidate for each document type
+            for (const candidate of candidateDocuments) {
+                // Use the most recent document (first in the ordered list)
+                const doc = candidate.documents[0];
+                
+                console.log(`[Auto-Link] Attempting to link ${candidate.docType}: ${doc.title} (ID: ${doc.id})`);
+                
+                try {
+                    const linkResponse = await fetch('/api/paperless-search-and-link', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+                        },
+                        body: JSON.stringify({
+                            warranty_id: warrantyId,
+                            document_type: candidate.docType,
+                            search_title: doc.title.replace('Warracker ' + candidate.docType + ' - ', '')
+                        })
+                    });
+                    
+                    const linkResult = await linkResponse.json();
+                    
+                    if (linkResult.success) {
+                        console.log(`[Auto-Link] Successfully linked ${candidate.docType}: ${doc.title}`);
+                        linkedDocuments.push({ 
+                            type: candidate.docType, 
+                            title: doc.title, 
+                            id: doc.id,
+                            filename: candidate.filename
+                        });
+                    } else {
+                        console.log(`[Auto-Link] Failed to link ${candidate.docType}: ${linkResult.message}`);
+                    }
+                } catch (error) {
+                    console.error(`[Auto-Link] Error linking ${candidate.docType}:`, error);
+                }
+            }
+            
+            // If we found and linked documents, we're done
+            if (linkedDocuments.length > 0) {
+                console.log(`[Auto-Link] Successfully linked ${linkedDocuments.length} documents:`, linkedDocuments);
+                
+                // Update loading screen to show success
+                updatePaperlessUploadStatus('Documents linked successfully!');
+                
+                // Show success message with filenames
+                const docInfo = linkedDocuments.map(d => `${d.type} (${d.filename || d.title})`).join(', ');
+                showToast(`Automatically linked ${linkedDocuments.length} document(s): ${docInfo}`, 'success');
+                
+                // Reload warranties to show the updated document links
+                setTimeout(async () => {
+                    console.log('🔄 [Auto-Link] Reloading warranties to show updated document links...');
+                    await loadWarranties(true);  // Pass isAuthenticated parameter
+                    
+                    // Force re-render of the warranty cards
+                    applyFilters();
+                    
+                    // Also reload secure images to update cloud icons
+                    await loadSecureImages();
+                    
+                    console.log('✅ [Auto-Link] Warranties reloaded and UI updated');
+                    
+                    // Hide loading screen after successful completion
+                    hidePaperlessUploadLoading();
+                }, 1000);
+                
+                return true;
+            }
+            
+            // If no documents found and we have retries left, try again
+            if (attempt < maxRetries) {
+                console.log(`[Auto-Link] No documents found, retrying in ${retryDelay}ms...`);
+                updatePaperlessUploadStatus(`Searching for documents (attempt ${attempt + 1}/${maxRetries})...`, true);
+                setTimeout(tryLinking, retryDelay);
+            } else {
+                console.log(`[Auto-Link] No documents found after ${maxRetries} attempts`);
+                updatePaperlessUploadStatus('Document uploaded but could not auto-link');
+                showToast('Document uploaded to Paperless-ngx but could not be automatically linked. You can manually link it later.', 'warning');
+                // Hide loading screen after failed auto-link
+                setTimeout(() => {
+                    hidePaperlessUploadLoading();
+                }, 2000);
+            }
+            
+        } catch (error) {
+            console.error(`[Auto-Link] Error in attempt ${attempt}:`, error);
+            
+            if (attempt < maxRetries) {
+                console.log(`[Auto-Link] Retrying in ${retryDelay}ms...`);
+                updatePaperlessUploadStatus(`Error occurred, retrying (${attempt + 1}/${maxRetries})...`, true);
+                setTimeout(tryLinking, retryDelay);
+            } else {
+                updatePaperlessUploadStatus('Upload completed with errors');
+                showToast('Document uploaded but auto-linking failed due to errors. You can manually link it later.', 'warning');
+                // Hide loading screen after final error
+                setTimeout(() => {
+                    hidePaperlessUploadLoading();
+                }, 2000);
+            }
+        }
+    };
+    
+    // Start the linking process
+    tryLinking();
+}
+
+// Make debug and cleanup functions available globally for console testing
+window.debugPaperlessDocument = debugPaperlessDocument;
+window.cleanupInvalidPaperlessDocuments = cleanupInvalidPaperlessDocuments;
+window.searchAndLinkPaperlessDocument = searchAndLinkPaperlessDocument;
+window.autoLinkRecentDocuments = autoLinkRecentDocuments;
+
+// Helper function to manually link a specific document by title
+window.manualLinkDocument = async function(warrantyId, documentType, titleSearchTerm) {
+    console.log(`🔗 Manually linking document for warranty ${warrantyId}`);
+    console.log(`   Document type: ${documentType}`);
+    console.log(`   Searching for title containing: "${titleSearchTerm}"`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('❌ No auth token available');
+        return;
+    }
+    
+    try {
+        // Search for documents containing the search term
+        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(titleSearchTerm)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Search failed: ${response.status}`);
+            return;
+        }
+        
+        const result = await response.json();
+        const docs = result.results || [];
+        
+        console.log(`📄 Found ${docs.length} documents matching "${titleSearchTerm}"`);
+        
+        if (docs.length === 0) {
+            console.log('❌ No documents found. The document might still be processing in Paperless-ngx.');
+            return;
+        }
+        
+        // Show all matching documents
+        docs.forEach((doc, index) => {
+            console.log(`   ${index + 1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+        });
+        
+        // Try to link the first matching document
+        const docToLink = docs[0];
+        console.log(`🔗 Attempting to link document ID ${docToLink.id}: "${docToLink.title}"`);
+        
+        const linkResponse = await fetch('/api/paperless-search-and-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                warranty_id: warrantyId,
+                document_type: documentType,
+                search_title: docToLink.title.replace('Warracker ' + documentType + ' - ', '')
+            })
+        });
+        
+        const linkResult = await linkResponse.json();
+        
+        if (linkResult.success) {
+            console.log(`✅ Successfully linked ${documentType}: ${docToLink.title}`);
+            showToast(`Document linked successfully: ${documentType}`, 'success');
+            
+            // Reload warranties to show the updated document links
+            setTimeout(async () => {
+                console.log('🔄 Reloading warranties to show updated document links...');
+                await loadWarranties(true);  // Pass isAuthenticated parameter
+                
+                // Force re-render of the warranty cards
+                applyFilters();
+                
+                // Also reload secure images to update cloud icons
+                await loadSecureImages();
+                
+                console.log('✅ Warranties reloaded and UI updated');
+            }, 1000);
+        } else {
+            console.error(`❌ Failed to link ${documentType}: ${linkResult.message}`);
+        }
+        
+        return docToLink;
+        
+    } catch (error) {
+        console.error('❌ Error in manual linking:', error);
+    }
+};
+
+// Helper function to search for documents in Paperless-ngx (debug function)
+window.debugSearchPaperlessDocuments = async function(searchTerm = 'Warracker', limit = 10) {
+    console.log(`🔍 Searching for documents containing: "${searchTerm}"`);
+    
+    const token = auth.getToken();
+    if (!token) {
+        console.error('❌ No auth token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paperless/search?ordering=-created&query=${encodeURIComponent(searchTerm)}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Search failed: ${response.status}`);
+            return;
+        }
+        
+        const result = await response.json();
+        const docs = result.results || [];
+        
+        console.log(`📄 Found ${docs.length} documents:`);
+        docs.slice(0, limit).forEach((doc, index) => {
+            console.log(`   ${index + 1}. ID: ${doc.id}, Title: "${doc.title}", Created: ${doc.created}`);
+        });
+        
+        if (docs.length > limit) {
+            console.log(`   ... and ${docs.length - limit} more documents`);
+        }
+        
+        return docs;
+    } catch (error) {
+        console.error('❌ Error searching documents:', error);
+    }
+};
+
+// Helper function for users to debug Paperless-ngx configuration
+window.debugPaperlessSetup = async function() {
+    console.log('🔍 Debugging Paperless-ngx setup...');
+    
+    const debugInfo = await debugPaperlessConfiguration();
+    if (!debugInfo) {
+        console.error('❌ Could not get debug information');
+        return;
+    }
+    
+    console.log('📋 Paperless-ngx Configuration:');
+    console.log(`   Enabled: ${debugInfo.paperless_enabled}`);
+    console.log(`   URL: ${debugInfo.paperless_url || 'Not set'}`);
+    console.log(`   API Token Set: ${debugInfo.paperless_api_token_set}`);
+    console.log(`   Handler Available: ${debugInfo.paperless_handler_available}`);
+    
+    if (debugInfo.paperless_handler_error) {
+        console.error(`   Handler Error: ${debugInfo.paperless_handler_error}`);
+    }
+    
+    if (debugInfo.test_connection_result) {
+        console.log(`   Connection Test: ${debugInfo.test_connection_result.success ? '✅ Success' : '❌ Failed'}`);
+        console.log(`   Message: ${debugInfo.test_connection_result.message || debugInfo.test_connection_result.error}`);
+    }
+    
+    // Provide recommendations
+    console.log('\n💡 Recommendations:');
+    
+    if (!debugInfo.paperless_enabled || debugInfo.paperless_enabled === 'false') {
+        console.log('   - Enable Paperless-ngx integration in Settings');
+    }
+    
+    if (!debugInfo.paperless_url) {
+        console.log('   - Set Paperless-ngx URL in Settings (e.g., http://paperless:8000)');
+    }
+    
+    if (!debugInfo.paperless_api_token_set) {
+        console.log('   - Set API token in Settings (generate from Paperless-ngx → Settings → API Tokens)');
+    }
+    
+    if (debugInfo.test_connection_result && !debugInfo.test_connection_result.success) {
+        console.log('   - Check if Paperless-ngx is running and accessible');
+        console.log('   - Verify URL and API token are correct');
+        console.log('   - Check network connectivity between Warracker and Paperless-ngx');
+    }
+    
+    return debugInfo;
+};
+
+// ===== PAPERLESS DOCUMENT BROWSER FUNCTIONALITY =====
+
+// Global variables for paperless browser
+let currentPaperlessDocuments = [];
+let selectedPaperlessDocument = null;
+let currentPaperlessPage = 1;
+let totalPaperlessPages = 1;
+let currentDocumentType = '';
+let paperlessSearchQuery = '';
+
+/**
+ * Open the Paperless document browser modal
+ * @param {string} documentType - Type of document being selected (invoice, manual, product_photo, other_document)
+ */
+function openPaperlessBrowser(documentType) {
+    currentDocumentType = documentType;
+    selectedPaperlessDocument = null;
+    
+    // Reset pagination state
+    currentPaperlessPage = 1;
+    totalPaperlessPages = 1;
+    paperlessSearchQuery = '';
+    
+    // Show the modal
+    const modal = document.getElementById('paperlessBrowserModal');
+    modal.classList.add('active');
+    
+    // Reset search and filters
+    document.getElementById('paperlessSearchInput').value = '';
+    document.getElementById('paperlessTypeFilter').value = '';
+    document.getElementById('paperlessTagFilter').value = '';
+    
+    // Load documents
+    loadAllPaperlessDocuments();
+    
+    // Load tags for filter
+    loadPaperlessTags();
+    
+    // Hide select button initially
+    const selectBtn = document.getElementById('selectPaperlessDocBtn');
+    if (selectBtn) {
+        selectBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Load all Paperless documents
+ */
+async function loadAllPaperlessDocuments() {
+    try {
+        showPaperlessLoading();
+        
+        const params = new URLSearchParams();
+        const offset = (currentPaperlessPage - 1) * 25;
+        params.append('limit', '25');
+        params.append('offset', offset.toString());
+        
+        const response = await fetch(`/api/paperless/search?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        currentPaperlessDocuments = data.results || [];
+        totalPaperlessPages = Math.ceil(data.count / 25) || 1;
+        
+        renderPaperlessDocuments();
+        updatePaperlessPagination();
+        
+    } catch (error) {
+        console.error('Error loading Paperless documents:', error);
+        showPaperlessError('Failed to load documents from Paperless-ngx');
+    }
+}
+
+/**
+ * Search Paperless documents
+ */
+async function searchPaperlessDocuments() {
+    const searchInput = document.getElementById('paperlessSearchInput');
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    
+    paperlessSearchQuery = searchInput.value.trim();
+    
+    try {
+        showPaperlessLoading();
+        
+        const params = new URLSearchParams();
+        if (paperlessSearchQuery) {
+            params.append('query', paperlessSearchQuery);
+        }
+        if (typeFilter.value) {
+            params.append('document_type', typeFilter.value);
+        }
+        if (tagFilter.value) {
+            params.append('tags__id__in', tagFilter.value);
+        }
+        
+        // Add pagination
+        const offset = (currentPaperlessPage - 1) * 25;
+        params.append('limit', '25');
+        params.append('offset', offset.toString());
+        
+        const response = await fetch(`/api/paperless/search?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        currentPaperlessDocuments = data.results || [];
+        totalPaperlessPages = Math.ceil(data.count / 25) || 1;
+        
+        renderPaperlessDocuments();
+        updatePaperlessPagination();
+        
+    } catch (error) {
+        console.error('Error searching Paperless documents:', error);
+        showPaperlessError('Failed to search documents');
+    }
+}
+
+/**
+ * Load Paperless tags for filter dropdown
+ */
+async function loadPaperlessTags() {
+    try {
+        const response = await fetch('/api/paperless/tags', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const tagFilter = document.getElementById('paperlessTagFilter');
+            
+            // Clear existing options except the first one
+            tagFilter.innerHTML = '<option value="">All Tags</option>';
+            
+            // Add tag options
+            if (data.results) {
+                data.results.forEach(tag => {
+                    const option = document.createElement('option');
+                    option.value = tag.id;
+                    option.textContent = tag.name;
+                    tagFilter.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading Paperless tags:', error);
+    }
+}
+
+/**
+ * Render the list of Paperless documents
+ */
+function renderPaperlessDocuments() {
+    const container = document.getElementById('paperlessDocumentsList');
+    
+    if (currentPaperlessDocuments.length === 0) {
+        container.innerHTML = `
+            <div class="no-documents-message">
+                <i class="fas fa-file-alt"></i>
+                <h4>No documents found</h4>
+                <p>Try adjusting your search terms or filters.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const documentsHtml = currentPaperlessDocuments.map(doc => {
+        const createdDate = new Date(doc.created).toLocaleDateString();
+        const fileType = doc.mime_type || 'Unknown';
+        const tags = doc.tags || [];
+        
+        return `
+            <div class="paperless-document-item" data-id="${doc.id}" onclick="selectPaperlessDocument(${doc.id})">
+                <div class="document-title">${escapeHtml(doc.title)}</div>
+                <div class="document-meta">
+                    <span><i class="fas fa-calendar"></i> ${createdDate}</span>
+                    <span><i class="fas fa-file"></i> ${fileType}</span>
+                    ${doc.correspondent ? `<span><i class="fas fa-user"></i> ${escapeHtml(doc.correspondent)}</span>` : ''}
+                </div>
+                ${tags.length > 0 ? `
+                    <div class="document-tags">
+                        ${tags.map(tag => `<span class="document-tag">${escapeHtml(tag)}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = documentsHtml;
+}
+
+/**
+ * Select a Paperless document
+ * @param {number} documentId - ID of the document to select
+ */
+function selectPaperlessDocument(documentId) {
+    // Remove previous selection
+    document.querySelectorAll('.paperless-document-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Add selection to clicked item
+    const selectedItem = document.querySelector(`[data-id="${documentId}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('selected');
+        selectedPaperlessDocument = currentPaperlessDocuments.find(doc => doc.id === documentId);
+        
+        // Show select button
+        const selectBtn = document.getElementById('selectPaperlessDocBtn');
+        selectBtn.style.display = 'inline-block';
+        selectBtn.onclick = () => confirmPaperlessSelection();
+    }
+}
+
+/**
+ * Confirm the selection of a Paperless document
+ */
+function confirmPaperlessSelection() {
+    if (!selectedPaperlessDocument) return;
+    
+    // Update the UI to show the selected document
+    updatePaperlessSelectionUI();
+    
+    // Close the modal
+    closePaperlessBrowser();
+}
+
+/**
+ * Update the UI to show the selected Paperless document
+ */
+function updatePaperlessSelectionUI() {
+    if (!selectedPaperlessDocument || !currentDocumentType) return;
+    
+    const docName = selectedPaperlessDocument.title;
+    const docId = selectedPaperlessDocument.id;
+    
+    // Map document types to their UI elements (only for invoice and manual)
+    const typeMapping = {
+        'invoice': {
+            selectedDiv: 'selectedInvoiceFromPaperless',
+            hiddenInput: 'selectedPaperlessInvoice'
+        },
+        'manual': {
+            selectedDiv: 'selectedManualFromPaperless',
+            hiddenInput: 'selectedPaperlessManual'
+        },
+        // Edit modal versions
+        'edit_invoice': {
+            selectedDiv: 'selectedEditInvoiceFromPaperless',
+            hiddenInput: 'selectedEditPaperlessInvoice'
+        },
+        'edit_manual': {
+            selectedDiv: 'selectedEditManualFromPaperless',
+            hiddenInput: 'selectedEditPaperlessManual'
+        }
+    };
+    
+    const mapping = typeMapping[currentDocumentType];
+    if (!mapping) return;
+    
+    // Show the selected document
+    const selectedDiv = document.getElementById(mapping.selectedDiv);
+    if (selectedDiv) {
+        selectedDiv.style.display = 'flex';
+        selectedDiv.querySelector('.selected-doc-name').textContent = docName;
+    }
+    
+    // Create or update hidden input to store the document ID
+    let hiddenInput = document.getElementById(mapping.hiddenInput);
+    if (!hiddenInput) {
+        hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = mapping.hiddenInput;
+        hiddenInput.name = mapping.hiddenInput;
+        document.body.appendChild(hiddenInput);
+    }
+    hiddenInput.value = docId;
+}
+
+/**
+ * Clear the Paperless document selection
+ * @param {string} documentType - Type of document to clear
+ */
+function clearPaperlessSelection(documentType) {
+    const typeMapping = {
+        'invoice': {
+            selectedDiv: 'selectedInvoiceFromPaperless',
+            hiddenInput: 'selectedPaperlessInvoice'
+        },
+        'manual': {
+            selectedDiv: 'selectedManualFromPaperless',
+            hiddenInput: 'selectedPaperlessManual'
+        },
+        // Edit modal versions
+        'edit_invoice': {
+            selectedDiv: 'selectedEditInvoiceFromPaperless',
+            hiddenInput: 'selectedEditPaperlessInvoice'
+        },
+        'edit_manual': {
+            selectedDiv: 'selectedEditManualFromPaperless',
+            hiddenInput: 'selectedEditPaperlessManual'
+        }
+    };
+    
+    const mapping = typeMapping[documentType];
+    if (!mapping) return;
+    
+    // Hide the selected document display
+    const selectedDiv = document.getElementById(mapping.selectedDiv);
+    if (selectedDiv) {
+        selectedDiv.style.display = 'none';
+    }
+    
+    // Clear the hidden input
+    const hiddenInput = document.getElementById(mapping.hiddenInput);
+    if (hiddenInput) {
+        hiddenInput.value = '';
+    }
+}
+
+/**
+ * Close the Paperless browser modal
+ */
+function closePaperlessBrowser() {
+    const modal = document.getElementById('paperlessBrowserModal');
+    modal.classList.remove('active');
+    
+    // Reset state
+    selectedPaperlessDocument = null;
+    currentDocumentType = '';
+    
+    // Hide select button
+    const selectBtn = document.getElementById('selectPaperlessDocBtn');
+    selectBtn.style.display = 'none';
+}
+
+/**
+ * Change page in Paperless document browser
+ * @param {number} direction - Direction to change page (-1 for previous, 1 for next)
+ */
+function changePage(direction) {
+    const newPage = currentPaperlessPage + direction;
+    if (newPage < 1 || newPage > totalPaperlessPages) return;
+    
+    currentPaperlessPage = newPage;
+    
+    // Check if we have any active filters
+    const searchInput = document.getElementById('paperlessSearchInput');
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    
+    const hasFilters = (searchInput && searchInput.value.trim()) || 
+                      (typeFilter && typeFilter.value) || 
+                      (tagFilter && tagFilter.value);
+    
+    if (hasFilters) {
+        searchPaperlessDocuments();
+    } else {
+        loadAllPaperlessDocuments();
+    }
+}
+
+/**
+ * Update pagination controls
+ */
+function updatePaperlessPagination() {
+    const paginationDiv = document.getElementById('paperlessPagination');
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    
+    if (totalPaperlessPages <= 1) {
+        paginationDiv.style.display = 'none';
+        return;
+    }
+    
+    paginationDiv.style.display = 'flex';
+    prevBtn.disabled = currentPaperlessPage <= 1;
+    nextBtn.disabled = currentPaperlessPage >= totalPaperlessPages;
+    pageInfo.textContent = `Page ${currentPaperlessPage} of ${totalPaperlessPages}`;
+}
+
+/**
+ * Show loading state in Paperless browser
+ */
+function showPaperlessLoading() {
+    const container = document.getElementById('paperlessDocumentsList');
+    container.innerHTML = `
+        <div class="loading-message" style="text-align: center; padding: 40px;">
+            <i class="fas fa-spinner fa-spin"></i> Loading documents...
+        </div>
+    `;
+}
+
+/**
+ * Show error message in Paperless browser
+ * @param {string} message - Error message to display
+ */
+function showPaperlessError(message) {
+    const container = document.getElementById('paperlessDocumentsList');
+    container.innerHTML = `
+        <div class="no-documents-message">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h4>Error</h4>
+            <p>${escapeHtml(message)}</p>
+        </div>
+    `;
+}
+
+/**
+ * Show/hide Paperless browse sections based on Paperless-ngx availability
+ */
+function togglePaperlessBrowseSections() {
+    const paperlessEnabled = window.paperlessNgxEnabled || false;
+    console.log('[togglePaperlessBrowseSections] Paperless enabled:', paperlessEnabled);
+    
+    // List of paperless browse section IDs (only for invoice and manual)
+    const browseSectionIds = [
+        'invoicePaperlessBrowse', 
+        'manualPaperlessBrowse',
+        'editInvoicePaperlessBrowse',
+        'editManualPaperlessBrowse'
+    ];
+    
+    let foundSections = 0;
+    browseSectionIds.forEach(id => {
+        const section = document.getElementById(id);
+        if (section) {
+            foundSections++;
+            section.style.display = paperlessEnabled ? 'block' : 'none';
+            console.log(`[togglePaperlessBrowseSections] ${id}: ${paperlessEnabled ? 'shown' : 'hidden'}`);
+        } else {
+            console.warn(`[togglePaperlessBrowseSections] Section not found: ${id}`);
+        }
+    });
+    
+    console.log(`[togglePaperlessBrowseSections] Found ${foundSections} of ${browseSectionIds.length} sections`);
+}
+
+// Initialize Paperless browser functionality when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners for modal close buttons
+    const paperlessModal = document.getElementById('paperlessBrowserModal');
+    if (paperlessModal) {
+        // Close on backdrop click
+        paperlessModal.addEventListener('click', function(e) {
+            if (e.target === paperlessModal) {
+                closePaperlessBrowser();
+            }
+        });
+        
+        // Close on close button click
+        const closeBtn = paperlessModal.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closePaperlessBrowser);
+        }
+        
+        // Close on cancel button click - but only the Cancel button, not all secondary buttons
+        const cancelBtn = paperlessModal.querySelector('.modal-footer .btn-secondary');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closePaperlessBrowser);
+        }
+    }
+    
+    // Add event listeners for search and filters
+    const searchInput = document.getElementById('paperlessSearchInput');
+    if (searchInput) {
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPaperlessPage = 1; // Reset to first page
+                searchPaperlessDocuments();
+            }
+        });
+        
+        // Search on input change (with debounce)
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPaperlessPage = 1; // Reset to first page
+                searchPaperlessDocuments();
+            }, 500);
+        });
+    }
+    
+    // Add event listeners for filter dropdowns
+    const typeFilter = document.getElementById('paperlessTypeFilter');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', function() {
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    const tagFilter = document.getElementById('paperlessTagFilter');
+    if (tagFilter) {
+        tagFilter.addEventListener('change', function() {
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    // Add event listener for search button
+    const searchBtn = document.getElementById('paperlessSearchBtn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            currentPaperlessPage = 1; // Reset to first page
+            searchPaperlessDocuments();
+        });
+    }
+    
+    // Add event listener for "Show All" button
+    const showAllBtn = document.getElementById('paperlessShowAllBtn');
+    if (showAllBtn) {
+        showAllBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear all filters
+            if (searchInput) searchInput.value = '';
+            if (typeFilter) typeFilter.value = '';
+            if (tagFilter) tagFilter.value = '';
+            
+            // Reset page and load all documents
+            currentPaperlessPage = 1;
+            paperlessSearchQuery = '';
+            loadAllPaperlessDocuments();
+        });
+    }
+    
+    // Toggle browse sections will be handled by initPaperlessNgxIntegration()
+    // togglePaperlessBrowseSections();
+});
+
+// Make functions available globally
+window.openPaperlessBrowser = openPaperlessBrowser;
+window.loadAllPaperlessDocuments = loadAllPaperlessDocuments;
+window.selectPaperlessDocument = selectPaperlessDocument;
+window.clearPaperlessSelection = clearPaperlessSelection;
+window.changePage = changePage;
+window.openPaperlessDocument = openPaperlessDocument;
+window.openSecureFile = openSecureFile;
+
+// ===== END PAPERLESS BROWSER FUNCTIONALITY =====

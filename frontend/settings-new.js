@@ -1,16 +1,20 @@
 // DOM Elements
 const darkModeToggle = document.getElementById('darkModeToggle');
 const darkModeToggleSetting = document.getElementById('darkModeToggleSetting');
+const languageSelect = document.getElementById('languageSelect');
 const defaultViewSelect = document.getElementById('defaultView');
-const emailNotificationsToggle = document.getElementById('emailNotifications');
 const expiringSoonDaysInput = document.getElementById('expiringSoonDays');
+const notificationChannel = document.getElementById('notificationChannel');
 const notificationFrequencySelect = document.getElementById('notificationFrequency');
 const notificationTimeInput = document.getElementById('notificationTime');
 const timezoneSelect = document.getElementById('timezone');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const savePreferencesBtn = document.getElementById('savePreferencesBtn');
-const saveEmailSettingsBtn = document.getElementById('saveEmailSettingsBtn');
+const saveNotificationSettingsBtn = document.getElementById('saveNotificationSettingsBtn');
 const changePasswordBtn = document.getElementById('changePasswordBtn');
+const emailSettingsContainer = document.getElementById('emailSettingsContainer');
+const appriseSettingsContainer = document.getElementById('appriseSettingsContainer');
+const userAppriseSettingsContainer = document.getElementById('userAppriseSettingsContainer');
 const passwordChangeForm = document.getElementById('passwordChangeForm');
 const savePasswordBtn = document.getElementById('savePasswordBtn');
 const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
@@ -24,6 +28,14 @@ const toastContainer = document.getElementById('toastContainer');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsMenu = document.getElementById('settingsMenu');
 const usersTableBody = document.getElementById('usersTableBody');
+
+// Edit User Modal Elements
+const editUserModal = document.getElementById('editUserModal');
+const editUserId = document.getElementById('editUserId');
+const editUsername = document.getElementById('editUsername');
+const editEmail = document.getElementById('editEmail');
+const editUserActive = document.getElementById('editUserActive');
+const editUserAdmin = document.getElementById('editUserAdmin');
 
 // Form fields
 const firstNameInput = document.getElementById('firstName');
@@ -40,15 +52,157 @@ const checkAdminBtn = document.getElementById('checkAdminBtn');
 const showUsersBtn = document.getElementById('showUsersBtn');
 const testApiBtn = document.getElementById('testApiBtn');
 const triggerNotificationsBtn = document.getElementById('triggerNotificationsBtn');
+const schedulerStatusBtn = document.getElementById('schedulerStatusBtn');
 const registrationEnabled = document.getElementById('registrationEnabled');
 const saveSiteSettingsBtn = document.getElementById('saveSiteSettingsBtn');
 const emailBaseUrlInput = document.getElementById('emailBaseUrl'); // Added for email base URL
+
+// OIDC Settings DOM Elements
+const oidcEnabledToggle = document.getElementById('oidcEnabled');
+const oidcOnlyModeToggle = document.getElementById('oidcOnlyMode');
+const oidcProviderNameInput = document.getElementById('oidcProviderName');
+const oidcClientIdInput = document.getElementById('oidcClientId');
+const oidcClientSecretInput = document.getElementById('oidcClientSecret');
+const oidcIssuerUrlInput = document.getElementById('oidcIssuerUrl');
+const oidcScopeInput = document.getElementById('oidcScope');
+const saveOidcSettingsBtn = document.getElementById('saveOidcSettingsBtn');
+const oidcRestartMessage = document.getElementById('oidcRestartMessage');
+
+// Apprise Settings DOM Elements
+const appriseEnabledToggle = document.getElementById('appriseEnabled');
+const appriseNotificationModeSelect = document.getElementById('appriseNotificationMode');
+const appriseModeDescription = document.getElementById('appriseModeDescription');
+const appriseWarrantyScopeSelect = document.getElementById('appriseWarrantyScope');
+const appriseScopeDescription = document.getElementById('appriseScopeDescription');
+const appriseUrlsTextarea = document.getElementById('appriseUrls');
+const appriseExpirationDaysInput = document.getElementById('appriseExpirationDays');
+const appriseNotificationFrequency = document.getElementById('appriseNotificationFrequency');
+
+// User-specific Apprise settings (in notification settings section)
+const userAppriseNotificationTimeInput = document.getElementById('userAppriseNotificationTime');
+const userAppriseTimezoneSelect = document.getElementById('userAppriseTimezone');
+const userAppriseNotificationFrequency = document.getElementById('userAppriseNotificationFrequency');
+const appriseTitlePrefixInput = document.getElementById('appriseTitlePrefix');
+const appriseTestUrlInput = document.getElementById('appriseTestUrl');
+const saveAppriseSettingsBtn = document.getElementById('saveAppriseSettingsBtn');
+const testAppriseBtn = document.getElementById('testAppriseBtn');
+const validateAppriseUrlBtn = document.getElementById('validateAppriseUrlBtn');
+const triggerAppriseNotificationsBtn = document.getElementById('triggerAppriseNotificationsBtn');
+const appriseStatusBadge = document.getElementById('appriseStatusBadge');
+const appriseUrlsCount = document.getElementById('appriseUrlsCount');
+const currentAppriseExpirationDays = document.getElementById('currentAppriseExpirationDays');
+
+const viewSupportedServicesBtn = document.getElementById('viewSupportedServicesBtn');
+const appriseNotAvailable = document.getElementById('appriseNotAvailable');
+
 const currencySymbolInput = document.getElementById('currencySymbol');
 const currencySymbolSelect = document.getElementById('currencySymbolSelect');
 const currencySymbolCustom = document.getElementById('currencySymbolCustom');
+const currencyPositionSelect = document.getElementById('currencyPositionSelect');
 
 // Add dateFormatSelect near other DOM element declarations if not already there
 const dateFormatSelect = document.getElementById('dateFormat');
+
+// Paperless-ngx Settings DOM Elements
+const paperlessEnabledToggle = document.getElementById('paperlessEnabled');
+const paperlessUrlInput = document.getElementById('paperlessUrl');
+const paperlessApiTokenInput = document.getElementById('paperlessApiToken');
+const paperlessViewInAppToggle = document.getElementById('paperlessViewInApp');
+const paperlessSettingsContainer = document.getElementById('paperlessSettingsContainer');
+const testPaperlessConnectionBtn = document.getElementById('testPaperlessConnectionBtn');
+const savePaperlessSettingsBtn = document.getElementById('savePaperlessSettingsBtn');
+const paperlessConnectionStatus = document.getElementById('paperlessConnectionStatus');
+
+// Global variable to store currencies data for currency code lookup
+let globalCurrenciesData = [];
+
+/**
+ * Load currencies from the API and populate the currency dropdown
+ */
+async function loadCurrenciesForSettings() {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        const response = await fetch('/api/currencies', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch currencies');
+        }
+        
+        const currencies = await response.json();
+        
+        // Store currencies data globally for currency code lookup
+        globalCurrenciesData = currencies;
+        
+        // Populate currency symbol dropdown
+        if (currencySymbolSelect) {
+            // Clear existing options
+            currencySymbolSelect.innerHTML = '';
+            
+            // Add currencies from API
+            currencies.forEach(currency => {
+                const option = document.createElement('option');
+                option.value = currency.symbol;
+                option.textContent = `${currency.symbol} (${currency.code} - ${currency.name})`;
+                currencySymbolSelect.appendChild(option);
+            });
+            
+            // Add "Other..." option at the end
+            const otherOption = document.createElement('option');
+            otherOption.value = 'other';
+            otherOption.textContent = 'Other...';
+            currencySymbolSelect.appendChild(otherOption);
+        }
+        
+        console.log('Currencies loaded successfully for settings page');
+    } catch (error) {
+        console.error('Error loading currencies for settings:', error);
+        // Fallback to default currencies if loading fails
+        if (currencySymbolSelect) {
+            currencySymbolSelect.innerHTML = `
+                <option value="$">$ (USD - US Dollar)</option>
+                <option value="€">€ (EUR - Euro)</option>
+                <option value="£">£ (GBP - British Pound)</option>
+                <option value="¥">¥ (JPY - Japanese Yen)</option>
+                <option value="other">Other...</option>
+            `;
+        }
+    }
+}
+
+/**
+ * Initialize language selector
+ */
+function initLanguageSelector() {
+    if (!languageSelect) return;
+    
+    // Get current language
+    const currentLang = window.i18n?.getCurrentLanguage() || 'en';
+    languageSelect.value = currentLang;
+    
+    // Add event listener for language changes
+    languageSelect.addEventListener('change', async function() {
+        const selectedLanguage = this.value;
+        console.log('Language changed to:', selectedLanguage);
+        
+        if (window.i18n?.changeLanguage) {
+            try {
+                await window.i18n.changeLanguage(selectedLanguage);
+                showToast(window.t('messages.saved') || 'Language changed successfully', 'success');
+                
+                // Reload page after a short delay to apply all translations
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (error) {
+                console.error('Failed to change language:', error);
+                showToast(window.t('messages.error') || 'Failed to change language', 'error');
+            }
+        }
+    });
+}
 
 /**
  * Set theme (dark/light) - Unified and persistent
@@ -137,6 +291,13 @@ function initDarkModeToggle() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded, initializing settings page');
     
+    // DEBUG: Check current user data
+    const debugCurrentUser = window.auth && window.auth.getCurrentUser ? window.auth.getCurrentUser() : null;
+    console.log('DEBUG: Current user data:', debugCurrentUser);
+    if (debugCurrentUser) {
+        console.log('DEBUG: User has is_owner field:', 'is_owner' in debugCurrentUser, 'Value:', debugCurrentUser.is_owner);
+    }
+    
     // Set up event listeners
     setupEventListeners(); // Ensure this doesn't also try to init settings menu
     
@@ -170,6 +331,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- ADD THIS LINE TO INITIALIZE MODALS ---
     initModals();
+    
+    // Initialize collapsible cards
+    initCollapsibleCards();
+    
+    // Load admin-only settings if user is admin
+    // Note: These will also be loaded later in loadUserData() with proper checks
+    // This is a redundant call that should be conditional
+    const currentUser = window.auth && window.auth.getCurrentUser ? window.auth.getCurrentUser() : null;
+    if (currentUser && currentUser.is_admin) {
+        // Load site settings (for admins) - includes OIDC settings
+        loadSiteSettings();
+        
+        // Load Apprise settings
+        loadAppriseSettings();
+        
+        // Load Apprise site settings (also loads overall Apprise settings)
+        loadAppriseSiteSettings();
+        
+        // Initialize ownership management if user is owner
+        if (currentUser.is_owner) {
+            console.log('DEBUG: User is owner, initializing ownership management');
+            setTimeout(() => {
+                const ownershipSection = document.getElementById('ownershipSection');
+                if (ownershipSection) {
+                    ownershipSection.style.display = 'block';
+                    console.log('DEBUG: Ownership section made visible');
+                }
+                // Don't load users here - wait for modal to open
+                console.log('DEBUG: Ownership management initialized, users will load when modal opens');
+            }, 500); // Wait for DOM to be ready
+        }
+    } else {
+        console.log('User is not admin, skipping admin-only settings load during initialization');
+    }
+    
+    // Setup Apprise event listeners
+    setupAppriseEventListeners();
+    
+    // Initialize delete button handling
+    setupDeleteButton();
 });
 
 /**
@@ -177,6 +378,9 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 function initPage() {
     console.log('Initializing settings page');
+    
+    // Initialize language selector
+    initLanguageSelector();
     
     // Check authentication
     if (window.auth) {
@@ -346,14 +550,7 @@ async function loadUserData() {
             if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || 'N/A';
             // --- END UPDATE ---
 
-            // Check if user is admin and show admin section
-            if (currentUser.is_admin) {
-                if (adminSection) adminSection.style.display = 'block';
-                if (adminSection && adminSection.style.display === 'block') {
-                     if (usersTableBody) loadUsers();
-                     if (registrationEnabled) loadSiteSettings();
-                }
-            }
+            // Admin section visibility will be determined after API call
         }
 
         // Fetch fresh user data from API
@@ -384,13 +581,24 @@ async function loadUserData() {
                  if (userEmailDisplay) userEmailDisplay.textContent = userData.email || 'N/A';
                 // --- END UPDATE ---
 
-                // Show admin section if user is admin
+                // Show admin section if user is admin and load admin-specific data
                 if (userData.is_admin) {
-                     if (adminSection) adminSection.style.display = 'block';
-                     if (adminSection && adminSection.style.display === 'block') {
-                         if (usersTableBody) loadUsers();
-                         if (registrationEnabled) loadSiteSettings();
+                     if (adminSection) {
+                        adminSection.style.display = 'block';
+                        // Ensure admin-specific data is loaded AFTER section is visible
+                        if (usersTableBody) loadUsers();
+                        // Check for site settings elements directly to avoid cache timing issues
+                        const hasRegistrationToggle = document.getElementById('registrationEnabled');
+                        const hasOidcToggle = document.getElementById('oidcEnabled');
+                        if (hasRegistrationToggle || hasOidcToggle) {
+                            console.log('Admin settings elements found, loading site settings...');
+                            loadSiteSettings();
+                        } else {
+                            console.warn('Admin settings elements not found - this might be a timing/cache issue');
+                        }
                      }
+                } else {
+                    if (adminSection) adminSection.style.display = 'none';
                 }
 
                 // Update localStorage ONLY if data has changed
@@ -466,17 +674,27 @@ function getPreferenceKeyPrefix() {
     return getUserType() === 'admin' ? 'admin_' : 'user_';
 }
 
+// Prevent multiple simultaneous preference loads
+let isLoadingPreferences = false;
+
 /**
  * Load user preferences
  */
 async function loadPreferences() {
+    // Prevent multiple simultaneous loads
+    if (isLoadingPreferences) {
+        console.log('Preferences already loading, skipping duplicate call');
+        return;
+    }
+    
+    isLoadingPreferences = true;
     console.log('Loading preferences...');
     const prefix = getPreferenceKeyPrefix();
     console.log('Loading preferences with prefix:', prefix);
 
-    let darkModeFromAPI = null;
     let apiPrefs = null;
-    // Try to load preferences from backend if authenticated
+    
+    // FIXED: Load all preferences from API first, then apply to UI
     if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
         try {
             const response = await fetch('/api/auth/preferences', {
@@ -486,19 +704,41 @@ async function loadPreferences() {
             });
             if (response.ok) {
                 apiPrefs = await response.json();
+                console.log('API preferences loaded:', apiPrefs);
+                
+                // Apply theme from API immediately (highest priority)
                 if (apiPrefs && apiPrefs.theme) {
-                    darkModeFromAPI = apiPrefs.theme === 'dark';
-                    setTheme(darkModeFromAPI);
-                    // Sync localStorage
-                    localStorage.setItem('darkMode', darkModeFromAPI);
+                    const isDark = apiPrefs.theme === 'dark';
+                    console.log('Applying theme from API:', apiPrefs.theme, 'isDark:', isDark);
+                    setTheme(isDark);
+                    // Sync localStorage to match API
+                    localStorage.setItem('darkMode', isDark);
+                    // Ensure the dark mode toggle reflects the API setting
+                    if (darkModeToggleSetting) {
+                        darkModeToggleSetting.checked = isDark;
+                        console.log('Synced dark mode toggle to API value:', isDark);
+                    }
+                } else {
+                    console.log('No theme in API preferences, using localStorage fallback');
+                    const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+                    setTheme(storedDarkMode);
+                    if (darkModeToggleSetting) {
+                        darkModeToggleSetting.checked = storedDarkMode;
+                    }
                 }
+            } else {
+                console.warn('API preferences request failed, using localStorage');
+                const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+                setTheme(storedDarkMode);
             }
         } catch (e) {
             console.warn('Failed to load preferences from backend:', e);
+            // Fallback to localStorage
+            const storedDarkMode = localStorage.getItem('darkMode') === 'true';
+            setTheme(storedDarkMode);
         }
-    }
-    // Fallback: use localStorage if not authenticated or API fails
-    if (darkModeFromAPI === null) {
+    } else {
+        console.log('Not authenticated, using localStorage for theme');
         const storedDarkMode = localStorage.getItem('darkMode') === 'true';
         setTheme(storedDarkMode);
     }
@@ -523,8 +763,12 @@ async function loadPreferences() {
         console.log(`${prefix}defaultView not found, defaulting view to grid`);
     }
 
-    // Currency Symbol
+    // Currency Symbol - Load stored preference first
     const storedCurrency = localStorage.getItem(`${prefix}currencySymbol`);
+    
+    // Load currencies from API and set the saved preference
+    await loadCurrenciesForSettings();
+    
     if (storedCurrency) {
         if (currencySymbolSelect) {
             // Check if the stored symbol is a standard option
@@ -532,6 +776,7 @@ async function loadPreferences() {
             if (standardOption) {
                 currencySymbolSelect.value = storedCurrency;
                 if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
+                console.log(`Set currency dropdown to stored value: ${storedCurrency}`);
             } else {
                 // It's a custom symbol
                 currencySymbolSelect.value = 'other';
@@ -539,6 +784,7 @@ async function loadPreferences() {
                     currencySymbolCustom.value = storedCurrency;
                     currencySymbolCustom.style.display = 'inline-block';
                 }
+                console.log(`Set currency to custom value: ${storedCurrency}`);
             }
             console.log(`Loaded currency symbol from ${prefix}currencySymbol: ${storedCurrency}`);
         }
@@ -547,6 +793,16 @@ async function loadPreferences() {
         if (currencySymbolSelect) currencySymbolSelect.value = '$';
         if (currencySymbolCustom) currencySymbolCustom.style.display = 'none';
         console.log(`${prefix}currencySymbol not found, defaulting to $`);
+    }
+
+    // Currency Position
+    const storedCurrencyPosition = localStorage.getItem(`${prefix}currencyPosition`);
+    if (storedCurrencyPosition && currencyPositionSelect) {
+        currencyPositionSelect.value = storedCurrencyPosition;
+        console.log(`Loaded currency position from ${prefix}currencyPosition: ${storedCurrencyPosition}`);
+    } else if (currencyPositionSelect) {
+        currencyPositionSelect.value = 'left'; // Default
+        console.log(`${prefix}currencyPosition not found, defaulting to left`);
     }
 
     // Expiring Soon Days
@@ -559,19 +815,19 @@ async function loadPreferences() {
         console.log(`${prefix}expiringSoonDays not found, defaulting to 30`);
     }
 
-    // Now, try fetching preferences from API to override/confirm
-    if (window.auth && window.auth.isAuthenticated()) {
-        try {
-            const token = window.auth.getToken();
-            const response = await fetch('/api/auth/preferences', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+    // Paperless View in App
+    const storedPaperlessViewInApp = localStorage.getItem(`${prefix}paperlessViewInApp`);
+    if (storedPaperlessViewInApp !== null && paperlessViewInAppToggle) {
+        paperlessViewInAppToggle.checked = storedPaperlessViewInApp === 'true';
+        console.log(`Loaded Paperless view in app from ${prefix}paperlessViewInApp: ${storedPaperlessViewInApp}`);
+    } else if (paperlessViewInAppToggle) {
+        paperlessViewInAppToggle.checked = false; // Default
+        console.log(`${prefix}paperlessViewInApp not found, defaulting to false`);
+    }
 
-            if (response.ok) {
-                const apiPrefs = await response.json();
-                console.log('Preferences loaded from API:', apiPrefs);
+    // Apply API preferences to form elements (apiPrefs already loaded above)
+    if (apiPrefs) {
+        console.log('Applying API preferences to form elements:', apiPrefs);
 
                 // Update UI elements with API data where available
                 if (apiPrefs.default_view && defaultViewSelect) {
@@ -606,6 +862,18 @@ async function loadPreferences() {
                     }
                 }
                 // --- END MODIFIED CURRENCY SYMBOL HANDLING ---
+                
+                // --- CURRENCY POSITION HANDLING ---
+                const storedCurrencyPosition = localStorage.getItem(`${prefix}currencyPosition`);
+                if (apiPrefs.currency_position && currencyPositionSelect) {
+                    if (!storedCurrencyPosition || apiPrefs.currency_position !== storedCurrencyPosition) {
+                        console.log(`API currency_position (${apiPrefs.currency_position}) differs from localStorage (${storedCurrencyPosition}). Updating UI.`);
+                        currencyPositionSelect.value = apiPrefs.currency_position;
+                    } else {
+                        console.log(`API currency_position (${apiPrefs.currency_position}) matches localStorage (${storedCurrencyPosition}). Skipping UI update.`);
+                    }
+                }
+                // --- END CURRENCY POSITION HANDLING ---
                 if (apiPrefs.expiring_soon_days && expiringSoonDaysInput) {
                      // Only update if different from localStorage value (or if localStorage was empty)
                      const storedExpiringDays = localStorage.getItem(`${prefix}expiringSoonDays`) || '30'; // Default if null
@@ -625,9 +893,19 @@ async function loadPreferences() {
                  }
                  // --- End Date Format Check ---
 
+                 // --- Update Paperless View in App from API Prefs ---
+                 if (apiPrefs.paperless_view_in_app !== undefined && paperlessViewInAppToggle) {
+                     paperlessViewInAppToggle.checked = apiPrefs.paperless_view_in_app;
+                     console.log(`Set Paperless view in app from API: ${apiPrefs.paperless_view_in_app}`);
+                 }
+                 // --- End Paperless View in App from API Prefs ---
+
                 // Update Email Settings from API
-                if (emailNotificationsToggle) {
-                    emailNotificationsToggle.checked = apiPrefs.email_notifications !== false; // Default true if null/undefined
+                if (notificationChannel) {
+                    const channelValue = apiPrefs.notification_channel || 'email'; // Default to email if not present
+                    notificationChannel.value = channelValue;
+                    toggleNotificationSettings(channelValue);
+                    console.log('Set notification channel to:', channelValue);
                 }
                 if (notificationFrequencySelect && apiPrefs.notification_frequency) {
                     notificationFrequencySelect.value = apiPrefs.notification_frequency;
@@ -635,6 +913,28 @@ async function loadPreferences() {
                 if (notificationTimeInput && apiPrefs.notification_time) {
                     notificationTimeInput.value = apiPrefs.notification_time.substring(0, 5); // HH:MM format
                 }
+                // Admin Apprise settings (in Apprise card)
+                if (appriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
+                    appriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
+                }
+                
+                // User-specific Apprise settings (in notification settings section)
+                if (userAppriseNotificationTimeInput && apiPrefs.apprise_notification_time) {
+                    userAppriseNotificationTimeInput.value = apiPrefs.apprise_notification_time.substring(0, 5);
+                }
+                if (userAppriseTimezoneSelect && apiPrefs.apprise_timezone) {
+                    if (Array.from(userAppriseTimezoneSelect.options).some(option => option.value === apiPrefs.apprise_timezone)) {
+                        userAppriseTimezoneSelect.value = apiPrefs.apprise_timezone;
+                    } else {
+                        console.warn(`User Apprise timezone '${apiPrefs.apprise_timezone}' from API not found in dropdown.`);
+                    }
+                }
+                if (userAppriseNotificationFrequency && apiPrefs.apprise_notification_frequency) {
+                    userAppriseNotificationFrequency.value = apiPrefs.apprise_notification_frequency;
+                }
+                
+                // Update Apprise timezone display
+                updateAppriseTimezoneDisplay(apiPrefs.timezone);
                 // Load and set timezone from API
                 if (timezoneSelect && apiPrefs.timezone) {
                     console.log('API provided timezone:', apiPrefs.timezone);
@@ -642,6 +942,9 @@ async function loadPreferences() {
                     if (Array.from(timezoneSelect.options).some(option => option.value === apiPrefs.timezone)) {
                         timezoneSelect.value = apiPrefs.timezone;
                         console.log('Applied timezone from API:', timezoneSelect.value, 'Current select value:', timezoneSelect.value);
+                        
+                        // Update Apprise timezone display when timezone is loaded
+                        updateAppriseTimezoneDisplay(apiPrefs.timezone);
                     } else {
                         console.warn(`Timezone '${apiPrefs.timezone}' from API not found in dropdown.`);
                     }
@@ -649,12 +952,83 @@ async function loadPreferences() {
                     console.log('No timezone preference found in API or timezone select element missing.');
                 }
 
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.warn(`Failed to load preferences from API: ${response.status}`, errorData.message || '');
+                                // Load and set language preference
+                if (apiPrefs.preferred_language && languageSelect) {
+                    console.log('API provided language:', apiPrefs.preferred_language);
+                    // Ensure the option exists before setting
+                    if (Array.from(languageSelect.options).some(option => option.value === apiPrefs.preferred_language)) {
+                        languageSelect.value = apiPrefs.preferred_language;
+                        console.log('Applied language from API:', languageSelect.value);
+                        
+                        // Trigger language change if different from current
+                        if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                            const currentLang = window.i18n.getCurrentLanguage();
+                            if (apiPrefs.preferred_language !== currentLang) {
+                                console.log(`Language preference (${apiPrefs.preferred_language}) differs from current (${currentLang}), changing language`);
+                                window.i18n.changeLanguage(apiPrefs.preferred_language).catch(error => {
+                                    console.error('Failed to change language from API preference:', error);
+                                });
+                            }
+                        }
+                    } else {
+                        console.warn(`Language '${apiPrefs.preferred_language}' from API not found in dropdown.`);
+                    }
+                } else {
+                    // Load from localStorage if no API preference
+                    const storedLanguage = localStorage.getItem('preferred_language') || 'en';
+                    if (languageSelect) {
+                        languageSelect.value = storedLanguage;
+                        console.log('Applied language from localStorage:', storedLanguage);
+                        
+                        // Trigger language change if different from current
+                        if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                            const currentLang = window.i18n.getCurrentLanguage();
+                            if (storedLanguage !== currentLang) {
+                                console.log(`Stored language (${storedLanguage}) differs from current (${currentLang}), changing language`);
+                                window.i18n.changeLanguage(storedLanguage).catch(error => {
+                                    console.error('Failed to change language from localStorage:', error);
+                                });
+                            }
+                        }
+                    }
+                }
+    } else {
+        // No API preferences, load language from localStorage
+        const storedLanguage = localStorage.getItem('preferred_language') || 'en';
+        if (languageSelect) {
+            languageSelect.value = storedLanguage;
+            console.log('Applied language from localStorage (no API):', storedLanguage);
+            
+            // Trigger language change if different from current
+            if (window.i18n?.changeLanguage && window.i18n?.getCurrentLanguage) {
+                const currentLang = window.i18n.getCurrentLanguage();
+                if (storedLanguage !== currentLang) {
+                    console.log(`Stored language (${storedLanguage}) differs from current (${currentLang}), changing language`);
+                    window.i18n.changeLanguage(storedLanguage).catch(error => {
+                        console.error('Failed to change language from localStorage (no API):', error);
+                    });
+                }
             }
-        } catch (error) {
-            console.error('Error fetching preferences from API:', error);
+        }
+    }
+    
+    // Reset the loading flag
+    isLoadingPreferences = false;
+    console.log('Preferences loading completed');
+}
+
+/**
+ * Update the Apprise timezone display to show which timezone will be used
+ */
+function updateAppriseTimezoneDisplay(timezone) {
+    const appriseTimezoneDisplay = document.getElementById('appriseTimezoneDisplay');
+    if (appriseTimezoneDisplay) {
+        if (timezone) {
+            appriseTimezoneDisplay.textContent = `(using timezone: ${timezone})`;
+            appriseTimezoneDisplay.style.display = 'inline';
+        } else {
+            appriseTimezoneDisplay.textContent = '(timezone not set)';
+            appriseTimezoneDisplay.style.display = 'inline';
         }
     }
 }
@@ -666,27 +1040,23 @@ function setupEventListeners() {
     console.log('Setting up event listeners');
     
     // Set up user menu button click handler
-    const userMenuBtn = document.getElementById('userMenuBtn');
-    const userMenuDropdown = document.getElementById('userMenuDropdown');
-    
-    if (userMenuBtn && userMenuDropdown) {
-        console.log('Setting up user menu button click handler');
-        
-        // Toggle dropdown when user button is clicked
-        userMenuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            userMenuDropdown.classList.toggle('active');
-        });
-        
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (userMenuDropdown.classList.contains('active') && 
-                !userMenuDropdown.contains(e.target) && 
-                !userMenuBtn.contains(e.target)) {
-                userMenuDropdown.classList.remove('active');
-            }
-        });
-    }
+    // const userMenuBtn = document.getElementById('userMenuBtn'); // REMOVE/COMMENT OUT
+    // const userMenuDropdown = document.getElementById('userMenuDropdown'); // REMOVE/COMMENT OUT
+
+    // if (userMenuBtn && userMenuDropdown) { // REMOVE/COMMENT OUT THIS ENTIRE BLOCK
+    //     console.log('Setting up user menu button click handler');
+    //     userMenuBtn.addEventListener('click', function(e) {
+    //         e.stopPropagation();
+    //         userMenuDropdown.classList.toggle('active');
+    //     });
+    //     document.addEventListener('click', function(e) {
+    //         if (userMenuDropdown.classList.contains('active') &&
+    //             !userMenuDropdown.contains(e.target) &&
+    //             !userMenuBtn.contains(e.target)) {
+    //             userMenuDropdown.classList.remove('active');
+    //         }
+    //     });
+    // }
     
     // Dark mode toggle in header (no longer exists)
     if (darkModeToggle) {
@@ -788,7 +1158,16 @@ function setupEventListeners() {
     
     if (showUsersBtn) {
         showUsersBtn.addEventListener('click', function() {
-            showUsersList();
+            console.log('Show Users List button clicked');
+            // Open the proper users modal that has crown icons and ownership management
+            const usersModal = document.getElementById('usersModal');
+            if (usersModal) {
+                openModal(usersModal);
+                loadUsers(); // This will populate the table with crown icons
+            } else {
+                console.error('usersModal not found, falling back to showUsersList');
+                showUsersList();
+            }
         });
     }
     
@@ -804,16 +1183,105 @@ function setupEventListeners() {
         });
     }
     
+    if (schedulerStatusBtn) {
+        schedulerStatusBtn.addEventListener('click', function() {
+            checkSchedulerStatus();
+        });
+    }
+    
     // Site settings save button
     if (saveSiteSettingsBtn) {
         saveSiteSettingsBtn.addEventListener('click', function() {
-            saveSiteSettings();
+            saveSiteSettings(); // This will now also handle non-OIDC site settings
+        });
+    }
+
+    // Save OIDC settings button
+    if (saveOidcSettingsBtn) {
+        saveOidcSettingsBtn.addEventListener('click', function() {
+            saveOidcSettings();
         });
     }
     
     // Save email settings button
-    if (saveEmailSettingsBtn) {
-        saveEmailSettingsBtn.addEventListener('click', saveEmailSettings);
+    if (saveNotificationSettingsBtn) {
+        saveNotificationSettingsBtn.addEventListener('click', saveNotificationSettings);
+    }
+
+    // Save user changes button (Edit User Modal)
+    const saveUserBtn = document.getElementById('saveUserBtn');
+    if (saveUserBtn) {
+        saveUserBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Save User button clicked');
+            saveUserChanges();
+        });
+    }
+    
+    // Add timezone change listener to update Apprise timezone display
+    const timezoneSelect = document.getElementById('timezone');
+    if (timezoneSelect) {
+        timezoneSelect.addEventListener('change', function() {
+            updateAppriseTimezoneDisplay(this.value);
+        });
+    }
+
+
+    
+    if (userAppriseTimezoneSelect) {
+        loadTimezonesIntoSelect(userAppriseTimezoneSelect);
+    }
+
+    if (notificationChannel) {
+        notificationChannel.addEventListener('change', (e) => {
+            toggleNotificationSettings(e.target.value);
+        });
+    }
+    
+    // Paperless-ngx event listeners
+    if (paperlessEnabledToggle) {
+        paperlessEnabledToggle.addEventListener('change', function() {
+            togglePaperlessSettings(this.checked);
+        });
+    }
+    
+    if (testPaperlessConnectionBtn) {
+        testPaperlessConnectionBtn.addEventListener('click', testPaperlessConnection);
+    }
+    
+    if (savePaperlessSettingsBtn) {
+        savePaperlessSettingsBtn.addEventListener('click', savePaperlessSettings);
+    }
+    
+    // Add debug button event listener
+    const debugPaperlessBtn = document.getElementById('debugPaperlessBtn');
+    if (debugPaperlessBtn) {
+        debugPaperlessBtn.addEventListener('click', debugPaperlessConfiguration);
+    }
+    
+    // Add test upload button event listener
+    const testFileUploadBtn = document.getElementById('testFileUploadBtn');
+    if (testFileUploadBtn) {
+        testFileUploadBtn.addEventListener('click', testFileUpload);
+    }
+    
+    // Clear status message when inputs are changed
+    if (paperlessUrlInput) {
+        paperlessUrlInput.addEventListener('input', function() {
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.className = 'paperless-status-message';
+                paperlessConnectionStatus.innerHTML = '';
+            }
+        });
+    }
+    
+    if (paperlessApiTokenInput) {
+        paperlessApiTokenInput.addEventListener('input', function() {
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.className = 'paperless-status-message';
+                paperlessConnectionStatus.innerHTML = '';
+            }
+        });
     }
     
     console.log('Event listeners setup complete');
@@ -869,6 +1337,61 @@ function initModals() {
     } else {
         console.error('deleteUserModal not found in initModals');
     }
+    
+    // Set up transfer ownership modal close handlers
+    const transferOwnershipModal = document.getElementById('transferOwnershipModal');
+    if (transferOwnershipModal) {
+        const transferConfirmInput = document.getElementById('transferConfirmInput');
+        const confirmTransferBtn = document.getElementById('confirmTransferOwnershipBtn');
+        
+        if (transferConfirmInput && confirmTransferBtn) {
+            transferConfirmInput.addEventListener('input', function() {
+                confirmTransferBtn.disabled = this.value.toUpperCase() !== 'TRANSFER';
+            });
+        }
+    }
+}
+
+/**
+ * Initialize collapsible cards functionality
+ */
+function initCollapsibleCards() {
+    console.log('Initializing collapsible cards...');
+    
+    // Get all collapsible headers
+    const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
+    
+    // Retrieve saved states from localStorage
+    const savedStates = JSON.parse(localStorage.getItem('collapsibleStates') || '{}');
+    
+    collapsibleHeaders.forEach(header => {
+        const targetId = header.getAttribute('data-target');
+        const card = header.closest('.collapsible-card');
+        
+        // Apply saved state or default to expanded
+        const isCollapsed = savedStates[targetId] === true;
+        if (isCollapsed) {
+            card.classList.add('collapsed');
+        }
+        
+        // Add click event listener
+        header.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            const card = this.closest('.collapsible-card');
+            
+            // Toggle collapsed state
+            card.classList.toggle('collapsed');
+            
+            // Save state to localStorage
+            const currentStates = JSON.parse(localStorage.getItem('collapsibleStates') || '{}');
+            currentStates[targetId] = card.classList.contains('collapsed');
+            localStorage.setItem('collapsibleStates', JSON.stringify(currentStates));
+            
+            console.log(`Toggled ${targetId}: ${card.classList.contains('collapsed') ? 'collapsed' : 'expanded'}`);
+        });
+    });
+    
+    console.log('Collapsible cards initialized');
 }
 
 /**
@@ -1001,34 +1524,58 @@ async function savePreferences() {
     console.log('Saving preferences...');
     const prefix = getPreferenceKeyPrefix();
 
+    // Get current UI state FIRST (before building preferencesToSave)
+    const isDark = darkModeToggleSetting ? darkModeToggleSetting.checked : false;
+    console.log(`Current dark mode UI state: ${isDark}`);
+
     // --- Prepare data to save --- Add dateFormat and dark mode
     const preferencesToSave = {
         default_view: defaultViewSelect ? defaultViewSelect.value : 'grid',
         expiring_soon_days: expiringSoonDaysInput ? parseInt(expiringSoonDaysInput.value) : 30,
         date_format: dateFormatSelect ? dateFormatSelect.value : 'MDY',
-        theme: (localStorage.getItem('darkMode') === 'true') ? 'dark' : 'light',
+        theme: isDark ? 'dark' : 'light',  // Use current UI state, not old localStorage
+        paperless_view_in_app: paperlessViewInAppToggle ? paperlessViewInAppToggle.checked : false,
+        preferred_language: languageSelect ? languageSelect.value : 'en',  // Include language preference
     };
 
     // Handle currency symbol (standard or custom)
     let currencySymbol = '$'; // Default
+    let currencyCode = 'USD'; // Default
     if (currencySymbolSelect) {
         if (currencySymbolSelect.value === 'other' && currencySymbolCustom) {
             currencySymbol = currencySymbolCustom.value.trim() || '$'; // Use custom or default to $ if empty
+            // For custom symbols, try to derive currency code or default to USD
+            currencyCode = 'USD'; // Default for custom symbols
         } else {
             currencySymbol = currencySymbolSelect.value;
+            // Find the currency code for the selected symbol
+            const selectedCurrency = globalCurrenciesData.find(currency => currency.symbol === currencySymbol);
+            if (selectedCurrency) {
+                currencyCode = selectedCurrency.code;
+            }
         }
     }
     preferencesToSave.currency_symbol = currencySymbol;
+
+    // Handle currency position
+    let currencyPosition = 'left'; // Default
+    if (currencyPositionSelect) {
+        currencyPosition = currencyPositionSelect.value;
+    }
+    preferencesToSave.currency_position = currencyPosition;
     // --- End data preparation ---
 
     // +++ ADDED DEBUG LOGGING +++
     console.log(`[SavePrefs Debug] Currency Select Value: ${currencySymbolSelect ? currencySymbolSelect.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Custom Input Value: ${currencySymbolCustom ? currencySymbolCustom.value : 'N/A'}`);
     console.log(`[SavePrefs Debug] Final currencySymbol value determined: ${currencySymbol}`);
+    console.log(`[SavePrefs Debug] Final currencyCode value determined: ${currencyCode}`);
+    console.log(`[SavePrefs Debug] Currency Position Value: ${currencyPosition}`);
+    console.log(`[SavePrefs Debug] Theme being saved: ${preferencesToSave.theme} (from isDark: ${isDark})`);
+    console.log(`[SavePrefs Debug] Language being saved: ${preferencesToSave.preferred_language}`);
     // +++ END DEBUG LOGGING +++
 
-    // Save Dark Mode separately (using the single source of truth)
-    const isDark = darkModeToggleSetting ? darkModeToggleSetting.checked : false;
+    // Apply the theme to the UI (this updates localStorage too)
     setTheme(isDark);
     console.log(`Saved dark mode: ${isDark}`);
 
@@ -1036,16 +1583,21 @@ async function savePreferences() {
     localStorage.setItem('dateFormat', preferencesToSave.date_format); // Added
     localStorage.setItem(`${prefix}defaultView`, preferencesToSave.default_view);
     localStorage.setItem(`${prefix}currencySymbol`, preferencesToSave.currency_symbol);
+    localStorage.setItem(`${prefix}currencyCode`, currencyCode); // Save currency code
+    localStorage.setItem(`${prefix}currencyPosition`, preferencesToSave.currency_position);
     localStorage.setItem(`${prefix}expiringSoonDays`, preferencesToSave.expiring_soon_days);
+    localStorage.setItem(`${prefix}paperlessViewInApp`, preferencesToSave.paperless_view_in_app);
+    localStorage.setItem('preferred_language', preferencesToSave.preferred_language); // Save language preference
 
     console.log('Preferences saved to localStorage (prefix:', prefix, '):', preferencesToSave);
     console.log(`Value of dateFormat in localStorage: ${localStorage.getItem('dateFormat')}`);
 
     // Try saving to API
-    if (window.auth && window.auth.isAuthenticated()) {
+            if (window.auth && window.auth.isAuthenticated()) {
         try {
             showLoading();
             const token = window.auth.getToken();
+            console.log('Saving preferences with token:', token ? 'present' : 'missing');
             const response = await fetch('/api/auth/preferences', {
                 method: 'PUT',
                 headers: {
@@ -1059,8 +1611,31 @@ async function savePreferences() {
             if (response.ok) {
                 showToast('Preferences saved successfully.', 'success');
                 console.log('Preferences successfully saved to API.');
+                
+                // If language was changed, trigger the actual language change
+                if (preferencesToSave.preferred_language && window.i18n?.changeLanguage) {
+                    const currentLang = window.i18n.getCurrentLanguage ? window.i18n.getCurrentLanguage() : 'en';
+                    if (preferencesToSave.preferred_language !== currentLang) {
+                        console.log(`Language changed from ${currentLang} to ${preferencesToSave.preferred_language}, triggering page translation`);
+                        try {
+                            await window.i18n.changeLanguage(preferencesToSave.preferred_language);
+                            // Reload page after a short delay to apply all translations
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 1000);
+                        } catch (error) {
+                            console.error('Failed to change language after saving preferences:', error);
+                        }
+                    }
+                }
             } else {
-                const errorData = await response.json().catch(() => ({}));
+                console.error('Preferences save failed. Response status:', response.status);
+                console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+                const errorData = await response.json().catch((e) => {
+                    console.error('Failed to parse error response as JSON:', e);
+                    return {};
+                });
+                console.error('Error response data:', errorData);
                 throw new Error(errorData.message || `Failed to save preferences to API: ${response.status}`);
             }
         } catch (error) {
@@ -1098,39 +1673,34 @@ async function changePassword() {
     showLoading();
     
     try {
-        try {
-            const response = await fetch('/api/auth/password/change', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${window.auth.getToken()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    current_password: currentPasswordInput.value,
-                    new_password: newPasswordInput.value
-                })
-            });
+        const response = await fetch('/api/auth/password/change', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                current_password: currentPasswordInput.value,
+                new_password: newPasswordInput.value
+            })
+        });
+        
+        if (response.ok) {
+            // Reset form and hide it
+            resetPasswordForm();
+            passwordChangeForm.style.display = 'none';
+            changePasswordBtn.style.display = 'block';
             
-            if (response.ok) {
-                // Reset form and hide it
-                resetPasswordForm();
-                passwordChangeForm.style.display = 'none';
-                changePasswordBtn.style.display = 'block';
-                
-                // Show success modal
-                openModal(passwordSuccessModal);
-            } else {
-                // Handle error
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to change password');
-            }
-        } catch (apiError) {
-            console.warn('API error, showing offline message:', apiError);
-            showToast('Password cannot be changed in offline mode', 'warning');
+            // Show success modal
+            openModal(passwordSuccessModal);
+        } else {
+            // Handle error
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            throw new Error(errorData.message || 'Failed to change password');
         }
     } catch (error) {
         console.error('Error changing password:', error);
-        showToast('Failed to change password. Please try again.', 'error');
+        showToast(`Failed to change password: ${error.message}`, 'error');
     } finally {
         hideLoading();
     }
@@ -1148,42 +1718,50 @@ async function deleteAccount() {
     showLoading();
     
     try {
-        try {
-            const response = await fetch('/api/auth/account', {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${window.auth.getToken()}`
-                }
-            });
-            
-            if (response.ok) {
-                // Clear auth data
-                if (window.auth.logout) {
-                    window.auth.logout();
-                } else {
-                    localStorage.removeItem('auth_token');
-                    localStorage.removeItem('user_info');
-                }
-                
-                // Show success message
-                showToast('Account deleted successfully', 'success');
-                
-                // Redirect to home page after a short delay
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
-            } else {
-                // Handle error
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to delete account');
+        const response = await fetch('/api/auth/account', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`
             }
-        } catch (apiError) {
-            console.warn('API error, showing offline message:', apiError);
-            showToast('Account cannot be deleted in offline mode', 'warning');
+        });
+        
+        if (response.ok) {
+            // Clear auth data
+            if (window.auth.logout) {
+                window.auth.logout();
+            } else {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_info');
+            }
+            
+            // Show success message
+            showToast('Account deleted successfully', 'success');
+            
+            // Redirect to home page after a short delay
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
+        } else {
+            // Handle error - show the actual error message from the API
+            let errorMessage = 'Failed to delete account';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+            } catch (parseError) {
+                console.warn('Could not parse error response:', parseError);
+            }
+            
+            console.error('API error response:', errorMessage);
+            showToast(errorMessage, 'error');
         }
     } catch (error) {
-        console.error('Error deleting account:', error);
-        showToast('Failed to delete account. Please try again.', 'error');
+        console.error('Network error deleting account:', error);
+        // Only show offline message for actual network errors
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            showToast('Account cannot be deleted in offline mode', 'warning');
+        } else {
+            showToast('Failed to delete account. Please try again.', 'error');
+        }
     } finally {
         hideLoading();
         
@@ -1287,60 +1865,164 @@ async function loadUsers() {
         if (response.ok) {
             const users = await response.json();
             
+            // DEBUG: Check users data
+            console.log('DEBUG: Users data from API:', users);
+            users.forEach((user, index) => {
+                console.log(`DEBUG: User ${index} (${user.username}):`, {
+                    id: user.id,
+                    is_owner: user.is_owner,
+                    is_admin: user.is_admin
+                });
+            });
+            
             // Clear table
             usersTableBody.innerHTML = '';
             
             // Add users to table
             users.forEach(user => {
                 const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid var(--border-color)';
+                row.style.transition = 'background-color 0.2s ease';
                 
-                // Username
+                // Add hover effect
+                row.addEventListener('mouseenter', () => {
+                    row.style.backgroundColor = 'var(--hover-bg, rgba(0,0,0,0.05))';
+                });
+                row.addEventListener('mouseleave', () => {
+                    row.style.backgroundColor = 'transparent';
+                });
+                
+                // ID
+                const idCell = document.createElement('td');
+                idCell.textContent = user.id;
+                idCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-weight: 500;';
+                row.appendChild(idCell);
+                
+                // Username with crown
                 const usernameCell = document.createElement('td');
-                usernameCell.textContent = user.username;
+                const crownIcon = user.is_owner ? ' <i class="fas fa-crown" title="Application Owner" style="color: #f39c12; margin-left: 5px;"></i>' : '';
+                console.log(`DEBUG: User ${user.username} (ID: ${user.id}) - is_owner: ${user.is_owner}, adding crown: ${!!user.is_owner}`);
+                usernameCell.innerHTML = user.username + crownIcon;
+                usernameCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-weight: 500;';
                 row.appendChild(usernameCell);
                 
                 // Email
                 const emailCell = document.createElement('td');
                 emailCell.textContent = user.email;
+                emailCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color); font-size: 0.9em;';
                 row.appendChild(emailCell);
                 
                 // Name
                 const nameCell = document.createElement('td');
                 const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
                 nameCell.textContent = fullName || '-';
+                nameCell.style.cssText = 'padding: 12px 8px; color: var(--text-color); border-right: 1px solid var(--border-color);';
                 row.appendChild(nameCell);
-                
-                // Status
-                const statusCell = document.createElement('td');
-                const statusBadge = document.createElement('span');
-                statusBadge.className = `badge ${user.is_active ? 'badge-success' : 'badge-danger'}`;
-                statusBadge.textContent = user.is_active ? 'Active' : 'Inactive';
-                statusCell.appendChild(statusBadge);
-                row.appendChild(statusCell);
                 
                 // Admin
                 const adminCell = document.createElement('td');
                 const adminBadge = document.createElement('span');
-                adminBadge.className = `badge ${user.is_admin ? 'badge-primary' : 'badge-secondary'}`;
-                adminBadge.textContent = user.is_admin ? 'Admin' : 'User';
+                adminBadge.className = `badge ${user.is_admin ? 'badge-success' : 'badge-secondary'}`;
+                adminBadge.textContent = user.is_admin ? 'Yes' : 'No';
+                adminBadge.style.cssText = 'padding: 4px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600;';
                 adminCell.appendChild(adminBadge);
+                adminCell.style.cssText = 'padding: 12px 8px; text-align: center; border-right: 1px solid var(--border-color);';
                 row.appendChild(adminCell);
+                
+                // Active Status
+                const statusCell = document.createElement('td');
+                const statusBadge = document.createElement('span');
+                statusBadge.className = `badge ${user.is_active ? 'badge-success' : 'badge-danger'}`;
+                statusBadge.textContent = user.is_active ? 'Yes' : 'No';
+                statusBadge.style.cssText = 'padding: 4px 8px; border-radius: 12px; font-size: 0.75em; font-weight: 600;';
+                statusCell.appendChild(statusBadge);
+                statusCell.style.cssText = 'padding: 12px 8px; text-align: center; border-right: 1px solid var(--border-color);';
+                row.appendChild(statusCell);
                 
                 // Actions
                 const actionsCell = document.createElement('td');
+                actionsCell.style.cssText = 'padding: 12px 8px; text-align: center;';
+                
+                // Create button container for better spacing
+                const buttonContainer = document.createElement('div');
+                buttonContainer.style.cssText = 'display: flex; gap: 6px; justify-content: center; align-items: center;';
                 
                 // Edit button
                 const editBtn = document.createElement('button');
-                editBtn.className = 'btn btn-sm btn-outline-primary mr-2';
+                editBtn.className = 'btn btn-sm';
                 editBtn.innerHTML = '<i class="fas fa-edit"></i>';
                 editBtn.title = 'Edit User';
+                editBtn.style.cssText = `
+                    padding: 8px 10px; 
+                    border-radius: 6px; 
+                    border: 1px solid var(--primary-color, #007bff);
+                    background-color: transparent;
+                    color: var(--primary-color, #007bff);
+                    transition: all 0.2s ease;
+                    cursor: pointer;
+                    min-width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                
+                // Edit button hover effects
+                editBtn.addEventListener('mouseenter', () => {
+                    if (!editBtn.disabled) {
+                        editBtn.style.backgroundColor = 'var(--primary-color, #007bff)';
+                        editBtn.style.color = 'white';
+                        editBtn.style.transform = 'translateY(-1px)';
+                        editBtn.style.boxShadow = '0 2px 4px rgba(0,123,255,0.3)';
+                    }
+                });
+                editBtn.addEventListener('mouseleave', () => {
+                    if (!editBtn.disabled) {
+                        editBtn.style.backgroundColor = 'transparent';
+                        editBtn.style.color = 'var(--primary-color, #007bff)';
+                        editBtn.style.transform = 'translateY(0)';
+                        editBtn.style.boxShadow = 'none';
+                    }
+                });
                 editBtn.addEventListener('click', () => openEditUserModal(user));
                 
                 // Delete button
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn btn-sm btn-outline-danger';
+                deleteBtn.className = 'btn btn-sm';
                 deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
                 deleteBtn.title = 'Delete User';
+                deleteBtn.style.cssText = `
+                    padding: 8px 10px; 
+                    border-radius: 6px; 
+                    border: 1px solid var(--danger-color, #dc3545);
+                    background-color: transparent;
+                    color: var(--danger-color, #dc3545);
+                    transition: all 0.2s ease;
+                    cursor: pointer;
+                    min-width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+                
+                // Delete button hover effects
+                deleteBtn.addEventListener('mouseenter', () => {
+                    if (!deleteBtn.disabled) {
+                        deleteBtn.style.backgroundColor = 'var(--danger-color, #dc3545)';
+                        deleteBtn.style.color = 'white';
+                        deleteBtn.style.transform = 'translateY(-1px)';
+                        deleteBtn.style.boxShadow = '0 2px 4px rgba(220,53,69,0.3)';
+                    }
+                });
+                deleteBtn.addEventListener('mouseleave', () => {
+                    if (!deleteBtn.disabled) {
+                        deleteBtn.style.backgroundColor = 'transparent';
+                        deleteBtn.style.color = 'var(--danger-color, #dc3545)';
+                        deleteBtn.style.transform = 'translateY(0)';
+                        deleteBtn.style.boxShadow = 'none';
+                    }
+                });
                 
                 // Add multiple event handlers for redundancy
                 deleteBtn.addEventListener('click', (event) => {
@@ -1359,24 +2041,50 @@ async function loadUsers() {
                     return false;
                 };
                 
-                // Don't allow editing or deleting self
+                // Don't allow editing or deleting self, and disable actions for the owner
                 const currentUser = window.auth.getCurrentUser();
-                if (user.id === currentUser.id) {
+                const isOwner = user.is_owner;
+                const isCurrentUser = (user.id === currentUser.id);
+
+                console.log(`DEBUG: Button logic for ${user.username} - isOwner: ${isOwner}, isCurrentUser: ${isCurrentUser}, currentUser.id: ${currentUser?.id}, user.id: ${user.id}`);
+
+                if (isOwner || isCurrentUser) {
                     editBtn.disabled = true;
                     deleteBtn.disabled = true;
-                    editBtn.title = 'Cannot edit yourself';
-                    deleteBtn.title = 'Cannot delete yourself';
-                    console.log('Disabled edit/delete for current user:', currentUser.id);
+                    editBtn.title = isOwner ? 'Cannot edit the application owner' : 'Cannot edit yourself';
+                    deleteBtn.title = isOwner ? 'Cannot delete the application owner' : 'Cannot delete yourself';
+                    
+                    // Enhanced disabled styling
+                    editBtn.style.opacity = '0.4';
+                    editBtn.style.cursor = 'not-allowed';
+                    editBtn.style.border = '1px solid var(--text-muted, #6c757d)';
+                    editBtn.style.color = 'var(--text-muted, #6c757d)';
+                    
+                    deleteBtn.style.opacity = '0.4';
+                    deleteBtn.style.cursor = 'not-allowed';
+                    deleteBtn.style.border = '1px solid var(--text-muted, #6c757d)';
+                    deleteBtn.style.color = 'var(--text-muted, #6c757d)';
+                    
+                    console.log('DEBUG: Disabled edit/delete for', isOwner ? 'owner' : 'current user', ':', user.id);
+                } else {
+                    console.log('DEBUG: Buttons enabled for user:', user.id);
                 }
                 
-                actionsCell.appendChild(editBtn);
-                actionsCell.appendChild(deleteBtn);
+                // Add buttons to container
+                buttonContainer.appendChild(editBtn);
+                buttonContainer.appendChild(deleteBtn);
+                
+                // Add container to cell
+                actionsCell.appendChild(buttonContainer);
                 row.appendChild(actionsCell);
                 
                 usersTableBody.appendChild(row);
             });
             
             console.log('Users loaded successfully:', users.length);
+            
+            // Set up ownership management after loading users
+            setupOwnershipManagement(users);
         } else {
             console.error('Failed to load users:', response.status);
             showToast('Failed to load users', 'error');
@@ -1676,6 +2384,157 @@ function deleteUser() {
     }
     
     console.log('=== DELETE USER FUNCTION COMPLETED ===');
+}
+
+/**
+ * Set up ownership management functionality
+ * @param {Array} users - List of all users
+ */
+function setupOwnershipManagement(users) {
+    const currentUser = window.auth.getCurrentUser();
+    const ownershipCard = document.getElementById('ownershipCard');
+    const newOwnerSelect = document.getElementById('newOwnerSelect');
+    const transferOwnershipBtn = document.getElementById('transferOwnershipBtn');
+    
+    // DEBUG: Check ownership management setup
+    console.log('DEBUG: setupOwnershipManagement called');
+    console.log('DEBUG: currentUser:', currentUser);
+    console.log('DEBUG: currentUser.is_owner:', currentUser ? currentUser.is_owner : 'no currentUser');
+    console.log('DEBUG: ownershipCard element:', ownershipCard);
+    
+    if (!currentUser || !currentUser.is_owner) {
+        // Hide ownership section if user is not the owner
+        console.log('DEBUG: Hiding ownership section - user is not owner');
+        const ownershipSection = document.getElementById('ownershipSection');
+        if (ownershipSection) {
+            ownershipSection.style.display = 'none';
+        }
+        return;
+    }
+    
+    // Show ownership section for the owner
+    const ownershipSection = document.getElementById('ownershipSection');
+    if (ownershipSection) {
+        ownershipSection.style.display = 'block';
+    }
+    
+    // Populate the select dropdown with admin users (excluding current owner)
+    if (newOwnerSelect) {
+        newOwnerSelect.innerHTML = '<option value="">Select an admin user...</option>';
+        
+        users.forEach(user => {
+            if (user.is_admin && user.id !== currentUser.id && user.is_active && !user.is_owner) {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.username} (${user.email})`;
+                newOwnerSelect.appendChild(option);
+            }
+        });
+        
+        // Enable/disable transfer button based on selection
+        newOwnerSelect.addEventListener('change', function() {
+            if (transferOwnershipBtn) {
+                transferOwnershipBtn.disabled = !this.value;
+            }
+        });
+    }
+    
+    // Set up transfer button click handler
+    if (transferOwnershipBtn) {
+        transferOwnershipBtn.addEventListener('click', function() {
+            const selectedUserId = newOwnerSelect.value;
+            if (!selectedUserId) {
+                showToast('Please select a user to transfer ownership to', 'error');
+                return;
+            }
+            
+            const selectedUser = users.find(u => u.id == selectedUserId);
+            if (selectedUser) {
+                openTransferOwnershipModal(selectedUser);
+            }
+        });
+    }
+}
+
+/**
+ * Open the transfer ownership confirmation modal
+ * @param {Object} targetUser - The user to transfer ownership to
+ */
+function openTransferOwnershipModal(targetUser) {
+    const modal = document.getElementById('transferOwnershipModal');
+    const targetUsernameSpan = document.getElementById('transferTargetUsername');
+    const confirmInput = document.getElementById('transferConfirmInput');
+    const confirmBtn = document.getElementById('confirmTransferOwnershipBtn');
+    
+    if (!modal || !targetUsernameSpan || !confirmInput || !confirmBtn) {
+        showToast('Error: Transfer ownership modal elements not found', 'error');
+        return;
+    }
+    
+    // Set target username
+    targetUsernameSpan.textContent = targetUser.username;
+    
+    // Clear and set up confirm input
+    confirmInput.value = '';
+    confirmInput.addEventListener('input', function() {
+        confirmBtn.disabled = this.value.toUpperCase() !== 'TRANSFER';
+    });
+    
+    // Set up confirm button
+    confirmBtn.disabled = true;
+    confirmBtn.onclick = function() {
+        if (confirmInput.value.toUpperCase() === 'TRANSFER') {
+            performOwnershipTransfer(targetUser.id);
+        }
+    };
+    
+    // Show modal
+    modal.style.display = 'flex';
+}
+
+/**
+ * Perform the actual ownership transfer
+ * @param {number} newOwnerId - ID of the user to transfer ownership to
+ */
+async function performOwnershipTransfer(newOwnerId) {
+    const modal = document.getElementById('transferOwnershipModal');
+    
+    try {
+        showLoading();
+        
+        const response = await fetch('/api/admin/transfer-ownership', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                new_owner_id: newOwnerId
+            })
+        });
+        
+        if (response.ok) {
+            showToast('Ownership transferred successfully! Refreshing page...', 'success');
+            
+            // Close modal
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            
+            // Refresh the page after a short delay to allow the user to see the success message
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            const errorData = await response.json();
+            showToast(errorData.message || 'Failed to transfer ownership', 'error');
+        }
+    } catch (error) {
+        console.error('Error transferring ownership:', error);
+        showToast('Failed to transfer ownership. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 /**
@@ -2374,17 +3233,30 @@ function closeAllModals() {
  */
 async function loadSiteSettings() {
     console.log('Loading site settings...');
-    const adminSection = document.getElementById('adminSection');
-    const registrationToggle = document.getElementById('registrationEnabled');
-    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Correct variable name
+    
+    // Enhanced debugging for element availability
+    console.log('[SiteSettings Debug] DOM readiness check:');
+    console.log('  - document.readyState:', document.readyState);
+    console.log('  - adminSection exists:', !!document.getElementById('adminSection'));
+    console.log('  - registrationEnabled exists:', !!document.getElementById('registrationEnabled'));
+    console.log('  - oidcEnabled exists:', !!document.getElementById('oidcEnabled'));
+    console.log('  - oidcProviderName exists:', !!document.getElementById('oidcProviderName'));
+    console.log('  - oidcClientId exists:', !!document.getElementById('oidcClientId'));
+    
+    // Query elements locally within this function scope for population
+    const registrationToggleElem = document.getElementById('registrationEnabled');
+    const emailBaseUrlFieldElem = document.getElementById('emailBaseUrl');
+    const globalViewToggleElem = document.getElementById('globalViewEnabled');
+    const globalViewAdminOnlyToggleElem = document.getElementById('globalViewAdminOnly');
+    const oidcEnabledToggleElem = document.getElementById('oidcEnabled');
+    const oidcOnlyModeToggleElem = document.getElementById('oidcOnlyMode');
+    const oidcProviderNameInputElem = document.getElementById('oidcProviderName');
+    const oidcClientIdInputElem = document.getElementById('oidcClientId');
+    const oidcClientSecretInputElem = document.getElementById('oidcClientSecret');
+    const oidcIssuerUrlInputElem = document.getElementById('oidcIssuerUrl');
+    const oidcScopeInputElem = document.getElementById('oidcScope');
 
-    // // Check if admin section exists
-    // if (!adminSection) {
-    //     console.log('Admin section not found, skipping site settings load');
-    //     return;
-    // }
-
-    try { // Correct structure: try block starts
+    try {
         showLoading();
         
         const response = await fetch('/api/admin/settings', {
@@ -2395,84 +3267,233 @@ async function loadSiteSettings() {
             }
         });
         
+        if (response.status === 403) {
+            // User is not admin, hide admin settings sections
+            console.log('User is not admin, hiding admin settings sections');
+            const adminSection = document.getElementById('adminSection');
+            if (adminSection) {
+                adminSection.style.display = 'none';
+            }
+            return;
+        }
+        
         if (!response.ok) {
             throw new Error(`Failed to load site settings: ${response.status} ${response.statusText}`);
         }
         
         const settings = await response.json();
+        console.log('[SiteSettings] Raw settings received from API:', settings);
         
-        if (registrationToggle) {
-            registrationToggle.checked = settings.registration_enabled === 'true';
+        if (registrationToggleElem) {
+            registrationToggleElem.checked = settings.registration_enabled === 'true';
+        } else {
+            console.error('[SiteSettings] registrationEnabled element NOT FOUND locally.');
         }
         
-        if (emailBaseUrlField) { // Use correct variable name
-            emailBaseUrlField.value = settings.email_base_url || 'http://localhost:8080'; // Set the value
+        if (emailBaseUrlFieldElem) { 
+            emailBaseUrlFieldElem.value = settings.email_base_url || 'http://localhost:8080'; 
+        } else {
+            console.error('[SiteSettings] emailBaseUrl element NOT FOUND locally.');
+        }
+
+        if (globalViewToggleElem) {
+            globalViewToggleElem.checked = settings.global_view_enabled === 'true';
+        } else {
+            console.error('[SiteSettings] globalViewEnabled element NOT FOUND locally.');
+        }
+
+        if (globalViewAdminOnlyToggleElem) {
+            globalViewAdminOnlyToggleElem.checked = settings.global_view_admin_only === 'true';
+        } else {
+            console.error('[SiteSettings] globalViewAdminOnly element NOT FOUND locally.');
+        }
+
+        // Populate OIDC settings using locally-scoped element variables
+        if (oidcEnabledToggleElem) {
+            console.log('[OIDC Settings] Found oidcEnabledToggleElem. Setting checked to:', settings.oidc_enabled === 'true');
+            oidcEnabledToggleElem.checked = settings.oidc_enabled === 'true';
+        } else {
+            console.error('[OIDC Settings] oidcEnabledToggleElem element NOT FOUND locally.');
+        }
+
+        if (oidcOnlyModeToggleElem) {
+            console.log('[OIDC Settings] Found oidcOnlyModeToggleElem. Setting checked to:', settings.oidc_only_mode === 'true');
+            oidcOnlyModeToggleElem.checked = settings.oidc_only_mode === 'true';
+        } else {
+            console.error('[OIDC Settings] oidcOnlyModeToggleElem element NOT FOUND locally.');
+        }
+
+        if (oidcProviderNameInputElem) {
+            console.log('[OIDC Settings] Found oidcProviderNameInputElem. Setting value to:', settings.oidc_provider_name || 'oidc');
+            oidcProviderNameInputElem.value = settings.oidc_provider_name || 'oidc';
+        } else {
+            console.error('[OIDC Settings] oidcProviderNameInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcClientIdInputElem) {
+            console.log('[OIDC Settings] Found oidcClientIdInputElem. Setting value to:', settings.oidc_client_id || '');
+            oidcClientIdInputElem.value = settings.oidc_client_id || '';
+        } else {
+            console.error('[OIDC Settings] oidcClientIdInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcClientSecretInputElem) {
+            console.log('[OIDC Settings] Found oidcClientSecretInputElem. Setting placeholder based on oidc_client_secret_set:', settings.oidc_client_secret_set);
+            oidcClientSecretInputElem.value = ''; // Always clear on load
+            oidcClientSecretInputElem.placeholder = settings.oidc_client_secret_set ? '******** (Set - Enter new to change)' : 'Enter OIDC Client Secret';
+        } else {
+            console.error('[OIDC Settings] oidcClientSecretInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcIssuerUrlInputElem) {
+            console.log('[OIDC Settings] Found oidcIssuerUrlInputElem. Setting value to:', settings.oidc_issuer_url || '');
+            oidcIssuerUrlInputElem.value = settings.oidc_issuer_url || '';
+        } else {
+            console.error('[OIDC Settings] oidcIssuerUrlInputElem element NOT FOUND locally.');
+        }
+
+        if (oidcScopeInputElem) {
+            console.log('[OIDC Settings] Found oidcScopeInputElem. Setting value to:', settings.oidc_scope || 'openid email profile');
+            oidcScopeInputElem.value = settings.oidc_scope || 'openid email profile';
+        } else {
+            console.error('[OIDC Settings] oidcScopeInputElem element NOT FOUND locally.');
         }
         
-        console.log('Site settings loaded successfully', settings);
+        console.log('Site and OIDC settings loaded and population attempted using locally queried elements.');
         
-    } catch (error) { // Correct structure: catch block follows try
-        console.error('Error loading site settings:', error);
+    } catch (error) { 
+        console.error('Error loading or populating site settings:', error);
         showToast('Failed to load site settings. Please try again.', 'error');
-    } finally { // Correct structure: finally block follows catch
+    } finally { 
         hideLoading();
     }
 }
 
 /**
- * Save site settings
+ * Save site settings (non-OIDC part)
  */
 async function saveSiteSettings() {
-    console.log('Saving site settings...');
+    console.log('Saving site settings (non-OIDC)...');
     const registrationToggle = document.getElementById('registrationEnabled');
-    const emailBaseUrlField = document.getElementById('emailBaseUrl'); // Get the new field
+    const emailBaseUrlField = document.getElementById('emailBaseUrl');
+    const globalViewToggle = document.getElementById('globalViewEnabled');
+    const globalViewAdminOnlyToggle = document.getElementById('globalViewAdminOnly');
 
-    const settings = {};
+    const settingsToSave = {};
     
     if (registrationToggle) {
-        settings.registration_enabled = registrationToggle.checked; // Boolean value will be converted to string in backend
+        settingsToSave.registration_enabled = registrationToggle.checked; 
+    }
+
+    if (globalViewToggle) {
+        settingsToSave.global_view_enabled = globalViewToggle.checked;
+    }
+
+    if (globalViewAdminOnlyToggle) {
+        settingsToSave.global_view_admin_only = globalViewAdminOnlyToggle.checked;
     }
 
     if (emailBaseUrlField) {
         let baseUrl = emailBaseUrlField.value.trim();
-        // Basic validation: check if it looks somewhat like a URL
         if (baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://'))) {
-             // Remove trailing slash if present
             if (baseUrl.endsWith('/')) {
                 baseUrl = baseUrl.slice(0, -1);
             }
-            settings.email_base_url = baseUrl;
+            settingsToSave.email_base_url = baseUrl;
         } else if (baseUrl) {
             showToast('Invalid Email Base URL format. It should start with http:// or https://', 'error');
-            return; // Stop saving if format is invalid
+            return; 
         } else {
-             settings.email_base_url = 'http://localhost:8080'; // Use default if empty
-             emailBaseUrlField.value = settings.email_base_url; // Update field with default
+             settingsToSave.email_base_url = 'http://localhost:8080'; 
+             emailBaseUrlField.value = settingsToSave.email_base_url; 
         }
     }
-
+    
+    if (Object.keys(settingsToSave).length === 0) {
+        showToast('No site settings to save.', 'info');
+        return;
+    }
     
     try {
         showLoading();
-
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving site settings with token:', token ? 'present' : 'missing');
+        
         const response = await fetch('/api/admin/settings', {
             method: 'PUT',
             headers: {
-                'Authorization': `Bearer ${window.auth.getToken()}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(settings)
+            body: JSON.stringify(settingsToSave)
         });
         
+        const result = await response.json();
         if (response.ok) {
-            showToast('Site settings saved successfully', 'success');
+            showToast(result.message || 'Site settings saved successfully', 'success');
         } else {
-            const errorData = await response.json();
-            showToast(errorData.message || 'Failed to save site settings', 'error');
+            showToast(result.message || 'Failed to save site settings', 'error');
         }
     } catch (error) {
         console.error('Error saving site settings:', error);
         showToast('Failed to save site settings. Please try again.', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+
+/**
+ * Save OIDC settings
+ */
+async function saveOidcSettings() {
+    console.log('Saving OIDC settings...');
+    const oidcSettingsPayload = {
+        oidc_enabled: oidcEnabledToggle ? oidcEnabledToggle.checked : false,
+        oidc_only_mode: oidcOnlyModeToggle ? oidcOnlyModeToggle.checked : false,
+        oidc_provider_name: oidcProviderNameInput ? oidcProviderNameInput.value.trim() : 'oidc',
+        oidc_client_id: oidcClientIdInput ? oidcClientIdInput.value.trim() : '',
+        oidc_issuer_url: oidcIssuerUrlInput ? oidcIssuerUrlInput.value.trim() : '',
+        oidc_scope: oidcScopeInput ? oidcScopeInput.value.trim() : 'openid email profile',
+    };
+
+    // Only include client_secret if a new value is entered
+    if (oidcClientSecretInput && oidcClientSecretInput.value) {
+        oidcSettingsPayload.oidc_client_secret = oidcClientSecretInput.value;
+    }
+
+    try {
+        showLoading();
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving OIDC settings with token:', token ? 'present' : 'missing');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(oidcSettingsPayload)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            showToast(result.message || 'OIDC settings saved successfully.', 'success');
+            if (result.message && result.message.includes("restart is required")) {
+                if(oidcRestartMessage) oidcRestartMessage.style.display = 'block';
+            } else {
+                if(oidcRestartMessage) oidcRestartMessage.style.display = 'none';
+            }
+            // Clear the secret field after attempting to save
+            if (oidcClientSecretInput) oidcClientSecretInput.value = '';
+            // Reload settings to get the oidc_client_secret_set flag updated
+            loadSiteSettings(); 
+        } else {
+            showToast(result.message || 'Failed to save OIDC settings.', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving OIDC settings:', error);
+        showToast('Failed to save OIDC settings. Please try again.', 'error');
     } finally {
         hideLoading();
     }
@@ -2770,11 +3791,90 @@ async function triggerWarrantyNotifications() {
 }
 
 /**
+ * Check scheduler status (admin only)
+ */
+async function checkSchedulerStatus() {
+    console.log('Checking scheduler status...');
+    
+    try {
+        showLoading();
+        
+        const response = await fetch('/api/admin/scheduler-status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
+            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const status = await response.json();
+        console.log('Scheduler status:', status);
+        
+        // Format the status information for display
+        let message = '📊 Scheduler Status Report\n\n';
+        message += `🚀 Initialized: ${status.scheduler_initialized ? '✅ Yes' : '❌ No'}\n`;
+        message += `🔄 Running: ${status.scheduler_running ? '✅ Yes' : '❌ No'}\n`;
+        message += `📋 Active Jobs: ${status.scheduler_jobs.length}\n`;
+        
+        if (status.scheduler_jobs.length > 0) {
+            message += '\n📅 Scheduled Jobs:\n';
+            status.scheduler_jobs.forEach(job => {
+                const nextRun = job.next_run_time ? 
+                    new Date(job.next_run_time).toLocaleString() : 
+                    'Not scheduled';
+                message += `• ${job.id}: ${nextRun}\n`;
+                message += `  Trigger: ${job.trigger}\n`;
+            });
+        }
+        
+        message += `\n🔧 Worker Information:\n`;
+        message += `• Worker ID: ${status.worker_info.worker_id}\n`;
+        message += `• Worker Name: ${status.worker_info.worker_name}\n`;
+        message += `• Worker Class: ${status.worker_info.worker_class}\n`;
+        message += `• Should Run Scheduler: ${status.worker_info.should_run_scheduler ? '✅ Yes' : '❌ No'}\n`;
+        
+        if (status.environment_vars && Object.keys(status.environment_vars).length > 0) {
+            message += `\n🌍 Environment Variables:\n`;
+            Object.entries(status.environment_vars).forEach(([key, value]) => {
+                message += `• ${key}: ${value}\n`;
+            });
+        }
+        
+        // Show in alert dialog
+        alert(message);
+        
+        // Also show a toast with a summary
+        const summary = status.scheduler_running ? 
+            '✅ Scheduler is running normally' : 
+            '⚠️ Scheduler is not running - notifications may not be sent automatically';
+        showToast(summary, status.scheduler_running ? 'success' : 'warning', 8000);
+        
+    } catch (error) {
+        console.error('Error checking scheduler status:', error);
+        showToast(`Error checking scheduler status: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
  * Load available timezones from the API
  * @returns {Promise} A promise that resolves when timezones are loaded
  */
 function loadTimezones() {
-    console.log('Loading timezones...');
+    return loadTimezonesIntoSelect(timezoneSelect);
+}
+
+function loadTimezonesIntoSelect(selectElement) {
+    if (!selectElement) {
+        return Promise.reject('Select element not provided to loadTimezonesIntoSelect');
+    }
+    console.log(`Loading timezones into ${selectElement.id}...`);
     return new Promise((resolve, reject) => {
         fetch('/api/timezones', {
             method: 'GET',
@@ -2791,7 +3891,7 @@ function loadTimezones() {
         })
         .then(timezoneGroups => {
             // Clear loading option
-            timezoneSelect.innerHTML = '';
+            selectElement.innerHTML = '';
             
             // Add timezone groups and their options
             timezoneGroups.forEach(group => {
@@ -2805,7 +3905,7 @@ function loadTimezones() {
                     optgroup.appendChild(option);
                 });
                 
-                timezoneSelect.appendChild(optgroup);
+                selectElement.appendChild(optgroup);
             });
             
             // Set the current timezone from preferences
@@ -2820,8 +3920,8 @@ function loadTimezones() {
             });
             
             if (savedPreferences.timezone) {
-                timezoneSelect.value = savedPreferences.timezone;
-                console.log('Set timezone select to:', savedPreferences.timezone, 'Current value:', timezoneSelect.value);
+                selectElement.value = savedPreferences.timezone;
+                console.log(`Set ${selectElement.id} to:`, savedPreferences.timezone, 'Current value:', selectElement.value);
                 resolve();
             } else {
                 // If no timezone preference found in localStorage, load from API as backup
@@ -2838,8 +3938,8 @@ function loadTimezones() {
                     // API returns preferences directly, not nested
                     if (data && data.timezone) {
                         console.log('Received timezone from API:', data.timezone);
-                        timezoneSelect.value = data.timezone;
-                        console.log('Set timezone select to:', data.timezone, 'Current value:', timezoneSelect.value);
+                        selectElement.value = data.timezone;
+                        console.log(`Set ${selectElement.id} to:`, data.timezone, 'Current value:', selectElement.value);
                     }
                     resolve();
                 })
@@ -2851,7 +3951,7 @@ function loadTimezones() {
         })
         .catch(error => {
             console.error('Error loading timezones:', error);
-            timezoneSelect.innerHTML = '<option value="UTC">UTC (Coordinated Universal Time)</option>';
+            selectElement.innerHTML = '<option value="UTC">UTC (Coordinated Universal Time)</option>';
             reject(error);
         });
     });
@@ -2860,73 +3960,51 @@ function loadTimezones() {
 /**
  * Save email settings
  */
-function saveEmailSettings() {
+function toggleNotificationSettings(channel) {
+    if (emailSettingsContainer) {
+        emailSettingsContainer.style.display = (channel === 'email' || channel === 'both') ? 'block' : 'none';
+    }
+    if (userAppriseSettingsContainer) {
+        userAppriseSettingsContainer.style.display = (channel === 'apprise' || channel === 'both') ? 'block' : 'none';
+    }
+}
+
+async function saveNotificationSettings() {
     showLoading();
     
     try {
-        // Get values
-        const emailNotifications = emailNotificationsToggle.checked;
-        const notificationFrequency = notificationFrequencySelect.value;
-        const notificationTime = notificationTimeInput.value;
-        const timezone = timezoneSelect.value;
-        
-        // Validate inputs
-        if (!timezone) {
-            showToast('Please select a timezone', 'error');
-            hideLoading();
-            return;
-        }
-        
-        // Create preferences object
         const preferences = {
-            email_notifications: emailNotifications,
-            notification_frequency: notificationFrequency,
-            notification_time: notificationTime,
-            timezone: timezone
+            notification_channel: notificationChannel.value,
+            notification_frequency: notificationFrequencySelect.value,
+            notification_time: notificationTimeInput.value,
+            apprise_notification_time: userAppriseNotificationTimeInput ? userAppriseNotificationTimeInput.value : '09:00',
+            apprise_notification_frequency: userAppriseNotificationFrequency ? userAppriseNotificationFrequency.value : 'daily',
+            timezone: timezoneSelect.value,
+            apprise_timezone: userAppriseTimezoneSelect ? userAppriseTimezoneSelect.value : 'UTC'
         };
+
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('Saving notification settings with token:', token ? 'present' : 'missing');
         
-        // Save to API
-        fetch('/api/auth/preferences', {
+        const response = await fetch('/api/auth/preferences', {
             method: 'PUT',
             headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(preferences)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to save email settings');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Save to localStorage
-            const prefix = getPreferenceKeyPrefix();
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
-            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
-            localStorage.setItem(`${prefix}timezone`, timezone);
-            
-            showToast('Email settings saved successfully', 'success');
-        })
-        .catch(error => {
-            console.error('Error saving email settings:', error);
-            showToast('Error saving email settings', 'error');
-            
-            // Save to localStorage as fallback
-            const prefix = getPreferenceKeyPrefix();
-            localStorage.setItem(`${prefix}emailNotifications`, emailNotifications);
-            localStorage.setItem(`${prefix}notificationFrequency`, notificationFrequency);
-            localStorage.setItem(`${prefix}notificationTime`, notificationTime);
-            localStorage.setItem(`${prefix}timezone`, timezone);
-        })
-        .finally(() => {
-            hideLoading();
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save notification settings');
+        }
+
+        showToast('Notification settings saved successfully', 'success');
     } catch (error) {
-        console.error('Error in saveEmailSettings:', error);
-        showToast('Error saving email settings', 'error');
+        console.error('Error saving notification settings:', error);
+        showToast(`Error saving notification settings: ${error.message}`, 'error');
+    } finally {
         hideLoading();
     }
 }
@@ -3007,6 +4085,15 @@ window.addEventListener('storage', (event) => {
         }
     }
 
+    // Add check for currencyPosition
+    if (event.key === `${prefix}currencyPosition`) {
+        console.log(`[Settings Storage Listener] ${prefix}currencyPosition changed to ${event.newValue}`);
+        if (event.newValue && currencyPositionSelect && currencyPositionSelect.value !== event.newValue) {
+            currencyPositionSelect.value = event.newValue;
+            console.log('[Settings Storage Listener] Updated settings currency position dropdown via storage event.');
+        }
+    }
+
 });
 // --- End Storage Event Listener ---
 
@@ -3021,4 +4108,924 @@ if (currencySymbolSelect && currencySymbolCustom) {
             currencySymbolCustom.value = '';
         }
     });
+}
+
+// =====================
+// APPRISE NOTIFICATIONS FUNCTIONALITY
+// =====================
+
+/**
+ * Load Apprise settings and status
+ */
+async function loadAppriseSettings() {
+    try {
+        // Get current Apprise status
+        const statusResponse = await fetch('/api/admin/apprise/status', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (statusResponse.status === 403) {
+            // User is not admin, hide Apprise section
+            const appriseCard = document.querySelector('.card:has(#appriseStatusBadge)');
+            if (appriseCard) {
+                appriseCard.style.display = 'none';
+            }
+            return;
+        }
+
+        if (statusResponse.status === 503) {
+            // Apprise not available
+            if (appriseNotAvailable) appriseNotAvailable.style.display = 'block';
+            if (appriseStatusBadge) appriseStatusBadge.textContent = 'Not Available';
+            if (appriseStatusBadge) appriseStatusBadge.className = 'badge badge-danger';
+            return;
+        }
+
+        const statusData = await statusResponse.json();
+        
+        // Update status badge
+        if (appriseStatusBadge) {
+            if (statusData.available && statusData.enabled) {
+                appriseStatusBadge.textContent = 'Active';
+                appriseStatusBadge.className = 'badge badge-success';
+            } else if (statusData.available) {
+                appriseStatusBadge.textContent = 'Disabled';
+                appriseStatusBadge.className = 'badge badge-warning';
+            } else {
+                appriseStatusBadge.textContent = 'Not Available';
+                appriseStatusBadge.className = 'badge badge-danger';
+            }
+        }
+
+        // Update status display
+        if (appriseUrlsCount) appriseUrlsCount.textContent = statusData.urls_configured || 0;
+        if (currentAppriseExpirationDays) currentAppriseExpirationDays.textContent = statusData.expiration_days ? statusData.expiration_days.join(', ') : '-';
+
+        // Load settings from site settings
+        await loadAppriseSiteSettings();
+
+    } catch (error) {
+        console.error('Error loading Apprise settings:', error);
+        if (appriseStatusBadge) {
+            appriseStatusBadge.textContent = 'Error';
+            appriseStatusBadge.className = 'badge badge-danger';
+        }
+    }
+}
+
+/**
+ * Load Apprise site settings
+ */
+async function loadAppriseSiteSettings() {
+    try {
+        console.log('📥 Loading Apprise site settings...');
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('📥 Load response status:', response.status);
+
+        if (!response.ok) {
+            console.warn('⚠️ Load response not OK, skipping settings load');
+            return;
+        }
+
+        const data = await response.json();
+        console.log('📥 Loaded settings data:', data);
+        
+        // Check if Apprise settings exist in the data
+        const appriseKeys = Object.keys(data).filter(key => key.startsWith('apprise_'));
+        console.log('📥 Found Apprise keys:', appriseKeys);
+        
+        // Update form fields
+        if (appriseEnabledToggle && data.apprise_enabled !== undefined) {
+            appriseEnabledToggle.checked = data.apprise_enabled === 'true';
+            console.log('✅ Set appriseEnabled:', data.apprise_enabled);
+            
+            // Show/hide settings container based on enabled state
+            const settingsContainer = document.getElementById('appriseSettingsContainer');
+            if (settingsContainer) {
+                settingsContainer.style.display = data.apprise_enabled === 'true' ? 'block' : 'none';
+            }
+        } else {
+            console.log('⚠️ appriseEnabled element not found or apprise_enabled data missing');
+        }
+        
+        if (appriseUrlsTextarea && data.apprise_urls) {
+            appriseUrlsTextarea.value = data.apprise_urls.replace(/,/g, '\n');
+            console.log('✅ Set appriseUrls:', data.apprise_urls);
+        } else {
+            console.log('⚠️ appriseUrlsTextarea element not found or apprise_urls data missing');
+        }
+        
+        if (appriseExpirationDaysInput && data.apprise_expiration_days) {
+            appriseExpirationDaysInput.value = data.apprise_expiration_days;
+            console.log('✅ Set appriseExpirationDays:', data.apprise_expiration_days);
+        } else {
+            console.log('⚠️ appriseExpirationDaysInput element not found or data missing');
+        }
+        
+
+        
+        if (appriseTitlePrefixInput && data.apprise_title_prefix) {
+            appriseTitlePrefixInput.value = data.apprise_title_prefix;
+            console.log('✅ Set appriseTitlePrefix:', data.apprise_title_prefix);
+        } else {
+            console.log('⚠️ appriseTitlePrefixInput element not found or data missing');
+        }
+        
+        if (appriseNotificationModeSelect && data.apprise_notification_mode) {
+            appriseNotificationModeSelect.value = data.apprise_notification_mode;
+            updateAppriseModeDescription(data.apprise_notification_mode);
+            console.log('✅ Set appriseNotificationMode:', data.apprise_notification_mode);
+        } else {
+            console.log('⚠️ appriseNotificationModeSelect element not found or data missing');
+            // Set default mode if not found
+            if (appriseNotificationModeSelect) {
+                appriseNotificationModeSelect.value = 'global';
+                updateAppriseModeDescription('global');
+            }
+        }
+        
+        if (appriseWarrantyScopeSelect && data.apprise_warranty_scope) {
+            appriseWarrantyScopeSelect.value = data.apprise_warranty_scope;
+            updateAppriseScopeDescription(data.apprise_warranty_scope);
+            console.log('✅ Set appriseWarrantyScope:', data.apprise_warranty_scope);
+        } else {
+            console.log('⚠️ appriseWarrantyScopeSelect element not found or data missing');
+            // Set default scope if not found
+            if (appriseWarrantyScopeSelect) {
+                appriseWarrantyScopeSelect.value = 'all';
+                updateAppriseScopeDescription('all');
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Error loading Apprise site settings:', error);
+    }
+}
+
+/**
+ * Save Apprise settings
+ */
+async function saveAppriseSettings() {
+    try {
+        console.log('🔍 Starting saveAppriseSettings...');
+        showLoading();
+
+        // Process URLs - convert newlines to commas and clean up
+        const urlsText = appriseUrlsTextarea ? appriseUrlsTextarea.value : '';
+        const urls = urlsText.split(/[\n,]/)
+            .map(url => url.trim())
+            .filter(url => url.length > 0)
+            .join(',');
+
+        const settings = {
+            apprise_enabled: appriseEnabledToggle ? appriseEnabledToggle.checked.toString() : 'false',
+            apprise_notification_mode: appriseNotificationModeSelect ? appriseNotificationModeSelect.value : 'global',
+            apprise_warranty_scope: appriseWarrantyScopeSelect ? appriseWarrantyScopeSelect.value : 'all',
+            apprise_urls: urls,
+            apprise_expiration_days: appriseExpirationDaysInput ? appriseExpirationDaysInput.value : '7,30',
+            apprise_title_prefix: appriseTitlePrefixInput ? appriseTitlePrefixInput.value : '[Warracker]'
+        };
+
+        console.log('📋 Settings to save:', settings);
+
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        console.log('📡 Saving Apprise settings with token:', token ? 'present' : 'missing');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+
+        console.log('📡 Response status:', response.status);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('❌ Response error:', errorData);
+            throw new Error(errorData.message || 'Failed to save Apprise settings');
+        }
+
+        const responseData = await response.json();
+        console.log('✅ Save response:', responseData);
+
+        // Reload configuration
+        console.log('🔄 Reloading Apprise configuration...');
+        const reloadResponse = await fetch('/api/admin/apprise/reload-config', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('🔄 Reload response status:', reloadResponse.status);
+
+        showToast('Apprise settings saved successfully', 'success');
+        
+        // Reload status
+        console.log('📱 Reloading Apprise settings...');
+        await loadAppriseSettings();
+
+    } catch (error) {
+        console.error('❌ Error saving Apprise settings:', error);
+        showToast(`Error saving Apprise settings: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Send test Apprise notification
+ */
+async function sendTestAppriseNotification() {
+    try {
+        showLoading();
+
+        const testUrl = appriseTestUrlInput ? appriseTestUrlInput.value.trim() : null;
+        
+        const payload = testUrl ? { test_url: testUrl } : {};
+
+        const response = await fetch('/api/admin/apprise/test', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Test notification sent successfully', 'success');
+        } else {
+            showToast(`Failed to send test notification: ${data.message}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Error sending test notification:', error);
+        showToast(`Error sending test notification: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Validate Apprise URLs
+ */
+async function validateAppriseUrls() {
+    try {
+        showLoading();
+
+        const urlsText = appriseUrlsTextarea ? appriseUrlsTextarea.value : '';
+        const urls = urlsText.split(/[\n,]/)
+            .map(url => url.trim())
+            .filter(url => url.length > 0);
+
+        if (urls.length === 0) {
+            showToast('No URLs to validate', 'warning');
+            hideLoading();
+            return;
+        }
+
+        let validCount = 0;
+        let invalidUrls = [];
+
+        for (const url of urls) {
+            try {
+                const response = await fetch('/api/admin/apprise/validate-url', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                
+                if (data.valid) {
+                    validCount++;
+                } else {
+                    invalidUrls.push(url);
+                }
+            } catch (error) {
+                invalidUrls.push(url);
+            }
+        }
+
+        let message = `Validation complete: ${validCount}/${urls.length} URLs are valid`;
+        if (invalidUrls.length > 0) {
+            message += `\nInvalid URLs: ${invalidUrls.join(', ')}`;
+            showToast(message, 'warning');
+        } else {
+            showToast(message, 'success');
+        }
+
+    } catch (error) {
+        console.error('Error validating URLs:', error);
+        showToast(`Error validating URLs: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Trigger Apprise expiration notifications
+ */
+async function triggerAppriseExpirationNotifications() {
+    try {
+        showLoading();
+
+        const response = await fetch('/api/admin/apprise/send-expiration', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message, 'success');
+        } else {
+            showToast(`Failed to trigger notifications: ${data.message}`, 'error');
+        }
+
+    } catch (error) {
+        console.error('Error triggering Apprise notifications:', error);
+        showToast(`Error triggering notifications: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * View supported services
+ */
+function viewSupportedAppriseServices() {
+    window.open('https://github.com/caronc/apprise/wiki', '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Save just the Apprise enabled/disabled state
+ */
+async function saveAppriseEnabledState(enabled) {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                apprise_enabled: enabled.toString()
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save Apprise enabled state');
+        }
+
+        // Reload configuration
+        const reloadResponse = await fetch('/api/admin/apprise/reload-config', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + localStorage.getItem('auth_token'),
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('✅ Apprise enabled state saved:', enabled);
+        
+        // Update status badge
+        await loadAppriseSettings();
+
+    } catch (error) {
+        console.error('❌ Error saving Apprise enabled state:', error);
+        showToast(`Error updating Apprise setting: ${error.message}`, 'error');
+        
+        // Revert the toggle if save failed
+        if (appriseEnabledToggle) {
+            appriseEnabledToggle.checked = !enabled;
+        }
+    }
+}
+
+/**
+ * Update Apprise mode description text
+ */
+function updateAppriseModeDescription(mode) {
+    if (!appriseModeDescription) return;
+    
+    if (mode === 'global') {
+        appriseModeDescription.textContent = 'A single, consolidated notification will be sent to the global Apprise channels defined below.';
+    } else if (mode === 'individual') {
+        appriseModeDescription.textContent = 'A separate notification will be sent for each user with expiring warranties. (Note: This currently uses the global channels. Per-user channels can be a future enhancement.)';
+    }
+}
+
+/**
+ * Update Apprise warranty scope description text
+ */
+function updateAppriseScopeDescription(scope) {
+    if (!appriseScopeDescription) return;
+    
+    if (scope === 'all') {
+        appriseScopeDescription.textContent = 'Notifications will include expiring warranties from all users in the system.';
+    } else if (scope === 'admin') {
+        appriseScopeDescription.textContent = 'Notifications will only include expiring warranties belonging to the admin/owner user.';
+    }
+}
+
+/**
+ * Setup Apprise event listeners
+ */
+function setupAppriseEventListeners() {
+    // Enable/disable toggle
+    if (appriseEnabledToggle) {
+        appriseEnabledToggle.addEventListener('change', async function() {
+            const settingsContainer = document.getElementById('appriseSettingsContainer');
+            if (settingsContainer) {
+                settingsContainer.style.display = this.checked ? 'block' : 'none';
+            }
+            
+            // Auto-save the enabled state
+            await saveAppriseEnabledState(this.checked);
+        });
+    }
+
+    // Notification mode change
+    if (appriseNotificationModeSelect) {
+        appriseNotificationModeSelect.addEventListener('change', (e) => {
+            updateAppriseModeDescription(e.target.value);
+        });
+    }
+
+    // Warranty scope change
+    if (appriseWarrantyScopeSelect) {
+        appriseWarrantyScopeSelect.addEventListener('change', (e) => {
+            updateAppriseScopeDescription(e.target.value);
+        });
+    }
+
+    // Save settings
+    if (saveAppriseSettingsBtn) {
+        saveAppriseSettingsBtn.addEventListener('click', saveAppriseSettings);
+    }
+
+    // Test notification
+    if (testAppriseBtn) {
+        testAppriseBtn.addEventListener('click', sendTestAppriseNotification);
+    }
+
+    // Validate URLs
+    if (validateAppriseUrlBtn) {
+        validateAppriseUrlBtn.addEventListener('click', validateAppriseUrls);
+    }
+
+    // Trigger expiration notifications
+    if (triggerAppriseNotificationsBtn) {
+        triggerAppriseNotificationsBtn.addEventListener('click', triggerAppriseExpirationNotifications);
+    }
+
+    // View supported services
+    if (viewSupportedServicesBtn) {
+        viewSupportedServicesBtn.addEventListener('click', viewSupportedAppriseServices);
+    }
+}
+
+// Initialize Apprise functionality
+document.addEventListener('DOMContentLoaded', function() {
+    setupAppriseEventListeners();
+    
+    // Load Apprise settings after auth is ready (admin only)
+    setTimeout(() => {
+        if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+            const currentUser = window.auth.getCurrentUser();
+            if (currentUser && currentUser.is_admin) {
+                loadAppriseSettings();
+                loadPaperlessSettings(); // Also load Paperless-ngx settings for admin
+            } else {
+                console.log('User is not admin, skipping Apprise settings load in deferred initialization');
+            }
+        }
+    }, 1000);
+});
+
+// ============================================================================
+// Paperless-ngx Integration Functions
+// ============================================================================
+
+/**
+ * Toggle the visibility of Paperless-ngx settings based on enabled state
+ * @param {boolean} enabled - Whether Paperless-ngx is enabled
+ */
+function togglePaperlessSettings(enabled) {
+    if (paperlessSettingsContainer) {
+        paperlessSettingsContainer.style.display = enabled ? 'block' : 'none';
+    }
+}
+
+/**
+ * Load Paperless-ngx settings from the server
+ */
+async function loadPaperlessSettings() {
+    try {
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/admin/settings', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load settings');
+        }
+
+        const settings = await response.json();
+        
+        // Update Paperless-ngx settings UI
+        if (paperlessEnabledToggle) {
+            const isEnabled = settings.paperless_enabled === 'true';
+            paperlessEnabledToggle.checked = isEnabled;
+            togglePaperlessSettings(isEnabled);
+        }
+        
+        if (paperlessUrlInput && settings.paperless_url) {
+            paperlessUrlInput.value = settings.paperless_url;
+        }
+        
+        // Update API token field placeholder to indicate if token is saved
+        if (paperlessApiTokenInput) {
+            if (settings.paperless_api_token_set === 'true') {
+                paperlessApiTokenInput.placeholder = 'API token saved (hidden for security) - Leave blank to keep existing';
+            } else {
+                paperlessApiTokenInput.placeholder = 'Enter API token';
+            }
+        }
+        
+        console.log('✅ Paperless-ngx settings loaded successfully');
+        
+    } catch (error) {
+        console.error('❌ Error loading Paperless-ngx settings:', error);
+        showToast(`Error loading Paperless-ngx settings: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * Save Paperless-ngx settings to the server
+ */
+async function savePaperlessSettings() {
+    try {
+        showLoading();
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        // Validate URL format
+        const url = paperlessUrlInput.value.trim();
+        if (url && !isValidUrl(url)) {
+            showToast('Please enter a valid URL (e.g., https://paperless.yourdomain.com)', 'error');
+            return;
+        }
+        
+        // Prepare settings data
+        const settingsData = {
+            paperless_enabled: paperlessEnabledToggle.checked.toString(),
+            paperless_url: url
+        };
+        
+        // Only include API token if it's provided (not empty)
+        const apiToken = paperlessApiTokenInput.value.trim();
+        if (apiToken) {
+            settingsData.paperless_api_token = apiToken;
+        }
+        
+        // Save admin settings first
+        const response = await fetch('/api/admin/settings', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settingsData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save Paperless-ngx settings');
+        }
+
+        // Also save the user preference for viewing documents in app
+        const paperlessViewInApp = paperlessViewInAppToggle ? paperlessViewInAppToggle.checked : false;
+        const preferencesData = {
+            paperless_view_in_app: paperlessViewInApp
+        };
+        
+        const preferencesResponse = await fetch('/api/auth/preferences', {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(preferencesData)
+        });
+
+        if (!preferencesResponse.ok) {
+            console.warn('Failed to save paperless view preference, but admin settings were saved');
+        }
+        
+        // Update localStorage for the preference
+        const prefix = getPreferenceKeyPrefix();
+        localStorage.setItem(`${prefix}paperlessViewInApp`, paperlessViewInApp);
+        
+        showToast('Paperless-ngx settings saved successfully!', 'success');
+        
+        // Clear the API token input for security
+        if (paperlessApiTokenInput) {
+            paperlessApiTokenInput.value = '';
+            paperlessApiTokenInput.placeholder = 'API token saved (hidden for security) - Leave blank to keep existing';
+        }
+        
+        console.log('✅ Paperless-ngx settings saved successfully');
+        
+    } catch (error) {
+        console.error('❌ Error saving Paperless-ngx settings:', error);
+        showToast(`Error saving Paperless-ngx settings: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Test connection to Paperless-ngx instance
+ */
+async function testPaperlessConnection() {
+    try {
+        showLoading();
+        
+        // Clear previous status
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.innerHTML = '';
+            paperlessConnectionStatus.className = 'paperless-status-message';
+        }
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        // Get current values from the form
+        const url = paperlessUrlInput.value.trim();
+        const apiToken = paperlessApiTokenInput.value.trim();
+        
+        if (!url) {
+            showToast('Please enter a Paperless-ngx URL first', 'warning');
+            return;
+        }
+        
+        // Check if API token is provided in form, otherwise use stored settings
+        if (!apiToken && paperlessApiTokenInput.placeholder.includes('saved')) {
+            // API token is already saved, test with stored settings
+            const response = await fetch('/api/paperless/test', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                if (result.success) {
+                    paperlessConnectionStatus.className = 'paperless-status-message show success';
+                    paperlessConnectionStatus.innerHTML = `
+                        <strong>✅ Connection Successful!</strong><br>
+                        ${result.message}
+                        ${result.server_info ? `<br><small>Server: ${result.server_info}</small>` : ''}
+                    `;
+                    showToast('Paperless-ngx connection test successful!', 'success');
+                } else {
+                    paperlessConnectionStatus.className = 'paperless-status-message show error';
+                    paperlessConnectionStatus.innerHTML = `
+                        <strong>❌ Connection Failed!</strong><br>
+                        ${result.message}
+                    `;
+                    showToast('Paperless-ngx connection test failed', 'error');
+                }
+            }
+            
+            return;
+        }
+        
+        if (!apiToken) {
+            showToast('Please enter an API token to test the connection', 'warning');
+            return;
+        }
+        
+        const response = await fetch('/api/paperless/test', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: url,
+                api_token: apiToken
+            })
+        });
+
+        const result = await response.json();
+        
+        if (paperlessConnectionStatus) {
+            if (result.success) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show success';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>✅ Connection Successful!</strong><br>
+                    ${result.message}
+                    ${result.server_info ? `<br><small>Server: ${result.server_info}</small>` : ''}
+                `;
+                showToast('Paperless-ngx connection test successful!', 'success');
+            } else {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show error';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>❌ Connection Failed!</strong><br>
+                    ${result.message}
+                `;
+                showToast('Paperless-ngx connection test failed', 'error');
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error testing Paperless-ngx connection:', error);
+        
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.classList.add('show');
+            paperlessConnectionStatus.className = 'paperless-status-message show error';
+            paperlessConnectionStatus.innerHTML = `
+                <strong>❌ Connection Error!</strong><br>
+                ${error.message}
+            `;
+        }
+        
+        showToast(`Error testing connection: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Debug Paperless-ngx configuration
+ */
+async function debugPaperlessConfiguration() {
+    try {
+        showLoading();
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const response = await fetch('/api/paperless/debug', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        
+        // Display debug information
+        console.log('🔍 Paperless-ngx Debug Information:', result);
+        
+        let debugHtml = '<h5>📋 Paperless-ngx Debug Information</h5>';
+        debugHtml += `<strong>Enabled:</strong> ${result.paperless_enabled}<br>`;
+        debugHtml += `<strong>URL:</strong> ${result.paperless_url || 'Not set'}<br>`;
+        debugHtml += `<strong>API Token Set:</strong> ${result.paperless_api_token_set}<br>`;
+        debugHtml += `<strong>Handler Available:</strong> ${result.paperless_handler_available}<br>`;
+        
+        if (result.test_connection_result) {
+            debugHtml += `<strong>Connection Test:</strong> ${result.test_connection_result.success ? '✅ Success' : '❌ Failed'}<br>`;
+            debugHtml += `<strong>Message:</strong> ${result.test_connection_result.message || result.test_connection_result.error}<br>`;
+        }
+        
+        if (result.paperless_handler_error) {
+            debugHtml += `<strong>Handler Error:</strong> ${result.paperless_handler_error}<br>`;
+        }
+        
+        // Show in connection status area or create a temporary area
+        if (paperlessConnectionStatus) {
+            paperlessConnectionStatus.classList.add('show');
+            paperlessConnectionStatus.className = 'paperless-status-message show info';
+            paperlessConnectionStatus.innerHTML = debugHtml;
+        } else {
+            // Create temporary debug display
+            const debugArea = document.createElement('div');
+            debugArea.innerHTML = debugHtml;
+            document.body.appendChild(debugArea);
+            setTimeout(() => debugArea.remove(), 10000); // Remove after 10 seconds
+        }
+        
+        showToast('Debug information logged to console', 'info');
+        
+    } catch (error) {
+        console.error('❌ Error running Paperless debug:', error);
+        showToast(`Debug error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Test basic file upload mechanism
+ */
+async function testFileUpload() {
+    try {
+        showLoading();
+        
+        // Create a simple test file
+        const testContent = 'This is a test file for Paperless-ngx upload debugging';
+        const testFile = new File([testContent], 'test.txt', { type: 'text/plain' });
+        
+        const token = window.auth ? window.auth.getToken() : localStorage.getItem('auth_token');
+        
+        const formData = new FormData();
+        formData.append('file', testFile);
+        formData.append('document_type', 'test');
+        
+        const response = await fetch('/api/paperless/test-upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        console.log('🧪 File Upload Test Result:', result);
+        
+        if (result.success) {
+            showToast('File upload test successful!', 'success');
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show success';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>✅ File Upload Test Successful!</strong><br>
+                    ${result.message}<br>
+                    <small>File: ${result.file_info.filename} (${result.file_info.size} bytes)</small>
+                `;
+            }
+        } else {
+            showToast('File upload test failed', 'error');
+            if (paperlessConnectionStatus) {
+                paperlessConnectionStatus.classList.add('show');
+                paperlessConnectionStatus.className = 'paperless-status-message show error';
+                paperlessConnectionStatus.innerHTML = `
+                    <strong>❌ File Upload Test Failed!</strong><br>
+                    ${result.error}
+                `;
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error testing file upload:', error);
+        showToast(`File upload test error: ${error.message}`, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * Validate if a string is a valid URL
+ * @param {string} string - The string to validate
+ * @returns {boolean} - Whether the string is a valid URL
+ */
+function isValidUrl(string) {
+    try {
+        const url = new URL(string);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
 }

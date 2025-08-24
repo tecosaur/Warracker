@@ -115,22 +115,29 @@ def apply_migrations():
                     with open(migration_file, 'r') as f:
                         sql = f.read()
                     
-                    cur.execute(
-                        sql,
-                        {
-                            "db_name": AsIs(DB_NAME),
-                            "db_user": AsIs(DB_USER),
-                            "db_admin_user": AsIs(DB_ADMIN_USER),
-                            "db_admin_password": AsIs(DB_ADMIN_PASSWORD),
-                        }
-                    )
+                    # Check if the SQL has placeholders before passing parameters
+                    if any(placeholder in sql for placeholder in ['%(db_name)s', '%(db_user)s', '%(db_admin_user)s', '%(db_admin_password)s']):
+                        cur.execute(
+                            sql,
+                            {
+                                "db_name": AsIs(DB_NAME),
+                                "db_user": AsIs(DB_USER),
+                                "db_admin_user": AsIs(DB_ADMIN_USER),
+                                "db_admin_password": AsIs(DB_ADMIN_PASSWORD),
+                            }
+                        )
+                    else:
+                        # No placeholders, execute directly
+                        cur.execute(sql)
                 elif migration_file.endswith('.py'):
                     # Apply Python migration
                     migration_module = load_python_migration(migration_file)
-                    if hasattr(migration_module, 'upgrade'):
+                    if hasattr(migration_module, 'apply_migration'):
+                        migration_module.apply_migration(conn)
+                    elif hasattr(migration_module, 'upgrade'):
                         migration_module.upgrade(cur)
                     else:
-                        logger.warning(f"Python migration {filename} does not have an upgrade function, skipping.")
+                        logger.warning(f"Python migration {filename} does not have an apply_migration or upgrade function, skipping.")
                         continue
                 
                 # Record the migration as applied
@@ -165,4 +172,4 @@ if __name__ == "__main__":
         logger.info("Migrations completed successfully")
     except Exception as e:
         logger.error(f"Migration process failed: {e}")
-        sys.exit(1) 
+        sys.exit(1)
