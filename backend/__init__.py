@@ -261,22 +261,14 @@ def create_app(config_name=None):
             from .notifications import init_scheduler
             from .db_handler import get_db_connection, release_db_connection
             
-<<<<<<< HEAD
             init_scheduler(app, get_db_connection, release_db_connection)
-=======
-            init_scheduler(get_db_connection, release_db_connection)
->>>>>>> 2ece8d0d5323f65d629e5f49573feb0ecd36c9ee
             logger.info("✅ Notification scheduler initialized successfully in factory")
         except ImportError:
             try:
                 from notifications import init_scheduler
                 from db_handler import get_db_connection, release_db_connection
                 
-<<<<<<< HEAD
                 init_scheduler(app, get_db_connection, release_db_connection)
-=======
-                init_scheduler(get_db_connection, release_db_connection)
->>>>>>> 2ece8d0d5323f65d629e5f49573feb0ecd36c9ee
                 logger.info("✅ Notification scheduler initialized successfully in factory (dev mode)")
             except Exception as e:
                 logger.error(f"❌ Failed to initialize notification scheduler: {e}")

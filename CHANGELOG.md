@@ -1,6 +1,5 @@
 # Changelog
 
-<<<<<<< HEAD
 ## 0.10.1.9 - 2025-08-24
 
 ### Fixed
@@ -37,11 +36,6 @@
 ## 0.10.1.8 - 2025-07-22
 
 ### Fixed
-=======
-## 0.10.1.8 - 2025-07-24
-
-### Fixed
->>>>>>> 2ece8d0d5323f65d629e5f49573feb0ecd36c9ee
 - **Notification System Initialization:** Fixed critical issue where warranty expiration notifications were not working due to scheduler initialization failures in Docker ultra-light mode.
   - **Root Cause:** The notification scheduler initialization code was located in `backend/app.py` but Gunicorn was using the application factory pattern from `backend/__init__.py`, causing the scheduler to never be initialized. Additionally, the scheduler detection logic incorrectly identified single-worker ultra-light mode as multi-worker, preventing scheduler startup. Missing API endpoints `/api/timezones` and `/api/locales` were causing frontend errors and preventing proper settings configuration.
   - **Solution:** Moved scheduler initialization into the `create_app()` factory function to ensure it runs during application startup. Enhanced `should_run_scheduler()` detection logic to properly handle ultra-light mode with single sync worker. Added missing `/api/timezones` endpoint returning timezone data grouped by region (including America/Halifax) and `/api/locales` endpoint returning supported languages. Fixed timezone API to return array format expected by frontend and removed authentication requirement from locales endpoint for public access. Implemented comprehensive memory mode compatibility ensuring scheduler works correctly across all deployment configurations.
