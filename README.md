@@ -47,6 +47,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 🗃️ **Centralized Management**   | Track all your product warranties in one place                                                           |
 | 🧾 **Detailed Records**          | Store purchase dates, durations, notes, and product photos with thumbnail previews                       |
 | 📄 **Document Storage**          | Upload receipts, invoices, and manuals securely                                                          |
+| 📝 Warranty Claims Tracking      | Manage warranty claims end-to-end with statuses, dates, resolutions, and full lifecycle visibility       |
 | 🔔 **Proactive Alerts**          | Get alerts for upcoming expirations via email or 100+ push services (Discord, Slack, etc.) using Apprise |
 | 🔍 **Quick Search and Filter**   | Search by product name, serial number, vendor, tags, and more with real-time filtering                   |
 | #️⃣ **Multiple Serial Numbers**  | Add and manage multiple serial numbers per product                                                       |
@@ -108,8 +109,8 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ Advanced User/Admin Controls
 * ✅ Paperless-ngx integration
 * ✅ Localization Support
+* ✅ Warranty Claim Tracking
 * [ ] Audit trail
-* [ ] Warranty Claim Tracking
 * [ ] Calendar Integration
       
 ## 🚀Setup
