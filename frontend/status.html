@@ -677,6 +677,14 @@
                             <div id="editFileName" class="file-name"></div>
                             <div id="currentInvoice" class="mt-10"></div>
                             <button type="button" id="deleteInvoiceBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_invoice">Delete Invoice</span></button>
+                            <!-- URL Input for Invoice -->
+                            <div class="form-group url-input-group">
+                                <label for="editInvoiceUrl" data-i18n="warranties.or_link_to_invoice_url">Or Link to Invoice URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editInvoiceUrl" name="invoice_url" class="form-control" placeholder="https://example.com/invoice.pdf">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label data-i18n="warranties.product_manual_optional">Product Manual (Optional)</label>
@@ -689,6 +697,14 @@
                             <div id="editManualFileName" class="file-name"></div>
                             <div id="currentManual" class="mt-10"></div>
                             <button type="button" id="deleteManualBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_manual">Delete Manual</span></button>
+                            <!-- URL Input for Manual -->
+                            <div class="form-group url-input-group">
+                                <label for="editManualUrl" data-i18n="warranties.or_link_to_manual_url">Or Link to Manual URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editManualUrl" name="manual_url" class="form-control" placeholder="https://example.com/manual.pdf">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label data-i18n="warranties.files_optional">Files (ZIP/RAR, Optional)</label>
@@ -701,6 +717,14 @@
                             <div id="editOtherDocumentFileName" class="file-name"></div>
                             <div id="currentOtherDocument" class="mt-10"></div>
                             <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_files">Delete Files</span></button>
+                            <!-- URL Input for Other Document -->
+                            <div class="form-group url-input-group">
+                                <label for="editOtherDocumentUrl" data-i18n="warranties.or_link_to_files_url">Or Link to Files URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editOtherDocumentUrl" name="other_document_url" class="form-control" placeholder="https://example.com/files.zip">
+                                </div>
+                            </div>
                         </div>
                     </div>
                     

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # PostgreSQL connection details
 DB_HOST = os.environ.get('DB_HOST', 'warrackerdb')
+DB_PORT = os.environ.get('DB_PORT', '5432')
 DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
 DB_USER = os.environ.get('DB_USER', 'warranty_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
@@ -27,6 +28,7 @@ def create_db_connection(max_retries=5, retry_delay=5):
             logger.info(f"Attempting to connect to database (attempt {attempt+1}/{max_retries})")
             conn = psycopg2.connect(
                 host=DB_HOST,
+                port=DB_PORT,
                 database=DB_NAME,
                 user=DB_USER,
                 password=DB_PASSWORD

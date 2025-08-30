@@ -10,6 +10,7 @@ services:
       - ./backend/migrations:/app/migrations
     environment:
       - DB_HOST=warrackerdb
+      - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=warranty_test
       - DB_USER=warranty_user
       - DB_PASSWORD=${DB_PASSWORD:-warranty_password}

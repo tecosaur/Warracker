@@ -63,7 +63,8 @@ def get_warranties():
                 SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
                        purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
                        warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
-                       paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
+                       paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
+                       invoice_url, manual_url, other_document_url
                 FROM warranties 
                 WHERE user_id = %s 
                 ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
@@ -175,6 +176,11 @@ def add_warranty():
         notes = request.form.get('notes', '')
         vendor = request.form.get('vendor', None)
         warranty_type = request.form.get('warranty_type', None)
+        
+        # Get URL fields for documents
+        invoice_url = request.form.get('invoice_url', None)
+        manual_url = request.form.get('manual_url', None)
+        other_document_url = request.form.get('other_document_url', None)
         
         # Get tag IDs if provided
         tag_ids = []
@@ -360,15 +366,17 @@ def add_warranty():
                     product_name, purchase_date, expiration_date, 
                     invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
                     warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
-                    paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
+                    paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
+                    invoice_url, manual_url, other_document_url
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, expiration_date,
                 db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
                 warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path, currency,
-                paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id
+                paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
+                invoice_url, manual_url, other_document_url
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -588,6 +596,11 @@ def update_warranty(warranty_id):
             notes = request.form.get('notes', None)
             vendor = request.form.get('vendor', None)
             warranty_type = request.form.get('warranty_type', None)
+            
+            # Get URL fields for documents
+            invoice_url = request.form.get('invoice_url', None)
+            manual_url = request.form.get('manual_url', None)
+            other_document_url = request.form.get('other_document_url', None)
             tag_ids = []
             if request.form.get('tag_ids'):
                 try:
@@ -923,6 +936,17 @@ def update_warranty(warranty_id):
             if paperless_other_id is not None:
                 sql_fields.append("paperless_other_id = %s")
                 sql_values.append(paperless_other_id)
+
+            # Handle URL fields for documents
+            if 'invoice_url' in request.form:
+                sql_fields.append("invoice_url = %s")
+                sql_values.append(request.form.get('invoice_url'))
+            if 'manual_url' in request.form:
+                sql_fields.append("manual_url = %s")
+                sql_values.append(request.form.get('manual_url'))
+            if 'other_document_url' in request.form:
+                sql_fields.append("other_document_url = %s")
+                sql_values.append(request.form.get('other_document_url'))
 
             sql_fields.append("updated_at = NOW()") # Use SQL function, no parameter needed
             sql_values.append(warranty_id)
@@ -1767,5 +1791,331 @@ def get_locales():
     except Exception as e:
         logger.error(f"Error getting locales: {e}")
         return jsonify([{'code': 'en', 'name': 'English', 'native_name': 'English'}]), 500
+
+# ====== WARRANTY CLAIMS ENDPOINTS ======
+
+@warranties_bp.route('/warranties/<int:warranty_id>/claims', methods=['POST'])
+@token_required
+def create_claim(warranty_id):
+    """Create a new warranty claim"""
+    conn = None
+    cur = None
+    
+    try:
+        user_id = request.user['id']
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Verify warranty exists and user owns it
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, product_name FROM warranties 
+            WHERE id = %s AND user_id = %s
+        """, (warranty_id, user_id))
+        
+        warranty = cur.fetchone()
+        if not warranty:
+            return jsonify({'error': 'Warranty not found or access denied'}), 404
+        
+        # Validate required fields
+        claim_date = data.get('claim_date')
+        status = data.get('status', 'Submitted')
+        claim_number = data.get('claim_number', '').strip()
+        description = data.get('description', '').strip()
+        resolution = data.get('resolution', '').strip()
+        resolution_date = data.get('resolution_date')
+        
+        if not claim_date:
+            return jsonify({'error': 'Claim date is required'}), 400
+        
+        # Parse dates
+        try:
+            parsed_claim_date = date_parse(claim_date).date() if isinstance(claim_date, str) else claim_date
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid claim date format'}), 400
+            
+        parsed_resolution_date = None
+        if resolution_date:
+            try:
+                parsed_resolution_date = date_parse(resolution_date).date() if isinstance(resolution_date, str) else resolution_date
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid resolution date format'}), 400
+        
+        # Validate status
+        valid_statuses = ['Submitted', 'In Progress', 'Approved', 'Denied', 'Resolved', 'Cancelled']
+        if status not in valid_statuses:
+            status = 'Submitted'
+        
+        # Insert new claim
+        cur.execute("""
+            INSERT INTO warranty_claims 
+            (warranty_id, claim_date, status, claim_number, description, resolution, resolution_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, created_at, updated_at
+        """, (warranty_id, parsed_claim_date, status, claim_number or None, description or None, 
+              resolution or None, parsed_resolution_date))
+        
+        result = cur.fetchone()
+        claim_id = result[0]
+        created_at = result[1]
+        updated_at = result[2]
+        
+        conn.commit()
+        
+        # Return the created claim
+        claim = {
+            'id': claim_id,
+            'warranty_id': warranty_id,
+            'claim_date': parsed_claim_date.isoformat(),
+            'status': status,
+            'claim_number': claim_number or None,
+            'description': description or None,
+            'resolution': resolution or None,
+            'resolution_date': parsed_resolution_date.isoformat() if parsed_resolution_date else None,
+            'created_at': created_at.isoformat() if created_at else None,
+            'updated_at': updated_at.isoformat() if updated_at else None
+        }
+        
+        logger.info(f"Created claim {claim_id} for warranty {warranty_id} by user {user_id}")
+        return jsonify(claim), 201
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error creating claim: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+        
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_db_connection(conn)
+
+@warranties_bp.route('/warranties/<int:warranty_id>/claims', methods=['GET'])
+@token_required
+def get_claims(warranty_id):
+    """Get all claims for a warranty"""
+    conn = None
+    cur = None
+    
+    try:
+        user_id = request.user['id']
+        # Verify warranty exists and user owns it
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id, product_name FROM warranties 
+            WHERE id = %s AND user_id = %s
+        """, (warranty_id, user_id))
+        
+        warranty = cur.fetchone()
+        if not warranty:
+            return jsonify({'error': 'Warranty not found or access denied'}), 404
+        
+        # Get all claims for this warranty
+        cur.execute("""
+            SELECT id, warranty_id, claim_date, status, claim_number, description, 
+                   resolution, resolution_date, created_at, updated_at
+            FROM warranty_claims 
+            WHERE warranty_id = %s
+            ORDER BY claim_date DESC, created_at DESC
+        """, (warranty_id,))
+        
+        claims = []
+        for row in cur.fetchall():
+            claim = {
+                'id': row[0],
+                'warranty_id': row[1],
+                'claim_date': row[2].isoformat() if row[2] else None,
+                'status': row[3],
+                'claim_number': row[4],
+                'description': row[5],
+                'resolution': row[6],
+                'resolution_date': row[7].isoformat() if row[7] else None,
+                'created_at': row[8].isoformat() if row[8] else None,
+                'updated_at': row[9].isoformat() if row[9] else None
+            }
+            claims.append(claim)
+        
+        return jsonify(claims), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting claims: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+        
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_db_connection(conn)
+
+@warranties_bp.route('/warranties/<int:warranty_id>/claims/<int:claim_id>', methods=['PUT'])
+@token_required
+def update_claim(warranty_id, claim_id):
+    """Update a warranty claim"""
+    conn = None
+    cur = None
+    
+    try:
+        user_id = request.user['id']
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Verify warranty exists and user owns it
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT w.id, w.product_name 
+            FROM warranties w
+            JOIN warranty_claims c ON w.id = c.warranty_id
+            WHERE w.id = %s AND c.id = %s AND w.user_id = %s
+        """, (warranty_id, claim_id, user_id))
+        
+        result = cur.fetchone()
+        if not result:
+            return jsonify({'error': 'Warranty or claim not found or access denied'}), 404
+        
+        # Get current claim data
+        cur.execute("""
+            SELECT claim_date, status, claim_number, description, resolution, resolution_date
+            FROM warranty_claims 
+            WHERE id = %s AND warranty_id = %s
+        """, (claim_id, warranty_id))
+        
+        current_claim = cur.fetchone()
+        if not current_claim:
+            return jsonify({'error': 'Claim not found'}), 404
+        
+        # Update fields (keep existing values if not provided)
+        claim_date = data.get('claim_date')
+        status = data.get('status', current_claim[1])
+        claim_number = data.get('claim_number', current_claim[2])
+        description = data.get('description', current_claim[3])
+        resolution = data.get('resolution', current_claim[4])
+        resolution_date = data.get('resolution_date', current_claim[5])
+        
+        # Parse dates
+        if claim_date:
+            try:
+                parsed_claim_date = date_parse(claim_date).date() if isinstance(claim_date, str) else claim_date
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid claim date format'}), 400
+        else:
+            parsed_claim_date = current_claim[0]
+            
+        if resolution_date:
+            try:
+                parsed_resolution_date = date_parse(resolution_date).date() if isinstance(resolution_date, str) else resolution_date
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid resolution date format'}), 400
+        else:
+            parsed_resolution_date = current_claim[5]
+        
+        # Validate status
+        valid_statuses = ['Submitted', 'In Progress', 'Approved', 'Denied', 'Resolved', 'Cancelled']
+        if status not in valid_statuses:
+            status = current_claim[1]
+        
+        # Handle empty strings as None
+        claim_number = claim_number.strip() if claim_number else None
+        description = description.strip() if description else None
+        resolution = resolution.strip() if resolution else None
+        
+        # Update the claim
+        cur.execute("""
+            UPDATE warranty_claims 
+            SET claim_date = %s, status = %s, claim_number = %s, description = %s, 
+                resolution = %s, resolution_date = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND warranty_id = %s
+            RETURNING updated_at
+        """, (parsed_claim_date, status, claim_number, description, resolution, 
+              parsed_resolution_date, claim_id, warranty_id))
+        
+        updated_at = cur.fetchone()[0]
+        conn.commit()
+        
+        # Return updated claim
+        claim = {
+            'id': claim_id,
+            'warranty_id': warranty_id,
+            'claim_date': parsed_claim_date.isoformat() if parsed_claim_date else None,
+            'status': status,
+            'claim_number': claim_number,
+            'description': description,
+            'resolution': resolution,
+            'resolution_date': parsed_resolution_date.isoformat() if parsed_resolution_date else None,
+            'updated_at': updated_at.isoformat() if updated_at else None
+        }
+        
+        logger.info(f"Updated claim {claim_id} for warranty {warranty_id} by user {user_id}")
+        return jsonify(claim), 200
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error updating claim: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+        
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_db_connection(conn)
+
+@warranties_bp.route('/warranties/<int:warranty_id>/claims/<int:claim_id>', methods=['DELETE'])
+@token_required
+def delete_claim(warranty_id, claim_id):
+    """Delete a warranty claim"""
+    conn = None
+    cur = None
+    
+    try:
+        user_id = request.user['id']
+        # Verify warranty exists and user owns it
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT w.id, w.product_name 
+            FROM warranties w
+            JOIN warranty_claims c ON w.id = c.warranty_id
+            WHERE w.id = %s AND c.id = %s AND w.user_id = %s
+        """, (warranty_id, claim_id, user_id))
+        
+        result = cur.fetchone()
+        if not result:
+            return jsonify({'error': 'Warranty or claim not found or access denied'}), 404
+        
+        # Delete the claim
+        cur.execute("""
+            DELETE FROM warranty_claims 
+            WHERE id = %s AND warranty_id = %s
+        """, (claim_id, warranty_id))
+        
+        if cur.rowcount == 0:
+            return jsonify({'error': 'Claim not found'}), 404
+        
+        conn.commit()
+        
+        logger.info(f"Deleted claim {claim_id} for warranty {warranty_id} by user {user_id}")
+        return jsonify({'message': 'Claim deleted successfully'}), 200
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Error deleting claim: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+        
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            release_db_connection(conn)
 
  

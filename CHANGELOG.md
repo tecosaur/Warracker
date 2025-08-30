@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.10.1.10 - 2025-08-30
+
+### Enhanced
+- **URL/Link Support for Documents and Invoices:** Introduced comprehensive URL/Link support allowing users to add external URLs for their documents (invoices, manuals, and other files) in addition to the existing file upload functionality. This enhancement provides flexible document management options while maintaining full backward compatibility with existing features.
+  - **Database Schema:** Added three nullable columns (`invoice_url`, `manual_url`, `other_document_url`) to the warranties table via migration 043, ensuring zero impact on existing records.
+  - **Complete Modal Integration:** Enhanced both Add and Edit warranty modals across all pages with intuitive URL input fields featuring link icons and clean visual integration alongside existing file upload sections. Added URL input fields to both the homepage edit modal (`index.html`) and status page edit modal (`status.html`) for complete feature parity.
+  - **Dual Display Support:** Updated warranty cards to display both file links and URL links side by side, with URL links opening in new tabs for seamless external document access.
+  - **Smart Summary:** Enhanced the Add Warranty summary to intelligently display either uploaded file names or "URL: [link]" when URLs are provided instead of files.
+  - **API Enhancement:** Extended backend API endpoints to handle URL fields in warranty creation, updates, and retrieval with proper form validation and data processing.
+  - **Responsive Design:** Added CSS styling for URL input fields with proper icon positioning, hover effects, and mobile-friendly responsive behavior.
+  - **Cross-Page Compatibility:** Implemented robust null safety checks in JavaScript functions to prevent errors when URL input elements don't exist on certain pages, ensuring seamless operation across different page contexts.
+  - **Error Resolution:** Fixed TypeError issues in edit modal functionality by adding comprehensive null checks for URL field access, ensuring stable operation when switching between different modal implementations.
+  - **User Experience:** Users can now choose between file uploads, external URLs, or a combination of both, providing maximum flexibility for different document management workflows and storage preferences across all warranty management interfaces.
+  - _Files: `backend/migrations/043_add_document_urls_to_warranties.sql`, `backend/warranties_routes.py`, `frontend/index.html`, `frontend/status.html`, `frontend/script.js`, `frontend/style.css`_
+
+- **Database Port Configuration Support:** Added support for custom database port configuration via the `DB_PORT` environment variable to enhance deployment flexibility. The implementation is fully backward-compatible, defaulting to port 5432 if the variable is not set.
+  - **Backend Integration:** Updated `backend/db_handler.py` and `backend/fix_permissions.py` to recognize and use the `DB_PORT` environment variable in all database connection calls.
+  - **Docker Support:** Added `DB_PORT` environment variable support to both `docker-compose.yml` files with fallback defaults (`${DB_PORT:-5432}`).
+  - **Configuration Examples:** Updated `env.example` with commented DB_PORT configuration option for local development guidance.
+  - **Deployment Flexibility:** Users can now customize database ports for non-standard PostgreSQL deployments, multi-instance setups, or specific infrastructure requirements.
+  - _Files: `backend/db_handler.py`, `backend/fix_permissions.py`, `docker-compose.yml`, `Docker/docker-compose.yml`, `env.example`_
+
+- **Warranty Claims Tracking System:** Introduced comprehensive warranty claims management functionality allowing users to track and manage warranty claims for their products throughout the entire claim lifecycle.
+  - **Database Schema:** Added `warranty_claims` table via migration 044 with support for claim dates, status tracking, claim numbers, descriptions, resolutions, and resolution dates with proper foreign key relationships and indexing.
+  - **Backend API:** Implemented full REST API for claims management including endpoints for creating, reading, updating, and deleting warranty claims with proper authentication and authorization checks.
+  - **Frontend Integration:** Added intuitive claims modal interface accessible from warranty cards with comprehensive claim management features including status tracking, date management, and detailed claim information.
+  - **Status Management:** Implemented claim status workflow with predefined statuses (Submitted, In Progress, Approved, Denied, Resolved, Cancelled) and proper status badge styling for visual clarity.
+  - **Date Handling:** Enhanced date formatting and display logic to properly handle claim dates, resolution dates, and warranty expiration dates with robust null value handling and user-friendly formatting.
+  - **User Interface:** Positioned Claims button as the first action button in warranty card headers (Claims, Edit, Delete order) with hover tooltip for easy identification and access.
+  - **Modal Behavior:** Enhanced claims modal stability by preventing accidental closure when clicking outside the modal area, requiring explicit close button interaction for better user experience.
+  - **Data Integrity:** Implemented proper validation, error handling, and database constraints to ensure data consistency and prevent orphaned records.
+  - _Files: `backend/migrations/044_create_warranty_claims_table.sql`, `backend/warranties_routes.py`, `frontend/script.js`, `frontend/index.html`_
+
 ## 0.10.1.9 - 2025-08-24
 
 ### Fixed

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # PostgreSQL connection details
 DB_HOST = os.environ.get('DB_HOST', 'warrackerdb')
+DB_PORT = os.environ.get('DB_PORT', '5432')
 DB_NAME = os.environ.get('DB_NAME', 'warranty_db')
 DB_USER = os.environ.get('DB_USER', 'warranty_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
@@ -33,6 +34,7 @@ def init_db_pool(max_retries=5, retry_delay=5):
             connection_pool = pool.SimpleConnectionPool(
                 1, 4, # Reduced from 1,10 to 1,4 for memory efficiency
                 host=DB_HOST,
+                port=DB_PORT,
                 database=DB_NAME,
                 user=DB_USER,
                 password=DB_PASSWORD,

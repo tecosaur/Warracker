@@ -83,6 +83,17 @@ const tagManagementModal = document.getElementById('tagManagementModal');
 const newTagForm = document.getElementById('newTagForm');
 const existingTagsContainer = document.getElementById('existingTags');
 
+// Claims modal elements
+const claimsModal = document.getElementById('claimsModal');
+const claimFormModal = document.getElementById('claimFormModal');
+const claimsListBody = document.getElementById('claimsListBody');
+const addClaimBtn = document.getElementById('addClaimBtn');
+const claimForm = document.getElementById('claimForm');
+const saveClaimBtn = document.getElementById('saveClaimBtn');
+const editClaimId = document.getElementById('editClaimId');
+const claimFormTitle = document.getElementById('claimFormTitle');
+const warrantyClaimInfo = document.getElementById('warrantyClaimInfo');
+
 // --- Add near other DOM Element declarations ---
 const isLifetimeCheckbox = document.getElementById('isLifetime');
 const warrantyDurationFields = document.getElementById('warrantyDurationFields'); // New container
@@ -1139,25 +1150,46 @@ function updateSummary() {
             productPhotoFile.name : 'No photo selected';
     }
     
-    const invoiceFile = document.getElementById('invoice')?.files[0];
+        const invoiceFile = document.getElementById('invoice')?.files[0];
+    const invoiceUrlField = document.getElementById('invoiceUrl');
+    const invoiceUrl = invoiceUrlField ? invoiceUrlField.value : '';
     const summaryInvoice = document.getElementById('summary-invoice');
     if (summaryInvoice) {
-        summaryInvoice.textContent = invoiceFile ? 
-            invoiceFile.name : 'No file selected';
+        if (invoiceFile) {
+            summaryInvoice.textContent = invoiceFile.name;
+        } else if (invoiceUrl) {
+            summaryInvoice.textContent = 'URL: ' + invoiceUrl;
+        } else {
+            summaryInvoice.textContent = 'Not specified';
+        }
     }
-    
+
     const manualFile = document.getElementById('manual')?.files[0];
+    const manualUrlField = document.getElementById('manualUrl');
+    const manualUrl = manualUrlField ? manualUrlField.value : '';
     const summaryManual = document.getElementById('summary-manual');
     if (summaryManual) {
-        summaryManual.textContent = manualFile ? 
-            manualFile.name : 'No file selected';
+        if (manualFile) {
+            summaryManual.textContent = manualFile.name;
+        } else if (manualUrl) {
+            summaryManual.textContent = 'URL: ' + manualUrl;
+        } else {
+            summaryManual.textContent = 'Not specified';
+        }
     }
 
     const otherDocumentFile = document.getElementById('otherDocument')?.files[0]; 
+    const otherDocumentUrlField = document.getElementById('otherDocumentUrl');
+    const otherDocumentUrl = otherDocumentUrlField ? otherDocumentUrlField.value : '';
     const summaryOtherDocument = document.getElementById('summary-other-document'); 
     if (summaryOtherDocument) { 
-        summaryOtherDocument.textContent = otherDocumentFile ? 
-            otherDocumentFile.name : 'No file selected'; 
+        if (otherDocumentFile) {
+            summaryOtherDocument.textContent = otherDocumentFile.name;
+        } else if (otherDocumentUrl) {
+            summaryOtherDocument.textContent = 'URL: ' + otherDocumentUrl;
+        } else {
+            summaryOtherDocument.textContent = 'Not specified';
+        }
     } 
     
     // Tags
@@ -2305,6 +2337,9 @@ async function renderWarranties(warrantiesToRender) {
         
         // Generate action buttons HTML based on permissions
         const actionButtonsHtml = canEdit ? `
+            <button class="action-btn claims-link" title="Claims" data-id="${warranty.id}">
+                <i class="fas fa-clipboard-list"></i>
+            </button>
             <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
                 <i class="fas fa-edit"></i>
             </button>
@@ -2312,6 +2347,9 @@ async function renderWarranties(warrantiesToRender) {
                 <i class="fas fa-trash"></i>
             </button>
         ` : `
+            <button class="action-btn claims-link" title="Claims" data-id="${warranty.id}">
+                <i class="fas fa-clipboard-list"></i>
+            </button>
             <span class="action-btn-placeholder" title="View only - not your warranty">
                 <i class="fas fa-eye" style="color: #666;"></i>
             </span>
@@ -2373,6 +2411,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${generateDocumentLink(warranty, 'manual')}
                         ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
+
                     </div>
                 </div>
                 ` : ''}
@@ -2434,6 +2473,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${generateDocumentLink(warranty, 'manual')}
                         ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
+
                     </div>
                 </div>
                 ` : ''}
@@ -2498,6 +2538,7 @@ async function renderWarranties(warrantiesToRender) {
                         ${generateDocumentLink(warranty, 'manual')}
                         ${generateDocumentLink(warranty, 'other')}
                         ${notesLinkHtml}
+
                     </div>
                 </div>
                 ` : ''}
@@ -2750,6 +2791,16 @@ async function openEditModal(warranty) {
         editCurrencySelect.value = warranty.currency;
     }
     document.getElementById('editVendor').value = warranty.vendor || '';
+    
+    // Populate URL fields for documents (with null checks)
+    const editInvoiceUrl = document.getElementById('editInvoiceUrl');
+    if (editInvoiceUrl) editInvoiceUrl.value = warranty.invoice_url || '';
+    
+    const editManualUrl = document.getElementById('editManualUrl');
+    if (editManualUrl) editManualUrl.value = warranty.manual_url || '';
+    
+    const editOtherDocumentUrl = document.getElementById('editOtherDocumentUrl');
+    if (editOtherDocumentUrl) editOtherDocumentUrl.value = warranty.other_document_url || '';
     
     // Handle warranty type - check if it's a predefined option or custom
     const editWarrantyTypeSelect = document.getElementById('editWarrantyType');
@@ -3432,6 +3483,16 @@ async function handleFormSubmit(event) { // Made async to properly await paperle
         formData.append('tag_ids', JSON.stringify([])); // Send empty array if no tags
     }
     
+    // Add URL fields for documents (with null checks)
+    const invoiceUrlField = document.getElementById('invoiceUrl');
+    formData.append('invoice_url', invoiceUrlField ? invoiceUrlField.value || '' : '');
+    
+    const manualUrlField = document.getElementById('manualUrl');
+    formData.append('manual_url', manualUrlField ? manualUrlField.value || '' : '');
+    
+    const otherDocumentUrlField = document.getElementById('otherDocumentUrl');
+    formData.append('other_document_url', otherDocumentUrlField ? otherDocumentUrlField.value || '' : '');
+    
     // --- Ensure is_lifetime is correctly added ---
     // FormData already includes it if the checkbox is checked. If not checked, it's omitted.
     // We need to explicitly add 'false' if it's not checked.
@@ -3662,7 +3723,372 @@ document.addEventListener('DOMContentLoaded', function() {
     // loadPreferences(); // Consider if needed
 
     // REMOVED: updateCurrencySymbols(); // Now called after authStateReady
+    
+    // Initialize claims functionality
+    initClaimsEventListeners();
 });
+
+// ====== WARRANTY CLAIMS FUNCTIONALITY ======
+
+// Global variables for claims
+let currentClaimsWarrantyId = null;
+let currentClaims = [];
+
+/**
+ * Initialize claims event listeners
+ */
+function initClaimsEventListeners() {
+    // Event delegation for claims links
+    if (warrantiesList) {
+        warrantiesList.addEventListener('click', (e) => {
+            if (e.target.closest('.claims-link')) {
+                e.preventDefault();
+                const warrantyId = parseInt(e.target.closest('.claims-link').dataset.id);
+                openClaimsModal(warrantyId);
+            }
+        });
+    }
+    
+    // Add claim button
+    if (addClaimBtn) {
+        addClaimBtn.addEventListener('click', () => {
+            openClaimFormModal();
+        });
+    }
+    
+    // Claim form submission
+    if (claimForm) {
+        claimForm.addEventListener('submit', handleClaimFormSubmit);
+    }
+    
+    // Modal close handling - Removed backdrop click listeners to match warranty modal behavior
+    // Claims modals now only close via explicit close buttons with [data-dismiss="modal"]
+    // The general modal click prevention (e.stopPropagation) handles preventing backdrop clicks
+    
+    // Add event listeners for claims modal close buttons
+    if (claimsModal) {
+        claimsModal.querySelectorAll('[data-dismiss="modal"]').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => {
+                closeClaimsModal();
+            });
+        });
+    }
+    
+    if (claimFormModal) {
+        claimFormModal.querySelectorAll('[data-dismiss="modal"]').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => {
+                closeClaimFormModal();
+            });
+        });
+    }
+}
+
+/**
+ * Open the claims modal for a specific warranty
+ */
+async function openClaimsModal(warrantyId) {
+    try {
+        currentClaimsWarrantyId = warrantyId;
+        
+        // Find warranty info
+        const warranty = warranties.find(w => w.id === warrantyId);
+        if (!warranty) {
+            showToast(window.i18next ? window.i18next.t('claims.warranty_not_found') : 'Warranty not found', 'error');
+            return;
+        }
+        
+        // Update warranty info in modal
+        if (warrantyClaimInfo) {
+            warrantyClaimInfo.innerHTML = `
+                <div class="warranty-info-card">
+                    <h4>${warranty.product_name || 'Unnamed Product'}</h4>
+                    <div class="warranty-details">
+                        <span><i class="fas fa-building"></i> ${warranty.vendor || 'Unknown Vendor'}</span>
+                        <span><i class="fas fa-calendar"></i> Expires: ${formatDate(warranty.expiration_date ? new Date(warranty.expiration_date) : null)}</span>
+                        <span class="warranty-status status-${warranty.status || 'unknown'}">
+                            ${warranty.statusText || 'Unknown Status'}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Show modal
+        claimsModal.classList.add('active');
+        
+        // Load claims
+        await loadClaims(warrantyId);
+        
+    } catch (error) {
+        console.error('Error opening claims modal:', error);
+        showToast('Failed to open claims modal', 'error');
+    }
+}
+
+/**
+ * Load claims for a warranty
+ */
+async function loadClaims(warrantyId) {
+    try {
+        // Show loading
+        if (claimsListBody) {
+            claimsListBody.innerHTML = `
+                <div class="loading-message" style="text-align: center; padding: 20px;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading claims...
+                </div>
+            `;
+        }
+        
+        // Fetch claims
+        const response = await fetch(`/api/warranties/${warrantyId}/claims`, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load claims');
+        }
+        
+        currentClaims = await response.json();
+        renderClaims();
+        
+    } catch (error) {
+        console.error('Error loading claims:', error);
+        if (claimsListBody) {
+            claimsListBody.innerHTML = `
+                <div class="error-message" style="text-align: center; padding: 20px; color: var(--danger-color);">
+                    <i class="fas fa-exclamation-triangle"></i> Failed to load claims
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Render claims list
+ */
+function renderClaims() {
+    if (!claimsListBody) return;
+    
+    if (currentClaims.length === 0) {
+        claimsListBody.innerHTML = `
+            <div class="no-claims-message" style="text-align: center; padding: 40px;">
+                <i class="fas fa-clipboard-list" style="font-size: 3rem; color: var(--medium-gray); margin-bottom: 1rem;"></i>
+                <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">${window.i18next ? window.i18next.t('claims.no_claims_yet') : 'No Claims Yet'}</h4>
+                <p style="color: var(--dark-gray); margin-bottom: 0;">${window.i18next ? window.i18next.t('claims.no_claims_message') : 'Click "Add New Claim" to get started'}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let claimsHtml = '';
+    currentClaims.forEach(claim => {
+        claimsHtml += `
+            <div class="claim-item" data-claim-id="${claim.id}">
+                <div class="claim-header">
+                    <div class="claim-info">
+                        <div class="claim-title">
+                            ${claim.claim_number ? `<strong>${claim.claim_number}</strong>` : `<strong>Claim #${claim.id}</strong>`}
+                            <span class="claim-status-badge claim-status-${claim.status.toLowerCase().replace(' ', '-')}">
+                                ${claim.status}
+                            </span>
+                        </div>
+                        <div class="claim-date">
+                            <i class="fas fa-calendar"></i> ${formatDate(claim.claim_date ? new Date(claim.claim_date) : null)}
+                            ${claim.resolution_date && claim.resolution_date.trim() ? `<span style="margin-left: 10px;"><i class="fas fa-check-circle"></i> Resolved: ${formatDate(new Date(claim.resolution_date))}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="claim-actions">
+                        <button class="btn btn-sm btn-secondary edit-claim-btn" data-claim-id="${claim.id}">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn btn-sm btn-danger delete-claim-btn" data-claim-id="${claim.id}">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+                ${claim.description ? `<div class="claim-description">${escapeHtml(claim.description)}</div>` : ''}
+                ${claim.resolution ? `<div class="claim-resolution"><strong>Resolution:</strong> ${escapeHtml(claim.resolution)}</div>` : ''}
+            </div>
+        `;
+    });
+    
+    claimsListBody.innerHTML = claimsHtml;
+    
+    // Add event listeners for edit and delete buttons
+    claimsListBody.addEventListener('click', (e) => {
+        if (e.target.closest('.edit-claim-btn')) {
+            const claimId = parseInt(e.target.closest('.edit-claim-btn').dataset.claimId);
+            const claim = currentClaims.find(c => c.id === claimId);
+            if (claim) {
+                openClaimFormModal(claim);
+            }
+        }
+        
+        if (e.target.closest('.delete-claim-btn')) {
+            const claimId = parseInt(e.target.closest('.delete-claim-btn').dataset.claimId);
+            if (confirm(window.i18next ? window.i18next.t('claims.confirm_delete_claim') : 'Are you sure you want to delete this claim?')) {
+                deleteClaim(claimId);
+            }
+        }
+    });
+}
+
+/**
+ * Open claim form modal for adding or editing
+ */
+function openClaimFormModal(claim = null) {
+    if (!claimFormModal) return;
+    
+    // Update title
+    if (claimFormTitle) {
+        claimFormTitle.textContent = claim ? (window.i18next ? window.i18next.t('claims.edit_claim') : 'Edit Claim') : (window.i18next ? window.i18next.t('claims.add_new_claim') : 'Add New Claim');
+    }
+    
+    // Reset form
+    if (claimForm) {
+        claimForm.reset();
+    }
+    
+    if (claim) {
+        // Populate form with claim data
+        if (editClaimId) editClaimId.value = claim.id;
+        if (document.getElementById('claimDate')) document.getElementById('claimDate').value = claim.claim_date || '';
+        if (document.getElementById('claimStatus')) document.getElementById('claimStatus').value = claim.status;
+        if (document.getElementById('claimNumber')) document.getElementById('claimNumber').value = claim.claim_number || '';
+        if (document.getElementById('claimDescription')) document.getElementById('claimDescription').value = claim.description || '';
+        if (document.getElementById('claimResolution')) document.getElementById('claimResolution').value = claim.resolution || '';
+        if (document.getElementById('resolutionDate')) document.getElementById('resolutionDate').value = claim.resolution_date || '';
+    } else {
+        // Set default values for new claim
+        if (editClaimId) editClaimId.value = '';
+        if (document.getElementById('claimDate')) document.getElementById('claimDate').value = new Date().toISOString().split('T')[0];
+        if (document.getElementById('claimStatus')) document.getElementById('claimStatus').value = 'Submitted';
+    }
+    
+    // Show modal
+    claimFormModal.classList.add('active');
+}
+
+/**
+ * Handle claim form submission
+ */
+async function handleClaimFormSubmit(event) {
+    event.preventDefault();
+    
+    try {
+        const formData = new FormData(claimForm);
+        const claimId = editClaimId.value;
+        
+        const claimData = {
+            claim_date: formData.get('claim_date'),
+            status: formData.get('status'),
+            claim_number: formData.get('claim_number'),
+            description: formData.get('description'),
+            resolution: formData.get('resolution'),
+            resolution_date: formData.get('resolution_date')
+        };
+        
+        // Remove empty strings
+        Object.keys(claimData).forEach(key => {
+            if (claimData[key] === '') {
+                claimData[key] = null;
+            }
+        });
+        
+        const isEdit = claimId && claimId !== '';
+        const url = isEdit 
+            ? `/api/warranties/${currentClaimsWarrantyId}/claims/${claimId}`
+            : `/api/warranties/${currentClaimsWarrantyId}/claims`;
+        const method = isEdit ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(claimData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save claim');
+        }
+        
+        showToast(isEdit ? (window.i18next ? window.i18next.t('claims.claim_updated_successfully') : 'Claim updated successfully') : (window.i18next ? window.i18next.t('claims.claim_created_successfully') : 'Claim created successfully'), 'success');
+        closeClaimFormModal();
+        
+        // Reload claims
+        await loadClaims(currentClaimsWarrantyId);
+        
+    } catch (error) {
+        console.error('Error saving claim:', error);
+        showToast(error.message || 'Failed to save claim', 'error');
+    }
+}
+
+/**
+ * Delete a claim
+ */
+async function deleteClaim(claimId) {
+    try {
+        const response = await fetch(`/api/warranties/${currentClaimsWarrantyId}/claims/${claimId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + (window.auth ? window.auth.getToken() : localStorage.getItem('auth_token')),
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete claim');
+        }
+        
+        showToast(window.i18next ? window.i18next.t('claims.claim_deleted_successfully') : 'Claim deleted successfully', 'success');
+        
+        // Reload claims
+        await loadClaims(currentClaimsWarrantyId);
+        
+    } catch (error) {
+        console.error('Error deleting claim:', error);
+        showToast(error.message || 'Failed to delete claim', 'error');
+    }
+}
+
+/**
+ * Close claims modal
+ */
+function closeClaimsModal() {
+    if (claimsModal) {
+        claimsModal.classList.remove('active');
+    }
+    currentClaimsWarrantyId = null;
+    currentClaims = [];
+}
+
+/**
+ * Close claim form modal
+ */
+function closeClaimFormModal() {
+    if (claimFormModal) {
+        claimFormModal.classList.remove('active');
+    }
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 
 // Add this function to handle edit tab functionality
 function initEditTabs() {
@@ -3868,6 +4294,7 @@ function generateDocumentLink(warranty, docType) {
         invoice: {
             localPath: warranty.invoice_path,
             paperlessId: warranty.paperless_invoice_id,
+            url: warranty.invoice_url,
             icon: 'fas fa-file-invoice',
             label: 'Invoice',
             className: 'invoice-link'
@@ -3875,6 +4302,7 @@ function generateDocumentLink(warranty, docType) {
         manual: {
             localPath: warranty.manual_path,
             paperlessId: warranty.paperless_manual_id,
+            url: warranty.manual_url,
             icon: 'fas fa-book',
             label: 'Manual',
             className: 'manual-link'
@@ -3882,6 +4310,7 @@ function generateDocumentLink(warranty, docType) {
         other: {
             localPath: warranty.other_document_path,
             paperlessId: warranty.paperless_other_id,
+            url: warranty.other_document_url,
             icon: 'fas fa-file-alt',
             label: 'Files',
             className: 'other-document-link'
@@ -3889,6 +4318,7 @@ function generateDocumentLink(warranty, docType) {
         photo: {
             localPath: warranty.product_photo_path,
             paperlessId: warranty.paperless_photo_id,
+            url: null, // Photos don't have URLs
             icon: 'fas fa-image',
             label: 'Photo',
             className: 'photo-link'
@@ -3900,19 +4330,29 @@ function generateDocumentLink(warranty, docType) {
     
     const hasLocal = config.localPath && config.localPath !== 'null';
     const hasPaperless = config.paperlessId && config.paperlessId !== null;
-
+    const hasUrl = config.url && config.url.trim() !== '';
+    
+    let linksHtml = '';
     
     if (hasLocal) {
-        return `<a href="#" onclick="openSecureFile('${config.localPath}'); return false;" class="${config.className}">
+        linksHtml += `<a href="#" onclick="openSecureFile('${config.localPath}'); return false;" class="${config.className}">
             <i class="${config.icon}"></i> ${config.label}
         </a>`;
     } else if (hasPaperless) {
-        return `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}); return false;" class="${config.className}">
+        linksHtml += `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}); return false;" class="${config.className}">
             <i class="${config.icon}"></i> ${config.label} <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
         </a>`;
     }
     
-    return '';
+    // Add URL link if available
+    if (hasUrl) {
+        if (linksHtml) linksHtml += ' ';
+        linksHtml += `<a href="${config.url}" target="_blank" class="document-url-link ${config.className}" title="Open ${config.label} URL">
+            <i class="fas fa-link"></i> ${config.label} Link
+        </a>`;
+    }
+    
+    return linksHtml;
 }
 
 // Initialize the warranty form and all its components
@@ -4681,9 +5121,10 @@ function setupUIEventListeners() {
                 if (modalToClose) {
                     // *** MODIFIED CHECK ***
                     // If the click target is the backdrop itself (not a dismiss button)
-                    // AND the modal is the 'addWarrantyModal' or 'editModal', then DO NOTHING.
-                    if ((modalToClose.id === 'addWarrantyModal' || modalToClose.id === 'editModal') && e.target === modalToClose) {
-                        return; // Ignore backdrop click for addWarrantyModal and editModal
+                    // AND the modal is one of the protected modals, then DO NOTHING.
+                    if ((modalToClose.id === 'addWarrantyModal' || modalToClose.id === 'editModal' || 
+                         modalToClose.id === 'claimsModal' || modalToClose.id === 'claimFormModal') && e.target === modalToClose) {
+                        return; // Ignore backdrop click for protected modals
                     }
                     // *** END MODIFIED CHECK ***
 
@@ -5222,6 +5663,16 @@ function saveWarranty() {
         // Send empty array to clear tags
         formData.append('tag_ids', JSON.stringify([]));
     }
+    
+    // Add URL fields for documents (with null checks)
+    const editInvoiceUrlField = document.getElementById('editInvoiceUrl');
+    formData.append('invoice_url', editInvoiceUrlField ? editInvoiceUrlField.value || '' : '');
+    
+    const editManualUrlField = document.getElementById('editManualUrl');
+    formData.append('manual_url', editManualUrlField ? editManualUrlField.value || '' : '');
+    
+    const editOtherDocumentUrlField = document.getElementById('editOtherDocumentUrl');
+    formData.append('other_document_url', editOtherDocumentUrlField ? editOtherDocumentUrlField.value || '' : '');
     
     // Files
     const invoiceFile = document.getElementById('editInvoice').files[0];

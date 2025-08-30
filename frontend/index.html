@@ -509,6 +509,14 @@
                                                 </button>
                                             </div>
                                         </div>
+                                        <!-- URL Input for Invoice -->
+                                        <div class="form-group url-input-group">
+                                            <label for="invoiceUrl" data-i18n="warranties.or_link_to_invoice_url">Or Link to Invoice URL</label>
+                                            <div class="input-with-icon">
+                                                <i class="fas fa-link"></i>
+                                                <input type="url" id="invoiceUrl" name="invoice_url" class="form-control" placeholder="https://example.com/invoice.pdf">
+                                            </div>
+                                        </div>
                                     </div>
                                     
                                     <div class="form-group">
@@ -549,6 +557,14 @@
                                                 </button>
                                             </div>
                                         </div>
+                                        <!-- URL Input for Manual -->
+                                        <div class="form-group url-input-group">
+                                            <label for="manualUrl" data-i18n="warranties.or_link_to_manual_url">Or Link to Manual URL</label>
+                                            <div class="input-with-icon">
+                                                <i class="fas fa-link"></i>
+                                                <input type="url" id="manualUrl" name="manual_url" class="form-control" placeholder="https://example.com/manual.pdf">
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="form-group">
                                         <label data-i18n="warranties.files_zip_rar_optional">Files (ZIP/RAR, Optional)</label>
@@ -559,6 +575,14 @@
                                             <input type="file" id="otherDocument" name="other_document" class="file-input" accept=".zip,.rar">
                                         </div>
                                         <div id="otherDocumentFileName" class="file-name"></div>
+                                        <!-- URL Input for Other Document -->
+                                        <div class="form-group url-input-group">
+                                            <label for="otherDocumentUrl" data-i18n="warranties.or_link_to_files_url">Or Link to Files URL</label>
+                                            <div class="input-with-icon">
+                                                <i class="fas fa-link"></i>
+                                                <input type="url" id="otherDocumentUrl" name="other_document_url" class="form-control" placeholder="https://example.com/files.zip">
+                                            </div>
+                                        </div>
 
                                     </div>
                                 </div>
@@ -889,6 +913,14 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- URL Input for Invoice -->
+                            <div class="form-group url-input-group">
+                                <label for="editInvoiceUrl" data-i18n="warranties.or_link_to_invoice_url">Or Link to Invoice URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editInvoiceUrl" name="invoice_url" class="form-control" placeholder="https://example.com/invoice.pdf">
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="form-group">
@@ -931,6 +963,14 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- URL Input for Manual -->
+                            <div class="form-group url-input-group">
+                                <label for="editManualUrl" data-i18n="warranties.or_link_to_manual_url">Or Link to Manual URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editManualUrl" name="manual_url" class="form-control" placeholder="https://example.com/manual.pdf">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label data-i18n="warranties.files_zip_rar_optional">Files (ZIP/RAR, Optional)</label>
@@ -943,6 +983,14 @@
                             <div id="editOtherDocumentFileName" class="file-name"></div>
                             <div id="currentOtherDocument" class="mt-10"></div>
                             <button type="button" id="deleteOtherDocumentBtn" class="btn btn-danger btn-sm mt-2" style="display:none;"><i class="fas fa-trash"></i> <span data-i18n="warranties.delete_files">Delete Files</span></button>
+                            <!-- URL Input for Other Document -->
+                            <div class="form-group url-input-group">
+                                <label for="editOtherDocumentUrl" data-i18n="warranties.or_link_to_files_url">Or Link to Files URL</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-link"></i>
+                                    <input type="url" id="editOtherDocumentUrl" name="other_document_url" class="form-control" placeholder="https://example.com/files.zip">
+                                </div>
+                            </div>
                             
                         </div>
                     </div>
@@ -1077,6 +1125,97 @@
                 <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <button id="selectPaperlessDocBtn" class="btn btn-primary" style="display: none;">
                     <i class="fas fa-check"></i> Select Document
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Claims Modal -->
+    <div id="claimsModal" class="modal-backdrop">
+        <div class="modal modal-large">
+            <div class="modal-header">
+                <h3 class="modal-title" data-i18n="claims.warranty_claims">Warranty Claims</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="claims-header">
+                    <div id="warrantyClaimInfo" class="warranty-claim-info">
+                        <!-- Warranty info will be populated here -->
+                    </div>
+                </div>
+                <div id="claimsListBody" class="claims-list">
+                    <div class="loading-message" style="text-align: center; padding: 20px;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading claims...
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="addClaimBtn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> <span data-i18n="claims.add_new_claim">Add New Claim</span>
+                </button>
+                <button class="btn btn-secondary" data-dismiss="modal" data-i18n="actions.close">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Claim Form Modal -->
+    <div id="claimFormModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="claimFormTitle" data-i18n="claims.add_claim">Add Claim</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="claimForm">
+                    <input type="hidden" id="editClaimId" value="">
+                    
+                    <div class="form-group">
+                        <label for="claimDate" data-i18n="claims.claim_date">Claim Date:</label>
+                        <input type="date" id="claimDate" name="claim_date" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="claimStatus" data-i18n="claims.status">Status:</label>
+                        <select id="claimStatus" name="status" class="form-control" required>
+                            <option value="Submitted" data-i18n="claims.status_submitted">Submitted</option>
+                            <option value="In Progress" data-i18n="claims.status_in_progress">In Progress</option>
+                            <option value="Approved" data-i18n="claims.status_approved">Approved</option>
+                            <option value="Denied" data-i18n="claims.status_denied">Denied</option>
+                            <option value="Resolved" data-i18n="claims.status_resolved">Resolved</option>
+                            <option value="Cancelled" data-i18n="claims.status_cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="claimNumber" data-i18n="claims.claim_number">Claim Number:</label>
+                        <input type="text" id="claimNumber" name="claim_number" class="form-control" 
+                               placeholder="e.g., CLM-2025-001">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="claimDescription" data-i18n="claims.description">Description:</label>
+                        <textarea id="claimDescription" name="description" class="form-control" rows="4" 
+                                  data-i18n-placeholder="claims.description_placeholder" 
+                                  placeholder="Describe the issue and reason for the claim..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="claimResolution" data-i18n="claims.resolution">Resolution:</label>
+                        <textarea id="claimResolution" name="resolution" class="form-control" rows="3" 
+                                  data-i18n-placeholder="claims.resolution_placeholder" 
+                                  placeholder="Resolution details (if any)..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="resolutionDate" data-i18n="claims.resolution_date">Resolution Date:</label>
+                        <input type="date" id="resolutionDate" name="resolution_date" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-i18n="actions.cancel">Cancel</button>
+                <button type="submit" form="claimForm" class="btn btn-primary" id="saveClaimBtn">
+                    <i class="fas fa-save"></i> <span data-i18n="actions.save">Save</span>
                 </button>
             </div>
         </div>
