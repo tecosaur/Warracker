@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.10.1.11 - 2025-09-07
+
+### Enhanced
+- **Global View Paperless-ngx Default Behavior:** Enhanced Paperless-ngx document viewing behavior in Global View to automatically open other users' documents within the Warracker app interface instead of external tabs, providing a more seamless and consistent user experience.
+  - **Smart Context Detection:** System automatically detects when viewing another user's Paperless-ngx documents in Global View and overrides individual user preferences to default to in-app viewing.
+  - **Improved User Experience:** Users can now view invoices, manuals, and other Paperless-ngx documents from other users directly within Warracker without being redirected to external Paperless-ngx interface, maintaining workflow continuity.
+  - **Preserved Personal Preferences:** User's personal Paperless-ngx viewing preferences remain unchanged for their own documents, only affecting the viewing behavior for other users' documents in Global View.
+  - **Consistent Interface:** Provides uniform document viewing experience across all Global View documents while respecting user privacy and access controls.
+  - _Files: `frontend/script.js`_
+
+- **Warranty Claims Visual Status Indicators:** Added intuitive visual indicators to warranty cards that display claim status at-a-glance through color-coded Claims buttons, eliminating the need to open modals to check claim activity.
+  - **Purple Claims Button:** Warranties with open claims (Submitted or In Progress status) display a purple Claims button with subtle pulsing animation to draw attention to items requiring action.
+  - **Blue Claims Button:** Warranties with finished claims (Resolved, Denied, Approved, or Cancelled status) display a blue Claims button indicating completed claim activity.
+  - **Default Claims Button:** Warranties with no claims retain standard gray styling, providing clear visual distinction between different claim states.
+  - **Enhanced User Experience:** Users can instantly identify warranty claim status from the main view without opening individual claim modals, improving workflow efficiency and claim management visibility.
+  - **Smart Tooltips:** Claims buttons display contextual tooltips ("Claims", "Claims (Open)", "Claims (Finished)") providing additional status information on hover.
+  - **Database Integration:** Backend APIs enhanced to calculate and return claim status summary (NO_CLAIMS, OPEN, FINISHED) across all warranty listing endpoints including main view, admin view, and global view.
+  - _Files: `backend/warranties_routes.py`, `frontend/script.js`, `frontend/style.css`_
+
+- **Global View Warranty Claims Read-Only Access:** Users can now view warranty claims from other users' warranties in Global View mode with appropriate read-only permissions, enhancing transparency and claim visibility across the organization.
+  - **Read-Only Claims Viewing:** Users in Global View can access and view detailed warranty claims information for warranties owned by other users, providing comprehensive claim visibility while maintaining data security.
+  - **Permission-Based Access Control:** Claims viewing respects existing Global View permissions - users can only view claims if Global View is enabled and they have appropriate access rights (admin-only restrictions apply when configured).
+  - **Intuitive UI Indicators:** Claims modals clearly indicate read-only mode with "View Only" labels, hidden edit/delete buttons, and contextual messaging to prevent confusion about access levels.
+  - **Seamless Integration:** Claims buttons remain fully functional in Global View, eliminating the "Failed to load claims" error and providing consistent user experience across all warranty views.
+  - **Preserved Security:** Create, edit, and delete operations remain restricted to warranty owners only, ensuring data integrity while expanding read access appropriately.
+  - _Files: `backend/warranties_routes.py`, `frontend/script.js`_
+
+### Fixed
+- **Global View Document Access Authorization:** Fixed authorization issue preventing users from viewing invoices and manuals of other users' warranties when Global View is enabled. Users can now access shared warranty documents (invoices, manuals, photos, URL links, and Paperless-ngx documents) in Global View while maintaining privacy for sensitive "other documents".
+  - **Root Cause:** The secure file access endpoint restricted invoice and manual access to warranty owners only, even when Global View was active and should allow broader document sharing. Additionally, the Global View API endpoints were missing Paperless-ngx document IDs and URL fields in their database queries, preventing these documents from being displayed in the frontend.
+  - **Solution:** Extended global view permissions logic to include invoice_path, manual_path, paperless_invoice_id, and paperless_manual_id alongside existing product_photo_path support, while explicitly maintaining privacy restrictions for other_document_path and paperless_other_id. Fixed Global View API endpoints to include all document fields (paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id, invoice_url, manual_url, other_document_url) in database queries. Enhanced frontend document link generation to properly show all shared document types in Global View with appropriate permission checks.
+  - **Security:** Maintains strict privacy controls ensuring "other documents" remain accessible only to warranty owners, and users still cannot edit or delete warranties they don't own. All document access remains read-only in Global View.
+  - **Impact:** Users can now view and access invoices, manuals, photos, URL links, and Paperless-ngx documents of other users' warranties when Global View is enabled, providing complete transparency and document sharing capabilities while preserving essential privacy boundaries.
+  - _Files: `backend/file_routes.py`, `backend/warranties_routes.py`, `frontend/script.js`_
+
+- **Warranty Claims Creation with Empty Optional Fields:** Fixed critical bug where creating warranty claims with empty 'description' or 'resolution' fields resulted in internal server errors. These fields are now properly handled as optional, allowing users to create claims with only required information (claim date) and add details later as needed.
+  - **Root Cause:** The application was not correctly converting empty strings to NULL values for optional database fields, causing database insertion errors.
+  - **Solution:** Implemented explicit empty string to NULL conversion logic for description and resolution fields during claim creation, ensuring database compatibility and preventing server errors.
+  - **Impact:** Users can now successfully create warranty claims with minimal required information and update them with additional details when available, improving workflow flexibility.
+  - _Files: `backend/warranties_routes.py`_
+
+- **Global View Claims Modal JavaScript Errors:** Fixed critical JavaScript errors preventing warranty claims modals from opening in Global View mode due to undefined function references, ensuring seamless claims viewing functionality across all view modes.
+  - **Root Cause:** The claims modal initialization code was calling non-existent functions `getCurrentUserId()` and `getViewScope()` instead of using the established patterns for accessing user information and view state in the codebase.
+  - **Solution:** Replaced undefined function calls with the correct inline patterns used throughout the application - using an immediately invoked function expression (IIFE) to extract user ID from localStorage and directly accessing the global `isGlobalView` variable for view state detection.
+  - **Impact:** Users can now successfully open and view warranty claims in Global View mode without JavaScript errors, completing the read-only claims access functionality and providing full transparency for warranty claim information across the organization.
+  - _Files: `frontend/script.js`_
+
+
 ## 0.10.1.10 - 2025-08-30
 
 ### Enhanced

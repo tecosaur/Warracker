@@ -98,14 +98,15 @@ def secure_file_access(filename):
                         logger.info(f"[SECURE_FILE] Ownership confirmed for warranty_id={warranty_id_db}")
                         break
             
-            # Check global view permissions for product photos
+            # Check global view permissions for shared documents (photos, invoices, manuals)
             if not authorized and results:
                 for warranty_id_db, warranty_user_id_db in results:
-                    # Check if this file is a product photo
-                    cur.execute('SELECT product_photo_path FROM warranties WHERE id = %s', (warranty_id_db,))
-                    warranty_data = cur.fetchone()
-                    if warranty_data and warranty_data[0] == db_search_path:
-                        # This is a product photo - check global view settings
+                    # Check if the requested file is a product photo, invoice, or manual for the given warranty
+                    cur.execute('SELECT product_photo_path, invoice_path, manual_path FROM warranties WHERE id = %s', (warranty_id_db,))
+                    warranty_files = cur.fetchone()
+                    # Check if the file path is one of the globally viewable document types
+                    if warranty_files and db_search_path in warranty_files:
+                        # This is a shared document type - check global view settings
                         cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
                         settings = {row[0]: row[1] for row in cur.fetchall()}
                         
@@ -114,7 +115,7 @@ def secure_file_access(filename):
                         
                         if global_view_enabled and (not admin_only or is_admin):
                             authorized = True
-                            logger.info(f"[SECURE_FILE] Global view access granted for product photo: {filename}")
+                            logger.info(f"[SECURE_FILE] Global view access granted for shared document: {filename}")
                             break
             
             if not authorized:
@@ -246,16 +247,16 @@ def serve_paperless_document(paperless_id: int):
                         authorized = True
                         break
             
-            # Check global view for photos
+            # Check global view for shared documents (photos, invoices, manuals)
             if not authorized:
                 cur.execute("""
                     SELECT w.id, w.user_id
                     FROM warranties w
-                    WHERE w.paperless_photo_id = %s
-                """, (paperless_id,))
-                photo_results = cur.fetchall()
+                    WHERE w.paperless_photo_id = %s OR w.paperless_invoice_id = %s OR w.paperless_manual_id = %s
+                """, (paperless_id, paperless_id, paperless_id))
+                shared_doc_results = cur.fetchall()
                 
-                if photo_results:
+                if shared_doc_results:
                     # Get global view settings
                     cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
                     settings = {row[0]: row[1] for row in cur.fetchall()}
@@ -265,6 +266,7 @@ def serve_paperless_document(paperless_id: int):
                     
                     if global_view_enabled and (not admin_only or is_admin):
                         authorized = True
+                        logger.info(f"[PAPERLESS_FILE] Global view access granted for shared Paperless document: {paperless_id}")
             
             if not authorized:
                 logger.warning(f"[PAPERLESS_FILE] Unauthorized access to Paperless document {paperless_id} by user {user_id}")

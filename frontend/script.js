@@ -1979,6 +1979,7 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
             console.error('[DEBUG] API did not return an array! Data:', data);
         }
         
+        
         // Update isGlobalView to match the loaded data
         isGlobalView = shouldUseGlobalView;
         console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
@@ -2320,6 +2321,7 @@ async function renderWarranties(warrantiesToRender) {
         const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || 
                             warranty.paperless_invoice_id || warranty.paperless_manual_id || warranty.paperless_photo_id || warranty.paperless_other_id || hasNotes;
         
+        
         // Get current user ID to check warranty ownership
         const currentUserId = (() => {
             try {
@@ -2335,9 +2337,21 @@ async function renderWarranties(warrantiesToRender) {
         const isAdmin = getUserType() === 'admin';
         const canEdit = !isGlobalView || (warranty.user_id === currentUserId) || isAdmin;
         
+        // Determine claims button class and title based on claim status
+        let claimsButtonClass = 'action-btn claims-link';
+        let claimsTitle = 'Claims';
+        
+        if (warranty.claim_status_summary === 'OPEN') {
+            claimsButtonClass += ' claims-open';
+            claimsTitle = 'Claims (Open)';
+        } else if (warranty.claim_status_summary === 'FINISHED') {
+            claimsButtonClass += ' claims-finished';
+            claimsTitle = 'Claims (Finished)';
+        }
+
         // Generate action buttons HTML based on permissions
         const actionButtonsHtml = canEdit ? `
-            <button class="action-btn claims-link" title="Claims" data-id="${warranty.id}">
+            <button class="${claimsButtonClass}" title="${claimsTitle}" data-id="${warranty.id}">
                 <i class="fas fa-clipboard-list"></i>
             </button>
             <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
@@ -2347,7 +2361,7 @@ async function renderWarranties(warrantiesToRender) {
                 <i class="fas fa-trash"></i>
             </button>
         ` : `
-            <button class="action-btn claims-link" title="Claims" data-id="${warranty.id}">
+            <button class="${claimsButtonClass}" title="${claimsTitle}" data-id="${warranty.id}">
                 <i class="fas fa-clipboard-list"></i>
             </button>
             <span class="action-btn-placeholder" title="View only - not your warranty">
@@ -2357,6 +2371,8 @@ async function renderWarranties(warrantiesToRender) {
 
         const cardElement = document.createElement('div');
         cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
+        
+        // Claims button styling will be handled in the action buttons HTML generation
         
         if (currentView === 'grid') {
             // Grid view HTML structure
@@ -2911,7 +2927,7 @@ async function openEditModal(warranty) {
             currentInvoiceElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_invoice')}: 
-                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_invoice_id}); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_invoice_id}, {user_id: ${warranty.user_id}, id: ${warranty.id}}); return false;">View</a>
                     <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
@@ -2948,7 +2964,7 @@ async function openEditModal(warranty) {
             currentManualElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_manual')}: 
-                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_manual_id}); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_manual_id}, {user_id: ${warranty.user_id}, id: ${warranty.id}}); return false;">View</a>
                     <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `;
@@ -2988,7 +3004,7 @@ async function openEditModal(warranty) {
             currentProductPhotoElement.innerHTML = `
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_photo')}: 
-                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_photo_id}); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_photo_id}, {user_id: ${warranty.user_id}, id: ${warranty.id}}); return false;">View</a>
                     <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
                     <br><small>(${i18next.t('warranties.upload_new_photo_replace')})</small>
                 </span>
@@ -3027,7 +3043,7 @@ async function openEditModal(warranty) {
             currentOtherDocumentElement.innerHTML = ` 
                 <span class="text-success">
                     <i class="fas fa-check-circle"></i> ${i18next.t('warranties.current_other_document')}: 
-                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_other_id}); return false;">View</a>
+                    <a href="#" class="view-document-link" onclick="openPaperlessDocument(${warranty.paperless_other_id}, {user_id: ${warranty.user_id}, id: ${warranty.id}}); return false;">View</a>
                     <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i> (${i18next.t('warranties.upload_new_file_replace')})
                 </span>
             `; 
@@ -3733,6 +3749,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global variables for claims
 let currentClaimsWarrantyId = null;
 let currentClaims = [];
+let currentClaimsCanEdit = false; // Track if current user can edit the warranty being viewed
 
 /**
  * Initialize claims event listeners
@@ -3795,6 +3812,23 @@ async function openClaimsModal(warrantyId) {
         if (!warranty) {
             showToast(window.i18next ? window.i18next.t('claims.warranty_not_found') : 'Warranty not found', 'error');
             return;
+        }
+        
+        // Determine if current user can edit this warranty
+        const currentUserId = (() => {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return userInfo.id;
+            } catch (e) {
+                return null;
+            }
+        })();
+        const isAdmin = getUserType() === 'admin';
+        currentClaimsCanEdit = !isGlobalView || (warranty.user_id === currentUserId) || isAdmin;
+        
+        // Show/hide the Add New Claim button based on edit permissions
+        if (addClaimBtn) {
+            addClaimBtn.style.display = currentClaimsCanEdit ? 'inline-block' : 'none';
         }
         
         // Update warranty info in modal
@@ -3874,11 +3908,15 @@ function renderClaims() {
     if (!claimsListBody) return;
     
     if (currentClaims.length === 0) {
+        const noClaimsMessage = currentClaimsCanEdit 
+            ? (window.i18next ? window.i18next.t('claims.no_claims_message') : 'Click "Add New Claim" to get started')
+            : 'No claims have been filed for this warranty';
+            
         claimsListBody.innerHTML = `
             <div class="no-claims-message" style="text-align: center; padding: 40px;">
                 <i class="fas fa-clipboard-list" style="font-size: 3rem; color: var(--medium-gray); margin-bottom: 1rem;"></i>
                 <h4 style="color: var(--text-color); margin-bottom: 0.5rem;">${window.i18next ? window.i18next.t('claims.no_claims_yet') : 'No Claims Yet'}</h4>
-                <p style="color: var(--dark-gray); margin-bottom: 0;">${window.i18next ? window.i18next.t('claims.no_claims_message') : 'Click "Add New Claim" to get started'}</p>
+                <p style="color: var(--dark-gray); margin-bottom: 0;">${noClaimsMessage}</p>
             </div>
         `;
         return;
@@ -3902,12 +3940,18 @@ function renderClaims() {
                         </div>
                     </div>
                     <div class="claim-actions">
-                        <button class="btn btn-sm btn-secondary edit-claim-btn" data-claim-id="${claim.id}">
-                            <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn btn-sm btn-danger delete-claim-btn" data-claim-id="${claim.id}">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
+                        ${currentClaimsCanEdit ? `
+                            <button class="btn btn-sm btn-secondary edit-claim-btn" data-claim-id="${claim.id}">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-claim-btn" data-claim-id="${claim.id}">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        ` : `
+                            <span class="claim-readonly-indicator" style="color: var(--medium-gray); font-size: 0.9em;">
+                                <i class="fas fa-eye"></i> View Only
+                            </span>
+                        `}
                     </div>
                 </div>
                 ${claim.description ? `<div class="claim-description">${escapeHtml(claim.description)}</div>` : ''}
@@ -3918,23 +3962,25 @@ function renderClaims() {
     
     claimsListBody.innerHTML = claimsHtml;
     
-    // Add event listeners for edit and delete buttons
-    claimsListBody.addEventListener('click', (e) => {
-        if (e.target.closest('.edit-claim-btn')) {
-            const claimId = parseInt(e.target.closest('.edit-claim-btn').dataset.claimId);
-            const claim = currentClaims.find(c => c.id === claimId);
-            if (claim) {
-                openClaimFormModal(claim);
+    // Add event listeners for edit and delete buttons (only if user can edit)
+    if (currentClaimsCanEdit) {
+        claimsListBody.addEventListener('click', (e) => {
+            if (e.target.closest('.edit-claim-btn')) {
+                const claimId = parseInt(e.target.closest('.edit-claim-btn').dataset.claimId);
+                const claim = currentClaims.find(c => c.id === claimId);
+                if (claim) {
+                    openClaimFormModal(claim);
+                }
             }
-        }
-        
-        if (e.target.closest('.delete-claim-btn')) {
-            const claimId = parseInt(e.target.closest('.delete-claim-btn').dataset.claimId);
-            if (confirm(window.i18next ? window.i18next.t('claims.confirm_delete_claim') : 'Are you sure you want to delete this claim?')) {
-                deleteClaim(claimId);
+            
+            if (e.target.closest('.delete-claim-btn')) {
+                const claimId = parseInt(e.target.closest('.delete-claim-btn').dataset.claimId);
+                if (confirm(window.i18next ? window.i18next.t('claims.confirm_delete_claim') : 'Are you sure you want to delete this claim?')) {
+                    deleteClaim(claimId);
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 /**
@@ -4069,6 +4115,7 @@ function closeClaimsModal() {
     }
     currentClaimsWarrantyId = null;
     currentClaims = [];
+    currentClaimsCanEdit = false;
 }
 
 /**
@@ -4328,9 +4375,31 @@ function generateDocumentLink(warranty, docType) {
     const config = docConfig[docType];
     if (!config) return '';
     
+    // Check Global View permissions for "other" documents
+    if (docType === 'other' && isGlobalView) {
+        // Get current user ID to check warranty ownership
+        const currentUserId = (() => {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return userInfo.id;
+            } catch (e) {
+                return null;
+            }
+        })();
+        
+        const isAdmin = getUserType() === 'admin';
+        const canViewOtherDocs = !isGlobalView || (warranty.user_id === currentUserId) || isAdmin;
+        
+        // Hide "other" documents in Global View unless user owns the warranty or is admin
+        if (!canViewOtherDocs) {
+            return '';
+        }
+    }
+    
     const hasLocal = config.localPath && config.localPath !== 'null';
     const hasPaperless = config.paperlessId && config.paperlessId !== null;
     const hasUrl = config.url && config.url.trim() !== '';
+    
     
     let linksHtml = '';
     
@@ -4339,7 +4408,8 @@ function generateDocumentLink(warranty, docType) {
             <i class="${config.icon}"></i> ${config.label}
         </a>`;
     } else if (hasPaperless) {
-        linksHtml += `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}); return false;" class="${config.className}">
+        const warrantyContextJson = JSON.stringify({user_id: warranty.user_id, id: warranty.id}).replace(/"/g, '&quot;');
+        linksHtml += `<a href="#" onclick="openPaperlessDocument(${config.paperlessId}, JSON.parse('${warrantyContextJson}')); return false;" class="${config.className}">
             <i class="${config.icon}"></i> ${config.label} <i class="fas fa-cloud" style="color: #4dabf7; margin-left: 4px; font-size: 0.8em;" title="Stored in Paperless-ngx"></i>
         </a>`;
     }
@@ -7586,8 +7656,8 @@ async function debugPaperlessConfiguration() {
 /**
  * Open a Paperless-ngx document either in Warracker interface or in Paperless-ngx directly
  */
-async function openPaperlessDocument(paperlessId) {
-    console.log(`[openPaperlessDocument] Opening Paperless document: ${paperlessId}`);
+async function openPaperlessDocument(paperlessId, warrantyContext = null) {
+    console.log(`[openPaperlessDocument] Opening Paperless document: ${paperlessId}`, warrantyContext);
     
     // First, debug the Paperless configuration
     const debugInfo = await debugPaperlessConfiguration();
@@ -7621,8 +7691,8 @@ async function openPaperlessDocument(paperlessId) {
         return;
     }
     
-    // Check user preference for viewing documents
-    const viewInApp = await getUserPaperlessViewPreference();
+    // Check user preference for viewing documents, considering Global View context
+    const viewInApp = await getUserPaperlessViewPreference(warrantyContext);
     console.log(`[openPaperlessDocument] User preference view in app: ${viewInApp}`);
     
     if (viewInApp) {
@@ -7704,7 +7774,25 @@ async function openPaperlessDocument(paperlessId) {
 /**
  * Get user preference for viewing Paperless documents in app
  */
-async function getUserPaperlessViewPreference() {
+async function getUserPaperlessViewPreference(warrantyContext = null) {
+    // Special handling for Global View: default to view in app for other users' documents
+    if (warrantyContext && isGlobalView) {
+        const currentUserId = (() => {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+                return userInfo.id;
+            } catch (e) {
+                return null;
+            }
+        })();
+        
+        // If viewing another user's document in Global View, default to view in app
+        if (currentUserId && warrantyContext.user_id && warrantyContext.user_id !== currentUserId) {
+            console.log(`[getUserPaperlessViewPreference] Global View: Defaulting to view in app for other user's document (warranty user: ${warrantyContext.user_id}, current user: ${currentUserId})`);
+            return true;
+        }
+    }
+    
     // First check localStorage
     const prefix = getPreferenceKeyPrefix();
     const localPreference = localStorage.getItem(`${prefix}paperlessViewInApp`);
@@ -7716,6 +7804,7 @@ async function getUserPaperlessViewPreference() {
     if (window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
         try {
             const response = await fetch('/api/auth/preferences', {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${window.auth.getToken()}`
                 }

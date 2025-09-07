@@ -60,14 +60,22 @@ def get_warranties():
             # Removed the if is_admin: block
             # Replaced warranty_years with warranty_duration_years, warranty_duration_months, warranty_duration_days
             cur.execute('''
-                SELECT id, product_name, purchase_date, expiration_date, invoice_path, manual_path, other_document_path, product_url, notes,
-                       purchase_price, user_id, created_at, updated_at, is_lifetime, vendor, warranty_type,
-                       warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
-                       paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
-                       invoice_url, manual_url, other_document_url
-                FROM warranties 
-                WHERE user_id = %s 
-                ORDER BY CASE WHEN is_lifetime THEN 1 ELSE 0 END, expiration_date NULLS LAST, product_name
+                SELECT 
+                    w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, w.product_url, w.notes,
+                    w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, w.vendor, w.warranty_type,
+                    w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
+                    w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
+                    w.invoice_url, w.manual_url, w.other_document_url,
+                    CASE
+                        WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
+                        WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
+                        ELSE 'FINISHED'
+                    END AS claim_status_summary
+                FROM warranties w
+                LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                WHERE w.user_id = %s
+                GROUP BY w.id
+                ORDER BY CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''', (user_id,))
                 
             warranties = cur.fetchall()
@@ -1316,12 +1324,22 @@ def get_all_warranties():
         with conn.cursor() as cur:
             # Get all warranties from all users with user information
             cur.execute('''
-                SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
-                       w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
-                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
-                       u.username, u.email, u.first_name, u.last_name
+                SELECT 
+                    w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                    w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
+                    w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
+                    w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
+                    w.invoice_url, w.manual_url, w.other_document_url,
+                    u.username, u.email, u.first_name, u.last_name,
+                    CASE
+                        WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
+                        WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
+                        ELSE 'FINISHED'
+                    END AS claim_status_summary
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
+                LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                GROUP BY w.id, u.id
                 ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''')
                 
@@ -1412,12 +1430,22 @@ def get_global_warranties():
         with conn.cursor() as cur:
             # Get all warranties from all users with user information
             cur.execute('''
-                SELECT w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
-                       w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
-                       w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
-                       u.username, u.email, u.first_name, u.last_name
+                SELECT 
+                    w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                    w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
+                    w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
+                    w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
+                    w.invoice_url, w.manual_url, w.other_document_url,
+                    u.username, u.email, u.first_name, u.last_name,
+                    CASE
+                        WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
+                        WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
+                        ELSE 'FINISHED'
+                    END AS claim_status_summary
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
+                LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                GROUP BY w.id, u.id
                 ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''')
                 
@@ -1823,40 +1851,48 @@ def create_claim(warranty_id):
         # Validate required fields
         claim_date = data.get('claim_date')
         status = data.get('status', 'Submitted')
-        claim_number = data.get('claim_number', '').strip()
-        description = data.get('description', '').strip()
-        resolution = data.get('resolution', '').strip()
+
+        # Process optional fields, converting empty strings to None for the database
+        claim_number_raw = data.get('claim_number')
+        claim_number = claim_number_raw.strip() if claim_number_raw else None
+
+        description_raw = data.get('description')
+        description = description_raw.strip() if description_raw else None
+
+        resolution_raw = data.get('resolution')
+        resolution = resolution_raw.strip() if resolution_raw else None
+
         resolution_date = data.get('resolution_date')
-        
+
         if not claim_date:
             return jsonify({'error': 'Claim date is required'}), 400
-        
+
         # Parse dates
         try:
             parsed_claim_date = date_parse(claim_date).date() if isinstance(claim_date, str) else claim_date
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid claim date format'}), 400
-            
+
         parsed_resolution_date = None
         if resolution_date:
             try:
                 parsed_resolution_date = date_parse(resolution_date).date() if isinstance(resolution_date, str) else resolution_date
             except (ValueError, TypeError):
                 return jsonify({'error': 'Invalid resolution date format'}), 400
-        
+
         # Validate status
         valid_statuses = ['Submitted', 'In Progress', 'Approved', 'Denied', 'Resolved', 'Cancelled']
         if status not in valid_statuses:
             status = 'Submitted'
-        
+
         # Insert new claim
         cur.execute("""
             INSERT INTO warranty_claims 
             (warranty_id, claim_date, status, claim_number, description, resolution, resolution_date)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id, created_at, updated_at
-        """, (warranty_id, parsed_claim_date, status, claim_number or None, description or None, 
-              resolution or None, parsed_resolution_date))
+        """, (warranty_id, parsed_claim_date, status, claim_number, description, 
+              resolution, parsed_resolution_date))
         
         result = cur.fetchone()
         claim_id = result[0]
@@ -1871,9 +1907,9 @@ def create_claim(warranty_id):
             'warranty_id': warranty_id,
             'claim_date': parsed_claim_date.isoformat(),
             'status': status,
-            'claim_number': claim_number or None,
-            'description': description or None,
-            'resolution': resolution or None,
+            'claim_number': claim_number,
+            'description': description,
+            'resolution': resolution,
             'resolution_date': parsed_resolution_date.isoformat() if parsed_resolution_date else None,
             'created_at': created_at.isoformat() if created_at else None,
             'updated_at': updated_at.isoformat() if updated_at else None
@@ -1903,18 +1939,41 @@ def get_claims(warranty_id):
     
     try:
         user_id = request.user['id']
-        # Verify warranty exists and user owns it
+        is_admin = request.user.get('is_admin', False)
+        
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # First check if warranty exists and user owns it
         cur.execute("""
-            SELECT id, product_name FROM warranties 
+            SELECT id, product_name, user_id FROM warranties 
             WHERE id = %s AND user_id = %s
         """, (warranty_id, user_id))
         
         warranty = cur.fetchone()
+        
+        # If user doesn't own the warranty, check if global view access is allowed
         if not warranty:
-            return jsonify({'error': 'Warranty not found or access denied'}), 404
+            # Check if global view is enabled and user has access
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+            
+            global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+            
+            # Check if user has global view access
+            if not global_view_enabled or (admin_only and not is_admin):
+                return jsonify({'error': 'Warranty not found or access denied'}), 404
+            
+            # Check if warranty exists (regardless of ownership)
+            cur.execute("""
+                SELECT id, product_name, user_id FROM warranties 
+                WHERE id = %s
+            """, (warranty_id,))
+            
+            warranty = cur.fetchone()
+            if not warranty:
+                return jsonify({'error': 'Warranty not found'}), 404
         
         # Get all claims for this warranty
         cur.execute("""
