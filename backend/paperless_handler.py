@@ -92,7 +92,7 @@ class PaperlessHandler:
 
                 params={
 
-                    'checksum': checksum,
+                    'checksum__iexact': checksum,
 
                     'ordering': '-created',
 
