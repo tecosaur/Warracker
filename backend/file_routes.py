@@ -527,13 +527,15 @@ def paperless_search():
         logger.info(f"Searching Paperless documents with params: {params}")
         
         # Make request to Paperless-ngx using the session from paperless handler
-        response = paperless_handler.session.get(
-            search_url,
-            params=params,
-            timeout=30
-        )
-        
-        response.raise_for_status()
+        try:
+            response = paperless_handler.get(search_url, params=params, timeout=30)
+            response.raise_for_status()
+        except Exception as e:
+            # Provide user-friendly error on auth failures
+            return jsonify({
+                'success': False,
+                'message': f'Paperless-ngx search failed: {str(e)}'
+            }), 400
         search_result = response.json()
         
         logger.info(f"Paperless search returned {len(search_result.get('results', []))} documents")
@@ -562,12 +564,11 @@ def paperless_tags():
             return jsonify({'success': False, 'message': 'Paperless-ngx integration not available'}), 400
         
         # Make request to Paperless-ngx tags endpoint
-        response = paperless_handler.session.get(
-            f"{paperless_handler.paperless_url}/api/tags/",
-            timeout=30
-        )
-        
-        response.raise_for_status()
+        try:
+            response = paperless_handler.get('/api/tags/', timeout=30)
+            response.raise_for_status()
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Paperless-ngx tags failed: {str(e)}'}), 400
         tags_result = response.json()
         
         logger.info(f"Paperless tags returned {len(tags_result.get('results', []))} tags")

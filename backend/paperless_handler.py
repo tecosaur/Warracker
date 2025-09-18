@@ -32,8 +32,58 @@ class PaperlessHandler:
         self.session = requests.Session()
         self.session.headers.update({
             'Authorization': f'Token {api_token}',
-            'User-Agent': 'Warracker-PaperlessIntegration/1.0'
+            'User-Agent': 'Warracker-PaperlessIntegration/1.0',
+            'Accept': 'application/json'
         })
+        # Ensure no environment-provided authentication (proxies, netrc) interferes
+        try:
+            self.session.trust_env = False
+        except Exception:
+            pass
+
+    def _build_url(self, url_or_path: str) -> str:
+        """Build absolute URL for Paperless-ngx API calls."""
+        if url_or_path.startswith('http://') or url_or_path.startswith('https://'):
+            return url_or_path
+        return f"{self.paperless_url.rstrip('/')}/{url_or_path.lstrip('/')}"
+
+    def _request(self, method: str, url_or_path: str, **kwargs) -> requests.Response:
+        """
+        Perform a request ensuring token-only auth:
+        - Always include Authorization: Token <token>
+        - Clear cookies before sending (avoid session/CSRF/2FA paths)
+        - Do not auto-follow redirects to login pages unless explicitly requested
+        """
+        headers = kwargs.pop('headers', {}) or {}
+        merged_headers = {
+            'Authorization': f'Token {self.api_token}',
+            'User-Agent': 'Warracker-PaperlessIntegration/1.0',
+            'Accept': 'application/json'
+        }
+        merged_headers.update(headers)
+
+        # Avoid sending any cookies that could switch us to session auth
+        try:
+            self.session.cookies.clear()
+        except Exception:
+            pass
+
+        if 'allow_redirects' not in kwargs:
+            kwargs['allow_redirects'] = False
+
+        url = self._build_url(url_or_path)
+        response = self.session.request(method, url, headers=merged_headers, **kwargs)
+        # Treat redirects to login (or any redirect) as auth failures for API token mode
+        if 300 <= response.status_code < 400:
+            location = response.headers.get('Location', '')
+            raise requests.exceptions.HTTPError(
+                f"Unexpected redirect (HTTP {response.status_code}) to '{location}'. Token auth likely rejected.",
+                response=response
+            )
+        return response
+
+    def get(self, url_or_path: str, **kwargs) -> requests.Response:
+        return self._request('GET', url_or_path, **kwargs)
         
     def test_connection(self) -> Tuple[bool, str]:
         """
@@ -43,7 +93,7 @@ class PaperlessHandler:
             (success: bool, message: str)
         """
         try:
-            response = self.session.get(f'{self.paperless_url}/api/documents/', params={'page_size': 1})
+            response = self.get('/api/documents/', params={'page_size': 1})
             response.raise_for_status()
             return True, "Connection successful"
         except requests.exceptions.ConnectionError:
@@ -86,22 +136,14 @@ class PaperlessHandler:
 
             
 
-            response = self.session.get(
-
-                f'{self.paperless_url}/api/documents/',
-
+            response = self.get(
+                '/api/documents/',
                 params={
-
                     'checksum__iexact': checksum,
-
                     'ordering': '-created',
-
                     'page_size': 1
-
                 },
-
                 timeout=15
-
             )
 
             
@@ -194,10 +236,11 @@ class PaperlessHandler:
             logger.info(f"MIME type: {mime_type}")
             
             # Don't set Content-Type manually - let requests handle it
-            response = self.session.post(
-                f'{self.paperless_url}/api/documents/post_document/',
+            response = self._request(
+                'POST',
+                '/api/documents/post_document/',
                 files=files,
-                headers={'Authorization': f'Token {self.api_token}'},
+                data=data,
                 timeout=60  # Longer timeout for uploads
             )
             
@@ -335,10 +378,7 @@ class PaperlessHandler:
         for endpoint_name, endpoint_path in endpoints_to_try:
             try:
                 logger.info(f"Fetching document {endpoint_name} from Paperless-ngx: {document_id}")
-                response = self.session.get(
-                    f'{self.paperless_url}{endpoint_path}',
-                    timeout=30
-                )
+                response = self.get(endpoint_path, timeout=30)
                 
                 response.raise_for_status()
                 
@@ -376,10 +416,7 @@ class PaperlessHandler:
             (success: bool, content: Optional[bytes], message: str)
         """
         try:
-            response = self.session.get(
-                f'{self.paperless_url}/api/documents/{document_id}/thumb/',
-                timeout=15
-            )
+            response = self.get(f'/api/documents/{document_id}/thumb/', timeout=15)
             
             response.raise_for_status()
             return True, response.content, "Thumbnail retrieved successfully"
@@ -410,11 +447,7 @@ class PaperlessHandler:
                 'page_size': min(limit, 100)  # Cap at 100 for performance
             }
             
-            response = self.session.get(
-                f'{self.paperless_url}/api/documents/',
-                params=params,
-                timeout=15
-            )
+            response = self.get('/api/documents/', params=params, timeout=15)
             
             response.raise_for_status()
             result = response.json()
@@ -437,10 +470,7 @@ class PaperlessHandler:
             (success: bool, document_info: Optional[Dict], message: str)
         """
         try:
-            response = self.session.get(
-                f'{self.paperless_url}/api/documents/{document_id}/',
-                timeout=15
-            )
+            response = self.get(f'/api/documents/{document_id}/', timeout=15)
             
             response.raise_for_status()
             document_info = response.json()
@@ -484,7 +514,7 @@ class PaperlessHandler:
         for endpoint_name, endpoint_path in endpoints_to_test:
             try:
                 logger.info(f"Testing endpoint: {self.paperless_url}{endpoint_path}")
-                response = self.session.get(f'{self.paperless_url}{endpoint_path}', timeout=15)
+                response = self.get(endpoint_path, timeout=15)
                 
                 debug_info['endpoints_tested'][endpoint_name] = {
                     'status_code': response.status_code,
@@ -508,9 +538,7 @@ class PaperlessHandler:
         
         # Also try to list recent documents to see if our document is there
         try:
-            response = self.session.get(f'{self.paperless_url}/api/documents/', 
-                                      params={'ordering': '-created', 'page_size': 10}, 
-                                      timeout=15)
+            response = self.get('/api/documents/', params={'ordering': '-created', 'page_size': 10}, timeout=15)
             if response.status_code == 200:
                 recent_docs = response.json().get('results', [])
                 debug_info['recent_documents'] = [
@@ -536,10 +564,7 @@ class PaperlessHandler:
             True if document exists, False otherwise
         """
         try:
-            response = self.session.get(
-                f'{self.paperless_url}/api/documents/{document_id}/',
-                timeout=10
-            )
+            response = self.get(f'/api/documents/{document_id}/', timeout=10)
             return response.status_code == 200
         except Exception as e:
             logger.warning(f"Error checking document existence {document_id}: {e}")
@@ -559,8 +584,8 @@ class PaperlessHandler:
             logger.info(f"Searching for document by title: {title}")
             
             # Search for documents with the given title
-            response = self.session.get(
-                f'{self.paperless_url}/api/documents/',
+            response = self.get(
+                '/api/documents/',
                 params={
                     'title__icontains': title,  # Case-insensitive partial match
                     'ordering': '-created',     # Most recent first
@@ -630,14 +655,14 @@ class PaperlessHandler:
         while time.time() < deadline:
             try:
                 try:
-                    resp = self.session.get(task_url_primary, timeout=10)
+                    resp = self.get(task_url_primary, timeout=10)
                     if resp.status_code == 404:
                         # Fall back to legacy ?task_id=<uuid> filter
-                        resp = self.session.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
+                        resp = self.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
                 except requests.exceptions.HTTPError as http_err:
                     if http_err.response.status_code == 404 and http_err.response.url.rstrip('/') == task_url_primary.rstrip('/'):
                         # Primary endpoint not available, try legacy
-                        resp = self.session.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
+                        resp = self.get(task_url_legacy_list, params={"task_id": task_id}, timeout=10)
                     else:
                         raise
 

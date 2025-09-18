@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.10.1.12 - 2025-09-18
+
+### Fixed
+- **Paperless-ngx Document Upload Duplicate Detection:** Fixed critical bug where incorrect API parameter caused all new document uploads to Paperless-ngx to be falsely identified as duplicates, preventing new documents from being uploaded and instead linking them to existing unrelated documents.
+  - **Root Cause:** The duplicate detection logic was using an invalid API parameter `checksum` instead of the correct `checksum__iexact` parameter when querying Paperless-ngx for existing documents, causing the API to return unexpected results that incorrectly matched all uploads as duplicates.
+  - **Solution:** Corrected the API parameter from `checksum` to `checksum__iexact` to properly perform exact checksum matching against existing documents in Paperless-ngx.
+  - **Impact:** Users can now successfully upload new documents to Paperless-ngx without false duplicate warnings, while legitimate duplicate detection continues to work correctly for actual duplicate files.
+  - **Credit:** Fix contributed by @sjafferali in PR #127.
+  - _Files: `backend/paperless_handler.py`_
+
+### Enhanced
+- **Production Database Driver Optimization:** Replaced `psycopg2-binary` with `psycopg2` for improved production stability and performance.
+  - **Production Best Practice:** Switched from the development-oriented `psycopg2-binary` package to the production-recommended `psycopg2` package to avoid potential conflicts with system libraries and improve runtime stability.
+  - **Build Dependencies:** The existing Dockerfile already contains all necessary build dependencies (`build-essential`, `libpq-dev`) required to compile `psycopg2` from source.
+  - **Impact:** Enhanced production deployment stability while maintaining full PostgreSQL database connectivity and compatibility.
+  - _Files: `backend/requirements.txt`_
+
+- **Development Environment Library Access:** Removed `/lib` directory from .gitignore to allow tracking of essential library files in the repository.
+  - **Repository Management:** Updated .gitignore configuration to include library files that were previously excluded from version control.
+  - **Impact:** Ensures necessary library dependencies are properly tracked and available for development and deployment processes.
+  - _Files: `.gitignore`_
+
+### Fixed
+- **Missing JavaScript Assets for Non-Docker Installations:** Fixed critical error preventing the status page and internationalization features from functioning correctly in non-Docker installations due to missing i18next library files.
+  - **Root Cause:** The `/lib` directory containing essential i18next JavaScript libraries was excluded from version control via .gitignore, causing these files to be missing in non-Docker deployments where they couldn't be served from CDN.
+  - **Solution:** Updated service worker cache configuration to include the three required i18next library files (`i18next.min.js`, `i18nextHttpBackend.min.js`, `i18nextBrowserLanguageDetector.min.js`) and incremented cache version to ensure users receive the updated assets.
+  - **Impact:** Status page and all internationalization features now work correctly in non-Docker installations, eliminating JavaScript errors and ensuring consistent functionality across all deployment methods.
+  - **Cache Update:** Service worker cache version updated from `v20250119001` to `v20250918001` to force cache refresh for existing users.
+  - _Files: `frontend/sw.js`_
+
+- **Paperless-ngx API Token Authentication with 2FA Enabled:** Resolved critical authentication failure when using API tokens with Paperless-ngx instances that have Two-Factor Authentication (2FA) enabled. Users can now securely connect Warracker to their 2FA-protected Paperless-ngx accounts without compromising security.
+  - **Root Cause:** The Paperless-ngx integration was inadvertently using session-based authentication paths that conflicted with 2FA requirements, causing API token requests to be rejected even when tokens were valid.
+  - **Solution:** Implemented pure token-only authentication by clearing cookies before each request, disabling automatic redirects to login pages, and ensuring all API calls use only the `Authorization: Token <token>` header without session interference.
+  - **Enhanced Error Handling:** Added detection and clear error messaging for authentication redirects (3xx responses) that would indicate token rejection, helping users troubleshoot configuration issues.
+  - **Backward Compatibility:** All existing functionality remains unchanged for users without 2FA enabled, ensuring seamless operation across different Paperless-ngx configurations.
+  - **Security Maintained:** Users can keep 2FA enabled on their Paperless-ngx accounts while using API tokens for Warracker integration, maintaining the highest security standards.
+  - _Files: `backend/paperless_handler.py`, `backend/file_routes.py`_
+
 ## 0.10.1.11 - 2025-09-07
 
 ### Enhanced

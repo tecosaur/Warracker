@@ -1,4 +1,4 @@
-const CACHE_NAME = 'warracker-cache-v20250119001';
+const CACHE_NAME = 'warracker-cache-v20250918001';
 const urlsToCache = [
   './',
   './index.html',
@@ -16,6 +16,9 @@ const urlsToCache = [
   './footer-fix.js?v=20250119001',
   './footer-content.js?v=20250119001',
   './js/i18n.js?v=20250119001',
+  './js/lib/i18next.min.js',
+  './js/lib/i18nextHttpBackend.min.js',
+  './js/lib/i18nextBrowserLanguageDetector.min.js',
   './manifest.json',
   './img/favicon-16x16.png',
   './img/favicon-32x32.png',
