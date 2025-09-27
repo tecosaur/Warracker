@@ -12,7 +12,7 @@ import time
 import atexit
 import smtplib
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, UTC, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from threading import Lock
@@ -353,7 +353,7 @@ def process_email_notifications(all_warranties, eligible_user_ids, is_manual, ge
             server.login(smtp_username, smtp_password)
 
         emails_sent = 0
-        utc_now = datetime.utcnow()
+        utc_now = datetime.now(UTC)
         timestamp = int(utc_now.timestamp())
         
         for email, user_data in users_warranties.items():
@@ -535,7 +535,7 @@ def send_expiration_notifications(manual_trigger=False, get_db_connection=None, 
 
         if not manual_trigger:
             with conn.cursor() as cur:
-                utc_now = datetime.utcnow()
+                utc_now = datetime.now(UTC)
                 
                 # Check if required columns exist for dynamic query building
                 cur.execute("""

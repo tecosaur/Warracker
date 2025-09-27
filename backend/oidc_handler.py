@@ -1,7 +1,7 @@
 # backend/oidc_handler.py
 import os
 import uuid
-from datetime import datetime # Ensure timedelta is imported if used, though not in this snippet
+from datetime import datetime, UTC # Ensure timedelta is imported if used, though not in this snippet
 from flask import Blueprint, jsonify, redirect, url_for, current_app, request, session
 
 # Import shared extensions and utilities
@@ -193,14 +193,14 @@ def oidc_callback_route():
                 app_session_token = generate_token(user_id) # Generate app-specific JWT
                 
                 # Update last login timestamp
-                cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
+                cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.now(UTC), user_id))
                 
                 # Log OIDC session in user_sessions table
                 ip_address = request.remote_addr
                 user_agent = request.headers.get('User-Agent', '')
                 # Use a different UUID for session_token in DB if needed, or re-use app_session_token if appropriate for your session model
                 db_session_token = str(uuid.uuid4()) 
-                expires_at = datetime.utcnow() + current_app.config['JWT_EXPIRATION_DELTA']
+                expires_at = datetime.now(UTC) + current_app.config['JWT_EXPIRATION_DELTA']
                 
                 cur.execute(
                     'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',

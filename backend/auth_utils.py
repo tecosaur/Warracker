@@ -1,6 +1,6 @@
 # backend/auth_utils.py
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, UTC, timedelta
 from flask import current_app, request, jsonify
 from functools import wraps
 import re
@@ -14,8 +14,8 @@ except ImportError:
 def generate_token(user_id):
     """Generate a JWT token for the user"""
     payload = {
-        'exp': datetime.utcnow() + current_app.config['JWT_EXPIRATION_DELTA'],
-        'iat': datetime.utcnow(),
+        'exp': datetime.now(UTC) + current_app.config['JWT_EXPIRATION_DELTA'],
+        'iat': datetime.now(UTC),
         'sub': str(user_id)
     }
     return jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')

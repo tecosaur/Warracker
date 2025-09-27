@@ -1,7 +1,7 @@
 # backend/auth_routes.py
 # Updated: 2025-01-24 - Fixed API endpoints for notifications
 from flask import Blueprint, request, jsonify, current_app
-from datetime import datetime, timedelta
+from datetime import datetime, UTC, timedelta
 import uuid
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -117,13 +117,13 @@ def register():
             token = generate_token(user_id)
             
             # Update last login
-            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
+            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.now(UTC), user_id))
             
             # Store session info
             ip_address = request.remote_addr
             user_agent = request.headers.get('User-Agent', '')
             session_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + current_app.config['JWT_EXPIRATION_DELTA']
+            expires_at = datetime.now(UTC) + current_app.config['JWT_EXPIRATION_DELTA']
             
             cur.execute(
                 'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
@@ -182,13 +182,13 @@ def login():
             token = generate_token(user_id)
             
             # Update last login
-            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.utcnow(), user_id))
+            cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.now(UTC), user_id))
             
             # Store session info
             ip_address = request.remote_addr
             user_agent = request.headers.get('User-Agent', '')
             session_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + current_app.config['JWT_EXPIRATION_DELTA']
+            expires_at = datetime.now(UTC) + current_app.config['JWT_EXPIRATION_DELTA']
             
             cur.execute(
                 'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
@@ -347,7 +347,7 @@ def request_password_reset():
             
             # Generate reset token
             reset_token = str(uuid.uuid4())
-            expires_at = datetime.utcnow() + timedelta(hours=24)
+            expires_at = datetime.now(UTC) + timedelta(hours=24)
             
             # Delete any existing tokens for this user
             cur.execute('DELETE FROM password_reset_tokens WHERE user_id = %s', (user_id,))
@@ -656,7 +656,7 @@ def reset_password():
             cur.execute('SELECT user_id, expires_at FROM password_reset_tokens WHERE token = %s', (token,))
             token_info = cur.fetchone()
             
-            if not token_info or token_info[1] < datetime.utcnow():
+            if not token_info or token_info[1] < datetime.now(UTC):
                 return jsonify({'message': 'Invalid or expired token!'}), 400
             
             user_id = token_info[0]
