@@ -16,7 +16,7 @@ def generate_token(user_id):
     payload = {
         'exp': datetime.utcnow() + current_app.config['JWT_EXPIRATION_DELTA'],
         'iat': datetime.utcnow(),
-        'sub': user_id
+        'sub': str(user_id)
     }
     return jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
 
