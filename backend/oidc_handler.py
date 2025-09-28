@@ -160,12 +160,22 @@ def oidc_callback_route():
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=subject_missing")
 
+    email = token_id_claims.get('email') or userinfo.get('email')
+
+    first_name = token_id_claims.get('given_name') or userinfo.get('given_name', '')
+    last_name = token_id_claims.get('family_name') or userinfo.get('family_name', '')
+
+    if not first_name and not last_name:
+        first_name = token_id_claims.get('name') or userinfo.get('name', '')
+
+    user_groups = token_id_claims.get('groups') or userinfo.get('groups') or []
+
     conn = None
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Check for existing OIDC user
-            cur.execute("SELECT id, username, email, is_admin FROM users WHERE oidc_sub = %s AND oidc_issuer = %s AND is_active = TRUE", 
+            cur.execute("SELECT id, username, email, first_name, last_name, is_admin FROM users WHERE oidc_sub = %s AND oidc_issuer = %s AND is_active = TRUE",
                         (oidc_subject, oidc_issuer))
             user_db_data = cur.fetchone()
             
@@ -175,6 +185,23 @@ def oidc_callback_route():
             if user_db_data:
                 user_id = user_db_data[0]
                 logger.info(f"[OIDC_HANDLER] Existing OIDC user found with ID {user_id} for sub {oidc_subject}")
+
+                # Update any changed user info
+                if email and email != user_db_data[2]:
+                    cur.execute('UPDATE users SET email = %s WHERE id = %s', (email, user_id))
+                    logger.info(f"[OIDC_HANDLER] Updated email for OIDC user ID {user_id} to {email}")
+                if first_name and first_name != user_db_data[3]:
+                    cur.execute('UPDATE users SET first_name = %s WHERE id = %s', (first_name, user_id))
+                    logger.info(f"[OIDC_HANDLER] Updated first name for OIDC user ID {user_id} to {first_name}")
+                if last_name and last_name != user_db_data[4]:
+                    cur.execute('UPDATE users SET last_name = %s WHERE id = %s', (last_name, user_id))
+                    logger.info(f"[OIDC_HANDLER] Updated last name for OIDC user ID {user_id} to {last_name}")
+                if os.environ.get('OIDC_ADMIN_GROUP'):
+                    admin_oidc_group = os.environ.get('OIDC_ADMIN_GROUP')
+                    is_admin = admin_oidc_group in user_groups
+                    if is_admin != user_db_data[5]:
+                        cur.execute('UPDATE users SET is_admin = %s WHERE id = %s', (is_admin, user_id))
+                        logger.info(f"[OIDC_HANDLER] Updated admin status for OIDC user ID {user_id} to {is_admin} based on group membership.")
             else:
                 # Check if registration is enabled before creating new users
                 cur.execute("""
@@ -206,7 +233,6 @@ def oidc_callback_route():
                 
                 # New user provisioning
                 is_new_user = True
-                email = token_id_claims.get('email') or userinfo.get('email')
                 if not email:
                     logger.error("[OIDC_HANDLER] 'email' missing in userinfo for new OIDC user.")
                     frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
@@ -227,14 +253,6 @@ def oidc_callback_route():
                 if cur.fetchone():
                     username = f"{username}_{str(uuid.uuid4())[:4]}" # Short random suffix
 
-                first_name = token_id_claims.get('given_name') or userinfo.get('given_name', '')
-                last_name = token_id_claims.get('family_name') or userinfo.get('family_name', '')
-
-                if not first_name and not last_name:
-                    first_name = token_id_claims.get('name') or userinfo.get('name', '')
-
-                user_groups = token_id_claims.get('groups') or userinfo.get('groups') or []
-                
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
 
