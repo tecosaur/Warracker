@@ -750,6 +750,8 @@ def send_password_reset_email(recipient_email, reset_link):
         smtp_port = int(os.environ.get('SMTP_PORT', 1025))
         smtp_username = os.environ.get('SMTP_USERNAME')
         smtp_password = os.environ.get('SMTP_PASSWORD')
+        if os.environ.get('SMTP_PASSWORD_FILE'):
+            smtp_password = open(os.environ.get('SMTP_PASSWORD_FILE'), 'r').read().strip()
         smtp_use_tls = os.environ.get('SMTP_USE_TLS', 'true').lower() == 'true'
         smtp_use_ssl = os.environ.get('SMTP_USE_SSL', 'false').lower() == 'true'
         sender_email = os.environ.get('SMTP_SENDER_EMAIL', 'noreply@warracker.com')

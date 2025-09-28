@@ -63,6 +63,8 @@ def init_oidc_client(current_app_instance, db_conn_func, db_release_func):
         provider_name = os.environ.get('OIDC_PROVIDER_NAME', oidc_db_settings.get('oidc_provider_name', 'oidc'))
         client_id = os.environ.get('OIDC_CLIENT_ID', oidc_db_settings.get('oidc_client_id', ''))
         client_secret = os.environ.get('OIDC_CLIENT_SECRET', oidc_db_settings.get('oidc_client_secret', ''))
+        if os.environ.get('OIDC_CLIENT_SECRET_FILE'):
+            client_secret = open(os.environ.get('OIDC_CLIENT_SECRET_FILE'), 'r').read().strip()
         issuer_url = os.environ.get('OIDC_ISSUER_URL', oidc_db_settings.get('oidc_issuer_url', ''))
         scope = os.environ.get('OIDC_SCOPE', oidc_db_settings.get('oidc_scope', 'openid email profile'))
 

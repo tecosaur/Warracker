@@ -299,6 +299,8 @@ def process_email_notifications(all_warranties, eligible_user_ids, is_manual, ge
     smtp_port = int(os.environ.get('SMTP_PORT', '1025'))
     smtp_username = os.environ.get('SMTP_USERNAME', 'notifications@warracker.com')
     smtp_password = os.environ.get('SMTP_PASSWORD', '')
+    if os.environ.get('SMTP_PASSWORD_FILE'):
+        smtp_password = open(os.environ.get('SMTP_PASSWORD_FILE'), 'r').read().strip()
     smtp_use_tls_env = os.environ.get('SMTP_USE_TLS', 'not_set').lower()
     
     # For manual triggers, check email preferences
