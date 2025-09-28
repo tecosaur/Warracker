@@ -229,6 +229,9 @@ def oidc_callback_route():
 
                 first_name = token_id_claims.get('given_name') or userinfo.get('given_name', '')
                 last_name = token_id_claims.get('family_name') or userinfo.get('family_name', '')
+
+                if not first_name and not last_name:
+                    first_name = token_id_claims.get('name') or userinfo.get('name', '')
                 
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
