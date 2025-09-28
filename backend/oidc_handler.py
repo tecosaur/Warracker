@@ -134,25 +134,29 @@ def oidc_callback_route():
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=token_missing")
 
-    userinfo = token_data.get('userinfo')
-    if not userinfo:
-        try:
-            userinfo = client.userinfo(token=token_data)
-        except Exception as e:
-            logger.error(f"[OIDC_HANDLER] OIDC callback error fetching userinfo: {e}")
-            frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
-            return redirect(f"{frontend_login_url}?oidc_error=userinfo_fetch_failed")
+    token_id_claims = token_data.get('userinfo')
+    if not token_id_claims:
+        logger.error("[OIDC_HANDLER] OIDC callback: Failed to retrieve token userinfo.")
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=userinfo_missing")
+
+    try:
+        userinfo = client.userinfo(token=token_data)
+    except Exception as e:
+        logger.error(f"[OIDC_HANDLER] OIDC callback error fetching userinfo: {e}")
+        frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
+        return redirect(f"{frontend_login_url}?oidc_error=userinfo_fetch_failed")
             
     if not userinfo:
         logger.error("[OIDC_HANDLER] OIDC callback: Failed to retrieve userinfo.")
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=userinfo_missing")
 
-    oidc_subject = userinfo.get('sub')
-    oidc_issuer = userinfo.get('iss') 
+    oidc_subject = token_id_claims.get('sub')
+    oidc_issuer = token_id_claims.get('iss')
 
     if not oidc_subject:
-        logger.error("[OIDC_HANDLER] OIDC callback: 'sub' (subject) missing in userinfo.")
+        logger.error("[OIDC_HANDLER] OIDC callback: 'sub' (subject) missing in token userinfo.")
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=subject_missing")
 
@@ -202,7 +206,7 @@ def oidc_callback_route():
                 
                 # New user provisioning
                 is_new_user = True
-                email = userinfo.get('email')
+                email = token_id_claims.get('email') or userinfo.get('email')
                 if not email:
                     logger.error("[OIDC_HANDLER] 'email' missing in userinfo for new OIDC user.")
                     frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
@@ -215,14 +219,16 @@ def oidc_callback_route():
                     frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
                     return redirect(f"{frontend_login_url}?oidc_error=email_conflict_local_account")
 
-                username = userinfo.get('preferred_username') or userinfo.get('name') or email.split('@')[0]
+                username = token_id_claims.get('preferred_username') or userinfo.get('preferred_username') or \
+                            token_id_claims.get('name') or userinfo.get('name') or \
+                            email.split('@')[0]
                 # Ensure username uniqueness
                 cur.execute("SELECT id FROM users WHERE username = %s", (username,))
                 if cur.fetchone():
                     username = f"{username}_{str(uuid.uuid4())[:4]}" # Short random suffix
 
-                first_name = userinfo.get('given_name', '')
-                last_name = userinfo.get('family_name', '')
+                first_name = token_id_claims.get('given_name') or userinfo.get('given_name', '')
+                last_name = token_id_claims.get('family_name') or userinfo.get('family_name', '')
                 
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
