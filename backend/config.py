@@ -27,7 +27,7 @@ class Config:
     DB_ADMIN_PASSWORD = os.environ.get('DB_ADMIN_PASSWORD', 'change_this_password_in_production')
     
     # File Upload Configuration
-    UPLOAD_FOLDER = '/data/uploads'
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/data/uploads')
     DEFAULT_MAX_UPLOAD_MB = 32
     
     @staticmethod
@@ -68,6 +68,13 @@ class Config:
     def init_app(app):
         """Initialize configuration-specific settings."""
         Config._check_secret_key()
+
+        if not os.path.exists(Config.UPLOAD_FOLDER):
+            try:
+                os.makedirs(Config.UPLOAD_FOLDER)
+                logger.info(f"Created upload folder at {Config.UPLOAD_FOLDER}")
+            except Exception as e:
+                logger.error(f"Failed to create upload folder at {Config.UPLOAD_FOLDER}: {e}")
         
         # Set upload configuration
         max_upload_mb = Config._get_max_upload_mb()
