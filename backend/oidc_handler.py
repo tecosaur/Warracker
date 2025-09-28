@@ -232,28 +232,35 @@ def oidc_callback_route():
 
                 if not first_name and not last_name:
                     first_name = token_id_claims.get('name') or userinfo.get('name', '')
+
+                user_groups = token_id_claims.get('groups') or userinfo.get('groups') or []
                 
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
-                
-                # Determine admin status: first user OR email matches configured admin email
-                is_first_user_admin = (user_count == 0)
-                
-                admin_email_from_env = current_app.config.get('ADMIN_EMAIL', '').lower()
-                oidc_user_email_lower = email.lower() if email else ''
-                
-                is_email_match_admin = False
-                if admin_email_from_env and oidc_user_email_lower == admin_email_from_env:
-                    is_email_match_admin = True
-                    logger.info(f"[OIDC_HANDLER] New OIDC user email {oidc_user_email_lower} matches ADMIN_EMAIL {admin_email_from_env}.")
 
-                is_admin = is_first_user_admin or is_email_match_admin
-                
-                if is_admin and not is_first_user_admin:
-                    logger.info(f"[OIDC_HANDLER] Granting admin rights to new OIDC user {oidc_user_email_lower} based on email match.")
-                elif is_first_user_admin:
-                    logger.info(f"[OIDC_HANDLER] Granting admin rights to new OIDC user {oidc_user_email_lower} as they are the first user.")
+                admin_oidc_group = os.environ.get('OIDC_ADMIN_GROUP')
+                if admin_oidc_group:
+                    is_admin = admin_oidc_group in user_groups
+                    if is_admin:
+                        logger.info(f"[OIDC_HANDLER] New OIDC user {username} granted admin via OIDC group '{admin_oidc_group}'.")
+                else:
+                    # Determine admin status: first user OR email matches configured admin email
+                    is_first_user_admin = (user_count == 0)
 
+                    admin_email_from_env = current_app.config.get('ADMIN_EMAIL', '').lower()
+                    oidc_user_email_lower = email.lower() if email else ''
+
+                    is_email_match_admin = False
+                    if admin_email_from_env and oidc_user_email_lower == admin_email_from_env:
+                        is_email_match_admin = True
+                        logger.info(f"[OIDC_HANDLER] New OIDC user email {oidc_user_email_lower} matches ADMIN_EMAIL {admin_email_from_env}.")
+
+                    is_admin = is_first_user_admin or is_email_match_admin
+
+                    if is_admin and not is_first_user_admin:
+                        logger.info(f"[OIDC_HANDLER] Granting admin rights to new OIDC user {oidc_user_email_lower} based on email match.")
+                    elif is_first_user_admin:
+                        logger.info(f"[OIDC_HANDLER] Granting admin rights to new OIDC user {oidc_user_email_lower} as they are the first user.")
 
                 # Insert new OIDC user
                 cur.execute(
