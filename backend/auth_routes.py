@@ -204,7 +204,8 @@ def login():
                     'id': user_id,
                     'username': user[1],
                     'email': user[2],
-                    'is_admin': user[5]  # Include is_admin flag
+                    'is_admin': user[5],
+                    'oidc_managed': False
                 }
             }), 200
     except Exception as e:
@@ -258,7 +259,8 @@ def validate_token():
                 'username': request.user['username'],
                 'email': request.user['email'],
                 'is_admin': request.user['is_admin'],
-                'is_owner': request.user.get('is_owner', False)
+                'is_owner': request.user.get('is_owner', False),
+                'oidc_managed': request.user['oidc_managed']
             },
             'message': 'Token is valid'
         }), 200
@@ -282,12 +284,12 @@ def get_user():
             # Try to get user with is_owner column, fall back to without it if column doesn't exist
             try:
                 cur.execute(
-                    'SELECT id, username, email, first_name, last_name, is_admin, is_owner FROM users WHERE id = %s',
+                    'SELECT id, username, email, first_name, last_name, is_admin, is_owner, oidc_sub FROM users WHERE id = %s',
                     (user_id,)
                 )
                 user_data = cur.fetchone()
                 has_owner_column = True
-                columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin', 'is_owner']
+                columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin', 'is_owner', 'oidc_managed']
             except Exception as e:
                 # If the query fails (likely because is_owner column doesn't exist), rollback and try again
                 current_app.logger.warning(f"Failed to query with is_owner column in get_user, falling back: {e}")
@@ -298,7 +300,7 @@ def get_user():
                 )
                 user_data = cur.fetchone()
                 has_owner_column = False
-                columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin']
+                columns = ['id', 'username', 'email', 'first_name', 'last_name', 'is_admin', 'oidc_managed']
         # --- END DATABASE QUERY ---
 
         if not user_data:
@@ -310,6 +312,9 @@ def get_user():
         # Add is_owner field if it wasn't included in the query
         if not has_owner_column:
             user_info['is_owner'] = False
+
+        # Turn oidc_sub into a boolean
+        user_info['oidc_managed'] = user_info['oidc_managed'] is not None
 
         # Return the full user information
         return jsonify(user_info), 200

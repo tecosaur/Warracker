@@ -67,7 +67,7 @@ def token_required(f):
             with conn.cursor() as cur:
                 # Try to get user with is_owner column, fall back to without it if column doesn't exist
                 try:
-                    cur.execute('SELECT id, username, email, is_admin, is_owner FROM users WHERE id = %s AND is_active = TRUE', (user_id,))
+                    cur.execute('SELECT id, username, email, is_admin, is_owner, oidc_sub FROM users WHERE id = %s AND is_active = TRUE', (user_id,))
                     user = cur.fetchone()
                     has_owner_column = True
                 except Exception as e:
@@ -87,8 +87,13 @@ def token_required(f):
                     'username': user[1],
                     'email': user[2],
                     'is_admin': user[3],
-                    'is_owner': user[4] if has_owner_column and len(user) > 4 else False
                 }
+
+                if has_owner_column:
+                    request.user.update({
+                        'is_owner': user[4],
+                        'oidc_managed': user[5] is not None
+                    })
                 
                 return f(*args, **kwargs)
         except Exception as e:

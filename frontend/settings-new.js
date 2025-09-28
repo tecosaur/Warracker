@@ -615,6 +615,20 @@ async function loadUserData() {
             }
             if (userNameDisplay) userNameDisplay.textContent = displayName;
             if (userEmailDisplay) userEmailDisplay.textContent = currentUser.email || 'N/A';
+
+            if (currentUser.oidc_managed) {
+                if (firstNameInput) firstNameInput.disabled = true;
+                if (lastNameInput) lastNameInput.disabled = true;
+                if (emailInput) emailInput.disabled = true;
+                if (saveProfileBtn) saveProfileBtn.style.display = 'none';
+                userEditDesc = document.querySelector('#currentUserInfoDisplay > p > strong')
+                if (userEditDesc) {
+                    userEditDesc.setAttribute('data-i18n', 'settings.current_user_oidc')
+                    userEditDesc.textContent = 'OIDC managed profile for:'
+                }
+                securitySection = document.getElementById('securitySection');
+                if (securitySection) securitySection.style.display = 'none';
+            }
             // --- END UPDATE ---
 
             // Admin section visibility will be determined after API call
