@@ -179,7 +179,16 @@ def create_app(config_name=None):
         app.register_blueprint(file_bp, url_prefix='/api')
         
         logger.info("All blueprints registered successfully")
-        
+
+        # Apply config
+        if app.config['FIXED_CONFIG']:
+            try:
+                from .db_handler import apply_site_settings_file
+                apply_site_settings_file(app.config['FIXED_CONFIG'])
+            except ImportError:
+                from db_handler import apply_site_settings_file
+                apply_site_settings_file(app.config['FIXED_CONFIG'])
+
         # Initialize OIDC client after extensions and blueprints
         try:
             from .db_handler import get_db_connection, release_db_connection
