@@ -184,6 +184,13 @@ def oidc_callback_route():
             user_id = None
             is_new_user = False
 
+            admin_oidc_group = os.environ.get('OIDC_ADMIN_GROUP')
+            if not admin_oidc_group:
+                cur.execute("SELECT value FROM site_settings WHERE key = 'admin_oidc_group'")
+                result = cur.fetchone()
+                if result:
+                    admin_oidc_group = result[0]
+
             if user_db_data:
                 user_id = user_db_data[0]
                 logger.info(f"[OIDC_HANDLER] Existing OIDC user found with ID {user_id} for sub {oidc_subject}")
@@ -198,8 +205,7 @@ def oidc_callback_route():
                 if last_name and last_name != user_db_data[4]:
                     cur.execute('UPDATE users SET last_name = %s WHERE id = %s', (last_name, user_id))
                     logger.info(f"[OIDC_HANDLER] Updated last name for OIDC user ID {user_id} to {last_name}")
-                if os.environ.get('OIDC_ADMIN_GROUP'):
-                    admin_oidc_group = os.environ.get('OIDC_ADMIN_GROUP')
+                if admin_oidc_group:
                     is_admin = admin_oidc_group in user_groups
                     if is_admin != user_db_data[5]:
                         cur.execute('UPDATE users SET is_admin = %s WHERE id = %s', (is_admin, user_id))
@@ -258,7 +264,6 @@ def oidc_callback_route():
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
 
-                admin_oidc_group = os.environ.get('OIDC_ADMIN_GROUP')
                 if admin_oidc_group:
                     is_admin = admin_oidc_group in user_groups
                     if is_admin:

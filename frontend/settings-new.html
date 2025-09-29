@@ -634,6 +634,12 @@
                                 <input type="text" id="oidcScope" class="form-control" placeholder="e.g., openid email profile">
                                 <small class="text-muted" data-i18n="settings.scope_desc">Space-separated OIDC scopes.</small>
                             </div>
+
+                            <div class="form-group">
+                                <label for="oidcAdminGroup" data-i18n="settings.oidc_admin_group">OIDC Admin Group</label>
+                                <input type="text" id="oidcAdminGroup" class="form-control" />
+                                <small class="text-muted" data-i18n="settings.oidc_admin_desc">Group that is given admin privileges. Leave blank to disable.</small>
+                            </div>
                             
                             <button type="button" id="saveOidcSettingsBtn" class="btn btn-primary" data-i18n="settings.save_oidc_settings">Save OIDC Settings</button>
                             <p id="oidcRestartMessage" class="text-muted" style="margin-top: 10px; display: none;" data-i18n="settings.oidc_restart_message">Application restart is required for OIDC settings to take full effect.</p>

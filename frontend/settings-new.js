@@ -65,6 +65,7 @@ const oidcClientIdInput = document.getElementById('oidcClientId');
 const oidcClientSecretInput = document.getElementById('oidcClientSecret');
 const oidcIssuerUrlInput = document.getElementById('oidcIssuerUrl');
 const oidcScopeInput = document.getElementById('oidcScope');
+const oidcAdminGroupInput = document.getElementById('oidcAdminGroup');
 const saveOidcSettingsBtn = document.getElementById('saveOidcSettingsBtn');
 const oidcRestartMessage = document.getElementById('oidcRestartMessage');
 
@@ -3340,6 +3341,7 @@ async function loadSiteSettings() {
     const oidcClientSecretInputElem = document.getElementById('oidcClientSecret');
     const oidcIssuerUrlInputElem = document.getElementById('oidcIssuerUrl');
     const oidcScopeInputElem = document.getElementById('oidcScope');
+    const oidcAdminGroupInputElem = document.getElementById('oidcAdminGroup');
 
     try {
         showLoading();
@@ -3443,6 +3445,13 @@ async function loadSiteSettings() {
         } else {
             console.error('[OIDC Settings] oidcScopeInputElem element NOT FOUND locally.');
         }
+
+        if (oidcAdminGroupInputElem) {
+            console.log('[OIDC Settings] Found oidcAdminGroupInputElem. Setting value to:', settings.oidc_admin_group || '');
+            oidcAdminGroupInputElem.value = settings.oidc_admin_group || '';
+        } else {
+            console.error('[OIDC Settings] oidcAdminGroupInputElem element NOT FOUND locally.');
+        }
         
         console.log('Site and OIDC settings loaded and population attempted using locally queried elements.');
         
@@ -3540,6 +3549,7 @@ async function saveOidcSettings() {
         oidc_client_id: oidcClientIdInput ? oidcClientIdInput.value.trim() : '',
         oidc_issuer_url: oidcIssuerUrlInput ? oidcIssuerUrlInput.value.trim() : '',
         oidc_scope: oidcScopeInput ? oidcScopeInput.value.trim() : 'openid email profile',
+        oidc_admin_group: oidcAdminGroupInput ? oidcAdminGroupInput.value.trim() : ''
     };
 
     // Only include client_secret if a new value is entered
