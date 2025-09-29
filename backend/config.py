@@ -5,11 +5,28 @@ from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
+def get_try_create_secret():
+    secret = os.environ.get('SECRET_KEY')
+    if not secret:
+        secret_file = 'secret_key'
+        if os.path.exists(secret_file):
+            secret = open(secret_file, 'r').read().strip()
+        else:
+            try:
+                import base64
+                secret = base64.b64encode(os.urandom(32)).decode('ascii')
+                with open(secret_file, 'w') as f:
+                    f.write(secret)
+                logger.info(f"Generated new SECRET_KEY and saved to {secret_file}")
+            except Exception:
+                secret = 'your_default_secret_key_please_change_in_prod'
+    return secret
+
 class Config:
     """Base configuration class."""
     
     # Flask Core Configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'your_default_secret_key_please_change_in_prod')
+    SECRET_KEY = get_try_create_secret()
     JWT_EXPIRATION_DELTA = timedelta(hours=int(os.environ.get('JWT_EXPIRATION_HOURS', '24')))
     
     # Security Warning for Default Secret Key
