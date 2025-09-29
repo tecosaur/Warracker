@@ -66,6 +66,15 @@ header .container {
     font-weight: 600 !important;
 }
 
+/* Dark mode interaction styles for nav links */
+:root[data-theme="dark"] .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:root[data-theme="dark"] .nav-link.active {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
 .nav-link i {
     font-size: 1rem !important;
 }

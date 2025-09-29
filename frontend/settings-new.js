@@ -176,11 +176,27 @@ async function loadCurrenciesForSettings() {
  * Initialize language selector
  */
 function initLanguageSelector() {
-    if (!languageSelect) return;
+    console.log('initLanguageSelector called');
+    console.log('languageSelect element exists:', !!languageSelect);
+    
+    if (!languageSelect) {
+        console.error('Language select element not found!');
+        return;
+    }
+    
+    // Check if already initialized
+    if (languageSelect.hasAttribute('data-initialized')) {
+        console.log('Language selector already initialized, skipping');
+        return;
+    }
     
     // Get current language
     const currentLang = window.i18n?.getCurrentLanguage() || 'en';
+    console.log('Setting language selector to current language:', currentLang);
     languageSelect.value = currentLang;
+    
+    // Mark as initialized
+    languageSelect.setAttribute('data-initialized', 'true');
     
     // Add event listener for language changes
     languageSelect.addEventListener('change', async function() {
@@ -189,6 +205,7 @@ function initLanguageSelector() {
         
         if (window.i18n?.changeLanguage) {
             try {
+                showToast('Changing language...', 'info');
                 await window.i18n.changeLanguage(selectedLanguage);
                 showToast(window.t('messages.saved') || 'Language changed successfully', 'success');
                 
@@ -200,8 +217,43 @@ function initLanguageSelector() {
                 console.error('Failed to change language:', error);
                 showToast(window.t('messages.error') || 'Failed to change language', 'error');
             }
+        } else {
+            console.warn('i18n changeLanguage function not available');
+            showToast('Language system not ready. Please try again.', 'error');
         }
     });
+    
+    console.log('Language selector initialized successfully with current language:', currentLang);
+}
+
+/**
+ * Initialize language selector after i18n is ready
+ */
+function initLanguageSelectorWhenReady() {
+    console.log('initLanguageSelectorWhenReady called');
+    console.log('window.i18n available:', !!window.i18n);
+    console.log('window.i18n.getCurrentLanguage available:', !!(window.i18n && window.i18n.getCurrentLanguage));
+    
+    if (window.i18n && window.i18n.getCurrentLanguage) {
+        // i18n is already ready
+        console.log('i18n already ready, initializing language selector');
+        initLanguageSelector();
+    } else {
+        // Wait for i18n to be ready
+        console.log('Waiting for i18n to be ready...');
+        window.addEventListener('i18nReady', function(event) {
+            console.log('i18n is now ready, initializing language selector');
+            initLanguageSelector();
+        }, { once: true }); // Use once: true to ensure this only runs once
+        
+        // Also try again after a short delay as backup
+        setTimeout(() => {
+            if (window.i18n && window.i18n.getCurrentLanguage && !languageSelect.hasAttribute('data-initialized')) {
+                console.log('Backup initialization: i18n ready, initializing language selector');
+                initLanguageSelector();
+            }
+        }, 2000);
+    }
 }
 
 /**
@@ -294,6 +346,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // DEBUG: Check current user data
     const debugCurrentUser = window.auth && window.auth.getCurrentUser ? window.auth.getCurrentUser() : null;
     console.log('DEBUG: Current user data:', debugCurrentUser);
+    
+    // Also listen for i18nReady event to ensure language selector gets initialized
+    console.log('Setting up i18nReady event listener from DOMContentLoaded');
+    window.addEventListener('i18nReady', function(event) {
+        console.log('i18nReady event received in DOMContentLoaded listener, initializing language selector');
+        // Small delay to ensure all DOM elements are ready
+        setTimeout(() => {
+            if (!document.getElementById('languageSelect').hasAttribute('data-initialized')) {
+                console.log('Language selector not yet initialized, doing it now');
+                initLanguageSelector();
+            } else {
+                console.log('Language selector already initialized');
+            }
+        }, 100);
+    }, { once: true });
     if (debugCurrentUser) {
         console.log('DEBUG: User has is_owner field:', 'is_owner' in debugCurrentUser, 'Value:', debugCurrentUser.is_owner);
     }
@@ -379,8 +446,8 @@ document.addEventListener('DOMContentLoaded', function() {
 function initPage() {
     console.log('Initializing settings page');
     
-    // Initialize language selector
-    initLanguageSelector();
+    // Initialize language selector when i18n is ready
+    initLanguageSelectorWhenReady();
     
     // Check authentication
     if (window.auth) {
@@ -1625,8 +1692,12 @@ async function savePreferences() {
                             }, 1000);
                         } catch (error) {
                             console.error('Failed to change language after saving preferences:', error);
+                            showToast('Failed to change language. Please try again.', 'error');
                         }
                     }
+                } else if (preferencesToSave.preferred_language) {
+                    console.warn('i18n changeLanguage function not available when saving preferences');
+                    showToast('Language system not ready. Settings saved but language not changed. Please refresh and try again.', 'warning');
                 }
             } else {
                 console.error('Preferences save failed. Response status:', response.status);
@@ -2339,7 +2410,7 @@ function deleteUser() {
             })
             .catch(error => {
                 console.error('Error during user deletion:', error);
-                showToast('Error during user deletion: ' + error.message, 'error');
+                showToast(window.t('messages.error_during_user_deletion', { error: error.message }), 'error');
                 hideLoading();
                 
                 // Try the direct API call as a fallback
@@ -2362,7 +2433,7 @@ function deleteUser() {
                                     }, 500);
                                 }
                             } else {
-                                showToast(`Failed to delete user ${user.username} with direct API call.`, 'error');
+                                showToast(window.t('messages.failed_to_delete_user_with_direct_api_call', { username: user.username }), 'error');
                             }
                         })
                         .catch(error => {
@@ -2954,7 +3025,7 @@ function showUsersList() {
                             .catch(error => {
                                 checkingToast.remove();
                                 console.error('Error checking if user exists:', error);
-                                showToast('Error checking if user exists: ' + error.message, 'error');
+                                showToast(window.t('messages.error_checking_if_user_exists', { error: error.message }), 'error');
                                 
                                 // Ask if they want to try deletion anyway
                                 if (confirm(`Error checking if user ${user.username} exists. Try deletion anyway?`)) {
@@ -3169,7 +3240,7 @@ function testUserDeletion(userId) {
                                             }, 500);
                                         }
                                     } else {
-                                        showToast(`Failed to delete user ${user.username} with direct API call.`, 'error');
+                                        showToast(window.t('messages.failed_to_delete_user_with_direct_api_call', { username: user.username }), 'error');
                                     }
                                 })
                                 .catch(error => {
@@ -3432,7 +3503,7 @@ async function saveSiteSettings() {
         if (response.ok) {
             showToast(result.message || 'Site settings saved successfully', 'success');
         } else {
-            showToast(result.message || 'Failed to save site settings', 'error');
+            showToast(result.message || window.t('messages.failed_to_save_site_settings'), 'error');
         }
     } catch (error) {
         console.error('Error saving site settings:', error);
@@ -5010,7 +5081,7 @@ async function testFileUpload() {
         
     } catch (error) {
         console.error('❌ Error testing file upload:', error);
-        showToast(`File upload test error: ${error.message}`, 'error');
+        showToast(window.t('messages.file_upload_test_error', { error: error.message }), 'error');
     } finally {
         hideLoading();
     }

@@ -73,7 +73,7 @@ def get_warranties():
                     END AS claim_status_summary
                 FROM warranties w
                 LEFT JOIN warranty_claims c ON w.id = c.warranty_id
-                WHERE w.user_id = %s
+                WHERE w.user_id = %s AND w.archived_at IS NULL
                 GROUP BY w.id
                 ORDER BY CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''', (user_id,))
@@ -115,6 +115,71 @@ def get_warranties():
     except Exception as e:
         current_app.logger.error(f"Error retrieving warranties: {e}")
         return jsonify({"error": "Failed to retrieve warranties"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+@warranties_bp.route('/warranties/archived', methods=['GET'])
+@token_required
+def get_archived_warranties():
+    conn = None
+    try:
+        user_id = request.user['id']
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT 
+                    w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, w.product_url, w.notes,
+                    w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, w.vendor, w.warranty_type,
+                    w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
+                    w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
+                    w.invoice_url, w.manual_url, w.other_document_url,
+                    CASE
+                        WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
+                        WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
+                        ELSE 'FINISHED'
+                    END AS claim_status_summary
+                FROM warranties w
+                LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                WHERE w.user_id = %s AND w.archived_at IS NOT NULL
+                GROUP BY w.id
+                ORDER BY w.archived_at DESC NULLS LAST, w.updated_at DESC NULLS LAST, w.product_name
+            ''', (user_id,))
+
+            warranties = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            warranties_list = []
+
+            for row in warranties:
+                warranty_dict = dict(zip(columns, row))
+                for key, value in warranty_dict.items():
+                    if isinstance(value, (datetime, date)):
+                        warranty_dict[key] = value.isoformat()
+                    elif isinstance(value, Decimal):
+                        warranty_dict[key] = float(value)
+
+                warranty_id = warranty_dict['id']
+                cur.execute('SELECT serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+                serial_numbers = [row[0] for row in cur.fetchall()]
+                warranty_dict['serial_numbers'] = serial_numbers
+
+                cur.execute('''
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN warranty_tags wt ON t.id = wt.tag_id
+                    WHERE wt.warranty_id = %s
+                    ORDER BY t.name
+                ''', (warranty_id,))
+                tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+                warranty_dict['tags'] = tags
+
+                warranties_list.append(warranty_dict)
+
+            return jsonify(warranties_list)
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving archived warranties: {e}")
+        return jsonify({"error": "Failed to retrieve archived warranties"}), 500
     finally:
         if conn:
             release_db_connection(conn)
@@ -425,6 +490,48 @@ def add_warranty():
     finally:
         if conn:
             release_db_connection(conn) 
+
+@warranties_bp.route('/warranties/<int:warranty_id>/archive', methods=['PATCH'])
+@token_required
+def toggle_archive_warranty(warranty_id):
+    conn = None
+    try:
+        user_id = request.user['id']
+        is_admin = request.user.get('is_admin', False)
+
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+        archived_flag = request.json.get('archived')
+        if archived_flag is None:
+            return jsonify({"error": "Missing 'archived' boolean in request body"}), 400
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Ensure warranty exists and belongs to user unless admin
+            if is_admin:
+                cur.execute('SELECT id FROM warranties WHERE id = %s', (warranty_id,))
+            else:
+                cur.execute('SELECT id FROM warranties WHERE id = %s AND user_id = %s', (warranty_id, user_id))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Warranty not found or permission denied"}), 404
+
+            if archived_flag is True:
+                cur.execute('UPDATE warranties SET archived_at = NOW(), updated_at = NOW() WHERE id = %s', (warranty_id,))
+            else:
+                cur.execute('UPDATE warranties SET archived_at = NULL, updated_at = NOW() WHERE id = %s', (warranty_id,))
+
+            conn.commit()
+
+        return jsonify({"message": "Archive status updated", "archived": bool(archived_flag)})
+    except Exception as e:
+        current_app.logger.error(f"Error toggling archive status: {e}")
+        if conn:
+            conn.rollback()
+        return jsonify({"error": "Failed to update archive status"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 @warranties_bp.route('/warranties/<int:warranty_id>', methods=['DELETE'])
 @token_required
@@ -1322,7 +1429,7 @@ def get_all_warranties():
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Get all warranties from all users with user information
+            # Get all warranties from all users with user information (exclude archived by default)
             cur.execute('''
                 SELECT 
                     w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
@@ -1339,6 +1446,7 @@ def get_all_warranties():
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
                 LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                WHERE w.archived_at IS NULL
                 GROUP BY w.id, u.id
                 ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''')
@@ -1428,7 +1536,7 @@ def get_global_warranties():
         conn = None
         conn = get_db_connection()
         with conn.cursor() as cur:
-            # Get all warranties from all users with user information
+            # Get all warranties from all users with user information (exclude archived for default view)
             cur.execute('''
                 SELECT 
                     w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
@@ -1445,6 +1553,7 @@ def get_global_warranties():
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
                 LEFT JOIN warranty_claims c ON w.id = c.warranty_id
+                WHERE w.archived_at IS NULL
                 GROUP BY w.id, u.id
                 ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''')
@@ -1794,7 +1903,8 @@ def get_locales():
             'zh_HK': '繁體中文',
             'ja': '日本語',
             'pt': 'Português',
-            'ko': '한국어'
+            'ko': '한국어',
+            'tr': 'Türkçe'
         }
         
         locales = []

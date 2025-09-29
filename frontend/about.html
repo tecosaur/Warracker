@@ -14,12 +14,12 @@
     <link rel="manifest" href="manifest.json">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="style.css?v=20250119001"> <!-- Main stylesheet -->
+    <link rel="stylesheet" href="style.css?v=20250119004"> <!-- Main stylesheet -->
     <link rel="stylesheet" href="styles.css?v=20250119001"> <!-- Additional styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <!-- Font Awesome -->
     <link rel="stylesheet" href="header-fix.css?v=20250119001"> <!-- Header specific styles -->
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css?v=20250119001">
+    <link rel="stylesheet" href="mobile-header.css?v=20250119002">
 
     <!-- Scripts loaded in head -->
     <script src="theme-loader.js?v=20250119001"></script> <!-- Apply theme early -->
@@ -318,7 +318,7 @@
             <!-- Hero Section -->
             <div class="about-hero">
                 <h1><i class="fas fa-shield-alt"></i> Warracker</h1>
-                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.11</div>
+                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.13</div>
                 <p class="description" data-i18n="about.description">
                     A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.
                 </p>
@@ -416,7 +416,7 @@
             // Update version display dynamically
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay && window.i18next) {
-                const currentVersion = '0.10.1.12'; // This should match version-checker.js
+                const currentVersion = '0.10.1.13'; // This should match version-checker.js
                 versionDisplay.textContent = window.i18next.t('about.version') + ' v' + currentVersion;
             }
             

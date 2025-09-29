@@ -1201,3 +1201,40 @@ def verify_email_change():
     # For simplicity, return a basic response
     # In a full implementation, this would verify the token and update the email
     return jsonify({'message': 'Email verification functionality not fully implemented in this simplified version'}), 501
+
+@auth_bp.route('/user/language-preference', methods=['PUT'])
+@token_required
+def update_language_preference():
+    """Update user language preference"""
+    user_id = request.user['id']
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No input data provided'}), 400
+        
+        preferred_language = data.get('preferred_language')
+        if not preferred_language:
+            return jsonify({'message': 'Language preference is required'}), 400
+        
+        if preferred_language not in SUPPORTED_LANGUAGES:
+            return jsonify({'message': f'Invalid language preference. Supported languages: {", ".join(SUPPORTED_LANGUAGES)}'}), 400
+        
+        # Update user's preferred language in database
+        conn = db_handler.get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("UPDATE users SET preferred_language = %s WHERE id = %s", (preferred_language, user_id))
+                conn.commit()
+                
+            return jsonify({'message': 'Language preference updated successfully'}), 200
+            
+        except Exception as e:
+            current_app.logger.error(f"Error updating language preference for user {user_id}: {e}")
+            conn.rollback()
+            return jsonify({'message': 'Failed to update language preference'}), 500
+        finally:
+            db_handler.release_db_connection(conn)
+            
+    except Exception as e:
+        current_app.logger.error(f"Error processing language preference update: {e}")
+        return jsonify({'message': 'Internal server error'}), 500

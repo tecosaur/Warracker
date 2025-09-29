@@ -1,325 +1,90 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <!-- Authentication redirect script -->
     <script src="auth-redirect.js?v=20250119001" data-protected="false"></script>
-    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n="auth.login">Login - Warracker</title>
-    <!-- Favicons -->
     <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=20250119001">
-    <script src="theme-loader.js?v=20250119001"></script>  <!-- Apply theme early -->
-    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="style.css?v=20250119004">
+    <script src="theme-loader.js?v=20250119001"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Load header fix styles to ensure consistent header styling -->
-    <link rel="stylesheet" href="header-fix.css?v=20250119001">
-    <!-- i18next Local Scripts -->
     <script src="js/lib/i18next.min.js?v=20250119001"></script>
     <script src="js/lib/i18nextHttpBackend.min.js?v=20250119001"></script>
     <script src="js/lib/i18nextBrowserLanguageDetector.min.js?v=20250119001"></script>
-    <!-- i18n initialization script -->
     <script src="js/i18n.js?v=20250119001"></script>
-    <!-- Load fix for auth buttons -->
-    <script src="fix-auth-buttons-loader.js?v=20250119001"></script>
-    <style>
-        .auth-container {
-            max-width: 400px;
-            margin: 50px auto;
-            padding: 30px;
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        
-        .auth-title {
-            text-align: center;
-            margin-bottom: 30px;
-            color: var(--text-color);
-        }
-        
-        .auth-form .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .auth-links {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 0.9em;
-        }
-        
-        .auth-links a {
-            color: var(--primary-color);
-            text-decoration: none;
-            margin: 0 10px;
-        }
-        
-        .auth-links a:hover {
-            text-decoration: underline;
-        }
-        
-        .auth-message {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            text-align: center;
-            display: none;
-        }
-        
-        .auth-message.error {
-            background-color: rgba(244, 67, 54, 0.1);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-        
-        .auth-message.success {
-            background-color: rgba(76, 175, 80, 0.1);
-            color: #4caf50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-        
-        .btn-block {
-            width: 100%;
-        }
-        
-        .auth-form .password-container {
-            position: relative;
-        }
-        
-        .auth-form .password-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-        }
-        
-        /* Provider-specific SSO button styles */
-        .btn-google {
-            background-color: #4285f4;
-            border-color: #4285f4;
-            color: white;
-        }
-        
-        .btn-google:hover, .btn-google:focus {
-            background-color: #357ae8;
-            border-color: #357ae8;
-            color: white;
-        }
-        
-        .btn-github {
-            background-color: #333;
-            border-color: #333;
-            color: white;
-        }
-        
-        .btn-github:hover, .btn-github:focus {
-            background-color: #24292e;
-            border-color: #24292e;
-            color: white;
-        }
-        
-        .btn-microsoft {
-            background-color: #0078d4;
-            border-color: #0078d4;
-            color: white;
-        }
-        
-        .btn-microsoft:hover, .btn-microsoft:focus {
-            background-color: #106ebe;
-            border-color: #106ebe;
-            color: white;
-        }
-        
-        .btn-facebook {
-            background-color: #1877f2;
-            border-color: #1877f2;
-            color: white;
-        }
-        
-        .btn-facebook:hover, .btn-facebook:focus {
-            background-color: #166fe5;
-            border-color: #166fe5;
-            color: white;
-        }
-        
-        .btn-twitter {
-            background-color: #1da1f2;
-            border-color: #1da1f2;
-            color: white;
-        }
-        
-        .btn-twitter:hover, .btn-twitter:focus {
-            background-color: #0d95e8;
-            border-color: #0d95e8;
-            color: white;
-        }
-        
-        .btn-linkedin {
-            background-color: #0077b5;
-            border-color: #0077b5;
-            color: white;
-        }
-        
-        .btn-linkedin:hover, .btn-linkedin:focus {
-            background-color: #005885;
-            border-color: #005885;
-            color: white;
-        }
-        
-        .btn-apple {
-            background-color: #000;
-            border-color: #000;
-            color: white;
-        }
-        
-        .btn-apple:hover, .btn-apple:focus {
-            background-color: #333;
-            border-color: #333;
-            color: white;
-        }
-        
-        .btn-discord {
-            background-color: #5865f2;
-            border-color: #5865f2;
-            color: white;
-        }
-        
-        .btn-discord:hover, .btn-discord:focus {
-            background-color: #4752c4;
-            border-color: #4752c4;
-            color: white;
-        }
-        
-        .btn-gitlab {
-            background-color: #fca326;
-            border-color: #fca326;
-            color: white;
-        }
-        
-        .btn-gitlab:hover, .btn-gitlab:focus {
-            background-color: #fc9403;
-            border-color: #fc9403;
-            color: white;
-        }
-        
-        .btn-bitbucket {
-            background-color: #0052cc;
-            border-color: #0052cc;
-            color: white;
-        }
-        
-        .btn-bitbucket:hover, .btn-bitbucket:focus {
-            background-color: #0047b3;
-            border-color: #0047b3;
-            color: white;
-        }
-        
-        .btn-keycloak {
-            background-color: #4d4d4d;
-            border-color: #4d4d4d;
-            color: white;
-        }
-        
-        .btn-keycloak:hover, .btn-keycloak:focus {
-            background-color: #333;
-            border-color: #333;
-            color: white;
-        }
-        
-        .btn-okta {
-            background-color: #007dc1;
-            border-color: #007dc1;
-            color: white;
-        }
-        
-        .btn-okta:hover, .btn-okta:focus {
-            background-color: #005a8b;
-            border-color: #005a8b;
-            color: white;
-        }
-    </style>
-    
-    <!-- Registration status check script -->
-            <script src="registration-status.js?v=20250119001"></script>
+    <script src="registration-status.js?v=20250119001"></script>
 </head>
-<body>
-    <!-- Header -->
-    <header>
-        <div class="container">
-            <div class="app-title">
-                <i class="fas fa-shield-alt"></i>
-                <h1>Warracker</h1>
+<body class="login-page-body">
+
+    <div class="login-wrapper">
+        <div class="login-showcase">
+            <div class="showcase-content">
+                <div class="showcase-logo">
+                    <i class="fas fa-shield-alt"></i>
+                    <h1>Warracker</h1>
+                </div>
+                <p class="showcase-description" data-i18n="about.description">
+                    The easiest way to organize product warranties, monitor expiration dates, and store receipts or related documents.
+                </p>
+                <ul class="showcase-features">
+                    <li><i class="fas fa-bell"></i> <span>Proactive Expiration Alerts</span></li>
+                    <li><i class="fas fa-cloud-upload-alt"></i> <span>Secure Document Storage</span></li>
+                    <li><i class="fas fa-users"></i> <span>Multi-User Support</span></li>
+                    <li><i class="fas fa-search"></i> <span>Quick Search & Filter</span></li>
+                </ul>
             </div>
         </div>
-    </header>
 
-    <!-- Main Content -->
-    <div class="container">
-        <div class="auth-container">
-            <h2 class="auth-title" data-i18n="auth.login">Login to Your Account</h2>
-            
-            <div id="authMessage" class="auth-message"></div>
-            
-            <form id="loginForm" class="auth-form">
-                <div class="form-group">
-                    <label for="username" data-i18n="auth.username">Username or Email</label>
-                    <input type="text" id="username" name="username" class="form-control" data-i18n-placeholder="auth.username" placeholder="Username or Email" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password" data-i18n="auth.password">Password</label>
-                    <div class="password-container">
-                        <input type="password" id="password" name="password" class="form-control" required>
-                        <button type="button" class="password-toggle" title="Show/Hide Password">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-block">
-                    <i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.login">Login</span>
-                </button>
-            </form>
-
-            <div style="text-align: center; margin: 20px 0; color: var(--text-muted);">
-                <hr style="border-top: 1px solid var(--border-color); margin-bottom: 10px;">
-                OR
+        <div class="login-form-container">
+            <div class="mobile-top-logo">
+                <img src="img/favicon-512x512.png" alt="Warracker">
+                <div class="mobile-top-logo-title"><span data-i18n="app_title">Warracker</span></div>
             </div>
-
-            <a href="/api/oidc/login" id="oidcLoginButton" class="btn btn-secondary btn-block" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">
-                <i class="fab fa-openid" style="margin-right: 8px;"></i> Login with SSO Provider
-            </a>
-            
-            <div class="auth-links" style="margin-top: 30px;">
-                <a href="register.html" data-i18n="auth.register">Create Account</a>
-                <a href="reset-password-request.html" data-i18n="auth.forgot_password">Forgot Password?</a>
+            <div class="auth-container">
+                <h2 class="auth-title" data-i18n="auth.login">Login</h2>
+                <div id="authMessage" class="auth-message"></div>
+                <form id="loginForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="username" data-i18n="auth.username">Username or Email</label>
+                        <div class="input-group">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" id="username" name="username" class="form-control" placeholder="e.g., yourname or email@example.com" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password" data-i18n="auth.password">Password</label>
+                        <div class="input-group">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="password" name="password" class="form-control" required>
+                            <button type="button" class="password-toggle" title="Show/Hide Password">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.login">Login</span>
+                    </button>
+                </form>
+                <div id="ssoSection" style="display: none;">
+                    <div class="separator"><span>OR</span></div>
+                    <a href="/api/oidc/login" id="oidcLoginButton" class="btn btn-secondary btn-block btn-sso" style="text-decoration: none;">
+                        <i class="fab fa-openid" style="margin-right: 8px;"></i> <span>Login with SSO Provider</span>
+                    </a>
+                </div>
+                <div class="auth-links">
+                    <a href="register.html" data-i18n="auth.create_account">Create Account</a>
+                    <a href="reset-password-request.html" data-i18n="auth.forgot_password">Forgot Password?</a>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Script for authentication -->
     <script src="auth.js?v=20250119001"></script>
-    
-    <!-- Footer Width Fix -->
-    <script src="footer-fix.js?v=20250119001"></script>
-    
-    <!-- Footer Content Manager -->
-    <script src="footer-content.js?v=20250119001"></script>
-
-    <!-- Powered by Warracker Footer -->
-    <footer class="warracker-footer" id="warrackerFooter">
-        <!-- Content will be dynamically generated by footer-content.js -->
-    </footer>
-
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Check for OIDC errors in URL parameters and display them
@@ -382,42 +147,36 @@
                 .then(response => response.json())
                 .then(data => {
                     const oidcButton = document.getElementById('oidcLoginButton');
-                    const orSeparator = document.querySelector('.auth-form + div[style*="text-align: center"]');
+                    const separator = document.querySelector('.separator');
                     const loginForm = document.getElementById('loginForm');
                     const authLinks = document.querySelector('.auth-links');
-                    
+                    const authTitle = document.querySelector('.auth-title');
+                    const ssoSection = document.getElementById('ssoSection');
+
                     if (!data.oidc_enabled) {
+                        if (ssoSection) ssoSection.style.display = 'none';
                         if (oidcButton) oidcButton.style.display = 'none';
-                        if (orSeparator) orSeparator.style.display = 'none';
+                        if (separator) separator.style.display = 'none';
                         return;
                     }
+                    
+                    // OIDC is enabled: show the SSO section
+                    if (ssoSection) ssoSection.style.display = 'block';
                     
                     // Handle OIDC-only mode
                     if (data.oidc_only_mode) {
                         // Hide traditional login form and related elements
                         if (loginForm) loginForm.style.display = 'none';
-                        if (orSeparator) orSeparator.style.display = 'none';
+                        if (separator) separator.style.display = 'none';
                         if (authLinks) {
                             // Hide register and forgot password links in OIDC-only mode
                             const registerLink = authLinks.querySelector('a[href="register.html"]');
                             const forgotPasswordLink = authLinks.querySelector('a[href="reset-password-request.html"]');
                             if (registerLink) registerLink.style.display = 'none';
                             if (forgotPasswordLink) forgotPasswordLink.style.display = 'none';
-                            
-                            // If all links are hidden, hide the entire auth-links section
-                            const visibleLinks = Array.from(authLinks.querySelectorAll('a')).filter(link => 
-                                link.style.display !== 'none'
-                            );
-                            if (visibleLinks.length === 0) {
-                                authLinks.style.display = 'none';
-                            }
                         }
-                        
                         // Update page title to reflect OIDC-only mode
-                        const authTitle = document.querySelector('.auth-title');
-                        if (authTitle) {
-                            authTitle.textContent = 'Login with SSO';
-                        }
+                        if (authTitle) authTitle.textContent = 'Login with SSO';
                     }
                     
                     // Customize button based on provider
@@ -425,7 +184,7 @@
                         const providerName = data.oidc_provider_display_name.toLowerCase();
                         let buttonText = `Login with ${data.oidc_provider_display_name}`;
                         let iconClass = 'fab fa-openid'; // Default icon
-                        let buttonClass = 'btn-secondary'; // Default class
+                        let buttonClass = 'btn-sso'; // Default class
                         
                         // Provider-specific customizations
                         switch (providerName) {
@@ -485,18 +244,22 @@
                                 break;
                         }
                         
-                        // Update button styling and content
-                        oidcButton.className = `btn ${buttonClass} btn-block`;
-                        oidcButton.innerHTML = `<i class="${iconClass}" style="margin-right: 8px;"></i> ${buttonText}`;
+                        // Update button styling and content (preserve alignment and baseline styles)
+                        const classList = ['btn', 'btn-secondary', 'btn-block', 'btn-sso'];
+                        if (buttonClass && buttonClass !== 'btn-sso') classList.push(buttonClass);
+                        oidcButton.className = classList.join(' ');
+                        oidcButton.innerHTML = `<i class="${iconClass}"></i> ${buttonText}`;
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching OIDC status:', error);
                     // Hide button on error as a safe default
                     const oidcButton = document.getElementById('oidcLoginButton');
-                    const orSeparator = document.querySelector('.auth-form + div[style*="text-align: center"]');
+                    const separator = document.querySelector('.separator');
+                    const ssoSection = document.getElementById('ssoSection');
+                    if (ssoSection) ssoSection.style.display = 'none';
                     if (oidcButton) oidcButton.style.display = 'none';
-                    if (orSeparator) orSeparator.style.display = 'none';
+                    if (separator) separator.style.display = 'none';
                 });
 
             // Toggle password visibility
@@ -514,9 +277,7 @@
             });
             
             // Handle form submission
-            const loginForm = document.getElementById('loginForm');
-            
-            loginForm.addEventListener('submit', async function(e) {
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
                 const username = document.getElementById('username').value;
@@ -530,8 +291,7 @@
                 
                 try {
                     // Show loading state
-                    const submitBtn = loginForm.querySelector('button[type="submit"]');
-                    const originalBtnText = submitBtn.innerHTML;
+                    const submitBtn = this.querySelector('button[type="submit"]');
                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
                     submitBtn.disabled = true;
                     
@@ -566,11 +326,11 @@
                     console.error('Login error:', error);
                     showMessage(error.message || 'Login failed. Please check your credentials.', 'error');
                     
-                    // Reset button state explicitly
-                    const submitBtn = loginForm.querySelector('button[type="submit"]'); // Ensure we have the button reference
+                    // Reset button state
+                    const submitBtn = this.querySelector('button[type="submit"]');
                     if (submitBtn) {
-                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login'; // Set back to original text
-                        submitBtn.disabled = false; // Re-enable the button
+                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.login">Login</span>';
+                        submitBtn.disabled = false;
                     }
                 }
             });
@@ -579,17 +339,10 @@
             function showMessage(message, type) {
                 const authMessage = document.getElementById('authMessage');
                 authMessage.textContent = message;
-                authMessage.className = 'auth-message';
-                authMessage.classList.add(type);
+                authMessage.className = 'auth-message ' + type;
                 authMessage.style.display = 'block';
             }
         });
-        
-        // Footer styling (this will be replaced by footer-fix.js but kept for compatibility)
-        function applyFooterStyles() {
-            // Footer-fix.js will handle this, but this is a fallback
-        }
-        document.addEventListener('DOMContentLoaded', applyFooterStyles);
     </script>
 </body>
 </html>

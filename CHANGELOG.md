@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.10.1.13 - 2025-09-27
+
+### Added
+- Turkish language support added to all pages (index, about, status, settings) with comprehensive translations for UI elements, messages, and system text.
+  - _Files: `locales/tr/translation.json`_
+
+### Enhanced
+- Modernized Login Page UI with a clean two-column layout (branding showcase + form), refined form controls with icons, improved separator, and provider-branded SSO button styling. Fully responsive and theme-aware (light/dark) with styles scoped to the login page only to prevent regressions elsewhere.
+  - Preserved all original element IDs and existing functionality (local login, OIDC/SSO).
+  - _Files: `frontend/login.html`, `frontend/style.css`_
+
+- Refactored Warranty Filters and Sort UI on Index Page with modern popover-based interface to declutter the main interface while preserving all functionality.
+  - **Filter/Sort Popover System:** Replaced individual filter dropdowns with clean "Filter" and "Sort" buttons that open organized popover panels containing all original filtering and sorting controls.
+  - **Data Management Consolidation:** Combined separate Import/Export buttons into a unified "Data" dropdown menu with Import and Export options.
+  - **Button Styling Unification:** Applied consistent bordered button styling with proper hover states and alignment across Filter, Sort, Data, and Tags buttons.
+  - **Responsive Layout:** Implemented flexible search row layout that wraps gracefully on smaller screens while maintaining button alignment and functionality.
+  - **Theme Compatibility:** All new UI components fully support existing light and dark themes using application CSS variables.
+  - **Zero-Impact Implementation:** Changes strictly limited to `frontend/index.html` and `frontend/style.css` with all original element IDs preserved for JavaScript compatibility.
+  - _Files: `frontend/index.html`, `frontend/style.css`_
+
+- Persisted Filters, Sort, and Indicator Across Sessions:
+  - Saves Status, Tag, Vendor, and Warranty Type filters and Sort selection to localStorage (user-specific prefix) on Apply/change and restores them on load.
+  - Filter indicator (green dot) now reflects persisted state across navigations and reloads.
+  - _Files: `frontend/index.html`, `frontend/script.js`_
+
+- Tag Management and Live Updates:
+  - Auto-save color changes in Manage Tags; changes persist immediately without Edit/Save.
+  - Live UI refresh after tag create/update/delete; tag lists, selections, filters, and warranty cards update without page reload.
+  - CSV import now refreshes the tags list to include any newly created tags.
+  - _Files: `frontend/script.js`_
+
+- Modern Tag Management Modal UI:
+  - `renderExistingTags`: Builds a table with Color, Name, Actions; rows include display spans and hidden inputs to enable inline editing.
+  - `addTagManagementEventListeners`: Delegated handlers for edit, save, cancel, delete, and color changes; attached once per modal open to avoid duplicates.
+  - `editTag`: Toggles the row into inline edit mode by showing inputs and swapping action groups.
+  - `updateTag`: Performs API update; on success, reloads tags and re-renders the modal and dependent UIs (selected tags, filters, warranty cards), then toasts success. `openTagManagementModal` ensures listeners are present.
+  - Styles: Appended “MODERN TAG MANAGEMENT MODAL STYLES” for the table, hover states, color swatch with hidden color input, inline name input, and action groups; uses CSS variables for light/dark compatibility.
+  - Scope/Safety: Changes are confined to the tag management modal UI; CRUD flows preserved. On update/delete, the modal, tags in forms, filter dropdowns, and warranty cards re-render appropriately.
+  - Test: Open Manage Tags to see the table; Edit toggles inline fields; Save updates via API; Cancel restores values; color swatch opens native picker and updates preview; Delete prompts and removes; Create adds rows; all changes reflect on cards and in filters; verify responsiveness and dark theme.
+  - _Files: `frontend/script.js`, `frontend/style.css`_
+
+- Mobile view: Filter/Sort label compaction on small screens
+  - Auto-hide Filter and Sort button text up to 425px (icons-only) to preserve space without changing behavior or popover anchoring.
+  - _Files: `frontend/mobile-header.css`_
+  - 3-row mobile layout: Row 1 is Search (full-width); Row 2 groups Filter | Sort | Data; Row 3 places Tags | View | Scope for better usability on narrow screens.
+  - _Files: `frontend/mobile-header.css`_
+
+### Added
+- Mobile logo and title: On screens ≤768px, a centered Warracker logo with the “Warracker” label is displayed above the login form for better brand presence.
+  - _Files: `frontend/login.html`, `frontend/style.css`_
+
+- Non-Destructive Warranty Archive: Allow users to archive old/expired warranties without deleting data. Archived items are hidden from the default lists and can be viewed via an explicit Archived filter.
+  - Default behavior preserved: main endpoints continue to return only non-archived warranties; no UX change unless Archived filter is selected.
+  - Reversible: users can unarchive items to return them to the main list.
+  - Soft delete only: implemented via `archived_at` timestamp; no DELETEs performed for this feature.
+  - API:
+    - New `GET /api/warranties/archived` (user scope) to fetch archived warranties.
+    - New `PATCH /api/warranties/{id}/archive` with body `{ "archived": true|false }` to toggle archive state.
+    - Existing `GET /api/warranties` updated to exclude archived; global and admin listing endpoints also exclude archived by default.
+  - Database: migration adds nullable `archived_at` column with partial index (`WHERE archived_at IS NULL`).
+  - Notifications: expiring-warranty notifications ignore archived warranties.
+  - Frontend:
+    - Added “Archived” to Status filter; selecting it loads the archived endpoint.
+    - Archive/Unarchive buttons on cards (Edit disabled in archived view). Bottom status row shows “Archived”.
+    - Neutral archived styling (top header and card accents use gray; avoids red/green/orange).
+  - _Files: `backend/migrations/045_add_archived_at_to_warranties.sql`, `backend/warranties_routes.py`, `backend/notifications.py`, `frontend/index.html`, `frontend/script.js`, `frontend/style.css`_
+
+### Fixed
+- Dark mode input visibility: Username/password text and caret now use theme text colors; placeholders use appropriate contrast in both themes.
+- SSO button alignment: Preserved baseline `btn-sso` alignment class while applying provider-specific classes (e.g., Google, GitHub) to keep the button centered and branded.
+- i18n safety: Mapped showcase description to existing translation keys to avoid missing-translation warnings.
+- Mobile usability: Re-enabled scrolling and adjusted spacing to ensure the page fits better on small screens; limited the mobile logo to ≤768px and stacked it above the form.
+  - _Files: `frontend/login.html`, `frontend/style.css`_
+
+- Resolved JavaScript error “Identifier 'isArchivedView' has already been declared” that prevented warranty loading after introducing the Archived filter.
+  - Removed duplicate `const isArchivedView` declaration and streamlined archived-data loading flow.
+  - _Files: `frontend/script.js`_
+
+ - Dark mode navigation consistency (mobile and desktop): unify `.nav-link` hover/active backgrounds across pages so Status behaves like Home when dark mode is enabled.
+  - _Files: `frontend/header-fix.css`_
+
+ - Localization and i18n completeness:
+   - Added empty-archive messages: `messages.no_warranties_found`, `messages.no_warranties_found_add_first` (English base + propagated to all locales) to prevent raw keys.
+   - Added missing Claims section keys to all locales (English placeholders where needed).
+   - Fixed Italian placeholder to use `{{days}} {{dayText}}` for `warranties.days_remaining`.
+   - Added missing `warranty_period` in Czech.
+   - Updated language lists: added `ko` to Portuguese and Japanese.
+   - _Files: `locales/en/translation.json`, `locales/fr/translation.json`, `locales/es/translation.json`, `locales/de/translation.json`, `locales/it/translation.json`, `locales/nl/translation.json`, `locales/cs/translation.json`, `locales/pt/translation.json`, `locales/ru/translation.json`, `locales/uk/translation.json`, `locales/zh_CN/translation.json`, `locales/zh_HK/translation.json`, `locales/ja/translation.json`, `locales/ko/translation.json`, `locales/ar/translation.json`, `locales/fa/translation.json`, `locales/hi/translation.json`_
+
+
+
 ## 0.10.1.12 - 2025-09-18
 
 ### Fixed

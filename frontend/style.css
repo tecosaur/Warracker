@@ -110,6 +110,15 @@
   box-sizing: border-box;
 }
 
+/* Responsive media defaults */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
 :root[data-theme="dark"] {
   --bg-color: #1a1a1a;
   --card-bg: #2d2d2d;
@@ -198,6 +207,18 @@ body {
   padding: 20px;
 }
 
+@media (max-width: 425px) {
+  .container { padding: 12px; }
+}
+
+@media (max-width: 375px) {
+  .container { padding: 10px; }
+}
+
+@media (max-width: 320px) {
+  .container { padding: 8px; }
+}
+
 /* ===== HEADER ===== */
 header {
   background-color: var(--card-bg);
@@ -240,6 +261,18 @@ header .container {
   .main-content {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 425px) {
+  .panel-header h2 { font-size: 1.25rem; }
+}
+
+@media (max-width: 375px) {
+  .panel-header h2 { font-size: 1.15rem; }
+}
+
+@media (max-width: 320px) {
+  .panel-header h2 { font-size: 1.05rem; }
 }
 
 /* ===== FORM PANEL ===== */
@@ -719,6 +752,14 @@ input.invalid {
   /* height: auto; */ /* Remove to allow grid stretch */
 }
 
+@media (max-width: 375px) {
+  .warranty-card { border-radius: 6px; }
+}
+
+@media (max-width: 320px) {
+  .warranty-card { border-radius: 4px; }
+}
+
 .warranty-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
@@ -736,6 +777,17 @@ input.invalid {
   border-left: 4px solid var(--secondary-color);
 }
 
+/* Neutral styling for archived view */
+.archived-view .warranty-card {
+  border-left: 4px solid var(--medium-gray);
+}
+
+.table-view.archived-view .warranty-card,
+.archived-view .table-view .warranty-card {
+  border-left: none;
+  background-color: rgba(128, 128, 128, 0.08);
+}
+
 .warranty-header {
   display: flex;
   justify-content: space-between;
@@ -744,6 +796,11 @@ input.invalid {
   background-color: rgba(0, 0, 0, 0.03);
   border-bottom: 1px solid var(--border-color);
   position: relative;
+}
+
+/* Neutralize header background in archived view */
+.archived-view .warranty-card .warranty-header {
+  background-color: rgba(128, 128, 128, 0.06);
 }
 
 .warranty-title {
@@ -894,8 +951,8 @@ input.invalid {
   background-color: var(--modal-background, #ffffff) !important;
   border-radius: 8px !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
-  width: 90% !important;
-  max-width: 600px !important;
+  width: 92% !important;
+  max-width: 560px !important;
   max-height: 90vh !important;
   display: flex !important;
   flex-direction: column !important;
@@ -910,7 +967,7 @@ input.invalid {
   position: relative !important; /* Override fixed positioning */
   top: auto !important; /* Remove top positioning */
   left: auto !important; /* Remove left positioning */
-  width: 90% !important; /* Set proper width */
+  width: 92% !important; /* Set proper width */
   height: auto !important; /* Set auto height */
   background-color: var(--modal-background, #ffffff) !important;
   margin: 0 !important; /* Remove conflicting margins */
@@ -987,6 +1044,94 @@ input.invalid {
   overflow-y: auto; /* Enable vertical scroll */
   flex-grow: 1; /* Allow body to take available space */
   background-color: var(--card-bg); /* Ensure background */
+}
+/* Mobile-friendly layout for Manage Tags */
+@media (max-width: 600px) {
+  #tagManagementModal .modal {
+    width: 96% !important;
+    max-width: 520px !important;
+    border-radius: 10px !important;
+  }
+  #tagManagementModal .modal-header,
+  #tagManagementModal .modal-footer {
+    padding: 12px !important;
+  }
+  #tagManagementModal .modal-title {
+    font-size: 1.05rem !important;
+  }
+  #tagManagementModal .modal-body {
+    padding: 12px !important;
+  }
+  #tagManagementModal .tag-form {
+    display: grid !important;
+    grid-template-columns: 1fr auto auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  #tagManagementModal .tag-form .form-control { width: 100% !important; }
+  #tagManagementModal .tag-form input[type="color"] {
+    width: 42px !important;
+    height: 36px !important;
+    padding: 0 !important;
+    border-radius: 6px !important;
+  }
+  #tagManagementModal .tag-form .btn {
+    height: 36px !important;
+    padding: 6px 10px !important;
+    white-space: nowrap !important;
+  }
+  #tagManagementModal h4 { margin-top: 14px !important; }
+  #existingTags {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+}
+
+/* Medium mobile (≤425px): tighten Manage Tags layout */
+@media (max-width: 425px) {
+  #tagManagementModal .modal { width: 96% !important; }
+  #tagManagementModal .modal-title { font-size: 1.05rem !important; }
+  #tagManagementModal .modal-body { padding: 12px !important; }
+  #existingTags { grid-template-columns: 1fr !important; }
+  .tag-management-table { font-size: 0.92rem !important; }
+  .tag-management-table th, .tag-management-table td { padding: 8px 10px !important; white-space: normal !important; word-break: break-word !important; }
+  .tag-actions .btn { padding: 5px 8px !important; }
+  .tag-color-swatch { width: 26px !important; height: 26px !important; }
+
+  /* Card-style rows: prevent horizontal scroll and keep actions visible */
+  .tag-management-table thead { display: none !important; }
+  .tag-management-table { border-collapse: separate !important; border-spacing: 0 !important; }
+  .tag-management-table tr { display: block !important; width: 100% !important; border: 1px solid var(--border-color) !important; border-radius: 8px !important; margin-bottom: 10px !important; padding: 10px !important; }
+  .tag-management-table td { display: block !important; width: 100% !important; border: none !important; padding: 6px 0 !important; }
+  .tag-name-input, .tag-name-display { width: 100% !important; }
+  .tag-actions { display: flex !important; justify-content: flex-end !important; gap: 8px !important; margin-top: 6px !important; }
+  /* Only show edit-actions when row is in editing state */
+  .tag-actions .view-actions { display: flex !important; gap: 8px !important; justify-content: flex-end !important; }
+  .tag-actions .edit-actions { display: none !important; }
+  .existing-tag-row.editing .tag-actions .edit-actions { display: flex !important; }
+  .existing-tag-row.editing .tag-actions .view-actions { display: none !important; }
+}
+
+@media (max-width: 380px) {
+  #tagManagementModal .tag-form {
+    grid-template-columns: 1fr auto !important;
+    grid-auto-rows: minmax(36px, auto) !important;
+  }
+  #tagManagementModal .tag-form input[type="color"] { grid-column: 2 / 3 !important; }
+  #tagManagementModal .tag-form .btn { grid-column: 1 / -1 !important; }
+  #existingTags { grid-template-columns: 1fr !important; }
+}
+
+/* 375px medium mobile tuning for Manage Tags */
+@media (max-width: 375px) {
+  #tagManagementModal .modal { width: 96% !important; }
+  #tagManagementModal .modal-title { font-size: 1rem !important; }
+  #tagManagementModal .modal-body { padding: 10px !important; }
+  .tag-management-table th, .tag-management-table td { padding: 8px 10px !important; }
+  .tag-actions .btn { padding: 5px 8px !important; }
+  .tag-color-swatch { width: 26px !important; height: 26px !important; }
+  #existingTags { grid-template-columns: 1fr !important; }
 }
 
 .modal-footer {
@@ -1987,7 +2132,8 @@ input.invalid {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  flex-wrap: wrap;
+  /* Keep a single row on desktop */
+  flex-wrap: nowrap;
   justify-content: flex-start;
 }
 
@@ -2067,12 +2213,176 @@ input.invalid {
   margin-bottom: 0;
 }
 
+/* Bottom action bar layout: align scope to bottom-right */
+.filter-options .action-bar {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+}
+
 .filter-group {
   display: flex;
   flex-direction: column;
   flex: 1 1 160px;
   min-width: 140px;
   max-width: 220px;
+}
+
+/* --- Popover UI for Filter / Sort / Data --- */
+.filter-sort-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+/* Generic popover container (hidden by default) */
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  display: none;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  z-index: 1000;
+  min-width: 220px;
+}
+
+.popover.active {
+  display: block;
+}
+
+/* List styling inside Sort/Data menus */
+.sort-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sort-options li {
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: var(--border-radius);
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.sort-options li:hover {
+  background-color: var(--light-gray);
+}
+
+.sort-options li.active {
+  background-color: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+/* Small active filter indicator next to Filter button */
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--secondary-color);
+  margin-left: 6px;
+  display: inline-block;
+}
+
+/* Ensure Data menu positions relative to its trigger */
+.data-dropdown {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .popover {
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
+}
+
+/* --- Unify action buttons inside filter-controls (Filter / Sort / Data / Tags) --- */
+.filter-controls .action-btn {
+  width: auto;
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.filter-controls .action-btn i {
+  font-size: 0.95rem;
+}
+
+.filter-controls .action-btn:hover {
+  background-color: var(--light-gray);
+  color: var(--primary-color);
+}
+
+/* Make the Tags button match the same chip style within filter-controls */
+.filter-controls #globalManageTagsBtn {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  height: 36px;
+  padding: 6px 10px;
+  line-height: 1.2;
+}
+
+.filter-controls #globalManageTagsBtn:hover {
+  background-color: var(--light-gray);
+  color: var(--primary-color);
+  transform: none; /* prevent hover shrink/lift inherited from .export-btn */
+}
+
+.filter-controls #globalManageTagsBtn i {
+  font-size: 0.95rem; /* match other action buttons */
+}
+
+/* --- Modernized actions inside filter popover --- */
+.popover-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.popover .btn {
+  padding: 8px 14px;
+  font-size: 0.92rem;
+  border-radius: 10px;
+  width: auto;
+}
+
+.popover .btn-secondary {
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.popover .btn-secondary:hover {
+  background-color: var(--light-gray);
+}
+
+.popover .btn-primary {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.25);
+}
+
+.popover .btn-primary:hover {
+  filter: brightness(1.02);
 }
 
 @media (max-width: 900px) {
@@ -2090,6 +2400,23 @@ input.invalid {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    flex-wrap: wrap;
+  }
+  .filter-sort-container {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  /* Ensure secondary actions (Data, Tags, View, Scope) wrap nicely on tablets/phones */
+  .search-container .secondary-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .filter-sort-container .action-btn,
+  .data-dropdown > .action-btn,
+  #globalManageTagsBtn {
+    width: 100%;
   }
   .search-box {
     min-width: 0;
@@ -2104,6 +2431,45 @@ input.invalid {
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+}
+
+/* Tablet-only override: keep Data, Tags, View, Scope inline (600px–768px) */
+@media (min-width: 600px) and (max-width: 768px) {
+  .search-container .secondary-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  .filter-sort-container .action-btn,
+  .data-dropdown > .action-btn,
+  #globalManageTagsBtn,
+  .search-container .export-btn,
+  .search-container .import-btn {
+    width: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+}
+
+/* Desktop layout: keep only Search + Filter + Sort on first row; move others to second row */
+@media (min-width: 769px) {
+  .filter-controls .search-container { flex-wrap: wrap; }
+  /* First group: search box and filter/sort */
+  .filter-controls .search-box { flex: 1 1 0; min-width: 320px; max-width: none; }
+  .filter-controls .filter-sort-container { flex: 0 0 auto; min-width: 0; }
+  /* Second group container (Data, Tags, View, Scope) should break to new line and span full width */
+  .filter-controls .search-container .secondary-actions {
+    flex: 0 0 100%;
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: center;
   }
 }
 
@@ -2152,7 +2518,7 @@ input.invalid {
 
 #globalManageTagsBtn:hover {
   background-color: #27ae60;
-  transform: translateY(-1px);
+  transform: none; /* override any class-based transforms */
 }
 
 #globalManageTagsBtn i {
@@ -2165,6 +2531,9 @@ input.invalid {
   margin-bottom: 0;
   display: flex;
   align-items: center;
+  /* Keep search width consistent regardless of Scope dropdown visibility */
+  flex: 1 1 0;
+  max-width: none;
 }
 
 .filter-controls .search-box i {
@@ -2199,6 +2568,26 @@ input.invalid {
     min-width: 0;
     max-width: none;
   }
+}
+
+/* Extra-small mobile adjustments for 425px, 375px, 320px */
+@media (max-width: 425px) {
+  .filter-controls .action-btn { height: 38px; padding: 6px 8px; }
+  .filter-sort-container { gap: 8px; }
+  .panel-header-actions { width: 100%; justify-content: space-between; }
+}
+
+@media (max-width: 375px) {
+  .filter-controls .action-btn span { display: none; }
+  .filter-controls .action-btn { gap: 4px; }
+  #globalManageTagsBtn { min-width: 0; width: 100%; }
+}
+
+@media (max-width: 320px) {
+  .filter-sort-container { gap: 6px; }
+  .filter-controls .action-btn i { font-size: 0.9rem; }
+  .search-box { height: 40px; }
+  .search-btn, .clear-search-btn { font-size: 1rem; }
 }
 
 .filter-options {
@@ -2472,6 +2861,21 @@ input.invalid {
   align-items: stretch; /* Explicitly set to ensure equal heights */
 }
 
+/* Grid responsiveness: ensure cards fit smaller screens */
+@media (max-width: 768px) {
+  .warranties-list.grid-view {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .warranties-list.grid-view {
+    grid-template-columns: 1fr; /* Single column on phones */
+    gap: 12px;
+  }
+}
+
 /* Make cards in grid view dynamic height based on content */
 .grid-view .warranty-card {
   display: flex;
@@ -2655,6 +3059,118 @@ input.invalid {
   width: auto; /* Allow natural width */
 }
 
+/* === MODERN TAG MANAGEMENT MODAL STYLES === */
+#tagManagementModal .modal-body {
+  padding: 20px;
+}
+
+.tag-management-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+/* Make wide tables usable on small screens */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .tag-management-table th,
+  .tag-management-table td {
+    padding: 8px 10px;
+    white-space: nowrap; /* avoid awkward wrapping; let container scroll */
+  }
+}
+
+.tag-management-table th, .tag-management-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.tag-management-table th {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tag-management-table .tag-color-header {
+  width: 80px;
+}
+
+.tag-management-table .tag-actions-header {
+  width: 120px;
+  text-align: center;
+}
+
+.existing-tag-row:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.tag-color-swatch-container {
+  position: relative;
+  width: 30px;
+  height: 30px;
+}
+
+.tag-color-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.tag-color-swatch:hover {
+  transform: scale(1.1);
+}
+
+.tag-color-input-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tag-name-display {
+  font-weight: 500;
+}
+
+.tag-name-input {
+  display: none;
+  width: 100%;
+}
+
+.tag-actions {
+  text-align: center;
+}
+
+.tag-actions .btn {
+  padding: 6px 10px;
+}
+
+.tag-actions .edit-actions {
+  display: none;
+  gap: 8px;
+  justify-content: center;
+}
+
+.no-tags {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+}
+
 .table-view .document-links-row a:last-child {
   /* margin-bottom: 0 !important; */ /* Not needed */
 }
@@ -2762,6 +3278,25 @@ input.invalid {
     width: 100%;
     padding: 12px 15px;
   }
+
+  /* Tighten paddings at smaller phones */
+  @media (max-width: 425px) {
+    .table-view .warranty-content,
+    .table-view .warranty-status-row,
+    .table-view .document-links-row { padding: 10px 12px; }
+  }
+
+  @media (max-width: 375px) {
+    .table-view .warranty-content,
+    .table-view .warranty-status-row,
+    .table-view .document-links-row { padding: 8px 10px; }
+  }
+
+  @media (max-width: 320px) {
+    .table-view .warranty-content,
+    .table-view .warranty-status-row,
+    .table-view .document-links-row { padding: 6px 8px; }
+  }
   
   .table-view .warranty-status-row {
     text-align: center;
@@ -2849,6 +3384,14 @@ input.invalid {
   position: relative;
 }
 
+@media (max-width: 375px) {
+  .product-name-header { padding: 12px; }
+}
+
+@media (max-width: 320px) {
+  .product-name-header { padding: 10px; }
+}
+
 /* Default color for active warranties */
 .warranty-card .product-name-header {
   background-color: var(--secondary-color);
@@ -2862,6 +3405,37 @@ input.invalid {
 /* Color for expired warranties */
 .warranty-card.expired .product-name-header {
   background-color: var(--danger-color);
+}
+
+/* Neutralize top header bar in archived view (all layouts) */
+.archived-view .warranty-card .product-name-header {
+  background-color: var(--medium-gray) !important;
+  color: var(--text-color);
+}
+
+/* Ensure table view also stays neutral in archived view */
+.archived-view.table-view .warranty-card .product-name-header,
+.archived-view .table-view .warranty-card .product-name-header {
+  background-color: rgba(128, 128, 128, 0.12) !important;
+  color: var(--text-color);
+}
+
+/* Ensure heading text and action icons are readable in archived view */
+.archived-view .warranty-card .product-name-header .warranty-title {
+  color: var(--text-color) !important;
+}
+
+.archived-view .warranty-card .warranty-actions .action-btn {
+  color: var(--text-color) !important;
+}
+
+.archived-view .warranty-card .warranty-actions .action-btn:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+  color: var(--text-color) !important;
+}
+
+:root[data-theme="dark"] .archived-view .warranty-card .warranty-actions .action-btn:hover {
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .product-name-header .warranty-title {
@@ -3101,6 +3675,11 @@ input.invalid {
 .warranty-status-row.status-expired {
   background-color: rgba(220, 53, 69, 0.1);
   color: var(--danger-color);
+}
+
+.warranty-status-row.status-archived {
+  background-color: rgba(128, 128, 128, 0.12);
+  color: var(--dark-gray);
 }
 
 /* List view status row styling */
@@ -4835,5 +5414,416 @@ html.dark-mode .warracker-footer a:hover {
     }
     100% {
         box-shadow: 0 0 0 0 rgba(155, 89, 182, 0);
+    }
+}
+
+/* === MODERN LOGIN PAGE STYLES === */
+
+.login-page-body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    background-color: var(--bg-color);
+    min-height: 100vh;
+}
+
+.login-wrapper {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+}
+
+.login-showcase {
+    flex-basis: 50%;
+    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.9), rgba(var(--primary-rgb), 0.7)), url('https://images.unsplash.com/photo-1586920740199-47ce3734a7a2?q=80&w=2070&auto=format&fit=crop') no-repeat center center;
+    background-size: cover;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    text-align: left;
+}
+
+.showcase-content {
+    max-width: 450px;
+}
+
+.showcase-logo {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.showcase-logo i {
+    font-size: 3rem;
+    margin-right: 15px;
+}
+
+.showcase-logo h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+}
+
+.showcase-description {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    opacity: 0.9;
+}
+
+.showcase-features {
+    list-style: none;
+    padding: 0;
+}
+
+.showcase-features li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 1rem;
+    opacity: 0.95;
+}
+
+.showcase-features i {
+    width: 20px;
+    margin-right: 12px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.login-form-container {
+    flex-basis: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    overflow: visible;
+    background-color: var(--card-bg);
+}
+
+.login-form-container .auth-container {
+    max-width: 400px;
+    width: 100%;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+}
+
+.login-page-body .auth-title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.login-page-body .input-group {
+    position: relative;
+}
+
+.login-page-body .input-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--dark-gray);
+    transition: color 0.2s ease;
+}
+
+.login-page-body .form-control:focus + .input-icon,
+.login-page-body .input-group:focus-within .input-icon {
+    color: var(--primary-color);
+}
+
+.login-page-body .auth-form .form-control {
+    padding-left: 45px;
+    height: 50px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-color);
+    caret-color: var(--text-color);
+}
+
+.login-page-body .auth-form .form-control::placeholder {
+    color: var(--dark-gray);
+    opacity: 0.8;
+}
+
+.login-page-body .auth-form .password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--dark-gray);
+    cursor: pointer;
+}
+
+.login-page-body .separator {
+    text-align: center;
+    margin: 25px 0;
+    color: var(--dark-gray);
+    display: flex;
+    align-items: center;
+}
+.login-page-body .separator::before, .login-page-body .separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border-color);
+}
+.login-page-body .separator span {
+    padding: 0 10px;
+    font-size: 0.9rem;
+}
+
+.login-page-body .btn-sso {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.login-page-body .btn-sso i {
+    font-size: 1.2rem;
+}
+
+/* Hidden by default; shown only on small screens */
+.login-page-body .mobile-top-logo {
+    display: none;
+}
+
+/* Login page message and links */
+.login-page-body .auth-message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    display: none;
+}
+.login-page-body .auth-message.error {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+.login-page-body .auth-message.success {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.login-page-body .auth-links {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 0.9em;
+}
+.login-page-body .auth-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    margin: 0 10px;
+}
+.login-page-body .auth-links a:hover {
+    text-decoration: underline;
+}
+
+/* Provider-specific SSO button styles for modern login */
+.login-page-body .btn-google {
+    background-color: #4285f4;
+    border-color: #4285f4;
+    color: white;
+}
+
+.login-page-body .btn-google:hover, .login-page-body .btn-google:focus {
+    background-color: #357ae8;
+    border-color: #357ae8;
+    color: white;
+}
+
+.login-page-body .btn-github {
+    background-color: #333;
+    border-color: #333;
+    color: white;
+}
+
+.login-page-body .btn-github:hover, .login-page-body .btn-github:focus {
+    background-color: #24292e;
+    border-color: #24292e;
+    color: white;
+}
+
+.login-page-body .btn-microsoft {
+    background-color: #0078d4;
+    border-color: #0078d4;
+    color: white;
+}
+
+.login-page-body .btn-microsoft:hover, .login-page-body .btn-microsoft:focus {
+    background-color: #106ebe;
+    border-color: #106ebe;
+    color: white;
+}
+
+.login-page-body .btn-facebook {
+    background-color: #1877f2;
+    border-color: #1877f2;
+    color: white;
+}
+
+.login-page-body .btn-facebook:hover, .login-page-body .btn-facebook:focus {
+    background-color: #166fe5;
+    border-color: #166fe5;
+    color: white;
+}
+
+.login-page-body .btn-twitter {
+    background-color: #1da1f2;
+    border-color: #1da1f2;
+    color: white;
+}
+
+.login-page-body .btn-twitter:hover, .login-page-body .btn-twitter:focus {
+    background-color: #0d95e8;
+    border-color: #0d95e8;
+    color: white;
+}
+
+.login-page-body .btn-linkedin {
+    background-color: #0077b5;
+    border-color: #0077b5;
+    color: white;
+}
+
+.login-page-body .btn-linkedin:hover, .login-page-body .btn-linkedin:focus {
+    background-color: #005885;
+    border-color: #005885;
+    color: white;
+}
+
+.login-page-body .btn-apple {
+    background-color: #000;
+    border-color: #000;
+    color: white;
+}
+
+.login-page-body .btn-apple:hover, .login-page-body .btn-apple:focus {
+    background-color: #333;
+    border-color: #333;
+    color: white;
+}
+
+.login-page-body .btn-discord {
+    background-color: #5865f2;
+    border-color: #5865f2;
+    color: white;
+}
+
+.login-page-body .btn-discord:hover, .login-page-body .btn-discord:focus {
+    background-color: #4752c4;
+    border-color: #4752c4;
+    color: white;
+}
+
+.login-page-body .btn-gitlab {
+    background-color: #fca326;
+    border-color: #fca326;
+    color: white;
+}
+
+.login-page-body .btn-gitlab:hover, .login-page-body .btn-gitlab:focus {
+    background-color: #fc9403;
+    border-color: #fc9403;
+    color: white;
+}
+
+.login-page-body .btn-bitbucket {
+    background-color: #0052cc;
+    border-color: #0052cc;
+    color: white;
+}
+
+.login-page-body .btn-bitbucket:hover, .login-page-body .btn-bitbucket:focus {
+    background-color: #0047b3;
+    border-color: #0047b3;
+    color: white;
+}
+
+.login-page-body .btn-keycloak {
+    background-color: #4d4d4d;
+    border-color: #4d4d4d;
+    color: white;
+}
+
+.login-page-body .btn-keycloak:hover, .login-page-body .btn-keycloak:focus {
+    background-color: #333;
+    border-color: #333;
+    color: white;
+}
+
+.login-page-body .btn-okta {
+    background-color: #007dc1;
+    border-color: #007dc1;
+    color: white;
+}
+
+.login-page-body .btn-okta:hover, .login-page-body .btn-okta:focus {
+    background-color: #005a8b;
+    border-color: #005a8b;
+    color: white;
+}
+
+[data-theme="dark"] .login-page-body .login-showcase {
+    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.8), #1a1a1a 85%), url('https://images.unsplash.com/photo-1586920740199-47ce3734a7a2?q=80&w=2070&auto=format&fit=crop') no-repeat center center;
+    background-size: cover;
+}
+
+[data-theme="dark"] .login-page-body .auth-form .form-control {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .login-page-body .auth-form .form-control::placeholder {
+    color: var(--medium-gray);
+}
+
+@media (max-width: 992px) {
+    .login-page-body .login-showcase {
+        display: none;
+    }
+    .login-page-body .login-form-container {
+        flex-basis: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-page-body .login-form-container {
+        padding: 16px;
+    }
+    .login-page-body .auth-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* Mobile top logo for small screens */
+@media (max-width: 768px) {
+    .login-page-body .login-form-container {
+        flex-direction: column;
+        align-items: center;
+        padding-bottom: 32px;
+    }
+    .login-page-body .mobile-top-logo {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0 10px 0;
+        flex-direction: column;
+    }
+    .login-page-body .mobile-top-logo img {
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 16px;
+    }
+    .login-page-body .mobile-top-logo-title {
+        margin-top: 6px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-color);
     }
 }

@@ -7,7 +7,7 @@
 window.i18n = {};
 
 // Supported languages
-const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'cs', 'nl', 'hi', 'fa', 'ar', 'ru', 'uk', 'zh_CN', 'zh_HK', 'ja', 'pt', 'ko'];
+const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'cs', 'nl', 'hi', 'fa', 'ar', 'ru', 'uk', 'zh_CN', 'zh_HK', 'ja', 'pt', 'ko', 'tr'];
 const DEFAULT_LANGUAGE = 'en';
 const RTL_LANGUAGES = ['ar', 'fa']; // Arabic and Persian are RTL languages
 
@@ -131,17 +131,24 @@ async function initializeI18n() {
  * Load translations for a specific language
  */
 async function loadTranslations(language) {
+    console.log(`loadTranslations called for language: ${language}`);
     const translations = {};
     
     try {
         // Load primary language
-        const response = await fetch(`/locales/${language}/translation.json?v=${Date.now()}`);
+        const url = `/locales/${language}/translation.json?v=${Date.now()}`;
+        console.log(`Fetching translations from: ${url}`);
+        const response = await fetch(url);
+        console.log(`Fetch response status: ${response.status} for language: ${language}`);
+        
         if (response.ok) {
             const data = await response.json();
             translations[language] = { translation: data };
-            console.log(`Loaded translations for ${language}:`, Object.keys(data).slice(0, 5));
+            const keyCount = Object.keys(data).length;
+            console.log(`Successfully loaded ${keyCount} translation keys for ${language}:`, Object.keys(data).slice(0, 5));
         } else {
             console.warn(`Failed to load translations for ${language}, status: ${response.status}`);
+            console.warn(`Response text:`, await response.text().catch(() => 'Could not read response text'));
         }
     } catch (error) {
         console.error(`Error loading translations for ${language}:`, error);
@@ -150,17 +157,23 @@ async function loadTranslations(language) {
     // Always load fallback language if different
     if (language !== DEFAULT_LANGUAGE) {
         try {
-            const fallbackResponse = await fetch(`/locales/${DEFAULT_LANGUAGE}/translation.json?v=${Date.now()}`);
+            const fallbackUrl = `/locales/${DEFAULT_LANGUAGE}/translation.json?v=${Date.now()}`;
+            console.log(`Loading fallback language from: ${fallbackUrl}`);
+            const fallbackResponse = await fetch(fallbackUrl);
+            console.log(`Fallback fetch response status: ${fallbackResponse.status}`);
+            
             if (fallbackResponse.ok) {
                 const fallbackData = await fallbackResponse.json();
                 translations[DEFAULT_LANGUAGE] = { translation: fallbackData };
-                console.log(`Loaded fallback translations for ${DEFAULT_LANGUAGE}`);
+                const fallbackKeyCount = Object.keys(fallbackData).length;
+                console.log(`Loaded ${fallbackKeyCount} fallback translation keys for ${DEFAULT_LANGUAGE}`);
             }
         } catch (error) {
             console.error(`Error loading fallback translations:`, error);
         }
     }
     
+    console.log(`loadTranslations completed. Languages loaded: ${Object.keys(translations)}`);
     return translations;
 }
 
@@ -168,6 +181,18 @@ async function loadTranslations(language) {
  * Get current language from storage or user preferences
  */
 function getCurrentLanguage() {
+    // URL override (e.g., ?lang=tr)
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const urlLang = params.get('lang');
+        if (urlLang && SUPPORTED_LANGUAGES.includes(urlLang)) {
+            setCookie('lang', urlLang, 365);
+            localStorage.setItem('preferred_language', urlLang);
+            return urlLang;
+        }
+    } catch (e) {
+        // Ignore URL parsing errors and continue
+    }
     // Check cookie first
     const cookieLang = getCookie('lang');
     if (cookieLang && SUPPORTED_LANGUAGES.includes(cookieLang)) {
@@ -195,31 +220,40 @@ function getCurrentLanguage() {
  * Change language and persist preference
  */
 async function changeLanguage(language) {
+    console.log('changeLanguage called with:', language);
+    
     if (!SUPPORTED_LANGUAGES.includes(language)) {
         console.warn('Unsupported language:', language);
         return;
     }
     
     try {
+        console.log('Loading translations for language:', language);
         // Load translations for the new language
         const translations = await loadTranslations(language);
+        console.log('Translations loaded:', Object.keys(translations));
         
         // Add new language resources to i18next
         for (const [lng, resources] of Object.entries(translations)) {
+            console.log('Adding resource bundle for language:', lng);
             i18next.addResourceBundle(lng, 'translation', resources.translation, true, true);
         }
         
         // Change language in i18next
+        console.log('Changing i18next language to:', language);
         await i18next.changeLanguage(language);
+        console.log('i18next language changed successfully to:', i18next.language);
         
         // Persist to cookie and localStorage
         setCookie('lang', language, 365);
         localStorage.setItem('preferred_language', language);
+        console.log('Language preference saved to cookie and localStorage:', language);
         
         // Update user preference in backend if authenticated
         if (localStorage.getItem('auth_token')) {
             try {
                 await saveLanguagePreference(language);
+                console.log('Language preference saved to backend');
             } catch (error) {
                 console.warn('Failed to save language preference to backend:', error);
             }
@@ -227,9 +261,11 @@ async function changeLanguage(language) {
         
         // Dispatch event for other components
         window.dispatchEvent(new CustomEvent('languageChanged', { detail: { language } }));
+        console.log('languageChanged event dispatched for:', language);
         
     } catch (error) {
         console.error('Failed to change language:', error);
+        throw error; // Re-throw to let calling code handle it
     }
 }
 
@@ -240,7 +276,7 @@ async function saveLanguagePreference(language) {
     const token = localStorage.getItem('auth_token');
     if (!token) return;
     
-    const response = await fetch('/api/user/language-preference', {
+    const response = await fetch('/api/auth/user/language-preference', {
         method: 'PUT',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -271,20 +307,37 @@ function translatePage() {
     
     // Translate elements with data-i18n attribute
     document.querySelectorAll('[data-i18n]').forEach(element => {
-        const key = element.getAttribute('data-i18n');
-        const translation = window.i18n.t(key);
+        const raw = element.getAttribute('data-i18n');
+        let handled = false;
         
-        if (translation && translation !== key) {
-            if (element.tagName === 'INPUT' && (element.type === 'text' || element.type === 'email' || element.type === 'password')) {
-                element.placeholder = translation;
-            } else if (element.hasAttribute('title')) {
-                element.title = translation;
-            } else {
-                element.textContent = translation;
+        // Support syntax like [placeholder]warranties.search_placeholder
+        const attrMatch = raw && raw.match(/^\s*\[(\w+)\]\s*(.+)$/);
+        if (attrMatch) {
+            const attrName = attrMatch[1];
+            const key = attrMatch[2];
+            const translation = window.i18n.t(key);
+            if (translation && translation !== key) {
+                element.setAttribute(attrName, translation);
+                translatedCount++;
+                handled = true;
             }
-            translatedCount++;
-        } else {
-            console.warn(`No translation found for key: ${key}`);
+        }
+        
+        if (!handled) {
+            const key = raw;
+            const translation = window.i18n.t(key);
+            if (translation && translation !== key) {
+                if (element.tagName === 'INPUT' && (element.type === 'text' || element.type === 'email' || element.type === 'password')) {
+                    element.placeholder = translation;
+                } else if (element.hasAttribute('title')) {
+                    element.title = translation;
+                } else {
+                    element.textContent = translation;
+                }
+                translatedCount++;
+            } else {
+                console.warn(`No translation found for key: ${key}`);
+            }
         }
     });
     

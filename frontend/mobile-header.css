@@ -264,135 +264,302 @@
     flex-wrap: wrap !important; /* Allow wrapping when needed */
   }
 
-  /* Search box takes most of the width */
+  /* On tablets (<=768px), force search box to full row; buttons come on next row */
   .search-container .search-box {
-    flex: 1 1 250px !important; /* Flexible, min 250px */
-    min-width: 250px !important;
-    max-width: none !important;
+    flex: 0 0 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
   }
 
-  /* Button container stays on the right */
-  .search-container > div:last-child {
+  /* Place Filter/Sort/Data/Tags on the same row under the search */
+  .search-container .filter-sort-container,
+  .search-container .secondary-actions {
+    order: 2 !important;
     display: flex !important;
-    gap: 6px !important;
-    flex-wrap: nowrap !important;
-    flex-shrink: 0 !important;
-    min-width: 0 !important;
+    gap: 8px !important; /* spacing between the buttons */
+    flex-wrap: wrap !important; 
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    width: 100% !important; /* ensure full-width row on tablets too */
   }
 
-  /* Action buttons styling for mobile */
+  /* Tablet (600-768px): place Filter/Sort next to Search on the first row */
+  @media (min-width: 600px) and (max-width: 768px) {
+    .search-container {
+      flex-direction: row !important;
+      align-items: center !important;
+      flex-wrap: wrap !important; /* keep secondary actions on next line */
+    }
+
+    /* Let search box share the row */
+    .search-container .search-box {
+      flex: 1 1 0 !important;
+      min-width: 220px !important;
+      max-width: none !important;
+    }
+
+    /* Keep Filter/Sort on the same line as Search */
+    .search-container .filter-sort-container {
+      order: 1 !important;
+      width: auto !important;
+      flex: 0 0 auto !important;
+      gap: 8px !important;
+    }
+
+    /* Prevent Filter/Sort buttons from stretching full-width on tablets */
+    .search-container .filter-sort-container .action-btn {
+      width: auto !important;
+    }
+
+    /* Move Data/Tags/View/Scope to the next line */
+    .search-container .secondary-actions {
+      order: 2 !important; /* second row */
+      flex: 0 0 100% !important;
+      width: 100% !important;
+    }
+  }
+
+  /* Stack View and Scope vertically like Filter/Sort on mobile */
+  #viewMenuBtn,
+  #scopeMenuBtn {
+    width: 100% !important; /* full width to match Filter/Sort */
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Make their containers span full width so buttons can center within */
+  #viewDropdownContainer {
+    width: 100% !important;
+    display: block !important;
+  }
+  #scopeDropdown {
+    width: 100% !important;
+    /* Do not force display; JS controls visibility when global view is disabled */
+  }
+
+  /* Ensure action buttons match sizing on tablet width */
+  .filter-controls .action-btn,
+  .search-container #globalManageTagsBtn {
+    height: 36px !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Hide legacy Import/Export buttons on mobile; use Data menu instead */
   .search-container .export-btn,
-  .search-container .import-btn,
+  .search-container .import-btn {
+    display: none !important;
+  }
+
+  /* Action button styling for the visible Tags button on mobile
+     Match look/behavior of other action buttons (Filter/Sort/Data) */
   .search-container #globalManageTagsBtn {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 4px !important;
-    padding: 8px 12px !important;
+    gap: 6px !important;
+    padding: 6px 10px !important;
     border-radius: var(--border-radius) !important;
-    border: none !important;
-    background-color: var(--primary-color) !important;
-    color: white !important;
-    font-size: 0.85rem !important;
+    border: 1px solid var(--border-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--text-color) !important;
+    font-size: 0.9rem !important;
     font-weight: 500 !important;
     cursor: pointer !important;
     transition: var(--transition) !important;
     height: 36px !important;
-    white-space: nowrap !important;
+    white-space: nowrap !Important;
     min-width: auto !important;
     width: auto !important;
     max-width: none !important;
     flex-shrink: 0 !important;
   }
 
-  /* Import button and manage tags button get secondary styling (green) */
-  .search-container .import-btn,
+  /* Import button previously got secondary styling; keep only for Tags button */
   .search-container #globalManageTagsBtn {
-    background-color: var(--secondary-color) !important;
+    background-color: var(--bg-color) !important;
+    color: var(--text-color) !important;
   }
 
   /* Hover states for action buttons */
-  .search-container .export-btn:hover {
-    background-color: var(--primary-dark) !important;
-    transform: none !important; /* Remove transform for mobile */
-  }
-
-  .search-container .import-btn:hover,
   .search-container #globalManageTagsBtn:hover {
-    background-color: #27ae60 !important; /* Darker green for secondary */
+    background-color: var(--light-gray) !important;
+    color: var(--primary-color) !important;
   }
 
   /* Icon spacing in action buttons */
-  .search-container .export-btn i,
-  .search-container .import-btn i,
   .search-container #globalManageTagsBtn i {
     font-size: 0.8rem !important;
     margin-right: 4px !important;
   }
 
   /* Dark mode styles for action buttons */
-  :root[data-theme="dark"] .search-container .export-btn {
-    background-color: var(--primary-color) !important;
-    color: white !important;
-  }
-
-  :root[data-theme="dark"] .search-container .import-btn,
   :root[data-theme="dark"] .search-container #globalManageTagsBtn {
-    background-color: var(--secondary-color) !important;
-    color: white !important;
+    background-color: var(--bg-color) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
   }
 
-  :root[data-theme="dark"] .search-container .export-btn:hover {
-    background-color: var(--primary-dark) !important;
-  }
-
-  :root[data-theme="dark"] .search-container .import-btn:hover,
   :root[data-theme="dark"] .search-container #globalManageTagsBtn:hover {
-    background-color: #27ae60 !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: var(--primary-color) !important;
   }
 
-  /* Very small screens - stack the buttons below search */
+  /* Tablet layout: make View and Scope share the row equally */
+  @media (min-width: 481px) and (max-width: 768px) {
+    /* Keep Data, Tags, View, Scope inline on tablets */
+    .search-container .secondary-actions {
+      flex-wrap: nowrap !important;
+      gap: 8px !important;
+    }
+    .search-container .secondary-actions #viewDropdownContainer,
+    .search-container .secondary-actions #scopeDropdown {
+      width: auto !important;
+      flex: 0 1 auto !important;
+      display: block !important;
+      min-width: 0 !important;
+    }
+    #viewMenuBtn,
+    #scopeMenuBtn {
+      width: auto !important;
+      height: 36px !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      flex: 0 1 auto !important;
+    }
+  }
+
+  /* Stronger tablet override (600–768px): ensure all four controls fit one row */
+  @media (min-width: 600px) and (max-width: 768px) {
+    .search-container .secondary-actions {
+      order: 2 !important;
+      width: auto !important;
+      flex: 0 0 100% !important; /* stay as one row container */
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      gap: 8px !important;
+      align-items: center !important;
+    }
+
+    .search-container .secondary-actions > .data-dropdown,
+    .search-container .secondary-actions > #globalManageTagsBtn,
+    .search-container .secondary-actions > #viewDropdownContainer,
+    .search-container .secondary-actions > #scopeDropdown {
+      flex: 0 1 auto !important;
+      width: auto !important;
+      min-width: 0 !important;
+    }
+  }
+
+  /* Mobile L/M/S: keep Filter & Sort next to Search; pair secondary buttons 2-per-row */
   @media (max-width: 480px) {
+    /* First row: Search full-width; Row 2: Filter | Sort | Data; Row 3: Tags | View | Scope */
     .search-container {
-      flex-direction: column !important;
-      align-items: stretch !important;
-      gap: 10px !important;
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      grid-template-areas:
+        "search search search"
+        "filtersort filtersort data"
+        "tags view scope" !important;
+      grid-template-rows: auto auto !important;
+      align-items: center !important;
+      gap: 8px !important;
+      width: 100% !important;
     }
 
     .search-container .search-box {
-      width: 100% !important;
-      min-width: unset !important;
-      flex: none !important;
+      grid-area: search !important; /* search takes full top row */
+      min-width: 120px !important;
+      max-width: none !important;
+      width: auto !important;
     }
 
-    .search-container > div:last-child {
-      width: 100% !important;
-      justify-content: space-between !important;
-      flex-wrap: wrap !important;
-      gap: 8px !important;
+    /* Ensure Filter/Sort do not stretch */
+    .search-container .filter-sort-container .action-btn {
+      width: auto !important;
+      min-width: 0 !important;
+      flex: 0 0 auto !important;
     }
 
-    .search-container .export-btn,
-    .search-container .import-btn,
-    .search-container #globalManageTagsBtn {
-      flex: 1 1 calc(33.333% - 5px) !important;
-      min-width: 50px !important;
-      padding: 10px 8px !important;
+    /* Flatten secondary-actions so its children participate in the parent grid */
+    .search-container .secondary-actions {
+      grid-column: 1 / -1 !important; /* second row grid area */
+      display: contents !important;
+    }
+
+    /* Keep Filter/Sort within a two-column subgrid to preserve popover anchoring */
+    .search-container .filter-sort-container {
+      grid-area: filtersort !important;
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 6px !important;
+      align-items: center !important;
+      justify-content: stretch !important;
+    }
+
+    /* Position Data, Tags, View, Scope */
+    .search-container .secondary-actions > .data-dropdown:first-child { grid-area: data !important; }
+    .search-container #globalManageTagsBtn { grid-area: tags !important; }
+    .search-container #viewDropdownContainer { grid-area: view !important; }
+    .search-container #scopeDropdown { grid-area: scope !important; }
+
+    /* Make the button inside each grid cell fill its container */
+    .search-container .secondary-actions .data-dropdown > .action-btn,
+    .search-container .secondary-actions #globalManageTagsBtn,
+    .search-container .secondary-actions #viewDropdownContainer > .action-btn,
+    .search-container .secondary-actions #scopeDropdown > .action-btn {
+      width: 100% !important;
+    }
+
+    /* Compact button sizing for 3-column rows */
+    .search-container .filter-sort-container .action-btn,
+    .search-container .secondary-actions .action-btn,
+    .search-container #globalManageTagsBtn,
+    #viewMenuBtn,
+    #scopeMenuBtn {
+      height: 32px !important;
+      padding: 6px 8px !important;
+      gap: 4px !important;
       font-size: 0.9rem !important;
     }
 
-    /* Hide text on small screens for action buttons */
-    .search-container .export-btn span,
-    .search-container .import-btn span,
-    .search-container #globalManageTagsBtn span {
-        display: none;
+    .search-container .secondary-actions .action-btn i,
+    .search-container .filter-sort-container .action-btn i,
+    #globalManageTagsBtn i {
+      font-size: 0.95rem !important;
     }
 
-    .search-container .export-btn i,
-    .search-container .import-btn i,
-    .search-container #globalManageTagsBtn i {
-        margin-right: 0 !important;
+    /* Icon-only labels for all six buttons to ensure 3-per-row fit */
+    .search-container .secondary-actions .action-btn span,
+    .search-container #globalManageTagsBtn span {
+      display: none !important;
     }
+  }
+
+  /* Auto-hide labels on Filter/Sort when space is tight (extend to 425px) */
+  @media (max-width: 425px) {
+    .search-container .filter-sort-container .action-btn span {
+      display: none !important; /* icons only */
+    }
+    .search-container .filter-sort-container .action-btn {
+      gap: 0 !important;
+      padding: 6px 8px !important;
+      min-width: 36px !important;
+    }
+    /* Hide Tags label as well on very small screens */
+    .search-container #globalManageTagsBtn span {
+      display: none !important;
+    }
+    .search-container #globalManageTagsBtn {
+      gap: 0 !important;
+      padding: 6px 8px !important;
+      min-width: 36px !important;
+    }
+  }
+
+  /* Ultra-small tweaks */
+  @media (max-width: 340px) {
+    .search-container { gap: 6px !important; }
+    .search-container .filter-sort-container .action-btn i { font-size: 0.95rem !important; }
   }
 
   /* ===== MOBILE STATUS DASHBOARD ===== */
@@ -403,6 +570,29 @@
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 15px !important;
     margin-bottom: 25px !important;
+  }
+
+  /* Align scope switcher with view switcher in mobile action bar */
+  .filter-options .action-bar {
+    align-items: flex-start !important;
+  }
+  .view-switcher,
+  .admin-view-switcher {
+    margin-top: 0 !important;
+  }
+  .admin-view-switcher {
+    align-self: flex-end !important; /* keep scope aligned to bottom-right of row */
+  }
+
+  /* Stack bottom View and Scope switchers vertically */
+  .filter-options .action-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .filter-options .action-bar .admin-view-switcher {
+    margin-left: 0 !important;
+    align-self: auto !important;
   }
 
   /* Individual status card mobile optimization */

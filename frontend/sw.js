@@ -1,13 +1,13 @@
-const CACHE_NAME = 'warracker-cache-v20250918001';
+const CACHE_NAME = 'warracker-cache-v20250119005';
 const urlsToCache = [
   './',
   './index.html',
   './settings-new.html',
   './status.html',
-  './style.css?v=20250119001',
+  './style.css?v=20250119004',
   './settings-styles.css?v=20250119001',
   './header-fix.css?v=20250119001',
-  './mobile-header.css?v=20250119001',
+  './mobile-header.css?v=20250119002',
   './script.js?v=20250119001',
   './auth.js?v=20250119001',
   './settings-new.js?v=20250119001',

@@ -6,6 +6,7 @@ console.log('[DEBUG] script.js loaded and running');
 // Global variables
 let warranties = [];
 let warrantiesLoaded = false; // Track if warranties have been loaded from API
+let lastLoadedArchived = false; // Track if the current warranties array came from archived endpoint
 let currentTabIndex = 0;
 let tabContents = []; // Initialize as empty array
 let editMode = false;
@@ -163,75 +164,42 @@ async function initViewControls() {
         
         if (response.ok) {
             const result = await response.json();
-            if (result.enabled && adminViewSwitcher) {
-                // Global view is enabled, show view switcher
-                adminViewSwitcher.style.display = 'flex';
-                
-                // Add event listeners for view buttons
-                if (personalViewBtn) {
-                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
-                }
-                if (globalViewBtn) {
-                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
-                }
-                
-                // Load and apply saved view scope preference
+            const scopeDropdown = document.getElementById('scopeDropdown');
+            // Keep bottom admin switcher hidden; control only the header scope dropdown
+            if (adminViewSwitcher) adminViewSwitcher.style.display = 'none';
+            if (result.enabled) {
+                if (scopeDropdown) scopeDropdown.style.display = 'block';
+                // Apply saved scope (update title and state)
                 const savedScope = loadViewScopePreference();
                 if (savedScope === 'global') {
-                    // Apply global view silently without saving preference again
                     isGlobalView = true;
-                    personalViewBtn.classList.remove('active');
-                    globalViewBtn.classList.add('active');
                     updateWarrantiesPanelTitle(true);
                 } else {
-                    // Apply personal view (default)
                     isGlobalView = false;
-                    personalViewBtn.classList.add('active');
-                    globalViewBtn.classList.remove('active');
                     updateWarrantiesPanelTitle(false);
                 }
-            } else if (adminViewSwitcher) {
-                // Global view is disabled, hide view switcher
-                adminViewSwitcher.style.display = 'none';
-                
-                // If currently in global view, switch back to personal view
+            } else {
+                if (scopeDropdown) scopeDropdown.style.display = 'none';
                 if (isGlobalView) {
                     isGlobalView = false;
                     updateWarrantiesPanelTitle(false);
-                    // Reload warranties
                     await loadWarranties(true);
                     applyFilters();
                 }
             }
         } else {
             console.error('Failed to check global view status');
-            // Default to showing view switcher if check fails
-            if (adminViewSwitcher) {
-                adminViewSwitcher.style.display = 'flex';
-                
-                // Add event listeners for view buttons
-                if (personalViewBtn) {
-                    personalViewBtn.addEventListener('click', () => switchToPersonalView());
-                }
-                if (globalViewBtn) {
-                    globalViewBtn.addEventListener('click', () => switchToGlobalView());
-                }
-            }
+            // Hide bottom switcher even on failure; show header dropdown for fallback
+            if (adminViewSwitcher) adminViewSwitcher.style.display = 'none';
+            const scopeDropdown = document.getElementById('scopeDropdown');
+            if (scopeDropdown) scopeDropdown.style.display = 'block';
         }
     } catch (error) {
         console.error('Error checking global view status:', error);
-        // Default to showing view switcher if check fails
-        if (adminViewSwitcher) {
-            adminViewSwitcher.style.display = 'flex';
-            
-            // Add event listeners for view buttons
-            if (personalViewBtn) {
-                personalViewBtn.addEventListener('click', () => switchToPersonalView());
-            }
-            if (globalViewBtn) {
-                globalViewBtn.addEventListener('click', () => switchToGlobalView());
-            }
-        }
+        // Keep bottom switcher hidden; show header dropdown as fallback
+        if (adminViewSwitcher) adminViewSwitcher.style.display = 'none';
+        const scopeDropdown = document.getElementById('scopeDropdown');
+        if (scopeDropdown) scopeDropdown.style.display = 'block';
     }
 }
 
@@ -251,6 +219,15 @@ async function switchToPersonalView() {
     // Update title
     updateWarrantiesPanelTitle(false);
     
+    // Update header scope label
+    try {
+        const currentScopeIcon = document.getElementById('currentScopeIcon');
+        if (currentScopeIcon) {
+            currentScopeIcon.className = 'fas fa-user';
+            currentScopeIcon.setAttribute('aria-label', 'Personal');
+        }
+    } catch (e) { /* no-op */ }
+
     // Reload warranties
     try {
         const token = window.auth.getToken();
@@ -301,6 +278,15 @@ async function switchToGlobalView() {
     // Update title
     updateWarrantiesPanelTitle(true);
     
+    // Update header scope label
+    try {
+        const currentScopeIcon = document.getElementById('currentScopeIcon');
+        if (currentScopeIcon) {
+            currentScopeIcon.className = 'fas fa-globe';
+            currentScopeIcon.setAttribute('aria-label', 'Global');
+        }
+    } catch (e) { /* no-op */ }
+
     // Reload warranties
     try {
         const token = window.auth.getToken();
@@ -422,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     await loadTags();
                 } catch (error) {
                     console.error("Failed to load tags before opening modal:", error);
-                    showToast("Could not load tags. Please try again.", "error");
+                    showToast(window.t('messages.could_not_load_tags'), "error");
                     hideLoadingSpinner();
                     return;
                 }
@@ -581,6 +567,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log("[runAuthenticatedTasks] Loading warranty data...");
                 await loadWarranties(true); // Pass true
                 console.log('[DEBUG] After loadWarranties, warranties array:', warranties);
+                // After warranties are loaded and filter dropdowns populated, load filter/sort prefs and apply
+                loadFilterAndSortPreferences();
+                // Reflect saved filters in UI selects if present
+                const statusFilterEl = document.getElementById('statusFilter');
+                const tagFilterEl = document.getElementById('tagFilter');
+                const vendorFilterEl = document.getElementById('vendorFilter');
+                const warrantyTypeFilterEl = document.getElementById('warrantyTypeFilter');
+                const sortByEl = document.getElementById('sortBy');
+                if (statusFilterEl && currentFilters.status) statusFilterEl.value = currentFilters.status;
+                if (tagFilterEl && currentFilters.tag) tagFilterEl.value = currentFilters.tag;
+                if (vendorFilterEl && currentFilters.vendor) vendorFilterEl.value = currentFilters.vendor;
+                if (warrantyTypeFilterEl && currentFilters.warranty_type) warrantyTypeFilterEl.value = currentFilters.warranty_type;
+                if (sortByEl && currentFilters.sortBy) sortByEl.value = currentFilters.sortBy;
+                // Update the filter indicator if available
+                if (typeof window.updateFilterIndicator === 'function') {
+                    window.updateFilterIndicator();
+                }
             } else {
                 console.log("[runAuthenticatedTasks] Warranties list element not found.");
             }
@@ -642,6 +645,31 @@ let expiringSoonDays = 30; // Default value, will be updated from user preferenc
 
 // API URL
 const API_URL = '/api/warranties';
+async function toggleArchiveStatus(warrantyId, shouldArchive) {
+    try {
+        const token = window.auth.getToken();
+        if (!token) throw new Error('No auth token');
+        const response = await fetch(`/api/warranties/${warrantyId}/archive`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ archived: !!shouldArchive })
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${response.status}`);
+        }
+        // Reload appropriate list
+        // Always reload current view to ensure accurate list source
+        await loadWarranties(true);
+        showToast(shouldArchive ? (window.t ? window.t('messages.archived_success') : 'Archived') : (window.t ? window.t('messages.unarchived_success') : 'Unarchived'), 'success');
+    } catch (e) {
+        console.error('Failed to toggle archive status', e);
+        showToast(window.t ? window.t('messages.error_updating_archive_status') : 'Failed to update archive status', 'error');
+    }
+}
 
 // Utility function to escape HTML
 function escapeHtml(text) {
@@ -1471,6 +1499,24 @@ async function switchView(viewType, saveToApi = true) { // Added saveToApi param
     if (warrantiesList && warrantiesLoaded) {
         renderWarranties(filterWarranties()); // Assuming filterWarranties() returns the correct array
     }
+
+    // Update header dropdown label if present
+    try {
+        const currentViewIcon = document.getElementById('currentViewIcon');
+        if (currentViewIcon) {
+            currentViewIcon.className = 'fas';
+            if (viewType === 'list') {
+                currentViewIcon.classList.add('fa-list');
+                currentViewIcon.setAttribute('aria-label', 'List');
+            } else if (viewType === 'table') {
+                currentViewIcon.classList.add('fa-table');
+                currentViewIcon.setAttribute('aria-label', 'Table');
+            } else {
+                currentViewIcon.classList.add('fa-th-large');
+                currentViewIcon.setAttribute('aria-label', 'Grid');
+            }
+        }
+    } catch (e) { /* no-op */ }
 }
 
 // Load view preference from localStorage
@@ -1937,9 +1983,13 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         
         // Use the appropriate API endpoint based on saved preference
         const baseUrl = window.location.origin;
-        const apiUrl = shouldUseGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`;
+        // If status is 'archived', use archived endpoint (user-scoped only for now)
+        const isArchivedView = currentFilters && currentFilters.status === 'archived';
+        const apiUrl = isArchivedView
+            ? `${baseUrl}/api/warranties/archived`
+            : (shouldUseGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`);
         
-        console.log(`[DEBUG] Using API endpoint based on saved preference '${savedScope}': ${apiUrl}`);
+        console.log(`[DEBUG] Using API endpoint based on saved preference '${savedScope}', archivedView=${isArchivedView}: ${apiUrl}`);
         
         // Check if auth is available and user is authenticated using the passed parameter
         if (!isAuthenticated) {
@@ -1984,11 +2034,8 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         isGlobalView = shouldUseGlobalView;
         console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
         // Process each warranty to calculate status and days remaining
-        warranties = Array.isArray(data) ? data.map(warranty => {
-            const processed = processWarrantyData(warranty);
-            console.log('[DEBUG] Processed warranty:', processed);
-            return processed;
-        }) : [];
+        warranties = Array.isArray(data) ? data.map(warranty => processWarrantyData(warranty)) : [];
+        lastLoadedArchived = isArchivedView;
         console.log('[DEBUG] Final warranties array:', warranties);
         console.log('[DEBUG] Total warranties loaded:', warranties.length);
         console.log('[DEBUG] Warranty IDs loaded:', warranties.map(w => w.id));
@@ -2007,7 +2054,8 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
             populateVendorFilter(); // Added call to populate vendor filter
             populateWarrantyTypeFilter(); // Added call to populate warranty type filter
             
-            // REMOVED: applyFilters(); // Now called from authStateReady after data and prefs are loaded
+            // Ensure the UI reflects the freshly loaded data
+            applyFilters();
         }
     } catch (error) {
         console.error('[DEBUG] Error loading warranties:', error);
@@ -2022,8 +2070,8 @@ function renderEmptyState(message = 'No warranties yet. Add your first warranty 
     warrantiesList.innerHTML = `
         <div class="empty-state">
             <i class="fas fa-box-open"></i>
-            <h3>No warranties found</h3>
-            <p>${message}</p>
+            <h3>${window.t ? window.t('messages.no_warranties_found') : 'No warranties found'}</h3>
+            <p>${message || (window.t ? window.t('messages.no_warranties_found_add_first') : 'No warranties yet. Add your first warranty to get started.')}</p>
         </div>
     `;
 }
@@ -2168,8 +2216,10 @@ async function renderWarranties(warrantiesToRender) {
         return;
     }
 
+    const isArchivedView = currentFilters && currentFilters.status === 'archived';
+
     if (!warrantiesToRender || warrantiesToRender.length === 0) {
-        renderEmptyState(); // renderEmptyState should also check for warrantiesList or its specific container
+        renderEmptyState(isArchivedView ? (window.t ? window.t('messages.no_archived_warranties') : 'No archived warranties.') : undefined); // renderEmptyState should also check for warrantiesList or its specific container
         return;
     }
     
@@ -2210,7 +2260,7 @@ async function renderWarranties(warrantiesToRender) {
     console.log('Sorted warranties:', sortedWarranties);
     
     // Update the container class based on current view
-    warrantiesList.className = `warranties-list ${currentView}-view`;
+    warrantiesList.className = `warranties-list ${currentView}-view ${isArchivedView ? 'archived-view' : ''}`;
     
     // Show/hide table header for table view
     if (tableViewHeader) {
@@ -2229,8 +2279,14 @@ async function renderWarranties(warrantiesToRender) {
         const purchaseDate = warranty.purchaseDate;
         const expirationDate = warranty.expirationDate;
         const isLifetime = warranty.is_lifetime;
-        const statusClass = warranty.status || 'unknown';
-        const statusText = warranty.statusText || 'Unknown Status';
+        let statusClass = warranty.status || 'unknown';
+        let statusText = warranty.statusText || 'Unknown Status';
+        if (isArchivedView) {
+            const archivedTextRaw = window.i18next ? window.i18next.t('warranties.archived') : 'Archived';
+            const archivedLabel = archivedTextRaw && archivedTextRaw !== 'warranties.archived' ? archivedTextRaw : 'Archived';
+            statusClass = 'archived';
+            statusText = archivedLabel;
+        }
         // Format warranty duration text
         let warrantyDurationText = window.i18next ? window.i18next.t('warranties.na') : 'N/A';
         if (isLifetime) {
@@ -2354,9 +2410,21 @@ async function renderWarranties(warrantiesToRender) {
             <button class="${claimsButtonClass}" title="${claimsTitle}" data-id="${warranty.id}">
                 <i class="fas fa-clipboard-list"></i>
             </button>
-            <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
-                <i class="fas fa-edit"></i>
-            </button>
+            ${isArchivedView ? `
+                <button class="action-btn unarchive-btn" title="Unarchive" data-id="${warranty.id}">
+                    <i class="fas fa-box-open"></i>
+                </button>
+                <button class="action-btn edit-btn" title="Edit (disabled in archived view)" data-id="${warranty.id}" disabled>
+                    <i class="fas fa-edit"></i>
+                </button>
+            ` : `
+                <button class="action-btn edit-btn" title="Edit" data-id="${warranty.id}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="action-btn archive-btn" title="Archive" data-id="${warranty.id}">
+                    <i class="fas fa-archive"></i>
+                </button>
+            `}
             <button class="action-btn delete-btn" title="Delete" data-id="${warranty.id}">
                 <i class="fas fa-trash"></i>
             </button>
@@ -2569,7 +2637,7 @@ async function renderWarranties(warrantiesToRender) {
         if (canEdit) {
             // Edit button event listener
             const editBtn = cardElement.querySelector('.edit-btn');
-            if (editBtn) {
+            if (editBtn && !editBtn.disabled) {
                 editBtn.addEventListener('click', async () => {
                     console.log('[DEBUG] Edit button clicked for warranty ID:', warranty.id);
                     // Find the current warranty data instead of using the potentially stale warranty object
@@ -2588,6 +2656,20 @@ async function renderWarranties(warrantiesToRender) {
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', () => {
                     openDeleteModal(warranty.id, warranty.product_name);
+                });
+            }
+
+            // Archive/Unarchive button event listeners
+            const archiveBtn = cardElement.querySelector('.archive-btn');
+            if (archiveBtn) {
+                archiveBtn.addEventListener('click', () => {
+                    openArchiveModal(warranty.id, warranty.product_name);
+                });
+            }
+            const unarchiveBtn = cardElement.querySelector('.unarchive-btn');
+            if (unarchiveBtn) {
+                unarchiveBtn.addEventListener('click', async () => {
+                    await toggleArchiveStatus(warranty.id, false);
                 });
             }
         }
@@ -2721,10 +2803,22 @@ function applyFilters() {
     console.log('[FILTER DEBUG] Applying filters with:', currentFilters);
     console.log('[FILTER DEBUG] Total warranties before filtering:', warranties.length);
     
+    // If user selected archived status, reload data from archived endpoint and return
+    if (currentFilters.status === 'archived') {
+        if (!lastLoadedArchived) {
+            loadWarranties(true);
+            return;
+        }
+    } else if (lastLoadedArchived) {
+        // If leaving archived view, reload normal source
+        loadWarranties(true);
+        return;
+    }
+
     // Filter warranties based on currentFilters
     const filtered = warranties.filter(warranty => {
         // Status filter
-        if (currentFilters.status !== 'all' && warranty.status !== currentFilters.status) {
+        if (currentFilters.status !== 'all' && currentFilters.status !== 'archived' && warranty.status !== currentFilters.status) {
             return false;
         }
         
@@ -2777,6 +2871,53 @@ function applyFilters() {
     
     // Render the filtered warranties
     renderWarranties(filtered);
+}
+
+// --- Persist and restore filters/sort ---
+function saveFilterPreferences() {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        const filtersToSave = {
+            status: currentFilters.status || 'all',
+            tag: currentFilters.tag || 'all',
+            vendor: currentFilters.vendor || 'all',
+            warranty_type: currentFilters.warranty_type || 'all'
+        };
+        localStorage.setItem(`${prefix}warrantyFilters`, JSON.stringify(filtersToSave));
+    } catch (e) {
+        console.warn('Failed to save filter preferences', e);
+    }
+}
+
+function saveSortPreference() {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        localStorage.setItem(`${prefix}warrantySortBy`, currentFilters.sortBy || 'expiration');
+    } catch (e) {
+        console.warn('Failed to save sort preference', e);
+    }
+}
+
+function loadFilterAndSortPreferences() {
+    try {
+        const prefix = getPreferenceKeyPrefix();
+        const savedFiltersRaw = localStorage.getItem(`${prefix}warrantyFilters`);
+        if (savedFiltersRaw) {
+            const savedFilters = JSON.parse(savedFiltersRaw);
+            if (savedFilters && typeof savedFilters === 'object') {
+                currentFilters.status = savedFilters.status || currentFilters.status;
+                currentFilters.tag = savedFilters.tag || currentFilters.tag;
+                currentFilters.vendor = savedFilters.vendor || currentFilters.vendor;
+                currentFilters.warranty_type = savedFilters.warranty_type || currentFilters.warranty_type;
+            }
+        }
+        const savedSort = localStorage.getItem(`${prefix}warrantySortBy`);
+        if (savedSort) {
+            currentFilters.sortBy = savedSort;
+        }
+    } catch (e) {
+        console.warn('Failed to load filter/sort preferences', e);
+    }
 }
 
 async function openEditModal(warranty) {
@@ -3346,6 +3487,38 @@ function openDeleteModal(warrantyId, productName) {
     }
 }
 
+// Open Archive confirmation modal
+function openArchiveModal(warrantyId, productName) {
+    currentWarrantyId = warrantyId;
+    const archiveProductNameElement = document.getElementById('archiveProductName');
+    if (archiveProductNameElement) {
+        archiveProductNameElement.textContent = productName || '';
+    }
+    const archiveModal = document.getElementById('archiveModal');
+    if (archiveModal) {
+        archiveModal.classList.add('active');
+    }
+}
+
+// Confirm archive handler
+async function confirmArchive() {
+    if (!currentWarrantyId) {
+        showToast('No warranty selected', 'error');
+        return;
+    }
+    try {
+        await toggleArchiveStatus(currentWarrantyId, true);
+        closeModals();
+        // Guidance toast for where to find archived items
+        const guidance = 'You can find archived warranties by selecting "Archived" in Filters.';
+        showToast(guidance, 'info');
+        currentWarrantyId = null;
+    } catch (e) {
+        // toggleArchiveStatus already toasts on failure
+        console.error('Archive failed', e);
+    }
+}
+
 // Function to close all modals
 function closeModals() {
     document.querySelectorAll('.modal-backdrop').forEach(modal => {
@@ -3762,6 +3935,25 @@ function initClaimsEventListeners() {
                 e.preventDefault();
                 const warrantyId = parseInt(e.target.closest('.claims-link').dataset.id);
                 openClaimsModal(warrantyId);
+                return;
+            }
+            // Archive button
+            if (e.target.closest('.archive-btn')) {
+                e.preventDefault();
+                const el = e.target.closest('.archive-btn');
+                const warrantyId = parseInt(el.dataset.id);
+                const card = el.closest('.warranty-card');
+                const titleEl = card ? card.querySelector('.product-name-header .warranty-title') : null;
+                const productName = titleEl ? titleEl.textContent.trim() : '';
+                openArchiveModal(warrantyId, productName);
+                return;
+            }
+            // Unarchive button
+            if (e.target.closest('.unarchive-btn')) {
+                e.preventDefault();
+                const warrantyId = parseInt(e.target.closest('.unarchive-btn').dataset.id);
+                toggleArchiveStatus(warrantyId, false);
+                return;
             }
         });
     }
@@ -4531,11 +4723,11 @@ function initTagFunctionality() {
 }
 
 // Function to load all tags
-async function loadTags() {
+async function loadTags(force = false) {
     console.log('[script.js] loadTags() called. Current page:', window.location.pathname);
     
     // Check if tags are already loaded and reasonably populated
-    if (allTags && allTags.length > 0) {
+    if (!force && allTags && allTags.length > 0) {
         console.log('[script.js] Tags already loaded in allTags global. Skipping fetch. Count:', allTags.length);
         // Optionally, re-dispatch the event if other components might need it on subsequent (though now less likely) calls
         // document.dispatchEvent(new CustomEvent('allTagsLoaded', { detail: allTags }));
@@ -4840,7 +5032,7 @@ function createTag(name) {
                     });
                     
                     if (response.status === 409) {
-                        reject(new Error('A tag with this name already exists'));
+                        reject(new Error(window.t('messages.tag_already_exists')));
                         return;
                     }
                     if (response.status === 401) {
@@ -4903,6 +5095,7 @@ function openTagManagementModal() {
     
     // Populate existing tags
     renderExistingTags();
+    addTagManagementEventListeners();
     
     // Show modal
     tagManagementModal.classList.add('active');
@@ -4911,93 +5104,86 @@ function openTagManagementModal() {
 // Render existing tags in the management modal
 function renderExistingTags() {
     if (!existingTagsContainer) return;
-    
     existingTagsContainer.innerHTML = '';
-    
-    if (allTags.length === 0) {
-        existingTagsContainer.innerHTML = '<div class="no-tags">No tags created yet</div>';
-        return;
+
+    const wrapper = document.createElement('div');
+    // Ensure horizontal scroll on small screens
+    wrapper.className = 'table-responsive';
+    const table = document.createElement('table');
+    table.className = 'tag-management-table';
+
+    // Header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th class="tag-color-header">Color</th>
+            <th>Name</th>
+            <th class="tag-actions-header">Actions</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
+    if (!allTags || allTags.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `<td colspan="3"><div class="no-tags">${window.t ? window.t('messages.no_tags_created_yet') : 'No tags created yet'}</div></td>`;
+        tbody.appendChild(emptyRow);
+    } else {
+        allTags.forEach(tag => {
+            const row = document.createElement('tr');
+            row.className = 'existing-tag-row';
+            row.dataset.id = String(tag.id);
+
+            row.innerHTML = `
+                <td>
+                    <div class="tag-color-swatch-container">
+                        <div class="tag-color-swatch" style="background-color: ${tag.color}" aria-label="${escapeHtml(tag.name)}"></div>
+                        <input type="color" class="tag-color-input-hidden" value="${tag.color}" aria-label="Pick color" />
+                    </div>
+                </td>
+                <td>
+                    <span class="tag-name-display">${escapeHtml(tag.name)}</span>
+                    <input type="text" class="form-control tag-name-input" value="${escapeHtml(tag.name)}" />
+                </td>
+                <td class="tag-actions">
+                    <div class="view-actions">
+                        <button class="btn btn-sm btn-secondary edit-tag" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger delete-tag" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div class="edit-actions">
+                        <button class="btn btn-sm btn-primary save-tag" title="Save"><i class="fas fa-check"></i></button>
+                        <button class="btn btn-sm btn-secondary cancel-edit" title="Cancel"><i class="fas fa-times"></i></button>
+                    </div>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+        });
     }
-    
-    allTags.forEach(tag => {
-        const tagElement = document.createElement('div');
-        tagElement.className = 'existing-tag';
-        
-        tagElement.innerHTML = `
-            <div class="existing-tag-info">
-                <div class="existing-tag-color" style="background-color: ${tag.color}"></div>
-                <div class="existing-tag-name">${tag.name}</div>
-            </div>
-            <div class="existing-tag-actions">
-                <button class="btn btn-sm btn-secondary edit-tag" data-id="${tag.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger delete-tag" data-id="${tag.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `;
-        
-        // Add event listeners for edit and delete
-        tagElement.querySelector('.edit-tag').addEventListener('click', () => {
-            editTag(tag);
-        });
-        
-        tagElement.querySelector('.delete-tag').addEventListener('click', () => {
-            deleteTag(tag.id);
-        });
-        
-        existingTagsContainer.appendChild(tagElement);
-    });
+
+    table.appendChild(tbody);
+    wrapper.appendChild(table);
+    existingTagsContainer.appendChild(wrapper);
+
+    // Ensure delegation is attached once
+    addTagManagementEventListeners();
 }
 
 // Edit a tag
-function editTag(tag) {
-    const tagInfoElement = document.querySelector(`.existing-tag .existing-tag-info:has(+ .existing-tag-actions button[data-id="${tag.id}"])`);
-    
-    if (!tagInfoElement) {
-        // Alternative selector for browsers that don't support :has
-        const tagElement = document.querySelector(`.existing-tag`);
-        const buttons = tagElement?.querySelectorAll(`.existing-tag-actions button[data-id="${tag.id}"]`);
-        if (buttons?.length > 0) {
-            const parent = buttons[0].closest('.existing-tag');
-            if (parent) {
-                const infoElement = parent.querySelector('.existing-tag-info');
-                if (infoElement) {
-                    tagInfoElement = infoElement;
-                }
-            }
-        }
-        
-        if (!tagInfoElement) return;
-    }
-    
-    const originalHTML = tagInfoElement.innerHTML;
-    
-    tagInfoElement.innerHTML = `
-        <input type="text" class="form-control edit-tag-name" value="${tag.name}" style="width: 60%;">
-        <input type="color" class="edit-tag-color" value="${tag.color}" style="width: 40px; height: 38px;">
-        <button class="btn btn-sm btn-primary save-edit" data-id="${tag.id}">Save</button>
-        <button class="btn btn-sm btn-secondary cancel-edit">Cancel</button>
-    `;
-    
-    // Add event listeners
-    tagInfoElement.querySelector('.save-edit').addEventListener('click', () => {
-        const newName = tagInfoElement.querySelector('.edit-tag-name').value.trim();
-        const newColor = tagInfoElement.querySelector('.edit-tag-color').value;
-        
-        if (!newName) {
-            showToast(window.t('messages.tag_name_required'), 'error');
-            return;
-        }
-        
-        updateTag(tag.id, newName, newColor);
-    });
-    
-    tagInfoElement.querySelector('.cancel-edit').addEventListener('click', () => {
-        // Restore original HTML
-        tagInfoElement.innerHTML = originalHTML;
-    });
+function editTag(row) {
+    // Switch row into edit mode (toggle inputs/buttons)
+    const nameDisplay = row.querySelector('.tag-name-display');
+    const nameInput = row.querySelector('.tag-name-input');
+    const viewActions = row.querySelector('.view-actions');
+    const editActions = row.querySelector('.edit-actions');
+    if (!nameDisplay || !nameInput || !viewActions || !editActions) return;
+
+    nameDisplay.style.display = 'none';
+    nameInput.style.display = 'block';
+    viewActions.style.display = 'none';
+    editActions.style.display = 'flex';
+    row.classList.add('editing');
 }
 
 // Update a tag
@@ -5024,66 +5210,140 @@ function updateTag(id, name, color) {
             if (response.status === 409) {
                 throw new Error('A tag with this name already exists');
             }
-            throw new Error('Failed to update tag');
+            throw new Error(window.t('messages.failed_to_update_tag'));
         }
         return response.json();
     })
     .then(data => {
-        // Update tag in allTags array
-        const index = allTags.findIndex(tag => tag.id === id);
-        if (index !== -1) {
-            allTags[index].name = name;
-            allTags[index].color = color;
-        }
-        
-        // Update tag in selectedTags if present
-        const selectedIndex = selectedTags.findIndex(tag => tag.id === id);
-        if (selectedIndex !== -1) {
-            selectedTags[selectedIndex].name = name;
-            selectedTags[selectedIndex].color = color;
-        }
-        
-        // Update tag in editSelectedTags if present
-        const editSelectedIndex = editSelectedTags.findIndex(tag => tag.id === id);
-        if (editSelectedIndex !== -1) {
-            editSelectedTags[editSelectedIndex].name = name;
-            editSelectedTags[editSelectedIndex].color = color;
-        }
-        
-        // Update tags in warranties array
-        warranties.forEach(warranty => {
-            if (warranty.tags && Array.isArray(warranty.tags)) {
-                warranty.tags.forEach(tag => {
-                    if (tag.id === id) {
-                        tag.name = name;
-                        tag.color = color;
+        // Refresh lists to ensure consistency and exit edit mode
+        return loadTags(true).then(() => {
+            // Update local selections and warranties to reflect new tag data immediately
+            try {
+                if (data && typeof data.id !== 'undefined') {
+                    // Update selected tags in Add Warranty flow
+                    if (Array.isArray(selectedTags) && selectedTags.length > 0) {
+                        selectedTags = selectedTags.map(t => t.id === data.id ? { id: data.id, name: data.name, color: data.color } : t);
                     }
-                });
+                    // Update selected tags in Edit Warranty flow
+                    if (Array.isArray(editSelectedTags) && editSelectedTags.length > 0) {
+                        editSelectedTags = editSelectedTags.map(t => t.id === data.id ? { id: data.id, name: data.name, color: data.color } : t);
+                    }
+                    // Update tags inside existing warranties so cards reflect changes
+                    if (Array.isArray(warranties) && warranties.length > 0) {
+                        warranties.forEach(w => {
+                            if (Array.isArray(w.tags)) {
+                                w.tags.forEach(tag => {
+                                    if (tag.id === data.id) {
+                                        tag.name = data.name;
+                                        tag.color = data.color;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('[script.js] Non-fatal error while updating local tag state after update:', e);
             }
+
+            renderExistingTags();
+            renderSelectedTags();
+            renderEditSelectedTags();
+            populateTagFilter();
+            renderWarranties(warranties);
+            if (document.getElementById('summary-tags')) {
+                updateSummary();
+            }
+            showToast(window.t('messages.tag_updated_successfully'), 'success');
         });
-        
-        // Rerender existing tags and selected tags
-        renderExistingTags();
-        renderSelectedTags();
-        renderEditSelectedTags();
-        
-        // Update summary if needed
-        if (document.getElementById('summary-tags')) {
-            updateSummary();
-        }
-        
-        // Update tag filter dropdown
-        populateTagFilter();
-        
-        // Re-render warranty cards to show updated tag colors
-        renderWarranties(warranties);
-        
-        showToast(window.t('messages.tag_updated_successfully'), 'success');
     })
     .catch(error => {
         console.error('Error updating tag:', error);
         showToast(error.message || window.t('messages.failed_to_update_tag'), 'error');
     });
+}
+
+// Centralized event delegation for tag management table
+function addTagManagementEventListeners() {
+    if (!tagManagementModal) return;
+    const container = existingTagsContainer;
+    if (!container) return;
+
+    // Avoid attaching multiple times
+    if (container.dataset.tmListenersAttached === 'true') return;
+    container.dataset.tmListenersAttached = 'true';
+
+    container.addEventListener('click', (e) => {
+        const row = e.target.closest('tr.existing-tag-row');
+        if (!row) return;
+        const id = parseInt(row.dataset.id, 10);
+        if (Number.isNaN(id)) return;
+
+        if (e.target.closest('.edit-tag')) {
+            editTag(row);
+            return;
+        }
+        if (e.target.closest('.cancel-edit')) {
+            // Exit edit mode: revert inputs/buttons visibility
+            const nameDisplay = row.querySelector('.tag-name-display');
+            const nameInput = row.querySelector('.tag-name-input');
+            const viewActions = row.querySelector('.view-actions');
+            const editActions = row.querySelector('.edit-actions');
+            if (nameDisplay && nameInput && viewActions && editActions) {
+                nameDisplay.style.display = '';
+                nameInput.style.display = 'none';
+                viewActions.style.display = '';
+                editActions.style.display = 'none';
+            }
+            row.classList.remove('editing');
+            return;
+        }
+        if (e.target.closest('.save-tag')) {
+            const nameInput = row.querySelector('.tag-name-input');
+            const colorInput = row.querySelector('.tag-color-input-hidden');
+            const newName = (nameInput && nameInput.value ? nameInput.value.trim() : '');
+            const newColor = colorInput ? colorInput.value : undefined;
+            if (!newName) {
+                showToast(window.t('messages.tag_name_required'), 'error');
+                return;
+            }
+            updateTag(id, newName, newColor);
+            row.classList.remove('editing');
+            return;
+        }
+        if (e.target.closest('.delete-tag')) {
+            deleteTag(id);
+            return;
+        }
+    });
+
+    // Color picker change via delegation
+    container.addEventListener('input', (e) => {
+        if (e.target.matches('.tag-color-input-hidden')) {
+            const row = e.target.closest('tr.existing-tag-row');
+            const swatch = row ? row.querySelector('.tag-color-swatch') : null;
+            if (swatch) swatch.style.backgroundColor = e.target.value;
+        }
+    });
+
+	// Auto-save color changes without requiring Edit/Save click
+	container.addEventListener('change', (e) => {
+		if (e.target.matches('.tag-color-input-hidden')) {
+			const row = e.target.closest('tr.existing-tag-row');
+			if (!row) return;
+			const id = parseInt(row.dataset.id, 10);
+			if (Number.isNaN(id)) return;
+			const nameInput = row.querySelector('.tag-name-input');
+			const nameDisplay = row.querySelector('.tag-name-display');
+			const currentName = (nameInput && nameInput.style.display !== 'none' ? nameInput.value : (nameDisplay ? nameDisplay.textContent : '')).trim();
+			const newColor = e.target.value;
+			if (!currentName) {
+				showToast(window.t ? window.t('messages.tag_name_required') : 'Tag name is required', 'error');
+				return;
+			}
+			updateTag(id, currentName, newColor);
+		}
+	});
 }
 
 // Delete a tag
@@ -5168,7 +5428,7 @@ function setupUIEventListeners() {
                     await loadTags();
                 } catch (error) {
                     console.error("Failed to load tags before opening modal:", error);
-                    showToast("Could not load tags. Please try again.", "error");
+                    showToast(window.t('messages.could_not_load_tags'), "error");
                     hideLoadingSpinner();
                     return;
                 }
@@ -5271,6 +5531,7 @@ function setupUIEventListeners() {
         statusFilter.addEventListener('change', () => {
             currentFilters.status = statusFilter.value;
             applyFilters();
+            saveFilterPreferences();
         });
     }
     
@@ -5278,6 +5539,7 @@ function setupUIEventListeners() {
         tagFilter.addEventListener('change', () => {
             currentFilters.tag = tagFilter.value;
             applyFilters();
+            saveFilterPreferences();
         });
     }
     
@@ -5285,6 +5547,7 @@ function setupUIEventListeners() {
         vendorFilter.addEventListener('change', () => {
             currentFilters.vendor = vendorFilter.value;
             applyFilters();
+            saveFilterPreferences();
         });
     }
     
@@ -5292,6 +5555,7 @@ function setupUIEventListeners() {
         warrantyTypeFilter.addEventListener('change', () => {
             currentFilters.warranty_type = warrantyTypeFilter.value;
             applyFilters();
+            saveFilterPreferences();
         });
     }
     
@@ -5299,6 +5563,7 @@ function setupUIEventListeners() {
         sortBySelect.addEventListener('change', () => {
             currentFilters.sortBy = sortBySelect.value;
             applyFilters();
+            saveSortPreference();
         });
     }
     
@@ -5402,6 +5667,10 @@ function setupUIEventListeners() {
     // Confirm delete button
     const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
     if (confirmDeleteBtn) confirmDeleteBtn.addEventListener('click', deleteWarranty);
+
+    // Confirm archive button
+    const confirmArchiveBtn = document.getElementById('confirmArchiveBtn');
+    if (confirmArchiveBtn) confirmArchiveBtn.addEventListener('click', confirmArchive);
     
     // Load saved view preference
     // loadViewPreference(); // Disabled: now called after authStateReady
@@ -6268,7 +6537,7 @@ function setupModalTriggers() {
 
     // --- Edit Modal Triggers (Keep existing logic) ---
     // Close edit/delete modals when clicking outside or on close button
-    document.querySelectorAll('#editModal, #deleteModal, [data-dismiss="modal"]').forEach(element => {
+    document.querySelectorAll('#editModal, #deleteModal, #archiveModal, [data-dismiss="modal"]').forEach(element => {
         element.addEventListener('click', (e) => {
             // Check if the click is on the backdrop itself OR a dismiss button
             if (e.target === element || e.target.matches('[data-dismiss="modal"]')) {
@@ -6353,7 +6622,7 @@ async function handleImport(file) {
 
             // ***** FIX: Reload the tags list *****
             console.log("Import successful, reloading tags...");
-            await loadTags(); // Fetch the updated list of all tags
+            await loadTags(true); // Fetch the updated list of all tags
             // ***** END FIX *****
 
             // Add a small delay to ensure backend has processed the data

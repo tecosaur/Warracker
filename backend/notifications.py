@@ -122,6 +122,7 @@ def get_expiring_warranties(get_db_connection, release_db_connection):
                     w.is_lifetime = FALSE
                     AND w.expiration_date > %s
                     AND w.expiration_date <= (%s::date + (COALESCE(up.expiring_soon_days, 30) || ' days')::interval)::date
+                    AND w.archived_at IS NULL
                     AND u.is_active = TRUE;
             """, (today, today))
 

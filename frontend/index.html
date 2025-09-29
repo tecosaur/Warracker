@@ -22,7 +22,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="img/favicon-512x512.png">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=20250119001">
+    <link rel="stylesheet" href="style.css?v=20250119004">
     <script src="theme-loader.js?v=20250119001"></script> <!-- Apply theme early -->
 
     <!-- Font Awesome for icons -->
@@ -32,7 +32,7 @@
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js?v=20250119001"></script>
     <!-- Mobile Header specific styles -->
-    <link rel="stylesheet" href="mobile-header.css?v=20250119001">
+    <link rel="stylesheet" href="mobile-header.css?v=20250119002">
     
     <!-- i18next Local Scripts -->
     <script src="js/lib/i18next.min.js?v=20250119001"></script>
@@ -174,103 +174,168 @@
                 </div>
                 <!-- Filters and Search -->
                 <div class="filter-controls">
-                    <div class="search-container" style="display: flex; width: 100%; gap: 8px; align-items: center; flex-wrap: nowrap;">
-                        <!-- Make search box much longer, buttons only as wide as needed -->
-                        <div class="search-box" style="flex: 2 1 400px; min-width: 200px; max-width: 1000px;">
+                    <div class="search-container" style="display: flex; width: 100%; gap: 8px; align-items: center;">
+                        <!-- Make search box width controlled by CSS for consistency -->
+                        <div class="search-box">
                             <button id="searchBtn" class="search-btn" title="Search">
                                 <i class="fas fa-search"></i>
                             </button>
-                            <input type="text" id="searchWarranties" data-i18n-placeholder="warranties.search_placeholder" placeholder="Find by name, vendors, notes, tag, or serial number..." style="width: 100%; min-width: 200px;">
+                            <input type="text" id="searchWarranties" data-i18n-placeholder="warranties.search_placeholder" placeholder="Find by name, vendors, notes, tag, or serial number..." style="width: 100%;">
                             <button id="clearSearch" class="clear-search-btn" title="Clear search" style="display: none;">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: nowrap; flex-shrink: 0; min-width: 0;">
-                            <button id="exportBtn" class="export-btn" title="Export warranties" style="white-space: nowrap;">
+                        <div class="filter-sort-container">
+                            <button id="filterBtn" class="action-btn">
+                                <i class="fas fa-filter"></i>
+                                <span data-i18n="filters.filter">Filter</span>
+                                <span id="filterIndicator" class="indicator" style="display: none;"></span>
+                            </button>
+                            <div id="filterPopover" class="popover">
+                                <h4 data-i18n="filters.filter_by">Filter By</h4>
+                                <div class="filter-group">
+                                    <label for="statusFilter" data-i18n="filters.status">Status</label>
+                                    <select id="statusFilter" class="filter-select">
+                                        <option value="all" data-i18n="filters.all_status">All Status</option>
+                                        <option value="active" data-i18n="warranties.active">Active</option>
+                                        <option value="expiring" data-i18n="warranties.expiring_soon">Expiring Soon</option>
+                                        <option value="expired" data-i18n="warranties.expired">Expired</option>
+                                        <option value="archived" data-i18n="warranties.archived">Archived</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="tagFilter" data-i18n="filters.tags">Tag</label>
+                                    <select id="tagFilter" class="filter-select">
+                                        <option value="all" data-i18n="filters.all_tags">All Tags</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="vendorFilter" data-i18n="filters.vendor">Vendor</label>
+                                    <select id="vendorFilter" class="filter-select">
+                                        <option value="all" data-i18n="filters.all_vendors">All Vendors</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group">
+                                    <label for="warrantyTypeFilter" data-i18n="filters.warranty_type">Warranty Type</label>
+                                    <select id="warrantyTypeFilter" class="filter-select">
+                                        <option value="all" data-i18n="filters.all_types">All Types</option>
+                                    </select>
+                                </div>
+                                <div class="popover-actions">
+                                    <button id="clearFiltersBtn" class="btn btn-secondary" data-i18n="filters.clear">Clear</button>
+                                    <button id="applyFiltersBtn" class="btn btn-primary" data-i18n="filters.apply">Apply</button>
+                                </div>
+                            </div>
+
+                            <button id="sortBtn" class="action-btn">
+                                <i class="fas fa-sort-amount-down"></i>
+                                <span data-i18n="filters.sort">Sort</span>
+                            </button>
+                            <div id="sortPopover" class="popover">
+                                <h4 data-i18n="filters.sort_by">Sort By</h4>
+                                <ul id="sortOptionsList" class="sort-options">
+                                    <li data-sort="expiration" class="active" data-i18n="filters.sort_expiration">Expiration Date</li>
+                                    <li data-sort="purchase" data-i18n="filters.sort_purchase">Purchase Date</li>
+                                    <li data-sort="age" data-i18n="filters.sort_age">Age</li>
+                                    <li data-sort="name" data-i18n="filters.sort_name">Product Name</li>
+                                    <li data-sort="vendor" data-i18n="filters.sort_vendor">Vendor</li>
+                                    <li data-sort="warranty_type" data-i18n="filters.sort_warranty_type">Warranty Type</li>
+                                </ul>
+                                <!-- Hidden select preserved for compatibility with existing JS -->
+                                <select id="sortBy" class="filter-select" style="display: none;">
+                                    <option value="expiration" data-i18n="filters.sort_expiration">Expiration Date</option>
+                                    <option value="purchase" data-i18n="filters.sort_purchase">Purchase Date</option>
+                                    <option value="age" data-i18n="filters.sort_age">Age</option>
+                                    <option value="name" data-i18n="filters.sort_name">Product Name</option>
+                                    <option value="vendor" data-i18n="filters.sort_vendor">Vendor</option>
+                                    <option value="warranty_type" data-i18n="filters.sort_warranty_type">Warranty Type</option>
+                                </select>
+                            </div>
+
+                            
+                        </div>
+                        <div class="secondary-actions" style="display: flex; gap: 8px; flex-wrap: nowrap; flex-shrink: 1; min-width: 0;">
+                            <div class="data-dropdown" style="position: relative;">
+                                <button id="dataMenuBtn" class="action-btn" title="Data" style="white-space: nowrap;">
+                                    <i class="fas fa-database"></i> <span data-i18n="actions.data">Data</span> <i class="fas fa-caret-down"></i>
+                                </button>
+                                <div id="dataMenu" class="popover" style="min-width: 180px;">
+                                    <ul class="sort-options data-menu-options">
+                                        <li id="dataImportOption"><i class="fas fa-file-import"></i> <span data-i18n="actions.import">Import</span></li>
+                                        <li id="dataExportOption"><i class="fas fa-file-export"></i> <span data-i18n="actions.export">Export</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <!-- Keep original buttons hidden to preserve existing JS behavior -->
+                            <button id="exportBtn" class="export-btn" title="Export warranties" style="display:none;">
                                 <i class="fas fa-file-export"></i> <span data-i18n="actions.export">Export</span>
                             </button>
-                            <button id="importBtn" class="import-btn" title="Import warranties from CSV" style="white-space: nowrap;">
+                            <button id="importBtn" class="import-btn" title="Import warranties from CSV" style="display:none;">
                                 <i class="fas fa-file-import"></i> <span data-i18n="actions.import">Import</span>
                             </button>
-                            <button id="globalManageTagsBtn" class="export-btn" title="Manage all tags" style="white-space: nowrap;">
-                                <i class="fas fa-tags"></i> <span data-i18n="actions.manage_tags">Manage Tags</span>
+                            <button id="globalManageTagsBtn" class="action-btn export-btn" title="Tags" style="white-space: nowrap;">
+                                <i class="fas fa-tags"></i> <span data-i18n="warranties.tags">Tags</span>
                             </button>
+
+                            <!-- View Dropdown (moved after Tags) -->
+                            <div class="data-dropdown" id="viewDropdownContainer" style="position: relative;">
+                                <button id="viewMenuBtn" class="action-btn" title="View" style="white-space: nowrap;">
+                                    <i class="fas fa-eye"></i> <span data-i18n="filters.view">View</span> <i class="fas fa-caret-down"></i>
+                                </button>
+                                <div id="viewMenu" class="popover" style="min-width: 160px;">
+                                    <ul class="sort-options">
+                                        <li id="viewGridOption"><i class="fas fa-th-large"></i> <span>Grid</span></li>
+                                        <li id="viewListOption"><i class="fas fa-list"></i> <span>List</span></li>
+                                        <li id="viewTableOption"><i class="fas fa-table"></i> <span>Table</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Scope Dropdown (moved after Tags) -->
+                            <div class="data-dropdown" id="scopeDropdown" style="position: relative; display: none;">
+                                <button id="scopeMenuBtn" class="action-btn" title="Scope" style="white-space: nowrap;">
+                                    <i class="fas fa-users"></i> <span data-i18n="filters.scope">Scope</span> <i class="fas fa-caret-down"></i>
+                                </button>
+                                <div id="scopeMenu" class="popover" style="min-width: 160px;">
+                                    <ul class="sort-options">
+                                        <li id="scopePersonalOption"><i class="fas fa-user"></i> <span>Personal</span></li>
+                                        <li id="scopeGlobalOption"><i class="fas fa-globe"></i> <span>Global</span></li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
+                        
                         <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
                     </div>
                     
                     <div class="filter-options">
-                        <div class="filter-group">
-                            <label class="filter-label" data-i18n="filters.status">Status</label>
-                            <select id="statusFilter" class="filter-select">
-                                                <option value="all" data-i18n="filters.all_status">All Status</option>
-                <option value="active" data-i18n="warranties.active">Active</option>
-                <option value="expiring" data-i18n="warranties.expiring_soon">Expiring Soon</option>
-                <option value="expired" data-i18n="warranties.expired">Expired</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label class="filter-label" data-i18n="filters.tags">Tag</label>
-                            <select id="tagFilter" class="filter-select">
-                                <option value="all" data-i18n="filters.all_tags">All Tags</option>
-                                <!-- Tag options will be populated by JavaScript -->
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label class="filter-label" data-i18n="filters.vendor">Vendor</label>
-                            <select id="vendorFilter" class="filter-select">
-                                <option value="all" data-i18n="filters.all_vendors">All Vendors</option>
-                                <!-- Vendor options will be populated by JavaScript -->
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label class="filter-label" data-i18n="filters.warranty_type">Warranty Type</label>
-                            <select id="warrantyTypeFilter" class="filter-select">
-                                <option value="all" data-i18n="filters.all_types">All Types</option>
-                                <!-- Warranty type options will be populated by JavaScript -->
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label class="filter-label" data-i18n="filters.sort_by">Sort By</label>
-                            <select id="sortBy" class="filter-select">
-                                <option value="expiration" data-i18n="filters.sort_expiration">Expiration Date</option>
-                                <option value="purchase" data-i18n="filters.sort_purchase">Purchase Date</option>
-                                <option value="age" data-i18n="filters.sort_age">Age</option>
-                                <option value="name" data-i18n="filters.sort_name">Product Name</option>
-                                <option value="vendor" data-i18n="filters.sort_vendor">Vendor</option>
-                                <option value="warranty_type" data-i18n="filters.sort_warranty_type">Warranty Type</option>
-                            </select>
-                        </div>
-                        
-                        <div class="view-switcher">
-                            <label class="filter-label" data-i18n="filters.view">View</label>
-                            <div class="view-buttons">
-                                <button id="gridViewBtn" class="view-btn active" title="Grid View">
-                                    <i class="fas fa-th-large"></i>
-                                </button>
-                                <button id="listViewBtn" class="view-btn" title="List View">
-                                    <i class="fas fa-list"></i>
-                                </button>
-                                <button id="tableViewBtn" class="view-btn" title="Table View">
-                                    <i class="fas fa-table"></i>
-                                </button>
+                        <div class="action-bar">
+
+                            <div class="view-switcher" style="display: none;">
+                                <label class="filter-label" data-i18n="filters.view">View</label>
+                                <div class="view-buttons">
+                                    <button id="gridViewBtn" class="view-btn active" title="Grid View">
+                                        <i class="fas fa-th-large"></i>
+                                    </button>
+                                    <button id="listViewBtn" class="view-btn" title="List View">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                    <button id="tableViewBtn" class="view-btn" title="Table View">
+                                        <i class="fas fa-table"></i>
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <!-- Scope View Toggle -->
-                        <div class="admin-view-switcher" id="adminViewSwitcher" style="display: none;">
-                            <label class="filter-label" data-i18n="filters.scope">Scope</label>
-                            <div class="view-buttons">
-                                <button id="personalViewBtn" class="view-btn active" title="View your warranties only">
-                                    <i class="fas fa-user"></i>
-                                </button>
-                                <button id="globalViewBtn" class="view-btn" title="View all users' warranties (read-only for others)">
-                                    <i class="fas fa-globe"></i>
-                                </button>
+                            <!-- Move scope switcher to bottom-right -->
+                            <div class="admin-view-switcher" id="adminViewSwitcher" style="display: none; margin-left: auto;">
+                                <label class="filter-label" data-i18n="filters.scope">Scope</label>
+                                <div class="view-buttons" style="display: none;">
+                                    <button id="personalViewBtn" class="view-btn active" title="View your warranties only">
+                                        <i class="fas fa-user"></i>
+                                    </button>
+                                    <button id="globalViewBtn" class="view-btn" title="View all users' warranties (read-only for others)">
+                                        <i class="fas fa-globe"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1047,6 +1112,25 @@
             </div>
         </div>
     </div>
+
+    <!-- Confirm Archive Modal -->
+    <div id="archiveModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Archive Warranty</h3>
+                <button class="close-btn" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to archive this warranty?</p>
+                <p>Archived warranties are not deleted. You can find them by selecting the "Archived" status in Filters.</p>
+                <p><strong>Product:</strong> <span id="archiveProductName"></span></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button id="confirmArchiveBtn" class="btn btn-primary">Archive</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Tag Management Modal -->
     <div id="tagManagementModal" class="modal-backdrop">
@@ -1231,6 +1315,286 @@
     
     <script src="auth.js?v=20250119001"></script>
     <script src="script.js?v=20250119001"></script>
+    <script>
+        // Lightweight UI logic for Filter/Sort popovers (no change to core logic)
+        document.addEventListener('DOMContentLoaded', function () {
+            var filterBtn = document.getElementById('filterBtn');
+            var sortBtn = document.getElementById('sortBtn');
+            var viewMenuBtn = document.getElementById('viewMenuBtn');
+            var viewMenu = document.getElementById('viewMenu');
+            var viewGridOption = document.getElementById('viewGridOption');
+            var viewListOption = document.getElementById('viewListOption');
+            var viewTableOption = document.getElementById('viewTableOption');
+            var currentViewLabel = document.getElementById('currentViewLabel');
+            var scopeDropdown = document.getElementById('scopeDropdown');
+            var scopeMenuBtn = document.getElementById('scopeMenuBtn');
+            var scopeMenu = document.getElementById('scopeMenu');
+            var scopePersonalOption = document.getElementById('scopePersonalOption');
+            var scopeGlobalOption = document.getElementById('scopeGlobalOption');
+            var currentScopeLabel = document.getElementById('currentScopeLabel');
+            var filterPopover = document.getElementById('filterPopover');
+            var sortPopover = document.getElementById('sortPopover');
+            var sortOptionsList = document.getElementById('sortOptionsList');
+            var sortBy = document.getElementById('sortBy');
+
+            var statusFilter = document.getElementById('statusFilter');
+            var tagFilter = document.getElementById('tagFilter');
+            var vendorFilter = document.getElementById('vendorFilter');
+            var warrantyTypeFilter = document.getElementById('warrantyTypeFilter');
+            var clearFiltersBtn = document.getElementById('clearFiltersBtn');
+            var applyFiltersBtn = document.getElementById('applyFiltersBtn');
+            var filterIndicator = document.getElementById('filterIndicator');
+
+            // Data dropdown
+            var dataMenuBtn = document.getElementById('dataMenuBtn');
+            var dataMenu = document.getElementById('dataMenu');
+            var dataImportOption = document.getElementById('dataImportOption');
+            var dataExportOption = document.getElementById('dataExportOption');
+            var legacyImportBtn = document.getElementById('importBtn');
+            var legacyExportBtn = document.getElementById('exportBtn');
+
+            if (dataMenuBtn && dataMenu) {
+                dataMenuBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    dataMenu.classList.toggle('active');
+                    if (dataMenu.classList.contains('active')) closeAllPopovers(dataMenu);
+                });
+            }
+
+            if (dataImportOption && legacyImportBtn) {
+                dataImportOption.addEventListener('click', function () {
+                    legacyImportBtn.click();
+                    if (dataMenu) dataMenu.classList.remove('active');
+                });
+            }
+
+            if (dataExportOption && legacyExportBtn) {
+                dataExportOption.addEventListener('click', function () {
+                    legacyExportBtn.click();
+                    if (dataMenu) dataMenu.classList.remove('active');
+                });
+            }
+
+            // Expose globally so core script can trigger it after async loads
+            window.updateFilterIndicator = function () {
+                try {
+                    var hasActive = false;
+                    if (statusFilter && statusFilter.value && statusFilter.value !== 'all') hasActive = true;
+                    if (tagFilter && tagFilter.value && tagFilter.value !== 'all') hasActive = true;
+                    if (vendorFilter && vendorFilter.value && vendorFilter.value !== 'all') hasActive = true;
+                    if (warrantyTypeFilter && warrantyTypeFilter.value && warrantyTypeFilter.value !== 'all') hasActive = true;
+                    if (filterIndicator) filterIndicator.style.display = hasActive ? 'inline-block' : 'none';
+                } catch (e) { /* no-op */ }
+            };
+
+            function closeAllPopovers(except) {
+                [filterPopover, sortPopover, viewMenu, scopeMenu, dataMenu].forEach(function (p) {
+                    if (p && p !== except) p.classList.remove('active');
+                });
+            }
+
+            if (filterBtn && filterPopover) {
+                filterBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    filterPopover.classList.toggle('active');
+                    if (filterPopover.classList.contains('active')) closeAllPopovers(filterPopover);
+                });
+            }
+
+            if (sortBtn && sortPopover) {
+                sortBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    sortPopover.classList.toggle('active');
+                    if (sortPopover.classList.contains('active')) closeAllPopovers(sortPopover);
+                });
+            }
+
+            if (viewMenuBtn && viewMenu) {
+                viewMenuBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    viewMenu.classList.toggle('active');
+                    if (viewMenu.classList.contains('active')) {
+                        closeAllPopovers(viewMenu);
+                        // Sync highlight with the currently selected view when opening
+                        try {
+                            var currentType = 'grid';
+                            var wl = document.getElementById('warrantiesList');
+                            if (wl) {
+                                if (wl.classList.contains('list-view')) currentType = 'list';
+                                else if (wl.classList.contains('table-view')) currentType = 'table';
+                            } else {
+                                var prefixV = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                                var savedV = localStorage.getItem(prefixV + 'defaultView') || localStorage.getItem(prefixV + 'warrantyView') || 'grid';
+                                currentType = savedV;
+                            }
+                            if (typeof setViewIconFrom === 'function') setViewIconFrom(currentType);
+                        } catch (e) { /* no-op */ }
+                    }
+                });
+                function setViewIconFrom(viewType) {
+                    var icon = document.getElementById('currentViewIcon');
+                    if (icon) {
+                        icon.className = 'fas';
+                        if (viewType === 'list') {
+                            icon.classList.add('fa-list');
+                            icon.setAttribute('aria-label', 'List');
+                        } else if (viewType === 'table') {
+                            icon.classList.add('fa-table');
+                            icon.setAttribute('aria-label', 'Table');
+                        } else {
+                            icon.classList.add('fa-th-large');
+                            icon.setAttribute('aria-label', 'Grid');
+                        }
+                    }
+                    // Highlight active option in the dropdown
+                    try {
+                        if (viewGridOption) viewGridOption.classList.toggle('active', viewType === 'grid');
+                        if (viewListOption) viewListOption.classList.toggle('active', viewType === 'list');
+                        if (viewTableOption) viewTableOption.classList.toggle('active', viewType === 'table');
+                    } catch (e) { /* no-op */ }
+                }
+                if (viewGridOption) viewGridOption.addEventListener('click', function () { if (window.switchView) window.switchView('grid'); setViewIconFrom('grid'); viewMenu.classList.remove('active'); });
+                if (viewListOption) viewListOption.addEventListener('click', function () { if (window.switchView) window.switchView('list'); setViewIconFrom('list'); viewMenu.classList.remove('active'); });
+                if (viewTableOption) viewTableOption.addEventListener('click', function () { if (window.switchView) window.switchView('table'); setViewIconFrom('table'); viewMenu.classList.remove('active'); });
+                // Initialize label from saved preference
+                try {
+                    var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                    var savedView = localStorage.getItem(prefix + 'defaultView') || localStorage.getItem(prefix + 'warrantyView') || 'grid';
+                    setViewIconFrom(savedView);
+                } catch (e) { /* no-op */ }
+            }
+
+            if (scopeMenuBtn && scopeMenu) {
+                scopeMenuBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    scopeMenu.classList.toggle('active');
+                    if (scopeMenu.classList.contains('active')) {
+                        closeAllPopovers(scopeMenu);
+                        // Sync highlight with the currently selected scope when opening
+                        try {
+                            var prefixS = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                            var savedS = localStorage.getItem(prefixS + 'viewScope') || 'personal';
+                            if (typeof setScopeIconFrom === 'function') setScopeIconFrom(savedS);
+                        } catch (e) { /* no-op */ }
+                    }
+                });
+                function setScopeIconFrom(scope) {
+                    var icon = document.getElementById('currentScopeIcon');
+                    if (icon) {
+                        icon.className = 'fas';
+                        if (scope === 'global') {
+                            icon.classList.add('fa-globe');
+                            icon.setAttribute('aria-label', 'Global');
+                        } else {
+                            icon.classList.add('fa-user');
+                            icon.setAttribute('aria-label', 'Personal');
+                        }
+                    }
+                    // Highlight active option in the dropdown
+                    try {
+                        if (scopePersonalOption) scopePersonalOption.classList.toggle('active', scope === 'personal');
+                        if (scopeGlobalOption) scopeGlobalOption.classList.toggle('active', scope === 'global');
+                    } catch (e) { /* no-op */ }
+                }
+                if (scopePersonalOption) scopePersonalOption.addEventListener('click', function () { if (window.switchToPersonalView) window.switchToPersonalView(); setScopeIconFrom('personal'); scopeMenu.classList.remove('active'); });
+                if (scopeGlobalOption) scopeGlobalOption.addEventListener('click', function () { if (window.switchToGlobalView) window.switchToGlobalView(); setScopeIconFrom('global'); scopeMenu.classList.remove('active'); });
+                // Initialize scope label from saved preference
+                try {
+                    var prefix2 = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                    var savedScope = localStorage.getItem(prefix2 + 'viewScope') || 'personal';
+                    setScopeIconFrom(savedScope);
+                } catch (e) { /* no-op */ }
+            }
+
+            document.addEventListener('click', function (e) {
+                if (filterPopover && !filterPopover.contains(e.target) && e.target !== filterBtn) filterPopover.classList.remove('active');
+                if (sortPopover && !sortPopover.contains(e.target) && e.target !== sortBtn) sortPopover.classList.remove('active');
+                if (viewMenu && !viewMenu.contains(e.target) && e.target !== viewMenuBtn) viewMenu.classList.remove('active');
+                if (scopeMenu && !scopeMenu.contains(e.target) && e.target !== scopeMenuBtn) scopeMenu.classList.remove('active');
+                if (dataMenu && !dataMenu.contains(e.target) && e.target !== dataMenuBtn) dataMenu.classList.remove('active');
+            });
+
+            // Restore saved filters early so indicator reflects persisted state immediately
+            try {
+                var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                var savedFiltersRaw = localStorage.getItem(prefix + 'warrantyFilters');
+                if (savedFiltersRaw) {
+                    var savedFilters = JSON.parse(savedFiltersRaw) || {};
+                    if (statusFilter && savedFilters.status) statusFilter.value = savedFilters.status;
+                    if (tagFilter && savedFilters.tag) tagFilter.value = savedFilters.tag;
+                    if (vendorFilter && savedFilters.vendor) vendorFilter.value = savedFilters.vendor;
+                    if (warrantyTypeFilter && savedFilters.warranty_type) warrantyTypeFilter.value = savedFilters.warranty_type;
+                }
+            } catch (e) { /* no-op */ }
+
+            if (applyFiltersBtn) {
+                applyFiltersBtn.addEventListener('click', function () {
+                    [statusFilter, tagFilter, vendorFilter, warrantyTypeFilter].forEach(function (el) {
+                        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    // Persist filters
+                    try {
+                        var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                        var filtersToSave = {
+                            status: statusFilter ? statusFilter.value : 'all',
+                            tag: tagFilter ? tagFilter.value : 'all',
+                            vendor: vendorFilter ? vendorFilter.value : 'all',
+                            warranty_type: warrantyTypeFilter ? warrantyTypeFilter.value : 'all'
+                        };
+                        localStorage.setItem(prefix + 'warrantyFilters', JSON.stringify(filtersToSave));
+                    } catch (e) { /* no-op */ }
+                    window.updateFilterIndicator();
+                    if (filterPopover) filterPopover.classList.remove('active');
+                });
+            }
+
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', function () {
+                    if (statusFilter) statusFilter.value = 'all';
+                    if (tagFilter) tagFilter.value = 'all';
+                    if (vendorFilter) vendorFilter.value = 'all';
+                    if (warrantyTypeFilter) warrantyTypeFilter.value = 'all';
+                    [statusFilter, tagFilter, vendorFilter, warrantyTypeFilter].forEach(function (el) {
+                        if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    updateFilterIndicator();
+                });
+            }
+
+            if (sortOptionsList) {
+                sortOptionsList.addEventListener('click', function (e) {
+                    var li = e.target && e.target.closest('li[data-sort]');
+                    if (!li) return;
+                    Array.prototype.forEach.call(sortOptionsList.querySelectorAll('li'), function (n) { n.classList.remove('active'); });
+                    li.classList.add('active');
+                    if (sortBy) {
+                        sortBy.value = li.getAttribute('data-sort');
+                        sortBy.dispatchEvent(new Event('change', { bubbles: true }));
+                        // Persist sort
+                        try {
+                            var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                            localStorage.setItem(prefix + 'warrantySortBy', sortBy.value || 'expiration');
+                        } catch (e) { /* no-op */ }
+                    }
+                    if (sortPopover) sortPopover.classList.remove('active');
+                });
+            }
+
+            // Initialize states
+            window.updateFilterIndicator();
+            if (sortBy && sortOptionsList) {
+                // Try to load saved sort preference
+                try {
+                    var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                    var savedSort = localStorage.getItem(prefix + 'warrantySortBy');
+                    if (savedSort) sortBy.value = savedSort;
+                } catch (e) { /* no-op */ }
+                var current = sortBy.value || 'expiration';
+                var activeLi = sortOptionsList.querySelector('li[data-sort="' + current + '"]');
+                if (activeLi) activeLi.classList.add('active');
+            }
+        });
+    </script>
 
     <!-- Footer Width Fix -->
     <script src="footer-fix.js?v=20250119001"></script>
