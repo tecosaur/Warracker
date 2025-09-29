@@ -4,6 +4,7 @@ import psycopg2
 from psycopg2 import pool
 import logging
 import time
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
@@ -39,6 +40,31 @@ def _close_stale_pool_if_forked(current_pid: int) -> None:
         finally:
             connection_pool = None
             pool_pid = None
+
+DEFAULT_SITE_SETTINGS = {
+    'registration_enabled': 'true',
+    'email_base_url': os.environ.get('APP_BASE_URL', 'http://localhost:8080'), # Default to APP_BASE_URL
+    'global_view_enabled': 'true',  # Global warranty view feature
+    'global_view_admin_only': 'false',  # Restrict global view to admins only
+    'oidc_enabled': 'false',
+    'oidc_only_mode': 'false',  # Force OIDC-only login (hide traditional login form)
+    'oidc_provider_name': 'oidc',
+    'oidc_client_id': '',
+    'oidc_client_secret': '',
+    'oidc_issuer_url': '',
+    'oidc_scope': 'openid email profile',
+    'oidc_admin_group': '',
+    # Apprise default settings
+    'apprise_enabled': 'false',
+    'apprise_urls': '',
+    'apprise_expiration_days': '7,30',
+    'apprise_notification_time': '09:00',
+    'apprise_title_prefix': '[Warracker]',
+    # Paperless-ngx integration settings
+    'paperless_enabled': 'false',
+    'paperless_url': '',
+    'paperless_api_token': '',
+}
 
 def init_db_pool(max_retries=5, retry_delay=5):
     global connection_pool, pool_pid # Ensure we're modifying the global variable in this module
@@ -157,6 +183,35 @@ def get_site_setting(setting_name: str, default_value: str = '') -> str:
     except Exception as e:
         logger.error(f"Error getting site setting {setting_name}: {e}")
         return default_value
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+def apply_site_settings_file(filepath: str):
+    """Apply site settings from a JSON file to the database"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        settings_content = json.load(open(filepath))
+        settings = {k: settings_content.get(k, v) for k, v in DEFAULT_SITE_SETTINGS.items()}
+
+        for key, value in settings.items():
+            if isinstance(value, bool):
+                value = 'true' if value else 'false'
+            logger.info(f"Applying site setting {key} = {value}")
+            cursor.execute("""
+                INSERT INTO site_settings (key, value, updated_at)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (key)
+                DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+            """, (key, str(value)))
+
+        conn.commit()
+        logger.info(f"Site settings from {filepath} applied successfully.")
+    except Exception as e:
+        logger.error(f"Error applying site settings file {filepath}: {e}")
     finally:
         if conn:
             release_db_connection(conn)

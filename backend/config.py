@@ -42,6 +42,9 @@ class Config:
     DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
     DB_ADMIN_USER = os.environ.get('DB_ADMIN_USER', 'warracker_admin')
     DB_ADMIN_PASSWORD = os.environ.get('DB_ADMIN_PASSWORD', 'change_this_password_in_production')
+
+    # Hard settings
+    FIXED_CONFIG = os.environ.get('WARRACKER_FIXED_CONFIG')
     
     # File Upload Configuration
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/data/uploads')

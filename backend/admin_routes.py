@@ -372,38 +372,15 @@ def get_site_settings():
             
             # Define default values for all settings managed here
             # OIDC Client Secret is write-only from admin UI, not directly exposed via GET
-            default_site_settings = {
-                'registration_enabled': 'true',
-                'email_base_url': os.environ.get('APP_BASE_URL', 'http://localhost:8080'), # Default to APP_BASE_URL
-                'global_view_enabled': 'true',  # Global warranty view feature
-                'global_view_admin_only': 'false',  # Restrict global view to admins only
-                'oidc_enabled': 'false',
-                'oidc_only_mode': 'false',  # Force OIDC-only login (hide traditional login form)
-                'oidc_provider_name': 'oidc',
-                'oidc_client_id': '',
-                # 'oidc_client_secret': '', # Not returned
-                'oidc_issuer_url': '',
-                'oidc_scope': 'openid email profile',
-                'oidc_admin_group': '',
-                # Apprise default settings
-                'apprise_enabled': 'false',
-                'apprise_urls': '',
-                'apprise_expiration_days': '7,30',
-                'apprise_notification_time': '09:00',
-                'apprise_title_prefix': '[Warracker]',
-                # Paperless-ngx integration settings
-                'paperless_enabled': 'false',
-                'paperless_url': '',
-                # 'paperless_api_token': '', # Not returned directly
-            }
-
+            secret_settings = ['oidc_client_secret', 'paperless_api_token']
+            default_site_settings = {k: v for k, v in db_handler.DEFAULT_SITE_SETTINGS.items() if k not in secret_settings}
             settings_to_return = {}
             needs_commit = False
 
             # First, add all existing settings from the database
             for key, value in raw_settings.items():
                 # Skip returning sensitive secrets directly
-                if key in ['oidc_client_secret', 'paperless_api_token']:
+                if key in secret_settings:
                     continue
                 
                 # For boolean-like string settings, ensure they are 'true' or 'false'
@@ -414,7 +391,7 @@ def get_site_settings():
 
             # Then, add defaults for any missing settings
             for key, default_value in default_site_settings.items():
-                if key not in settings_to_return and key not in ['oidc_client_secret', 'paperless_api_token']:
+                if key not in settings_to_return and key not in secret_settings:
                     settings_to_return[key] = default_value
                     # Insert default if missing (except for secrets)
                     cur.execute(
@@ -426,6 +403,8 @@ def get_site_settings():
             # Indicate if secrets are set without revealing them
             settings_to_return['oidc_client_secret_set'] = bool(raw_settings.get('oidc_client_secret'))
             settings_to_return['paperless_api_token_set'] = bool(raw_settings.get('paperless_api_token'))
+
+            settings_to_return['fixed_config'] = bool(current_app.config['FIXED_CONFIG'])
 
             if needs_commit:
                 conn.commit()
@@ -442,6 +421,9 @@ def get_site_settings():
 @admin_required
 def update_site_settings():
     """Update site settings (admin only)"""
+    if current_app.config['FIXED_CONFIG']:
+        return jsonify({"message": "Configuration is fixed and cannot be changed via the admin API."}), 403
+
     conn = None
     try:
         data = request.get_json()

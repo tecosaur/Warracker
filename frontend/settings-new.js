@@ -3446,27 +3446,46 @@ async function loadSiteSettings() {
         
         const settings = await response.json();
         console.log('[SiteSettings] Raw settings received from API:', settings);
+
+        const fixed = settings.fixed_config;
+
+        if (fixed) {
+            saveSiteSettingsBtn.style.display = 'none';
+            saveOidcSettingsBtn.style.display = 'none';
+            savePaperlessSettingsBtn.style.display = 'none';
+            saveAppriseSettingsBtn.style.display = 'none';
+            settingsSections = document.querySelectorAll('#adminnsection div.collapsible-card');
+            for (const section of settingsSections) {
+                section.classList.add('collapsed');
+            }
+            notice = document.getElementById('fixedConfigurationNotice');
+            if (notice) notice.style.display = 'block';
+        }
         
         if (registrationToggleElem) {
             registrationToggleElem.checked = settings.registration_enabled === 'true';
+            if (fixed) registrationToggleElem.disabled = true
         } else {
             console.error('[SiteSettings] registrationEnabled element NOT FOUND locally.');
         }
         
         if (emailBaseUrlFieldElem) { 
-            emailBaseUrlFieldElem.value = settings.email_base_url || 'http://localhost:8080'; 
+            emailBaseUrlFieldElem.value = settings.email_base_url || 'http://localhost:8080';
+            if (fixed) emailBaseUrlFieldElem.disabled = true
         } else {
             console.error('[SiteSettings] emailBaseUrl element NOT FOUND locally.');
         }
 
         if (globalViewToggleElem) {
             globalViewToggleElem.checked = settings.global_view_enabled === 'true';
+            if (fixed) globalViewToggleElem.disabled = true
         } else {
             console.error('[SiteSettings] globalViewEnabled element NOT FOUND locally.');
         }
 
         if (globalViewAdminOnlyToggleElem) {
             globalViewAdminOnlyToggleElem.checked = settings.global_view_admin_only === 'true';
+            if (fixed) globalViewAdminOnlyToggleElem.disabled = true
         } else {
             console.error('[SiteSettings] globalViewAdminOnly element NOT FOUND locally.');
         }
@@ -3475,6 +3494,7 @@ async function loadSiteSettings() {
         if (oidcEnabledToggleElem) {
             console.log('[OIDC Settings] Found oidcEnabledToggleElem. Setting checked to:', settings.oidc_enabled === 'true');
             oidcEnabledToggleElem.checked = settings.oidc_enabled === 'true';
+            if (fixed) oidcEnabledToggleElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcEnabledToggleElem element NOT FOUND locally.');
         }
@@ -3482,6 +3502,7 @@ async function loadSiteSettings() {
         if (oidcOnlyModeToggleElem) {
             console.log('[OIDC Settings] Found oidcOnlyModeToggleElem. Setting checked to:', settings.oidc_only_mode === 'true');
             oidcOnlyModeToggleElem.checked = settings.oidc_only_mode === 'true';
+            if (fixed) oidcOnlyModeToggleElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcOnlyModeToggleElem element NOT FOUND locally.');
         }
@@ -3489,6 +3510,7 @@ async function loadSiteSettings() {
         if (oidcProviderNameInputElem) {
             console.log('[OIDC Settings] Found oidcProviderNameInputElem. Setting value to:', settings.oidc_provider_name || 'oidc');
             oidcProviderNameInputElem.value = settings.oidc_provider_name || 'oidc';
+            if (fixed) oidcProviderNameInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcProviderNameInputElem element NOT FOUND locally.');
         }
@@ -3496,6 +3518,7 @@ async function loadSiteSettings() {
         if (oidcClientIdInputElem) {
             console.log('[OIDC Settings] Found oidcClientIdInputElem. Setting value to:', settings.oidc_client_id || '');
             oidcClientIdInputElem.value = settings.oidc_client_id || '';
+            if (fixed) oidcClientIdInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcClientIdInputElem element NOT FOUND locally.');
         }
@@ -3504,6 +3527,7 @@ async function loadSiteSettings() {
             console.log('[OIDC Settings] Found oidcClientSecretInputElem. Setting placeholder based on oidc_client_secret_set:', settings.oidc_client_secret_set);
             oidcClientSecretInputElem.value = ''; // Always clear on load
             oidcClientSecretInputElem.placeholder = settings.oidc_client_secret_set ? '******** (Set - Enter new to change)' : 'Enter OIDC Client Secret';
+            if (fixed) oidcClientSecretInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcClientSecretInputElem element NOT FOUND locally.');
         }
@@ -3511,6 +3535,7 @@ async function loadSiteSettings() {
         if (oidcIssuerUrlInputElem) {
             console.log('[OIDC Settings] Found oidcIssuerUrlInputElem. Setting value to:', settings.oidc_issuer_url || '');
             oidcIssuerUrlInputElem.value = settings.oidc_issuer_url || '';
+            if (fixed) oidcIssuerUrlInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcIssuerUrlInputElem element NOT FOUND locally.');
         }
@@ -3518,6 +3543,7 @@ async function loadSiteSettings() {
         if (oidcScopeInputElem) {
             console.log('[OIDC Settings] Found oidcScopeInputElem. Setting value to:', settings.oidc_scope || 'openid email profile');
             oidcScopeInputElem.value = settings.oidc_scope || 'openid email profile';
+            if (fixed) oidcScopeInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcScopeInputElem element NOT FOUND locally.');
         }
@@ -3525,6 +3551,7 @@ async function loadSiteSettings() {
         if (oidcAdminGroupInputElem) {
             console.log('[OIDC Settings] Found oidcAdminGroupInputElem. Setting value to:', settings.oidc_admin_group || '');
             oidcAdminGroupInputElem.value = settings.oidc_admin_group || '';
+            if (fixed) oidcAdminGroupInputElem.disabled = true
         } else {
             console.error('[OIDC Settings] oidcAdminGroupInputElem element NOT FOUND locally.');
         }
@@ -4371,6 +4398,8 @@ async function loadAppriseSiteSettings() {
 
         const data = await response.json();
         console.log('📥 Loaded settings data:', data);
+
+        const fixed = data.fixed_config;
         
         // Check if Apprise settings exist in the data
         const appriseKeys = Object.keys(data).filter(key => key.startsWith('apprise_'));
@@ -4380,6 +4409,7 @@ async function loadAppriseSiteSettings() {
         if (appriseEnabledToggle && data.apprise_enabled !== undefined) {
             appriseEnabledToggle.checked = data.apprise_enabled === 'true';
             console.log('✅ Set appriseEnabled:', data.apprise_enabled);
+            if (fixed) appriseEnabledToggle.disabled = true;
             
             // Show/hide settings container based on enabled state
             const settingsContainer = document.getElementById('appriseSettingsContainer');
@@ -4396,9 +4426,13 @@ async function loadAppriseSiteSettings() {
         } else {
             console.log('⚠️ appriseUrlsTextarea element not found or apprise_urls data missing');
         }
+        if (fixed && appriseUrlsTextarea) {
+            appriseUrlsTextarea.disabled = true;
+        }
         
         if (appriseExpirationDaysInput && data.apprise_expiration_days) {
             appriseExpirationDaysInput.value = data.apprise_expiration_days;
+            if (fixed) appriseExpirationDaysInput.disabled = true;
             console.log('✅ Set appriseExpirationDays:', data.apprise_expiration_days);
         } else {
             console.log('⚠️ appriseExpirationDaysInput element not found or data missing');
@@ -4408,6 +4442,7 @@ async function loadAppriseSiteSettings() {
         
         if (appriseTitlePrefixInput && data.apprise_title_prefix) {
             appriseTitlePrefixInput.value = data.apprise_title_prefix;
+            if (fixed) appriseTitlePrefixInput.disabled = true;
             console.log('✅ Set appriseTitlePrefix:', data.apprise_title_prefix);
         } else {
             console.log('⚠️ appriseTitlePrefixInput element not found or data missing');
@@ -4416,6 +4451,7 @@ async function loadAppriseSiteSettings() {
         if (appriseNotificationModeSelect && data.apprise_notification_mode) {
             appriseNotificationModeSelect.value = data.apprise_notification_mode;
             updateAppriseModeDescription(data.apprise_notification_mode);
+            if (fixed) appriseNotificationModeSelect.disabled = true;
             console.log('✅ Set appriseNotificationMode:', data.apprise_notification_mode);
         } else {
             console.log('⚠️ appriseNotificationModeSelect element not found or data missing');
@@ -4429,6 +4465,7 @@ async function loadAppriseSiteSettings() {
         if (appriseWarrantyScopeSelect && data.apprise_warranty_scope) {
             appriseWarrantyScopeSelect.value = data.apprise_warranty_scope;
             updateAppriseScopeDescription(data.apprise_warranty_scope);
+            if (fixed) appriseWarrantyScopeSelect.disabled = true;
             console.log('✅ Set appriseWarrantyScope:', data.apprise_warranty_scope);
         } else {
             console.log('⚠️ appriseWarrantyScopeSelect element not found or data missing');
@@ -4436,6 +4473,7 @@ async function loadAppriseSiteSettings() {
             if (appriseWarrantyScopeSelect) {
                 appriseWarrantyScopeSelect.value = 'all';
                 updateAppriseScopeDescription('all');
+                if (fixed) appriseWarrantyScopeSelect.disabled = true;
             }
         }
 
@@ -4836,16 +4874,22 @@ async function loadPaperlessSettings() {
         }
 
         const settings = await response.json();
+
+        const fixed = settings.fixed_config;
         
         // Update Paperless-ngx settings UI
         if (paperlessEnabledToggle) {
             const isEnabled = settings.paperless_enabled === 'true';
             paperlessEnabledToggle.checked = isEnabled;
             togglePaperlessSettings(isEnabled);
+            if (fixed) paperlessEnabledToggle.disabled = true;
         }
         
         if (paperlessUrlInput && settings.paperless_url) {
             paperlessUrlInput.value = settings.paperless_url;
+        }
+        if (fixed && paperlessUrlInput) {
+            paperlessUrlInput.disabled = true;
         }
         
         // Update API token field placeholder to indicate if token is saved
@@ -4855,6 +4899,7 @@ async function loadPaperlessSettings() {
             } else {
                 paperlessApiTokenInput.placeholder = 'Enter API token';
             }
+            if (fixed) paperlessApiTokenInput.disabled = true;
         }
         
         console.log('✅ Paperless-ngx settings loaded successfully');
