@@ -171,8 +171,7 @@ To get the docker compose file with environemts and .env example for warracker a
 *   Click the edit icon to modify warranty details.
 *   Click the delete icon to remove a warranty.
 <details>
-
-<summary>## Product Information Entry Requirements for CSV import</summary>summary>
+<summary>Product Information Entry Requirements for CSV import</summary>
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
 |----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
@@ -227,8 +226,10 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **User Preference:** Saves individual language choice to user profile  
 - **Native Names:** Dropdown displays language names in native scripts for clarity  
 - **Instant Switching:** Change languages in real-time without page reload  
----
 </details>
+
+---
+
 ## Why I Built This
 
 Warracker was born from personal frustration with warranty confusion. When my father’s dishwasher broke, we had the invoice and assumed it was under warranty, only to find out we were referencing the wrong one, and the warranty had ended by a couple of months.
