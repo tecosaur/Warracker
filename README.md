@@ -198,26 +198,26 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 <details>
 <summary><strong>Supported Languages</strong></summary>
 
-| Language                 | Code     | Native Name           | Notes           |
-|--------------------------|----------|-----------------------|-----------------|
-| Arabic :saudi_arabia:    | ar       | العربية               | *RTL Support*   |
-| Czech :czech_republic:   | cs       | Čeština               |                 |
-| German :de:              | de       | Deutsch               |                 |
-| English :uk:             | en       | English               | *Default*       |
-| Spanish :es:             | es       | Español               |                 |
-| Persian :iran:           | fa       | فارسی                 | *RTL Support*   |
-| French :fr:              | fr       | Français              |                 |
-| Hindi :india:            | hi       | हिन्दी                |                 |
-| Italian :it:             | it       | Italiano              |                 |
-| Japanese :jp:            | ja       | 日本語                 |                 |
-| Korean :kr:              | ko       | 한국어                 |                 |
-| Dutch :netherlands:      | nl       | Nederlands            |                 |
-| Portuguese :portugal:    | pt       | Português             |                 |
-| Russian :ru:             | ru       | Русский               |                 |
-| Ukrainian :ukraine:      | uk       | Українська            |                 |
-| Chinese (Simplified) :cn:| zh_CN    | 简体中文               |                 |
-| Chinese (Hong Kong) :hong_kong: | zh_HK | 繁體中文 (香港)   |                 |
-| Turkish :tr:             | tr       | Türkçe                |                 |
+| Language | Code | Native Name | Notes |
+|---|---:|---|---|
+| <img src="https://flagcdn.com/16x12/sa.png" width="16" height="12" alt="SA"> Arabic | ar | العربية | *RTL Support* |
+| <img src="https://flagcdn.com/16x12/cz.png" width="16" height="12" alt="CZ"> Czech | cs | Čeština | |
+| <img src="https://flagcdn.com/16x12/de.png" width="16" height="12" alt="DE"> German | de | Deutsch | |
+| <img src="https://flagcdn.com/16x12/gb.png" width="16" height="12" alt="GB"> English | en | English | *Default* |
+| <img src="https://flagcdn.com/16x12/es.png" width="16" height="12" alt="ES"> Spanish | es | Español | |
+| <img src="https://flagcdn.com/16x12/ir.png" width="16" height="12" alt="IR"> Persian | fa | فارسی | *RTL Support* |
+| <img src="https://flagcdn.com/16x12/fr.png" width="16" height="12" alt="FR"> French | fr | Français | |
+| <img src="https://flagcdn.com/16x12/in.png" width="16" height="12" alt="IN"> Hindi | hi | हिन्दी | |
+| <img src="https://flagcdn.com/16x12/it.png" width="16" height="12" alt="IT"> Italian | it | Italiano | |
+| <img src="https://flagcdn.com/16x12/jp.png" width="16" height="12" alt="JP"> Japanese | ja | 日本語 | |
+| <img src="https://flagcdn.com/16x12/kr.png" width="16" height="12" alt="KR"> Korean | ko | 한국어 | |
+| <img src="https://flagcdn.com/16x12/nl.png" width="16" height="12" alt="NL"> Dutch | nl | Nederlands | |
+| <img src="https://flagcdn.com/16x12/pt.png" width="16" height="12" alt="PT"> Portuguese | pt | Português | |
+| <img src="https://flagcdn.com/16x12/ru.png" width="16" height="12" alt="RU"> Russian | ru | Русский | |
+| <img src="https://flagcdn.com/16x12/ua.png" width="16" height="12" alt="UA"> Ukrainian | uk | Українська | |
+| <img src="https://flagcdn.com/16x12/cn.png" width="16" height="12" alt="CN"> Chinese (Simplified) | zh_CN | 简体中文 | |
+| <img src="https://flagcdn.com/16x12/hk.png" width="16" height="12" alt="HK"> Chinese (Hong Kong) | zh_HK | 繁體中文 (香港) | |
+| <img src="https://flagcdn.com/16x12/tr.png" width="16" height="12" alt="TR"> Turkish | tr | Türkçe | |
 
 ---
 
@@ -229,8 +229,6 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **Instant Switching:** Change languages in real-time without page reload  
 
 </details>
-
-
 
 ---
 
