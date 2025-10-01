@@ -156,20 +156,28 @@ volumes:
 
 To get the docker compose file with environemts and .env example for warracker and the warrackerdb please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
-## 📝Usage
+## 📝 Usage
+
+### Accounts & Roles
+
+- The **first account created** in the system will automatically become the **Admin account**.  
+- The Admin can manage other users, assign roles, and has full system permissions.  
+- Regular users can only manage their own warranties unless granted additional privileges by the Admin.  
 
 ### Adding a Warranty
 
-1.  Fill in the product details by clicking on add warranty.
-2.  Enter the purchase date and warranty duration.
-3.  Optionally upload receipt/documentation.
-4.  Click the "Add Warranty" button.
+1. Fill in the product details by clicking on **Add Warranty**.  
+2. Enter the purchase date and warranty duration.  
+3. Optionally upload receipt/documentation.  
+4. Click the **Add Warranty** button.  
 
 ### Managing Warranties
 
-*   Use the search box to filter warranties.
-*   Click the edit icon to modify warranty details.
-*   Click the delete icon to remove a warranty.
+- Use the search box to filter warranties.  
+- Click the edit icon to modify warranty details.  
+- Click the delete icon to remove a warranty.  
+
+
 <details>
 <summary><strong>Product Information Entry Requirements for CSV import</strong></summary>
 
