@@ -62,7 +62,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
-| 📖 **Localization Support**       | [Full multilingual UI with 17 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+| 📖 **Localization Support**       | [Full multilingual UI with 18 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
 
 ---
 
@@ -193,7 +193,7 @@ To get the docker compose file with environemts and .env example for warracker a
 
 ## 🌐 Localization Support
 
-Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
+Warracker offers **full multilingual UI support** with **18 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
 
 <details>
     
