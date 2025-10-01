@@ -47,7 +47,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 🗃️ **Centralized Management**   | Track all your product warranties in one place                                                           |
 | 🧾 **Detailed Records**          | Store purchase dates, durations, notes, and product photos with thumbnail previews                       |
 | 📄 **Document Storage**          | Upload receipts, invoices, and manuals securely                                                          |
-| 📝 **Warranty Claims**               | Manage warranty claims end-to-end with statuses, dates, resolutions, and full lifecycle visibility       |
+| 📝 **Warranty Claims**           | Manage warranty claims end-to-end with statuses, dates, resolutions, and full lifecycle visibility       |
 | 🔔 **Proactive Alerts**          | Get alerts for upcoming expirations via email or 100+ push services (Discord, Slack, etc.) using Apprise |
 | 🔍 **Quick Search and Filter**   | Search by product name, serial number, vendor, tags, and more with real-time filtering                   |
 | #️⃣ **Multiple Serial Numbers**  | Add and manage multiple serial numbers per product                                                       |
@@ -57,12 +57,14 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | ⚙️ **Customizable Settings**     | Configure currency, date formats, notification timing, and branding                                      |
 | 🌐 **Internationalization Support** | Support for multiple currencies and date formats tailored to regional preferences, enabling a seamless global user experience |
 | 🏷️ **Tagging**                  | Organize warranties using custom tags                                                                    |
+| 📦 **Archiving**                 | Archive expired or unused warranties for better organization, while keeping records accessible when needed |
 | 🔐 **Password Reset**            | Token-based, secure account recovery system                                                              |
 | 🔑 **OIDC SSO**                  | Single sign-on with providers like Google, GitHub, and Keycloak                                          |
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
-| 📖 **Localization Support**       | [Full multilingual UI with 18 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+| 📖 **Localization Support**      | [Full multilingual UI with 18 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+
 
 ---
 
