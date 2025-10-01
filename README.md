@@ -171,7 +171,7 @@ To get the docker compose file with environemts and .env example for warracker a
 *   Click the edit icon to modify warranty details.
 *   Click the delete icon to remove a warranty.
 <details>
-<summary>Product Information Entry Requirements for CSV import</summary>
+<summary><strong>Product Information Entry Requirements for CSV import</strong></summary>
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
 |----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
