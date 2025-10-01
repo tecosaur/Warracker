@@ -196,7 +196,7 @@ To get the docker compose file with environemts and .env example for warracker a
 Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
 
 <details>
-<summary>### Supported Languages</summary>
+<summary><strong>Supported Languages</strong></summary>
 
 | Language                 | Code     | Native Name           | Notes           |
 |--------------------------|----------|-----------------------|-----------------|
@@ -219,6 +219,7 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 | Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
 | Turkish 🇹🇷              | tr       | Türkçe                |                 |
 
+---
 
 ### Language Selection Features
 
@@ -226,7 +227,9 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **User Preference:** Saves individual language choice to user profile  
 - **Native Names:** Dropdown displays language names in native scripts for clarity  
 - **Instant Switching:** Change languages in real-time without page reload  
+
 </details>
+
 
 ---
 
