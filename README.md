@@ -170,8 +170,9 @@ To get the docker compose file with environemts and .env example for warracker a
 *   Use the search box to filter warranties.
 *   Click the edit icon to modify warranty details.
 *   Click the delete icon to remove a warranty.
+<details>
 
-## Product Information Entry Requirements for CSV import
+<summary>## Product Information Entry Requirements for CSV import</summary>summary>
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
 |----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
@@ -186,16 +187,20 @@ To get the docker compose file with environemts and .env example for warracker a
 | **ProductURL**   | Text (URL format)                         | ❌ No (Optional)                                        | Full URL to product page (optional field). https://producturl.com                           |
 | **Vendor**       | Text                                      | ❌ No (Optional)                                        | Name of the vendor or seller where the product was purchased.        |
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
+</details>
 
 ---
+
+
 ## 🌐 Localization Support
 
 Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
 
-### Supported Languages
+<details>
+<summary>### Supported Languages</summary>
 
 | Language                 | Code     | Native Name           | Notes           |
-|--------------------------|----------|----------------------|-----------------|
+|--------------------------|----------|-----------------------|-----------------|
 | Arabic 🇸🇦               | ar       | العربية               | *RTL Support*   |
 | Czech 🇨🇿                | cs       | Čeština               |                 |
 | German 🇩🇪               | de       | Deutsch               |                 |
@@ -213,6 +218,8 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 | Ukrainian 🇺🇦            | uk       | Українська            |                 |
 | Chinese (Simplified) 🇨🇳 | zh_CN    | 简体中文               |                 |
 | Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
+| Turkish 🇹🇷              | tr       | Türkçe                |                 |
+
 
 ### Language Selection Features
 
@@ -221,7 +228,7 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **Native Names:** Dropdown displays language names in native scripts for clarity  
 - **Instant Switching:** Change languages in real-time without page reload  
 ---
-
+</details>
 ## Why I Built This
 
 Warracker was born from personal frustration with warranty confusion. When my father’s dishwasher broke, we had the invoice and assumed it was under warranty, only to find out we were referencing the wrong one, and the warranty had ended by a couple of months.
