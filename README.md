@@ -200,24 +200,24 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 
 | Language                 | Code     | Native Name           | Notes           |
 |--------------------------|----------|-----------------------|-----------------|
-| Arabic 🇸🇦               | ar       | العربية               | *RTL Support*   |
-| Czech 🇨🇿                | cs       | Čeština               |                 |
-| German 🇩🇪               | de       | Deutsch               |                 |
-| English 🇬🇧              | en       | English               | *Default*       |
-| Spanish 🇪🇸              | es       | Español               |                 |
-| Persian 🇮🇷              | fa       | فارسی                 | *RTL Support*   |
-| French 🇫🇷               | fr       | Français              |                 |
-| Hindi 🇮🇳                | hi       | हिन्दी                |                 |
-| Italian 🇮🇹              | it       | Italiano              |                 |
-| Japanese 🇯🇵             | ja       | 日本語                 |                 |
-| Korean 🇰🇷               | ko       | 한국어                 |                 |
-| Dutch 🇳🇱                | nl       | Nederlands            |                 |
-| Portuguese 🇵🇹           | pt       | Português             |                 |
-| Russian 🇷🇺              | ru       | Русский               |                 |
-| Ukrainian 🇺🇦            | uk       | Українська            |                 |
-| Chinese (Simplified) 🇨🇳 | zh_CN    | 简体中文               |                 |
-| Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
-| Turkish 🇹🇷              | tr       | Türkçe                |                 |
+| Arabic :saudi_arabia:    | ar       | العربية               | *RTL Support*   |
+| Czech :czech_republic:   | cs       | Čeština               |                 |
+| German :de:              | de       | Deutsch               |                 |
+| English :uk:             | en       | English               | *Default*       |
+| Spanish :es:             | es       | Español               |                 |
+| Persian :iran:           | fa       | فارسی                 | *RTL Support*   |
+| French :fr:              | fr       | Français              |                 |
+| Hindi :india:            | hi       | हिन्दी                |                 |
+| Italian :it:             | it       | Italiano              |                 |
+| Japanese :jp:            | ja       | 日本語                 |                 |
+| Korean :kr:              | ko       | 한국어                 |                 |
+| Dutch :netherlands:      | nl       | Nederlands            |                 |
+| Portuguese :portugal:    | pt       | Português             |                 |
+| Russian :ru:             | ru       | Русский               |                 |
+| Ukrainian :ukraine:      | uk       | Українська            |                 |
+| Chinese (Simplified) :cn:| zh_CN    | 简体中文               |                 |
+| Chinese (Hong Kong) :hong_kong: | zh_HK | 繁體中文 (香港)   |                 |
+| Turkish :tr:             | tr       | Türkçe                |                 |
 
 ---
 
@@ -229,6 +229,7 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **Instant Switching:** Change languages in real-time without page reload  
 
 </details>
+
 
 
 ---
