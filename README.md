@@ -82,13 +82,15 @@ The essential features are reliable and ready for everyday use. Development is o
 
 **Home Page**
 
-<img width="1204" height="1019" alt="image" src="https://github.com/user-attachments/assets/bcb92f64-23fe-4a94-95c1-b55975abe94d" />
+<img width="1214" height="928" alt="image" src="https://github.com/user-attachments/assets/0c13e416-42ea-4378-ae50-7addee435e00" />
 
-<img width="1201" height="1012" alt="image" src="https://github.com/user-attachments/assets/52100483-fab8-4f4f-954b-64ff3a1bf496" />
+<img width="1208" height="927" alt="image" src="https://github.com/user-attachments/assets/4c5fdd5d-ff43-427d-82a5-45121dd21373" />
+
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/0f84cbcb-e434-42b9-9874-070f6a39292e)
+<img width="1167" height="1140" alt="image" src="https://github.com/user-attachments/assets/fca09073-7c34-4165-ad5c-86a03618ec87" />
+
 
 ## 🛠️Technology Stack
 
