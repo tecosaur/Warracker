@@ -9,13 +9,23 @@
             // console.log(`Theme applied on load: ${theme}`);
         }
 
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
         // Default to light theme initially
         let isDarkMode = false;
 
-        // Check localStorage for the standardized 'darkMode' key
+        // Priority: cookie 'theme' -> localStorage 'darkMode' -> system preference
+        const themeCookie = getCookie('theme');
         const savedTheme = localStorage.getItem('darkMode');
 
-        if (savedTheme !== null) {
+        if (themeCookie === 'dark' || themeCookie === 'light') {
+            isDarkMode = themeCookie === 'dark';
+        } else if (savedTheme !== null) {
             // Use the saved theme preference
             isDarkMode = savedTheme === 'true';
         } else {

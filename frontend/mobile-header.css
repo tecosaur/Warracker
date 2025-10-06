@@ -1156,3 +1156,99 @@
     padding: 2px 5px !important;
   }
 }
+
+/* ===== MOBILE HAMBURGER MENU - BASE ===== */
+.mobile-menu-toggle {
+  display: none;
+}
+
+/* ===== MOBILE HAMBURGER MENU ===== */
+@media (max-width: 768px) {
+  header .nav-links {
+    display: none !important;
+  }
+
+  /* Hide user menu button on mobile; hamburger remains */
+  header .user-menu, header #userMenuBtn, header .user-btn {
+    display: none !important;
+  }
+
+  .mobile-menu-toggle {
+    display: block !important;
+    background: none !important;
+    border: none !important;
+    color: var(--text-color) !important;
+    font-size: 1.5rem !important;
+    cursor: pointer !important;
+    padding: 8px !important;
+  }
+
+  .mobile-menu-panel {
+    position: fixed !important;
+    top: 0 !important;
+    right: -280px !important;
+    width: 280px !important;
+    height: 100% !important;
+    background-color: var(--card-bg) !important;
+    box-shadow: -2px 0 15px rgba(0,0,0,0.2) !important;
+    transition: right 0.3s ease-in-out !important;
+    z-index: 1100 !important;
+    padding: 20px !important;
+    overflow-y: auto !important;
+  }
+
+  .mobile-menu-panel.is-open {
+    right: 0 !important;
+  }
+
+  .mobile-menu-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s !important;
+    z-index: 1099 !important;
+  }
+
+  .mobile-menu-overlay.is-open {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  body.mobile-menu-active {
+    overflow: hidden !important;
+  }
+
+  .mobile-menu-panel .section-title {
+    font-weight: 600 !important;
+    margin: 10px 0 !important;
+    color: var(--text-color) !important;
+    opacity: 0.8 !important;
+  }
+
+  .mobile-menu-panel .menu-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    margin: 0 0 12px 0 !important;
+    padding: 0 !important;
+  }
+
+  .mobile-menu-panel a,
+  .mobile-menu-panel .user-menu-item > * {
+    display: block !important;
+    padding: 10px 8px !important;
+    color: var(--text-color) !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+  }
+
+  .mobile-menu-panel a:hover,
+  .mobile-menu-panel .user-menu-item:hover {
+    background-color: var(--hover-bg) !important;
+  }
+}

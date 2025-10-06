@@ -25,6 +25,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Load header fix styles to ensure consistent header styling -->
     <link rel="stylesheet" href="header-fix.css?v=20250119001">
+    <!-- Mobile Header specific styles -->
+    <link rel="stylesheet" href="mobile-header.css?v=20250119002">
     <!-- Chart.js for visualizations -->
     <script src="chart.js?v=20250119001"></script>
     <!-- i18next Local Scripts -->
@@ -320,6 +322,7 @@
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
+                <button class="mobile-menu-toggle" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
                 <div id="authContainer" class="auth-buttons">
                     <a href="login.html" class="auth-btn login-btn">
                         <i class="fas fa-sign-in-alt"></i> Login
@@ -356,6 +359,8 @@
             </div> <!-- End header-right-group -->
         </div>
     </header>
+    <div class="mobile-menu-panel" id="mobileMenuPanel"></div>
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
 
     <!-- Main Content -->
     <div class="container">

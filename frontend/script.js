@@ -1,3 +1,160 @@
+// ===== MOBILE HAMBURGER MENU (kept for other pages) =====
+(function() {
+    function buildMobileMenuContent(panel, header) {
+        if (!panel || !header) return;
+        // Build only once
+        if (panel.getAttribute('data-built') === 'true') return;
+        panel.innerHTML = '';
+
+        const createSection = (titleText) => {
+            const title = document.createElement('div');
+            title.className = 'section-title';
+            title.textContent = titleText;
+            panel.appendChild(title);
+        };
+
+        const appendLinks = (links) => {
+            if (!links || links.length === 0) return;
+            const list = document.createElement('div');
+            list.className = 'menu-list';
+            links.forEach(a => {
+                try {
+                    const cloned = a.cloneNode(true);
+                    // Remove ids to avoid duplicates
+                    if (cloned.id) cloned.id = '';
+                    list.appendChild(cloned);
+                } catch (e) {
+                    // Skip problematic nodes
+                }
+            });
+            panel.appendChild(list);
+        };
+
+        // Resolve auth state and display name
+        const isAuthenticated = !!(function(){ try { return localStorage.getItem('auth_token'); } catch(_) { return null; } })();
+        let displayName = '';
+        const headerDisplayNameEl = header.querySelector('#userDisplayName');
+        if (headerDisplayNameEl && headerDisplayNameEl.textContent) {
+            displayName = headerDisplayNameEl.textContent.trim();
+        }
+        if (!displayName) {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('user_info') || 'null');
+                if (userInfo) displayName = userInfo.first_name || userInfo.username || 'Account';
+            } catch(_) {}
+        }
+        if (!displayName) displayName = 'Account';
+
+        // Nav links
+        const navLinksContainer = header.querySelector('.nav-links');
+        const navAnchors = navLinksContainer ? Array.from(navLinksContainer.querySelectorAll('a')) : [];
+        if (navAnchors.length) {
+            createSection('Navigation');
+            appendLinks(navAnchors);
+        }
+
+        // Auth buttons if present (only when NOT authenticated)
+        const authContainer = header.querySelector('#authContainer');
+        const authAnchors = (!isAuthenticated && authContainer) ? Array.from(authContainer.querySelectorAll('a')) : [];
+        if (!isAuthenticated && authAnchors.length) {
+            createSection('Account');
+            appendLinks(authAnchors);
+        }
+
+        // User menu dropdown items if present
+        const userDropdown = header.querySelector('#userMenuDropdown');
+        const userMenuAnchors = userDropdown ? Array.from(userDropdown.querySelectorAll('a')) : [];
+        if (userMenuAnchors.length) {
+            // Use username as section title when available
+            createSection(displayName || 'Menu');
+            appendLinks(userMenuAnchors);
+
+            // Add Logout if available
+            const logoutSource = header.querySelector('#logoutMenuItem');
+            if (logoutSource) {
+                const logoutLink = document.createElement('a');
+                logoutLink.href = '#';
+                logoutLink.id = 'mobileLogoutLink';
+                logoutLink.innerHTML = '<i class="fas fa-sign-out-alt"></i> <span>Logout</span>';
+                logoutLink.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    try {
+                        if (window.auth && typeof window.auth.logout === 'function') {
+                            await window.auth.logout();
+                        } else {
+                            localStorage.removeItem('auth_token');
+                            localStorage.removeItem('user_info');
+                            window.location.href = 'login.html';
+                        }
+                    } catch (_) {
+                        localStorage.removeItem('auth_token');
+                        localStorage.removeItem('user_info');
+                        window.location.href = 'login.html';
+                    }
+                });
+                const list = document.createElement('div');
+                list.className = 'menu-list';
+                list.appendChild(logoutLink);
+                panel.appendChild(list);
+            }
+        }
+
+        panel.setAttribute('data-built', 'true');
+    }
+
+    function initializeMobileMenu() {
+        const header = document.querySelector('header');
+        if (!header) return;
+        const toggleBtn = header.querySelector('.mobile-menu-toggle');
+        const panel = document.getElementById('mobileMenuPanel');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        if (!toggleBtn || !panel || !overlay) return;
+
+        // Prevent double-binding
+        if (toggleBtn.getAttribute('data-mm-bound') === '1') return;
+        toggleBtn.setAttribute('data-mm-bound', '1');
+
+        const openMenu = () => {
+            buildMobileMenuContent(panel, header);
+            panel.classList.add('is-open');
+            overlay.classList.add('is-open');
+            document.body.classList.add('mobile-menu-active');
+        };
+
+        const closeMenu = () => {
+            panel.classList.remove('is-open');
+            overlay.classList.remove('is-open');
+            document.body.classList.remove('mobile-menu-active');
+        };
+
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const isOpen = panel.classList.contains('is-open');
+            if (isOpen) closeMenu(); else openMenu();
+        });
+
+        overlay.addEventListener('click', function() {
+            closeMenu();
+        });
+
+        panel.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.href) {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && panel.classList.contains('is-open')) {
+                closeMenu();
+            }
+        });
+    }
+
+    // Expose and initialize
+    window.initializeMobileMenu = initializeMobileMenu;
+    document.addEventListener('DOMContentLoaded', initializeMobileMenu);
+})();
 console.log('[SCRIPT VERSION] 20250529-005 - Added CSS cache busting for consistent styling across domains');
 console.log('[DEBUG] script.js loaded and running');
 
@@ -7,6 +164,7 @@ console.log('[DEBUG] script.js loaded and running');
 let warranties = [];
 let warrantiesLoaded = false; // Track if warranties have been loaded from API
 let lastLoadedArchived = false; // Track if the current warranties array came from archived endpoint
+let lastLoadedIncludesArchived = false; // Track if the current warranties list includes archived items
 let currentTabIndex = 0;
 let tabContents = []; // Initialize as empty array
 let editMode = false;
@@ -369,6 +527,38 @@ function setTheme(isDark) {
     const headerToggle = document.getElementById('darkModeToggle'); 
     if (headerToggle) {
         headerToggle.checked = isDark;
+    }
+}
+
+// Persist theme to API similar to view/filters
+async function saveThemePreference(isDark, saveToApi = true) {
+    try {
+        // Always persist locally first
+        setTheme(isDark);
+
+        if (saveToApi && window.auth && window.auth.isAuthenticated && window.auth.isAuthenticated()) {
+            const token = window.auth.getToken();
+            if (token) {
+                try {
+                    console.log('[Theme] Saving theme preference to API:', isDark ? 'dark' : 'light');
+                    const response = await fetch('/api/auth/preferences', {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ theme: isDark ? 'dark' : 'light' })
+                    });
+                    if (!response.ok) {
+                        console.warn('[Theme] Failed to save theme to API:', response.status);
+                    }
+                } catch (err) {
+                    console.error('[Theme] Error saving theme to API:', err);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to save theme preference', e);
     }
 }
 
@@ -1495,9 +1685,16 @@ async function switchView(viewType, saveToApi = true) { // Added saveToApi param
         tableViewHeader.classList.toggle('visible', viewType === 'table');
     }
 
-    // Re-render warranties only if warrantiesList exists AND warranties have been loaded from API
+    // Re-apply current filters after view change to preserve user's selection
+    try {
+        // Persist current filters before render (defensive no-op if unchanged)
+        // Skip API save on initial load to mirror view settings behavior
+        saveFilterPreferences(false);
+    } catch (_) {}
+
     if (warrantiesList && warrantiesLoaded) {
-        renderWarranties(filterWarranties()); // Assuming filterWarranties() returns the correct array
+        // Reapply full filter set (status, tag, vendor, type, search, sort)
+        applyFilters();
     }
 
     // Update header dropdown label if present
@@ -1555,7 +1752,7 @@ function loadViewPreference() {
 // Dark mode toggle
 if (darkModeToggle) { // Add check for darkModeToggle
     darkModeToggle.addEventListener('change', (e) => {
-        setTheme(e.target.checked);
+        saveThemePreference(e.target.checked);
     });
 }
 
@@ -1753,6 +1950,8 @@ function processWarrantyData(warranty) {
     
     // Create a copy of the warranty object to avoid modifying the original
     const processedWarranty = { ...warranty };
+    // Flag archived items when merged into All view
+    processedWarranty.is_archived = !!(warranty.__isArchived || warranty.is_archived);
     
     // Ensure product_name exists
     if (!processedWarranty.product_name) {
@@ -2029,12 +2228,41 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
             console.error('[DEBUG] API did not return an array! Data:', data);
         }
         
-        
         // Update isGlobalView to match the loaded data
         isGlobalView = shouldUseGlobalView;
         console.log(`[DEBUG] Set isGlobalView to: ${isGlobalView}`);
+
+        // Optionally merge archived items into the "All" view (only in personal scope)
+        let combinedData = Array.isArray(data) ? data : [];
+        lastLoadedIncludesArchived = false;
+        if (!shouldUseGlobalView && !isArchivedView && currentFilters && currentFilters.status === 'all') {
+            try {
+                const archivedUrl = `${baseUrl}/api/warranties/archived`;
+                const archivedResp = await fetch(archivedUrl, options);
+                if (archivedResp.ok) {
+                    const archivedData = await archivedResp.json();
+                    const archivedMarked = Array.isArray(archivedData)
+                        ? archivedData.map(w => ({ ...w, __isArchived: true }))
+                        : [];
+                    combinedData = combinedData.concat(archivedMarked);
+                    lastLoadedIncludesArchived = true;
+                    console.log(`[DEBUG] Merged ${archivedMarked.length} archived warranties into All view`);
+                } else {
+                    // Log but do not block rendering of non-archived warranties
+                    let errInfo = '';
+                    try {
+                        const errJson = await archivedResp.json();
+                        errInfo = JSON.stringify(errJson);
+                    } catch (_) {}
+                    console.warn('[DEBUG] Failed to load archived warranties for All view:', archivedResp.status, errInfo);
+                }
+            } catch (mergeErr) {
+                console.warn('[DEBUG] Error while merging archived into All:', mergeErr);
+            }
+        }
+
         // Process each warranty to calculate status and days remaining
-        warranties = Array.isArray(data) ? data.map(warranty => processWarrantyData(warranty)) : [];
+        warranties = Array.isArray(combinedData) ? combinedData.map(warranty => processWarrantyData(warranty)) : [];
         lastLoadedArchived = isArchivedView;
         console.log('[DEBUG] Final warranties array:', warranties);
         console.log('[DEBUG] Total warranties loaded:', warranties.length);
@@ -2281,7 +2509,8 @@ async function renderWarranties(warrantiesToRender) {
         const isLifetime = warranty.is_lifetime;
         let statusClass = warranty.status || 'unknown';
         let statusText = warranty.statusText || 'Unknown Status';
-        if (isArchivedView) {
+        // If showing archived-only view or item itself is archived within All view
+        if (isArchivedView || warranty.is_archived) {
             const archivedTextRaw = window.i18next ? window.i18next.t('warranties.archived') : 'Archived';
             const archivedLabel = archivedTextRaw && archivedTextRaw !== 'warranties.archived' ? archivedTextRaw : 'Archived';
             statusClass = 'archived';
@@ -2410,7 +2639,7 @@ async function renderWarranties(warrantiesToRender) {
             <button class="${claimsButtonClass}" title="${claimsTitle}" data-id="${warranty.id}">
                 <i class="fas fa-clipboard-list"></i>
             </button>
-            ${isArchivedView ? `
+            ${ (isArchivedView || warranty.is_archived) ? `
                 <button class="action-btn unarchive-btn" title="Unarchive" data-id="${warranty.id}">
                     <i class="fas fa-box-open"></i>
                 </button>
@@ -2438,7 +2667,8 @@ async function renderWarranties(warrantiesToRender) {
         `;
 
         const cardElement = document.createElement('div');
-        cardElement.className = `warranty-card ${statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active'}`;
+        const isArchivedItem = isArchivedView || warranty.is_archived;
+        cardElement.className = `warranty-card ${isArchivedItem ? 'archived' : (statusClass === 'expired' ? 'expired' : statusClass === 'expiring' ? 'expiring-soon' : 'active')}`;
         
         // Claims button styling will be handled in the action buttons HTML generation
         
@@ -2813,11 +3043,19 @@ function applyFilters() {
         // If leaving archived view, reload normal source
         loadWarranties(true);
         return;
+    } else if (currentFilters.status === 'all' && !lastLoadedIncludesArchived) {
+        // Ensure All view re-merges archived items after switching away and back
+        loadWarranties(true);
+        return;
     }
 
     // Filter warranties based on currentFilters
     const filtered = warranties.filter(warranty => {
-        // Status filter
+        // Exclude archived items from specific status views (only show in 'all' or 'archived')
+        if (warranty.is_archived && currentFilters.status !== 'all' && currentFilters.status !== 'archived') {
+            return false;
+        }
+        // Status filter: allow archived items to pass in All view
         if (currentFilters.status !== 'all' && currentFilters.status !== 'archived' && warranty.status !== currentFilters.status) {
             return false;
         }
@@ -2874,29 +3112,50 @@ function applyFilters() {
 }
 
 // --- Persist and restore filters/sort ---
-function saveFilterPreferences() {
+async function saveFilterPreferences(saveToApi = true) {
     try {
         const prefix = getPreferenceKeyPrefix();
         const filtersToSave = {
             status: currentFilters.status || 'all',
             tag: currentFilters.tag || 'all',
             vendor: currentFilters.vendor || 'all',
-            warranty_type: currentFilters.warranty_type || 'all'
+            warranty_type: currentFilters.warranty_type || 'all',
+            search: currentFilters.search || '',
+            sortBy: currentFilters.sortBy || 'expiration'
         };
         localStorage.setItem(`${prefix}warrantyFilters`, JSON.stringify(filtersToSave));
+        
+        // Save to API if authenticated and saveToApi is true
+        if (saveToApi && window.auth && window.auth.isAuthenticated()) {
+            const token = window.auth.getToken();
+            if (token) {
+                try {
+                    console.log('[Filters] Saving filter preferences to API:', filtersToSave);
+                    const response = await fetch('/api/auth/preferences', {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ saved_filters: filtersToSave })
+                    });
+                    
+                    if (response.ok) {
+                        console.log('[Filters] Successfully saved filter preferences to API');
+                    } else {
+                        console.warn('[Filters] Failed to save filter preferences to API:', response.status);
+                    }
+                } catch (error) {
+                    console.error('[Filters] Error saving filter preferences to API:', error);
+                }
+            }
+        }
     } catch (e) {
         console.warn('Failed to save filter preferences', e);
     }
 }
 
-function saveSortPreference() {
-    try {
-        const prefix = getPreferenceKeyPrefix();
-        localStorage.setItem(`${prefix}warrantySortBy`, currentFilters.sortBy || 'expiration');
-    } catch (e) {
-        console.warn('Failed to save sort preference', e);
-    }
-}
+// Deprecated: Sort preference is now saved as part of saveFilterPreferences
 
 function loadFilterAndSortPreferences() {
     try {
@@ -2905,15 +3164,27 @@ function loadFilterAndSortPreferences() {
         if (savedFiltersRaw) {
             const savedFilters = JSON.parse(savedFiltersRaw);
             if (savedFilters && typeof savedFilters === 'object') {
+                console.log('[Filters] Loading saved filters from localStorage:', savedFilters);
                 currentFilters.status = savedFilters.status || currentFilters.status;
                 currentFilters.tag = savedFilters.tag || currentFilters.tag;
                 currentFilters.vendor = savedFilters.vendor || currentFilters.vendor;
                 currentFilters.warranty_type = savedFilters.warranty_type || currentFilters.warranty_type;
+                currentFilters.search = savedFilters.search || '';
+                currentFilters.sortBy = savedFilters.sortBy || currentFilters.sortBy;
+                
+                // Restore search input UI state
+                const searchInput = document.getElementById('searchWarranties');
+                const clearSearchBtn = document.getElementById('clearSearch');
+                if (searchInput && savedFilters.search) {
+                    searchInput.value = savedFilters.search;
+                    // Show clear button if search has value
+                    if (clearSearchBtn) {
+                        clearSearchBtn.style.display = 'flex';
+                    }
+                    // Add active search class
+                    searchInput.parentElement.classList.add('active-search');
+                }
             }
-        }
-        const savedSort = localStorage.getItem(`${prefix}warrantySortBy`);
-        if (savedSort) {
-            currentFilters.sortBy = savedSort;
         }
     } catch (e) {
         console.warn('Failed to load filter/sort preferences', e);
@@ -5490,6 +5761,7 @@ function setupUIEventListeners() {
     const tagFilter = document.getElementById('tagFilter');
     const sortBySelect = document.getElementById('sortBy');
     const vendorFilter = document.getElementById('vendorFilter'); // Added vendor filter select
+    const warrantyTypeFilter = document.getElementById('warrantyTypeFilter'); // Added warranty type filter select
     
     if (searchInput) {
         // Debounce logic: only apply filters after user stops typing for 300ms
@@ -5510,6 +5782,7 @@ function setupUIEventListeners() {
             if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout);
             searchDebounceTimeout = setTimeout(() => {
                 applyFilters();
+                saveFilterPreferences();
             }, 300);
         });
     }
@@ -5523,6 +5796,7 @@ function setupUIEventListeners() {
                 searchInput.parentElement.classList.remove('active-search');
                 searchInput.focus();
                 applyFilters();
+                saveFilterPreferences();
             }
         });
     }
@@ -5563,9 +5837,11 @@ function setupUIEventListeners() {
         sortBySelect.addEventListener('change', () => {
             currentFilters.sortBy = sortBySelect.value;
             applyFilters();
-            saveSortPreference();
+            saveFilterPreferences();
         });
     }
+    
+    // Note: Clear Filters button handler is in index.html inline script to close popover
     
     // View switcher event listeners
     const gridViewBtn = document.getElementById('gridViewBtn');
@@ -7326,6 +7602,18 @@ async function loadAndApplyUserPreferences(isAuthenticated) { // Added isAuthent
                 if (apiPrefs.default_view) {
                     localStorage.setItem(`${prefix}defaultView`, apiPrefs.default_view);
                      console.log(`[Prefs Loader] Saved ${prefix}defaultView: ${apiPrefs.default_view}`);
+                }
+                // Apply theme from API and sync to localStorage
+                if (apiPrefs.theme) {
+                    const isDark = apiPrefs.theme === 'dark';
+                    // Apply without triggering API save to avoid loops
+                    await saveThemePreference(isDark, false);
+                    console.log(`[Prefs Loader] Applied theme from API: ${apiPrefs.theme}`);
+                }
+                // Save filter preferences from API to localStorage
+                if (apiPrefs.saved_filters) {
+                    localStorage.setItem(`${prefix}warrantyFilters`, JSON.stringify(apiPrefs.saved_filters));
+                    console.log(`[Prefs Loader] Saved ${prefix}warrantyFilters:`, apiPrefs.saved_filters);
                 }
                 if (apiPrefs.expiring_soon_days !== undefined) {
                     localStorage.setItem(`${prefix}expiringSoonDays`, apiPrefs.expiring_soon_days);

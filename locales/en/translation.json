@@ -9,6 +9,7 @@
   },
   "auth": {
     "login": "Login",
+    "login_title": "Login - Warracker",
     "logout": "Logout",
     "register": "Register",
     "username": "Username",
@@ -213,7 +214,7 @@
     "add_serial_number": "Add another serial number"
   },
   "settings": {
-    "title": "Settings",
+    "title": "Warracker - Settings",
     "account_settings": "Account Settings",
     "preferences": "Preferences",
     "language": "Language",
@@ -602,7 +603,7 @@
     "tr": "Türkçe"
   },
   "status": {
-    "title": "System Status",
+    "title": "Status - Warracker",
     "dashboard_title": "Warranty Status Dashboard",
     "global_dashboard_title": "Global Warranty Status Dashboard",
     "overview": "Overview",
@@ -623,7 +624,7 @@
     "uptime": "Uptime"
   },
   "about": {
-    "title": "About Warracker",
+    "title": "About - Warracker",
     "description": "A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.",
     "version": "Version",
     "update_status": "Update Status",

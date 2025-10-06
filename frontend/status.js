@@ -266,6 +266,37 @@
         }
     }
 
+    // --- Status filter persistence for Status Page ---
+    function saveStatusFilterPreference(value) {
+        try {
+            const prefix = getPreferenceKeyPrefix();
+            const key = `${prefix}statusPageStatusFilter`;
+            if (!value || value === 'all') {
+                // Treat 'all' as reset; clear saved preference
+                localStorage.removeItem(key);
+                console.log(`Cleared saved status filter (key=${key})`);
+            } else {
+                localStorage.setItem(key, value);
+                console.log(`Saved status filter '${value}' (key=${key})`);
+            }
+        } catch (error) {
+            console.error('Error saving status filter preference:', error);
+        }
+    }
+
+    function loadStatusFilterPreference() {
+        try {
+            const prefix = getPreferenceKeyPrefix();
+            const key = `${prefix}statusPageStatusFilter`;
+            const saved = localStorage.getItem(key);
+            console.log(`Loaded status filter preference: ${saved} (key=${key})`);
+            return saved || 'all';
+        } catch (error) {
+            console.error('Error loading status filter preference:', error);
+            return 'all';
+        }
+    }
+
     function showViewSwitcher() {
         const viewSwitcher = document.getElementById('viewSwitcher');
         if (viewSwitcher) {
@@ -1286,7 +1317,17 @@
         // Setup event listeners for status page specific controls
         if (refreshDashboardBtn) refreshDashboardBtn.addEventListener('click', refreshDashboard);
         if (searchWarranties) searchWarranties.addEventListener('input', filterAndSortWarranties);
-        if (statusFilter) statusFilter.addEventListener('change', filterAndSortWarranties);
+        // Restore saved status filter selection on load
+        if (statusFilter) {
+            const savedStatus = loadStatusFilterPreference();
+            if (savedStatus && statusFilter.value !== savedStatus) {
+                statusFilter.value = savedStatus;
+            }
+            statusFilter.addEventListener('change', function() {
+                saveStatusFilterPreference(statusFilter.value);
+                filterAndSortWarranties();
+            });
+        }
         if (exportBtn) { 
             exportBtn.addEventListener('click', function() { 
                 console.log("Status page export button clicked (status.js IIFE).");

@@ -41,6 +41,9 @@
     
     <!-- Temporary debug script -->
     <script src="js/i18n-debug.js?v=20250119001"></script>
+
+    <!-- Mobile menu logic isolated to avoid collisions on settings -->
+    <script src="mobile-menu.js?v=20250119002" defer></script>
     
     <!-- Immediate authentication check script -->
     <script>
@@ -115,6 +118,7 @@
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
+                <button class="mobile-menu-toggle" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
                 <div id="userMenu" class="user-menu" style="display: none;">
                     <button class="user-btn" id="userMenuBtn">
                         <i class="fas fa-user-circle"></i>
@@ -148,6 +152,8 @@
             </div> <!-- End header-right-group -->
         </div>
     </header>
+    <div class="mobile-menu-panel" id="mobileMenuPanel"></div>
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
 
     <!-- Main Content -->
     <div class="container">

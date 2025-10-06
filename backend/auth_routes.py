@@ -9,6 +9,7 @@ from email.mime.text import MIMEText
 import os
 import pytz
 import psycopg2
+from psycopg2.extras import Json
 
 # Use relative imports for project modules
 try:
@@ -849,7 +850,7 @@ def get_preferences():
             cursor.execute("""
                 SELECT up.email_notifications, up.default_view, up.theme, up.expiring_soon_days, 
                        up.notification_frequency, up.notification_time, up.timezone, up.currency_symbol, up.date_format, up.notification_channel, up.apprise_notification_time, up.apprise_notification_frequency, up.apprise_timezone, up.currency_position, up.paperless_view_in_app,
-                       u.preferred_language
+                       u.preferred_language, up.saved_filters
                 FROM user_preferences up
                 JOIN users u ON up.user_id = u.id
                 WHERE up.user_id = %s
@@ -874,7 +875,8 @@ def get_preferences():
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
                     'currency_position': preferences_data[13] if preferences_data[13] else 'left',
                     'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False,
-                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en'
+                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en',
+                    'saved_filters': preferences_data[16] if len(preferences_data) > 16 and preferences_data[16] is not None else None
                 }
             else:
                 # Create default preferences for user, but get language from users table
@@ -968,6 +970,7 @@ def update_preferences():
         apprise_timezone = data.get('apprise_timezone')
         paperless_view_in_app = data.get('paperless_view_in_app')
         preferred_language = data.get('preferred_language')
+        saved_filters = data.get('saved_filters')
         
         if default_view and default_view not in ['grid', 'list', 'table']:
             return jsonify({'message': 'Invalid default view'}), 400
@@ -1048,6 +1051,9 @@ def update_preferences():
                 if paperless_view_in_app is not None:
                     update_fields.append("paperless_view_in_app = %s")
                     update_values.append(paperless_view_in_app)
+                if saved_filters is not None:
+                    update_fields.append("saved_filters = %s")
+                    update_values.append(Json(saved_filters))
                 
                 if update_fields:
                     update_query = f"UPDATE user_preferences SET {', '.join(update_fields)} WHERE user_id = %s"
@@ -1073,7 +1079,7 @@ def update_preferences():
             cursor.execute("""
                 SELECT up.email_notifications, up.default_view, up.theme, up.expiring_soon_days, 
                        up.notification_frequency, up.notification_time, up.timezone, up.currency_symbol, up.date_format, up.notification_channel, up.apprise_notification_time, up.apprise_notification_frequency, up.apprise_timezone, up.currency_position, up.paperless_view_in_app,
-                       u.preferred_language
+                       u.preferred_language, up.saved_filters
                 FROM user_preferences up
                 JOIN users u ON up.user_id = u.id
                 WHERE up.user_id = %s
@@ -1098,7 +1104,8 @@ def update_preferences():
                     'apprise_timezone': preferences_data[12] if preferences_data[12] else 'UTC',
                     'currency_position': preferences_data[13] if preferences_data[13] else 'left',
                     'paperless_view_in_app': preferences_data[14] if len(preferences_data) > 14 and preferences_data[14] is not None else False,
-                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en'
+                    'preferred_language': preferences_data[15] if len(preferences_data) > 15 and preferences_data[15] else 'en',
+                    'saved_filters': preferences_data[16] if len(preferences_data) > 16 and preferences_data[16] is not None else None
                 }
             else:
                 preferences = {

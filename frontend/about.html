@@ -25,6 +25,7 @@
     <script src="theme-loader.js?v=20250119001"></script> <!-- Apply theme early -->
     <script src="include-auth-new.js?v=20250119001"></script> <!-- Handles auth state display -->
     <script src="fix-auth-buttons-loader.js?v=20250119001"></script> <!-- Fixes auth button display timing -->
+    <script src="script.js?v=20250119001" defer></script>
     <!-- i18next Local Scripts -->
     <script src="js/lib/i18next.min.js?v=20250119001"></script>
     <script src="js/lib/i18nextHttpBackend.min.js?v=20250119001"></script>
@@ -275,6 +276,7 @@
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
+                <button class="mobile-menu-toggle" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
                 <div id="authContainer" class="auth-buttons">
                     <a href="login.html" class="auth-btn login-btn">
                         <i class="fas fa-sign-in-alt"></i> Login
@@ -311,6 +313,8 @@
             </div> <!-- End header-right-group -->
         </div>
     </header>
+    <div class="mobile-menu-panel" id="mobileMenuPanel"></div>
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
 
     <!-- Main Content Area -->
     <div class="container" style="padding: 0;"> 
@@ -319,7 +323,7 @@
             <!-- Hero Section -->
             <div class="about-hero">
                 <h1><i class="fas fa-shield-alt"></i> Warracker</h1>
-                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.13</div>
+                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.14</div>
                 <p class="description" data-i18n="about.description">
                     A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.
                 </p>
@@ -417,7 +421,7 @@
             // Update version display dynamically
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay && window.i18next) {
-                const currentVersion = '0.10.1.13'; // This should match version-checker.js
+                const currentVersion = '0.10.1.14'; // This should match version-checker.js
                 versionDisplay.textContent = window.i18next.t('about.version') + ' v' + currentVersion;
             }
             

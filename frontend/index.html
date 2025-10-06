@@ -115,6 +115,7 @@
             </div>
             <!-- Group for right-aligned elements -->
             <div class="header-right-group">
+                <button class="mobile-menu-toggle" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
                 <div id="authContainer" class="auth-buttons">
                     <a href="login.html" class="auth-btn login-btn">
                         <i class="fas fa-sign-in-alt"></i> <span data-i18n="auth.login">Login</span>
@@ -151,6 +152,8 @@
             </div> <!-- End header-right-group -->
         </div>
     </header>
+    <div class="mobile-menu-panel" id="mobileMenuPanel"></div>
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
 
     <!-- Main Content -->
     <div class="container">
@@ -1525,6 +1528,14 @@
                     if (tagFilter && savedFilters.tag) tagFilter.value = savedFilters.tag;
                     if (vendorFilter && savedFilters.vendor) vendorFilter.value = savedFilters.vendor;
                     if (warrantyTypeFilter && savedFilters.warranty_type) warrantyTypeFilter.value = savedFilters.warranty_type;
+                    // Restore search field if present
+                    var searchInput = document.getElementById('searchWarranties');
+                    var clearSearchBtn = document.getElementById('clearSearch');
+                    if (searchInput && savedFilters.search) {
+                        searchInput.value = savedFilters.search;
+                        if (clearSearchBtn) clearSearchBtn.style.display = 'flex';
+                        if (searchInput.parentElement) searchInput.parentElement.classList.add('active-search');
+                    }
                 }
             } catch (e) { /* no-op */ }
 
@@ -1533,14 +1544,16 @@
                     [statusFilter, tagFilter, vendorFilter, warrantyTypeFilter].forEach(function (el) {
                         if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
                     });
-                    // Persist filters
+                    // Persist filters including search
                     try {
                         var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                        var searchInput = document.getElementById('searchWarranties');
                         var filtersToSave = {
                             status: statusFilter ? statusFilter.value : 'all',
                             tag: tagFilter ? tagFilter.value : 'all',
                             vendor: vendorFilter ? vendorFilter.value : 'all',
-                            warranty_type: warrantyTypeFilter ? warrantyTypeFilter.value : 'all'
+                            warranty_type: warrantyTypeFilter ? warrantyTypeFilter.value : 'all',
+                            search: searchInput ? searchInput.value : ''
                         };
                         localStorage.setItem(prefix + 'warrantyFilters', JSON.stringify(filtersToSave));
                     } catch (e) { /* no-op */ }
@@ -1555,10 +1568,26 @@
                     if (tagFilter) tagFilter.value = 'all';
                     if (vendorFilter) vendorFilter.value = 'all';
                     if (warrantyTypeFilter) warrantyTypeFilter.value = 'all';
+                    // Clear search field and its UI state
+                    var searchInput = document.getElementById('searchWarranties');
+                    var clearSearchBtn = document.getElementById('clearSearch');
+                    if (searchInput) {
+                        searchInput.value = '';
+                        if (searchInput.parentElement) searchInput.parentElement.classList.remove('active-search');
+                    }
+                    if (clearSearchBtn) clearSearchBtn.style.display = 'none';
+                    
                     [statusFilter, tagFilter, vendorFilter, warrantyTypeFilter].forEach(function (el) {
                         if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
                     });
+                    // Clear persisted filter preferences on reset (including search and sort)
+                    try {
+                        var prefix = (window.getPreferenceKeyPrefix ? window.getPreferenceKeyPrefix() : 'user_');
+                        localStorage.removeItem(prefix + 'warrantyFilters');
+                        localStorage.removeItem(prefix + 'warrantySortBy');
+                    } catch (e) { /* no-op */ }
                     updateFilterIndicator();
+                    if (filterPopover) filterPopover.classList.remove('active');
                 });
             }
 

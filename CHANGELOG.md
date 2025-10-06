@@ -1,6 +1,81 @@
 # Changelog
 
-## 0.10.1.13 - 2025-09-27
+## 0.10.1.14 - 2025-10-06
+
+### Enhanced
+- Filters persist like view settings and survive navigation/view changes:
+  - Persist filters (Status, Tag, Vendor, Type, Search, Sort) to localStorage and, when authenticated, sync to API preferences (`saved_filters`) for cross-device consistency.
+  - Skip API writes on initial page load (mirrors view preference behavior) to avoid noisy saves.
+  - Switching views now re-applies the full filter set via `applyFilters()` instead of resetting results.
+  - _Files: `frontend/script.js`, `frontend/index.html`, `backend/auth_routes.py`, `backend/migrations/046_add_saved_filters_column.sql`_
+- All Status includes archived warranties (personal scope): When Status is set to "All" (and not in Global View), archived warranties are fetched and merged into the list to give a complete view. Archived items are flagged and rendered with the correct labeling and actions.
+  - _Files: `frontend/script.js`_
+
+- Index page filter persistence and reset refinements:
+  - Restore saved Search input on load (value, clear button visibility, and active state styling).
+  - Persist Search alongside Status, Tag, Vendor, and Type when applying filters.
+  - Clear resets filters to defaults, removes saved `warrantyFilters` and `warrantySortBy`, clears Search UI, and closes the Filter popover.
+  - _Files: `frontend/index.html`_
+ - PyJWT compatibility: Updated authentication handling to support PyJWT 2.10.
+   - _Files: `backend/auth_utils.py`, `backend/oidc_handler.py`_
+ - Deprecated datetime usage: Replaced deprecated `utcnow()` calls with timezone-aware alternatives.
+   - _Files: `backend/*`_
+ - OIDC-managed user settings: Hide/disable settings managed by OIDC to avoid conflicting edits.
+   - _Files: `backend/oidc_handler.py`, `frontend/settings-new.html`, `frontend/settings-new.js`_
+ - OIDC attribute synchronization: Sync key OIDC attributes on login for consistency.
+   - _Files: `backend/oidc_handler.py`, `backend/auth_utils.py`_
+ - UX: Made the entire user menu item clickable (not just the text).
+   - _Files: `frontend/index.html`, `frontend/style.css`_
+
+- Mobile UX: Hide user menu button on mobile and use hamburger as the sole trigger; when authenticated, the mobile menu uses the username as the section title for clarity. No desktop changes.
+  - _Files: `frontend/mobile-header.css`, `frontend/script.js`_
+
+ - Login page tablet logo (769–820px): Show the Warracker logo/title above the login form on iPad Air and similar tablet widths to match mobile branding.
+   - _Files: `frontend/style.css`_
+
+### Added
+- OIDC admin via groups: Allow determining admin status from configured OIDC group membership.
+  - _Files: `backend/oidc_handler.py`, `backend/auth_utils.py`, `backend/config.py`_
+- OIDC admin group setting: Added configurable OIDC admin group in site settings.
+  - _Files: `backend/config.py`, `backend/app.py`_
+- Configurable upload folder: Make the upload folder path configurable.
+  - _Files: `backend/config.py`, `backend/file_routes.py`_
+- Secrets from files: Support reading sensitive settings from `*_FILE` paths.
+  - _Files: `backend/config.py`_
+- Secure default secret: Attempt to generate a secure secret at runtime if none is provided.
+  - _Files: `backend/config.py`, `backend/app.py`_
+
+- Mobile hamburger menu (≤768px): Added modern slide‑out panel with overlay for Index, Status, Settings, and About. Dynamically clones nav links and user/auth actions into the panel, locks body scroll while open, and closes on overlay or link click. Desktop layout unaffected.
+  - _Files: `frontend/mobile-header.css`, `frontend/index.html`, `frontend/status.html`, `frontend/settings-new.html`, `frontend/about.html`, `frontend/script.js`, `frontend/mobile-menu.js`_
+
+### Fixed
+- Archived styling parity under All: Archived items displayed under "All" now use the same neutral styling as the dedicated Archived view (per-card `.warranty-card.archived` styles).
+  - _Files: `frontend/style.css`, `frontend/script.js`_
+- Exclude archived from non-archived filters: Archived warranties no longer appear under specific status filters (Active, Expiring, Expired). They show only under "All" and "Archived".
+  - _Files: `frontend/script.js`_
+- Re-merge archived after filter changes: Switching away from Archived and back to All reliably reloads and re-merges archived items to keep the view consistent.
+  - _Files: `frontend/script.js`_
+ - OIDC reload: Fixed OIDC client reload by moving `init_oidc_client` to an appropriate lifecycle.
+   - _Files: `backend/oidc_handler.py`, `backend/app.py`_
+ - OIDC userinfo: Stopped relying on token `userinfo` claim; use the userinfo endpoint as source of truth.
+   - _Files: `backend/oidc_handler.py`_
+
+- Settings page mobile menu toggle: Fixed initialization by isolating the hamburger logic into a dedicated script to avoid duplicate identifier errors in the global script, ensuring the menu opens/closes correctly.
+  - _Files: `frontend/mobile-menu.js`, `frontend/settings-new.html`, `frontend/script.js`_
+
+- Login page header/menu regression: Restored standalone login page by removing header/hamburger and mobile menu assets.
+  - _Files: `frontend/login.html`_
+
+- Login button label corrected: Button now reads just "Login"; page title uses a separate translation key to avoid suffix leaking into the button. Introduced `auth.login_title` and updated the login page to reference it.
+  - _Files: `locales/en/translation.json`, `frontend/login.html`_
+
+- Status dashboard tablet layout (769–820px, iPad Air): Summary cards now display in two rows with Active and Expiring Soon on the first row, and Expired and Total on the second row for clearer hierarchy at this width.
+  - _Files: `frontend/style.css`_
+
+### Credit
+- OIDC and configuration improvements contributed by @tecosaur in PR #138.
+
+## 0.10.1.13 - 2025-09-29
 
 ### Added
 - Turkish language support added to all pages (index, about, status, settings) with comprehensive translations for UI elements, messages, and system text.

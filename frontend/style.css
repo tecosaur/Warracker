@@ -267,6 +267,14 @@ header .container {
   .panel-header h2 { font-size: 1.25rem; }
 }
 
+/* Hide only Filter and Sort text below 479px (keep icons and indicator visible) */
+@media (max-width: 479px) {
+  .filter-controls #filterBtn span:not(#filterIndicator),
+  .filter-controls #sortBtn span {
+    display: none;
+  }
+}
+
 @media (max-width: 375px) {
   .panel-header h2 { font-size: 1.15rem; }
 }
@@ -778,12 +786,16 @@ input.invalid {
 }
 
 /* Neutral styling for archived view */
-.archived-view .warranty-card {
+/* Neutral styling for archived view, and per-card when archived appears in All */
+.archived-view .warranty-card,
+.warranty-card.archived {
   border-left: 4px solid var(--medium-gray);
 }
 
 .table-view.archived-view .warranty-card,
-.archived-view .table-view .warranty-card {
+.archived-view .table-view .warranty-card,
+.table-view .warranty-card.archived,
+.warranty-card.archived .table-view .warranty-card {
   border-left: none;
   background-color: rgba(128, 128, 128, 0.08);
 }
@@ -799,7 +811,8 @@ input.invalid {
 }
 
 /* Neutralize header background in archived view */
-.archived-view .warranty-card .warranty-header {
+.archived-view .warranty-card .warranty-header,
+.warranty-card.archived .warranty-header {
   background-color: rgba(128, 128, 128, 0.06);
 }
 
@@ -1812,6 +1825,22 @@ tr.status-expiring {
     #recentExpirationsTable td:nth-child(3) {
         display: none;
     }
+}
+
+/* Tablet layout for iPad Air (769–820px):
+   Row 1: Active | Expiring Soon
+   Row 2: Expired | Total */
+@media (min-width: 769px) and (max-width: 820px) {
+    .status-cards {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-areas:
+            "active expiring"
+            "expired total";
+    }
+    .status-card[data-status="active"] { grid-area: active; }
+    .status-card[data-status="expiring"] { grid-area: expiring; }
+    .status-card[data-status="expired"] { grid-area: expired; }
+    .status-card[data-status="total"] { grid-area: total; }
 }
 
 /* Error message on status page */
@@ -3408,33 +3437,39 @@ input.invalid {
 }
 
 /* Neutralize top header bar in archived view (all layouts) */
-.archived-view .warranty-card .product-name-header {
+.archived-view .warranty-card .product-name-header,
+.warranty-card.archived .product-name-header {
   background-color: var(--medium-gray) !important;
   color: var(--text-color);
 }
 
 /* Ensure table view also stays neutral in archived view */
 .archived-view.table-view .warranty-card .product-name-header,
-.archived-view .table-view .warranty-card .product-name-header {
+.archived-view .table-view .warranty-card .product-name-header,
+.table-view .warranty-card.archived .product-name-header {
   background-color: rgba(128, 128, 128, 0.12) !important;
   color: var(--text-color);
 }
 
 /* Ensure heading text and action icons are readable in archived view */
-.archived-view .warranty-card .product-name-header .warranty-title {
+.archived-view .warranty-card .product-name-header .warranty-title,
+.warranty-card.archived .product-name-header .warranty-title {
   color: var(--text-color) !important;
 }
 
-.archived-view .warranty-card .warranty-actions .action-btn {
+.archived-view .warranty-card .warranty-actions .action-btn,
+.warranty-card.archived .warranty-actions .action-btn {
   color: var(--text-color) !important;
 }
 
-.archived-view .warranty-card .warranty-actions .action-btn:hover {
+.archived-view .warranty-card .warranty-actions .action-btn:hover,
+.warranty-card.archived .warranty-actions .action-btn:hover {
   background-color: rgba(0, 0, 0, 0.08);
   color: var(--text-color) !important;
 }
 
-:root[data-theme="dark"] .archived-view .warranty-card .warranty-actions .action-btn:hover {
+:root[data-theme="dark"] .archived-view .warranty-card .warranty-actions .action-btn:hover,
+:root[data-theme="dark"] .warranty-card.archived .warranty-actions .action-btn:hover {
   background-color: rgba(255, 255, 255, 0.12);
 }
 
@@ -5802,6 +5837,33 @@ html.dark-mode .warracker-footer a:hover {
 
 /* Mobile top logo for small screens */
 @media (max-width: 768px) {
+    .login-page-body .login-form-container {
+        flex-direction: column;
+        align-items: center;
+        padding-bottom: 32px;
+    }
+    .login-page-body .mobile-top-logo {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0 10px 0;
+        flex-direction: column;
+    }
+    .login-page-body .mobile-top-logo img {
+        width: 120px;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 16px;
+    }
+    .login-page-body .mobile-top-logo-title {
+        margin-top: 6px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+}
+/* Show top logo on iPad Air/tablets up to 820px */
+@media (min-width: 769px) and (max-width: 820px) {
     .login-page-body .login-form-container {
         flex-direction: column;
         align-items: center;
