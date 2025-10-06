@@ -47,7 +47,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 🗃️ **Centralized Management**   | Track all your product warranties in one place                                                           |
 | 🧾 **Detailed Records**          | Store purchase dates, durations, notes, and product photos with thumbnail previews                       |
 | 📄 **Document Storage**          | Upload receipts, invoices, and manuals securely                                                          |
-| 📝 **Warranty Claims**               | Manage warranty claims end-to-end with statuses, dates, resolutions, and full lifecycle visibility       |
+| 📝 **Warranty Claims**           | Manage warranty claims end-to-end with statuses, dates, resolutions, and full lifecycle visibility       |
 | 🔔 **Proactive Alerts**          | Get alerts for upcoming expirations via email or 100+ push services (Discord, Slack, etc.) using Apprise |
 | 🔍 **Quick Search and Filter**   | Search by product name, serial number, vendor, tags, and more with real-time filtering                   |
 | #️⃣ **Multiple Serial Numbers**  | Add and manage multiple serial numbers per product                                                       |
@@ -57,12 +57,14 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | ⚙️ **Customizable Settings**     | Configure currency, date formats, notification timing, and branding                                      |
 | 🌐 **Internationalization Support** | Support for multiple currencies and date formats tailored to regional preferences, enabling a seamless global user experience |
 | 🏷️ **Tagging**                  | Organize warranties using custom tags                                                                    |
+| 📦 **Archiving**                 | Archive expired or unused warranties for better organization, while keeping records accessible when needed |
 | 🔐 **Password Reset**            | Token-based, secure account recovery system                                                              |
 | 🔑 **OIDC SSO**                  | Single sign-on with providers like Google, GitHub, and Keycloak                                          |
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
-| 📖 **Localization Support**       | [Full multilingual UI with 17 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+| 📖 **Localization Support**      | [Full multilingual UI with 18 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+
 
 ---
 
@@ -80,13 +82,15 @@ The essential features are reliable and ready for everyday use. Development is o
 
 **Home Page**
 
-<img width="1204" height="1019" alt="image" src="https://github.com/user-attachments/assets/bcb92f64-23fe-4a94-95c1-b55975abe94d" />
+<img width="1214" height="928" alt="image" src="https://github.com/user-attachments/assets/0c13e416-42ea-4378-ae50-7addee435e00" />
 
-<img width="1201" height="1012" alt="image" src="https://github.com/user-attachments/assets/52100483-fab8-4f4f-954b-64ff3a1bf496" />
+<img width="1208" height="927" alt="image" src="https://github.com/user-attachments/assets/4c5fdd5d-ff43-427d-82a5-45121dd21373" />
+
 
 **Status Dashboard**  
 
-![image](https://github.com/user-attachments/assets/0f84cbcb-e434-42b9-9874-070f6a39292e)
+<img width="1167" height="1140" alt="image" src="https://github.com/user-attachments/assets/fca09073-7c34-4165-ad5c-86a03618ec87" />
+
 
 ## 🛠️Technology Stack
 
@@ -156,22 +160,30 @@ volumes:
 
 To get the docker compose file with environemts and .env example for warracker and the warrackerdb please go [here](https://github.com/sassanix/Warracker/tree/main/Docker)
 
-## 📝Usage
+## 📝 Usage
+
+### Accounts & Roles
+
+- The **first account created** in the system will automatically become the **Admin account**.  
+- The Admin can manage other users, assign roles, and has full system permissions.  
+- Regular users can only manage their own warranties unless granted additional privileges by the Admin.  
 
 ### Adding a Warranty
 
-1.  Fill in the product details by clicking on add warranty.
-2.  Enter the purchase date and warranty duration.
-3.  Optionally upload receipt/documentation.
-4.  Click the "Add Warranty" button.
+1. Fill in the product details by clicking on **Add Warranty**.  
+2. Enter the purchase date and warranty duration.  
+3. Optionally upload receipt/documentation.  
+4. Click the **Add Warranty** button.  
 
 ### Managing Warranties
 
-*   Use the search box to filter warranties.
-*   Click the edit icon to modify warranty details.
-*   Click the delete icon to remove a warranty.
+- Use the search box to filter warranties.  
+- Click the edit icon to modify warranty details.  
+- Click the delete icon to remove a warranty.  
 
-## Product Information Entry Requirements for CSV import
+
+<details>
+<summary><strong>Product Information Entry Requirements for CSV import</strong></summary>
 
 | Field Name     | Format / Example                          | Required?                                              | Notes                                                                 |
 |----------------|-------------------------------------------|--------------------------------------------------------|-----------------------------------------------------------------------|
@@ -186,33 +198,41 @@ To get the docker compose file with environemts and .env example for warracker a
 | **ProductURL**   | Text (URL format)                         | ❌ No (Optional)                                        | Full URL to product page (optional field). https://producturl.com                           |
 | **Vendor**       | Text                                      | ❌ No (Optional)                                        | Name of the vendor or seller where the product was purchased.        |
 | **Tags**         | Text (`tag1,tag2`)                        | ❌ No (Optional)                                        | Use comma-separated values for multiple tags.                        |
+</details>
 
 ---
+
+
 ## 🌐 Localization Support
 
-Warracker offers **full multilingual UI support** with **17 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
+Warracker offers **full multilingual UI support** with **18 languages**, including **RTL (Right-to-Left) support**, instant language switching, and native name display.
 
-### Supported Languages
+<details>
+    
+<summary><strong>Supported Languages</strong></summary>
 
-| Language                 | Code     | Native Name           | Notes           |
-|--------------------------|----------|----------------------|-----------------|
-| Arabic 🇸🇦               | ar       | العربية               | *RTL Support*   |
-| Czech 🇨🇿                | cs       | Čeština               |                 |
-| German 🇩🇪               | de       | Deutsch               |                 |
-| English 🇬🇧              | en       | English               | *Default*       |
-| Spanish 🇪🇸              | es       | Español               |                 |
-| Persian 🇮🇷              | fa       | فارسی                 | *RTL Support*   |
-| French 🇫🇷               | fr       | Français              |                 |
-| Hindi 🇮🇳                | hi       | हिन्दी                |                 |
-| Italian 🇮🇹              | it       | Italiano              |                 |
-| Japanese 🇯🇵             | ja       | 日本語                 |                 |
-| Korean 🇰🇷               | ko       | 한국어                 |                 |
-| Dutch 🇳🇱                | nl       | Nederlands            |                 |
-| Portuguese 🇵🇹           | pt       | Português             |                 |
-| Russian 🇷🇺              | ru       | Русский               |                 |
-| Ukrainian 🇺🇦            | uk       | Українська            |                 |
-| Chinese (Simplified) 🇨🇳 | zh_CN    | 简体中文               |                 |
-| Chinese (Hong Kong) 🇭🇰  | zh_HK    | 繁體中文 (香港)        |                 |
+| Language | Code | Native Name | Notes |
+|---|---:|---|---|
+| <img src="https://flagcdn.com/16x12/sa.png" width="16" height="12" alt="SA"> Arabic | ar | العربية | *RTL Support* |
+| <img src="https://flagcdn.com/16x12/cz.png" width="16" height="12" alt="CZ"> Czech | cs | Čeština | |
+| <img src="https://flagcdn.com/16x12/de.png" width="16" height="12" alt="DE"> German | de | Deutsch | |
+| <img src="https://flagcdn.com/16x12/gb.png" width="16" height="12" alt="GB"> English | en | English | *Default* |
+| <img src="https://flagcdn.com/16x12/es.png" width="16" height="12" alt="ES"> Spanish | es | Español | |
+| <img src="https://flagcdn.com/16x12/ir.png" width="16" height="12" alt="IR"> Persian | fa | فارسی | *RTL Support* |
+| <img src="https://flagcdn.com/16x12/fr.png" width="16" height="12" alt="FR"> French | fr | Français | |
+| <img src="https://flagcdn.com/16x12/in.png" width="16" height="12" alt="IN"> Hindi | hi | हिन्दी | |
+| <img src="https://flagcdn.com/16x12/it.png" width="16" height="12" alt="IT"> Italian | it | Italiano | |
+| <img src="https://flagcdn.com/16x12/jp.png" width="16" height="12" alt="JP"> Japanese | ja | 日本語 | |
+| <img src="https://flagcdn.com/16x12/kr.png" width="16" height="12" alt="KR"> Korean | ko | 한국어 | |
+| <img src="https://flagcdn.com/16x12/nl.png" width="16" height="12" alt="NL"> Dutch | nl | Nederlands | |
+| <img src="https://flagcdn.com/16x12/pt.png" width="16" height="12" alt="PT"> Portuguese | pt | Português | |
+| <img src="https://flagcdn.com/16x12/ru.png" width="16" height="12" alt="RU"> Russian | ru | Русский | |
+| <img src="https://flagcdn.com/16x12/ua.png" width="16" height="12" alt="UA"> Ukrainian | uk | Українська | |
+| <img src="https://flagcdn.com/16x12/cn.png" width="16" height="12" alt="CN"> Chinese (Simplified) | zh_CN | 简体中文 | |
+| <img src="https://flagcdn.com/16x12/hk.png" width="16" height="12" alt="HK"> Chinese (Hong Kong) | zh_HK | 繁體中文 (香港) | |
+| <img src="https://flagcdn.com/16x12/tr.png" width="16" height="12" alt="TR"> Turkish | tr | Türkçe | |
+
+---
 
 ### Language Selection Features
 
@@ -220,6 +240,9 @@ Warracker offers **full multilingual UI support** with **17 languages**, includi
 - **User Preference:** Saves individual language choice to user profile  
 - **Native Names:** Dropdown displays language names in native scripts for clarity  
 - **Instant Switching:** Change languages in real-time without page reload  
+
+</details>
+
 ---
 
 ## Why I Built This
