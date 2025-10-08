@@ -7,12 +7,12 @@ from flask import Blueprint, jsonify, redirect, url_for, current_app, request, s
 # Import shared extensions and utilities
 try:
     # Try relative imports (when modules are in same directory)
-    from .extensions import oauth 
+    from .extensions import oauth
     from .db_handler import get_db_connection, release_db_connection
     from .auth_utils import generate_token
 except ImportError:
     # Fallback to direct imports
-    from extensions import oauth 
+    from extensions import oauth
     from db_handler import get_db_connection, release_db_connection
     from auth_utils import generate_token
 
@@ -35,7 +35,11 @@ def init_oidc_client(current_app_instance, db_conn_func, db_release_func):
                 cur.execute("SELECT key, value FROM site_settings WHERE key LIKE 'oidc_%%'")
                 for row in cur.fetchall():
                     oidc_db_settings[row[0]] = row[1]
-                logger.info(f"[FACTORY OIDC_INIT] Fetched OIDC settings from DB: {oidc_db_settings}")
+
+                # Mask sensitive values for logging (inline, no external dependency)
+                safe_settings = {k: ('***REDACTED***' if 'secret' in k.lower() or 'password' in k.lower() or 'token' in k.lower() else v)
+                                for k, v in oidc_db_settings.items()}
+                logger.info(f"[FACTORY OIDC_INIT] Fetched OIDC settings from DB: {safe_settings}")
         else:
             logger.error("[FACTORY OIDC_INIT] Database connection failed, cannot fetch OIDC settings from DB.")
     except Exception as e:
@@ -72,6 +76,7 @@ def init_oidc_client(current_app_instance, db_conn_func, db_release_func):
 
         if client_id and client_secret and issuer_url:
             logger.info(f"[FACTORY OIDC_INIT] Registering OIDC client '{provider_name}' with Authlib.")
+
             oauth.register(
                 name=provider_name,
                 client_id=client_id,
@@ -101,12 +106,12 @@ def oidc_login_route():
         return jsonify({'message': 'OIDC provider not configured correctly.'}), 500
 
     # Corrected url_for to use blueprint name
-    redirect_uri = url_for('oidc.oidc_callback_route', _external=True) 
-    
+    redirect_uri = url_for('oidc.oidc_callback_route', _external=True)
+
     # HTTPS check for production
     if os.environ.get('FLASK_ENV') == 'production' and not redirect_uri.startswith('https'):
         redirect_uri = redirect_uri.replace('http://', 'https://', 1)
-        
+
     logger.info(f"[OIDC_HANDLER] /oidc/login redirect_uri: {redirect_uri}")
     return oauth.create_client(oidc_provider_name).authorize_redirect(redirect_uri)
 
@@ -122,7 +127,7 @@ def oidc_callback_route():
         logger.error("[OIDC_HANDLER] OIDC provider name not configured for callback.")
         frontend_login_url = os.environ.get('FRONTEND_URL', current_app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=oidc_misconfigured")
-        
+
     client = oauth.create_client(oidc_provider_name)
     try:
         token_data = client.authorize_access_token()
@@ -148,7 +153,7 @@ def oidc_callback_route():
         logger.error(f"[OIDC_HANDLER] OIDC callback error fetching userinfo: {e}")
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
         return redirect(f"{frontend_login_url}?oidc_error=userinfo_fetch_failed")
-            
+
     if not userinfo:
         logger.error("[OIDC_HANDLER] OIDC callback: Failed to retrieve userinfo.")
         frontend_login_url = os.environ.get('FRONTEND_URL', 'http://localhost:8080').rstrip('/') + "/login.html"
@@ -180,7 +185,7 @@ def oidc_callback_route():
             cur.execute("SELECT id, username, email, first_name, last_name, is_admin FROM users WHERE oidc_sub = %s AND oidc_issuer = %s AND is_active = TRUE",
                         (oidc_subject, oidc_issuer))
             user_db_data = cur.fetchone()
-            
+
             user_id = None
             is_new_user = False
 
@@ -214,31 +219,31 @@ def oidc_callback_route():
                 # Check if registration is enabled before creating new users
                 cur.execute("""
                     SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
+                        SELECT FROM information_schema.tables
                         WHERE table_name = 'site_settings'
                     )
                 """)
                 table_exists = cur.fetchone()[0]
-                
+
                 registration_enabled = True
                 if table_exists:
                     # Get registration_enabled setting
                     cur.execute("SELECT value FROM site_settings WHERE key = 'registration_enabled'")
                     result = cur.fetchone()
-                    
+
                     if result:
                         registration_enabled = result[0].lower() == 'true'
-                
+
                 # Check if there are any users (first user can register regardless of setting)
                 cur.execute('SELECT COUNT(*) FROM users')
                 user_count = cur.fetchone()[0]
-                
+
                 # If registration is disabled and this is not the first user, deny SSO signup
                 if not registration_enabled and user_count > 0:
                     logger.warning(f"[OIDC_HANDLER] New OIDC user registration denied - registrations are disabled. Subject: {oidc_subject}")
                     frontend_login_url = os.environ.get('FRONTEND_URL', current_app.config.get('APP_BASE_URL', 'http://localhost:8080')).rstrip('/') + "/login.html"
                     return redirect(f"{frontend_login_url}?oidc_error=registration_disabled")
-                
+
                 # New user provisioning
                 is_new_user = True
                 if not email:
@@ -289,26 +294,26 @@ def oidc_callback_route():
 
                 # Insert new OIDC user
                 cur.execute(
-                    """INSERT INTO users (username, email, first_name, last_name, is_admin, oidc_sub, oidc_issuer, is_active) 
+                    """INSERT INTO users (username, email, first_name, last_name, is_admin, oidc_sub, oidc_issuer, is_active)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE) RETURNING id""",
                     (username, email, first_name, last_name, is_admin, oidc_subject, oidc_issuer)
                 )
                 user_id = cur.fetchone()[0]
                 logger.info(f"[OIDC_HANDLER] New OIDC user created with ID {user_id} for sub {oidc_subject}")
-            
+
             if user_id:
                 app_session_token = generate_token(user_id) # Generate app-specific JWT
-                
+
                 # Update last login timestamp
                 cur.execute('UPDATE users SET last_login = %s WHERE id = %s', (datetime.now(UTC), user_id))
-                
+
                 # Log OIDC session in user_sessions table
                 ip_address = request.remote_addr
                 user_agent = request.headers.get('User-Agent', '')
                 # Use a different UUID for session_token in DB if needed, or re-use app_session_token if appropriate for your session model
-                db_session_token = str(uuid.uuid4()) 
+                db_session_token = str(uuid.uuid4())
                 expires_at = datetime.now(UTC) + current_app.config['JWT_EXPIRATION_DELTA']
-                
+
                 cur.execute(
                     'INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent, login_method) VALUES (%s, %s, %s, %s, %s, %s)',
                     (user_id, db_session_token, expires_at, ip_address, user_agent, 'oidc')
@@ -319,7 +324,7 @@ def oidc_callback_route():
                 redirect_target = f"{frontend_url}/auth-redirect.html?token={app_session_token}"
                 if is_new_user:
                     redirect_target += "&new_user=true"
-                
+
                 logger.info(f"[OIDC_HANDLER] /oidc/callback redirecting to frontend: {redirect_target}")
                 return redirect(redirect_target)
             else:
@@ -344,24 +349,24 @@ def get_oidc_status_route():
             # Get OIDC settings including the new oidc_only_mode
             cur.execute("SELECT key, value FROM site_settings WHERE key IN ('oidc_enabled', 'oidc_only_mode', 'oidc_provider_name')")
             settings = {row[0]: row[1] for row in cur.fetchall()}
-            
+
             # Apply same precedence logic as init_oidc_client()
             # Priority: Environment Variable > Database Setting > Hardcoded Default
-            
+
             # Check OIDC enabled status with correct precedence
             oidc_enabled_from_env = os.environ.get('OIDC_ENABLED')
             if oidc_enabled_from_env is not None:
                 oidc_is_enabled = oidc_enabled_from_env.lower() == 'true'
             else:
                 oidc_is_enabled = settings.get('oidc_enabled', 'false').lower() == 'true'
-            
+
             # Check OIDC only mode with correct precedence
             oidc_only_mode_from_env = os.environ.get('OIDC_ONLY_MODE')
             if oidc_only_mode_from_env is not None:
                 oidc_only_mode = oidc_only_mode_from_env.lower() == 'true'
             else:
                 oidc_only_mode = settings.get('oidc_only_mode', 'false').lower() == 'true'
-            
+
             # Check provider name with correct precedence
             oidc_provider_name_from_env = os.environ.get('OIDC_PROVIDER_NAME')
             if oidc_provider_name_from_env is not None:
@@ -381,7 +386,7 @@ def get_oidc_status_route():
         oidc_enabled_from_env = os.environ.get('OIDC_ENABLED')
         oidc_only_mode_from_env = os.environ.get('OIDC_ONLY_MODE')
         oidc_provider_name_from_env = os.environ.get('OIDC_PROVIDER_NAME')
-        
+
         return jsonify({
             "oidc_enabled": oidc_enabled_from_env.lower() == 'true' if oidc_enabled_from_env else False,
             "oidc_only_mode": oidc_only_mode_from_env.lower() == 'true' if oidc_only_mode_from_env else False,
