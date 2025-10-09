@@ -45,9 +45,8 @@ RUN apt-get update && \
 RUN groupadd -r -g 999 warracker && \
     useradd -r -g warracker -u 999 -d /home/warracker -m -s /bin/bash warracker
 
-# Copy Python dependencies from builder (version-agnostic with wildcard)
-COPY --from=builder /usr/local/lib/python3.*/site-packages /usr/local/lib/python3.*/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy Python dependencies from builder (copy entire /usr/local for version-agnostic)
+COPY --from=builder /usr/local /usr/local
 
 # Configure directories with proper permissions
 RUN mkdir -p /app /var/www/html /var/log/supervisor /run/nginx && \
