@@ -108,6 +108,7 @@
     "warranty_ends": "Warranty Ends",
     "price": "Price",
     "serial_number": "Serial Number",
+    "model_number": "Model Number",
     "vendor": "Vendor",
     "type": "Type",
     "owner": "Owner",
@@ -211,7 +212,9 @@
     "months_placeholder": "Months",
     "days_placeholder": "Days",
     "add_any_notes_placeholder": "Add any notes about this warranty...",
-    "add_serial_number": "Add another serial number"
+    "add_serial_number": "Add another serial number",
+    "model_number_optional": "Model Number (Optional)",
+    "model_number_placeholder": "e.g. SM-G991U1"
   },
   "settings": {
     "title": "Warracker - Settings",

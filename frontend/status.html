@@ -37,7 +37,7 @@
     <script src="js/i18n.js?v=20250119001"></script>
     <!-- Load fix for auth buttons -->
     <script src="fix-auth-buttons-loader.js?v=20250119001"></script>
-    <script src="script.js?v=20250119001" defer></script> <!-- Added script.js -->
+    <script src="script.js?v=20250119002" defer></script> <!-- Added script.js -->
     <script src="status.js?v=20250119001" defer></script> <!-- Status page specific functionality -->
     <style>
         .user-menu {
@@ -550,6 +550,10 @@
                             <div id="editSerialNumbersContainer">
                                 <!-- Serial number inputs will be added dynamically -->
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="editModelNumber" data-i18n="warranties.model_number_optional">Model Number (Optional)</label>
+                            <input type="text" id="editModelNumber" name="model_number" class="form-control" data-i18n-placeholder="warranties.model_number_placeholder" placeholder="e.g. SM-G991U1">
                         </div>
                         <div class="form-group">
                             <label for="editVendor" data-i18n="warranties.vendor_optional">Vendor (Optional)</label>

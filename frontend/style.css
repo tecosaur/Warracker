@@ -304,35 +304,16 @@ header .container {
   display: none;
 }
 
-.form-tabs::before {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  height: 2px;
-  background-color: var(--secondary-color);
-  transition: all 0.3s ease;
-  width: 25%;
-  z-index: 1;
-}
+.form-tabs::before { display: none; }
 
-.form-tabs[data-step="0"]::before {
-  left: 0;
-}
-
-.form-tabs[data-step="1"]::before {
-  left: 25%;
-}
-
-.form-tabs[data-step="2"]::before {
-  left: 50%;
-}
-
-.form-tabs[data-step="3"]::before {
-  left: 75%;
-}
+/* Progress handled via ::after below */
 
 .form-tab {
-  flex: 1;
+  flex: 1 1 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   text-align: center;
   padding: 15px 10px;
   cursor: pointer;
@@ -340,7 +321,9 @@ header .container {
   color: var(--dark-gray);
   transition: color 0.3s ease;
   box-sizing: border-box;
-  width: 25%; /* Ensure each tab is exactly 25% width */
+  width: 20%; /* Five tabs fit on one row */
+  min-width: 0; /* Allow shrinking without wrapping inner content */
+  white-space: nowrap; /* Prevent label wrapping */
 }
 
 .form-tab:hover {
@@ -430,16 +413,22 @@ input.invalid {
   transition: width 0.3s ease;
 }
 
-.form-tabs[data-step="0"]::after {
-  width: calc(100% / 3);
+.form-tabs[data-step="0"]::after { width: calc(100% / 5); }
+.form-tabs[data-step="1"]::after { width: calc(200% / 5); }
+.form-tabs[data-step="2"]::after { width: calc(300% / 5); }
+.form-tabs[data-step="3"]::after { width: calc(400% / 5); }
+.form-tabs[data-step="4"]::after { width: 100%; }
+
+@media (max-width: 788px) {
+  .form-tab { padding: 12px 6px; }
+  .form-tab i { margin-right: 6px; }
 }
 
-.form-tabs[data-step="1"]::after {
-  width: calc(200% / 3);
-}
-
-.form-tabs[data-step="2"]::after {
-  width: 100%;
+/* On narrow screens, shrink labels to keep tabs uniform (keep text visible) */
+@media (max-width: 740px) {
+  .form-tab { padding: 10px 4px; gap: 4px; }
+  .form-tab i { margin-right: 4px; font-size: 0.95rem; }
+  .form-tab span { display: inline; font-size: 0.85rem; }
 }
 
 @keyframes fade-in {

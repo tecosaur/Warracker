@@ -936,6 +936,9 @@ let formTabs = []; // Changed from const to let, initialized as empty
                 if (notesModalWarrantyObj.warranty_type) {
                     formData.append('warranty_type', notesModalWarrantyObj.warranty_type);
                 }
+                if (typeof notesModalWarrantyObj.model_number !== 'undefined' && notesModalWarrantyObj.model_number !== null) {
+                    formData.append('model_number', notesModalWarrantyObj.model_number);
+                }
                 if (notesModalWarrantyObj.serial_numbers && Array.isArray(notesModalWarrantyObj.serial_numbers)) {
                     notesModalWarrantyObj.serial_numbers.forEach(sn => {
                         if (sn && sn.trim() !== '') {
@@ -953,6 +956,11 @@ let formTabs = []; // Changed from const to let, initialized as empty
                     formData.append('tag_ids', JSON.stringify([]));
                 }
                 formData.append('notes', notesValue);
+                // Also include model number value from edit input if present on DOM
+                const editModelNumberInput = document.getElementById('editModelNumber');
+                if (editModelNumberInput && editModelNumberInput.value.trim() !== '') {
+                    formData.set('model_number', editModelNumberInput.value.trim());
+                }
                 const response = await fetch(`/api/warranties/${warrantyId}`, {
                     method: 'PUT',
                     headers: {
@@ -2182,10 +2190,10 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         
         // Use the appropriate API endpoint based on saved preference
         const baseUrl = window.location.origin;
-        // If status is 'archived', use archived endpoint (user-scoped only for now)
+        // If status is 'archived', use archived endpoint (support global vs personal)
         const isArchivedView = currentFilters && currentFilters.status === 'archived';
         const apiUrl = isArchivedView
-            ? `${baseUrl}/api/warranties/archived`
+            ? (shouldUseGlobalView ? `${baseUrl}/api/warranties/global/archived` : `${baseUrl}/api/warranties/archived`)
             : (shouldUseGlobalView ? `${baseUrl}/api/warranties/global` : `${baseUrl}/api/warranties`);
         
         console.log(`[DEBUG] Using API endpoint based on saved preference '${savedScope}', archivedView=${isArchivedView}: ${apiUrl}`);
@@ -2235,9 +2243,9 @@ async function loadWarranties(isAuthenticated) { // Added isAuthenticated parame
         // Optionally merge archived items into the "All" view (only in personal scope)
         let combinedData = Array.isArray(data) ? data : [];
         lastLoadedIncludesArchived = false;
-        if (!shouldUseGlobalView && !isArchivedView && currentFilters && currentFilters.status === 'all') {
+        if (!isArchivedView && currentFilters && currentFilters.status === 'all') {
             try {
-                const archivedUrl = `${baseUrl}/api/warranties/archived`;
+                const archivedUrl = shouldUseGlobalView ? `${baseUrl}/api/warranties/global/archived` : `${baseUrl}/api/warranties/archived`;
                 const archivedResp = await fetch(archivedUrl, options);
                 if (archivedResp.ok) {
                     const archivedData = await archivedResp.json();
@@ -2709,6 +2717,7 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
+                        ${warranty.model_number ? `<div><i class="fas fa-tag"></i> ${window.i18next ? window.i18next.t('warranties.model_number') : 'Model Number'}: <span>${warranty.model_number}</span></div>` : ''}
                         ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
                         ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
@@ -2771,6 +2780,7 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
+                        ${warranty.model_number ? `<div><i class=\"fas fa-tag\"></i> ${window.i18next ? window.i18next.t('warranties.model_number') : 'Model Number'}: <span>${warranty.model_number}</span></div>` : ''}
                         ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
                         ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
@@ -2833,6 +2843,7 @@ async function renderWarranties(warrantiesToRender) {
                                 </div>
                             ` : ''}
                         ` : ''}
+                        ${warranty.model_number ? `<div><i class=\"fas fa-tag\"></i> ${window.i18next ? window.i18next.t('warranties.model_number') : 'Model Number'}: <span>${warranty.model_number}</span></div>` : ''}
                         ${warranty.vendor ? `<div><i class="fas fa-store"></i> ${window.i18next ? window.i18next.t('warranties.vendor') : 'Vendor'}: <span>${warranty.vendor}</span></div>` : ''}
                         ${warranty.warranty_type ? `<div><i class="fas fa-shield-alt"></i> ${window.i18next ? window.i18next.t('warranties.type') : 'Type'}: <span>${warranty.warranty_type}</span></div>` : ''}
                     </div>
@@ -3205,6 +3216,10 @@ async function openEditModal(warranty) {
     // Populate form fields
     document.getElementById('editProductName').value = warranty.product_name;
     document.getElementById('editProductUrl').value = warranty.product_url || '';
+    const editModelNumberInput = document.getElementById('editModelNumber');
+    if (editModelNumberInput) {
+        editModelNumberInput.value = warranty.model_number || '';
+    }
     document.getElementById('editPurchaseDate').value = warranty.purchase_date.split('T')[0];
     // Populate new duration fields
     document.getElementById('editWarrantyDurationYears').value = warranty.warranty_duration_years || 0;
@@ -3890,6 +3905,11 @@ async function handleFormSubmit(event) { // Made async to properly await paperle
     
     // Create form data object
     const formData = new FormData(warrantyForm);
+    // Ensure model_number is included if present
+    const modelNumberInput = document.getElementById('modelNumber');
+    if (modelNumberInput && modelNumberInput.value.trim() !== '') {
+        formData.set('model_number', modelNumberInput.value.trim());
+    }
     
     // Handle warranty type - use custom value if "other" is selected
     const warrantyTypeSelect = document.getElementById('warrantyType');
@@ -6359,6 +6379,15 @@ function saveWarranty() {
         formData.append('notes', '');
     }
     
+    // Add model number to form data (optional)
+    const editModelNumber = document.getElementById('editModelNumber');
+    if (editModelNumber && editModelNumber.value.trim() !== '') {
+        formData.append('model_number', editModelNumber.value.trim());
+    } else {
+        // Explicitly clear if empty
+        formData.append('model_number', '');
+    }
+
     // Add vendor/retailer to form data
     const editVendorInput = document.getElementById('editVendor'); // Use the correct ID
     formData.append('vendor', editVendorInput ? editVendorInput.value.trim() : ''); // Use the correct variable

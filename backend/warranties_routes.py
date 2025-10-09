@@ -65,7 +65,7 @@ def get_warranties():
                     w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, w.vendor, w.warranty_type,
                     w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                     w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
-                    w.invoice_url, w.manual_url, w.other_document_url,
+                    w.invoice_url, w.manual_url, w.other_document_url, w.model_number,
                     CASE
                         WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
                         WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
@@ -134,7 +134,7 @@ def get_archived_warranties():
                     w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, w.vendor, w.warranty_type,
                     w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                     w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
-                    w.invoice_url, w.manual_url, w.other_document_url,
+                    w.invoice_url, w.manual_url, w.other_document_url, w.model_number,
                     CASE
                         WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
                         WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
@@ -249,6 +249,7 @@ def add_warranty():
         notes = request.form.get('notes', '')
         vendor = request.form.get('vendor', None)
         warranty_type = request.form.get('warranty_type', None)
+        model_number = request.form.get('model_number', None)
         
         # Get URL fields for documents
         invoice_url = request.form.get('invoice_url', None)
@@ -440,16 +441,16 @@ def add_warranty():
                     invoice_path, manual_path, other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
                     warranty_duration_years, warranty_duration_months, warranty_duration_days, product_photo_path, currency,
                     paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
-                    invoice_url, manual_url, other_document_url
+                    invoice_url, manual_url, other_document_url, model_number
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 product_name, purchase_date, expiration_date,
                 db_invoice_path, db_manual_path, db_other_document_path, product_url, purchase_price, user_id, is_lifetime, notes, vendor, warranty_type,
                 warranty_duration_years, warranty_duration_months, warranty_duration_days, db_product_photo_path, currency,
                 paperless_invoice_id, paperless_manual_id, paperless_photo_id, paperless_other_id,
-                invoice_url, manual_url, other_document_url
+                invoice_url, manual_url, other_document_url, model_number
             ))
             warranty_id = cur.fetchone()[0]
             
@@ -711,6 +712,7 @@ def update_warranty(warranty_id):
             notes = request.form.get('notes', None)
             vendor = request.form.get('vendor', None)
             warranty_type = request.form.get('warranty_type', None)
+            model_number = request.form.get('model_number', None)
             
             # Get URL fields for documents
             invoice_url = request.form.get('invoice_url', None)
@@ -1003,7 +1005,8 @@ def update_warranty(warranty_id):
                 'purchase_price': purchase_price,
                 'vendor': vendor,
                 'warranty_type': warranty_type,
-                'currency': currency
+                'currency': currency,
+                'model_number': model_number
             }
             sql_fields = []
             sql_values = []
@@ -1537,6 +1540,7 @@ def get_global_warranties():
         conn = get_db_connection()
         with conn.cursor() as cur:
             # Get all warranties from all users with user information (exclude archived for default view)
+            # Use correlated subqueries for claim status to avoid GROUP BY collapsing or miscounting
             cur.execute('''
                 SELECT 
                     w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
@@ -1546,15 +1550,19 @@ def get_global_warranties():
                     w.invoice_url, w.manual_url, w.other_document_url,
                     u.username, u.email, u.first_name, u.last_name,
                     CASE
-                        WHEN COUNT(c.id) = 0 THEN 'NO_CLAIMS'
-                        WHEN BOOL_OR(c.status IN ('Submitted', 'In Progress')) THEN 'OPEN'
-                        ELSE 'FINISHED'
+                        WHEN EXISTS (
+                            SELECT 1 FROM warranty_claims c 
+                            WHERE c.warranty_id = w.id AND c.status IN ('Submitted', 'In Progress')
+                        ) THEN 'OPEN'
+                        WHEN EXISTS (
+                            SELECT 1 FROM warranty_claims c 
+                            WHERE c.warranty_id = w.id
+                        ) THEN 'FINISHED'
+                        ELSE 'NO_CLAIMS'
                     END AS claim_status_summary
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
-                LEFT JOIN warranty_claims c ON w.id = c.warranty_id
                 WHERE w.archived_at IS NULL
-                GROUP BY w.id, u.id
                 ORDER BY u.username, CASE WHEN w.is_lifetime THEN 1 ELSE 0 END, w.expiration_date NULLS LAST, w.product_name
             ''')
                 
@@ -1609,6 +1617,119 @@ def get_global_warranties():
     except Exception as e:
         logger.error(f"Error retrieving global warranties: {e}")
         return jsonify({"error": "Failed to retrieve global warranties"}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
+
+
+@warranties_bp.route('/warranties/global/archived', methods=['GET'])
+@token_required
+def get_global_warranties_archived():
+    """Get archived warranties from all users (public view for all authenticated users)"""
+    conn = None
+    try:
+        # Check if global view is enabled for this user
+        user_is_admin = request.user.get('is_admin', False)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get both global view settings
+            cur.execute("SELECT key, value FROM site_settings WHERE key IN ('global_view_enabled', 'global_view_admin_only')")
+            settings = {row[0]: row[1] for row in cur.fetchall()}
+
+            # Check if global view is enabled at all
+            global_view_enabled = settings.get('global_view_enabled', 'true').lower() == 'true'
+            if not global_view_enabled:
+                return jsonify({"error": "Global view is disabled by administrator"}), 403
+
+            # Check if global view is restricted to admins only
+            admin_only = settings.get('global_view_admin_only', 'false').lower() == 'true'
+            if admin_only and not user_is_admin:
+                return jsonify({"error": "Global view is restricted to administrators only"}), 403
+
+        # Release the connection since we'll get a new one below
+        release_db_connection(conn)
+        conn = None
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get archived warranties from all users with user information
+            # Use correlated subqueries for claim status to avoid GROUP BY collapsing or miscounting
+            cur.execute('''
+                SELECT 
+                    w.id, w.product_name, w.purchase_date, w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
+                    w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
+                    w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
+                    w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
+                    w.invoice_url, w.manual_url, w.other_document_url,
+                    u.username, u.email, u.first_name, u.last_name,
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM warranty_claims c 
+                            WHERE c.warranty_id = w.id AND c.status IN ('Submitted', 'In Progress')
+                        ) THEN 'OPEN'
+                        WHEN EXISTS (
+                            SELECT 1 FROM warranty_claims c 
+                            WHERE c.warranty_id = w.id
+                        ) THEN 'FINISHED'
+                        ELSE 'NO_CLAIMS'
+                    END AS claim_status_summary
+                FROM warranties w
+                JOIN users u ON w.user_id = u.id
+                WHERE w.archived_at IS NOT NULL
+                ORDER BY w.archived_at DESC NULLS LAST, w.updated_at DESC NULLS LAST, w.product_name
+            ''')
+
+            warranties = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            warranties_list = []
+
+            for row in warranties:
+                warranty_dict = dict(zip(columns, row))
+                # Convert date objects to ISO format strings for JSON serialization
+                for key, value in warranty_dict.items():
+                    if isinstance(value, (datetime, date)):
+                        warranty_dict[key] = value.isoformat()
+                    # Convert Decimal objects to float for JSON serialization
+                    elif isinstance(value, Decimal):
+                        warranty_dict[key] = float(value)
+
+                # Get serial numbers for this warranty
+                warranty_id = warranty_dict['id']
+                cur.execute('SELECT serial_number FROM serial_numbers WHERE warranty_id = %s', (warranty_id,))
+                serial_numbers = [row[0] for row in cur.fetchall()]
+                warranty_dict['serial_numbers'] = serial_numbers
+
+                # Get tags for this warranty
+                cur.execute('''
+                    SELECT t.id, t.name, t.color
+                    FROM tags t
+                    JOIN warranty_tags wt ON t.id = wt.tag_id
+                    WHERE wt.warranty_id = %s
+                    ORDER BY t.name
+                ''', (warranty_id,))
+                tags = [{'id': t[0], 'name': t[1], 'color': t[2]} for t in cur.fetchall()]
+                warranty_dict['tags'] = tags
+
+                # Add user display name for better UI
+                first_name = warranty_dict.get('first_name', '').strip() if warranty_dict.get('first_name') else ''
+                last_name = warranty_dict.get('last_name', '').strip() if warranty_dict.get('last_name') else ''
+                username = warranty_dict.get('username', '').strip() if warranty_dict.get('username') else ''
+
+                if first_name and last_name:
+                    warranty_dict['user_display_name'] = f"{first_name} {last_name}"
+                elif first_name:
+                    warranty_dict['user_display_name'] = first_name
+                elif username:
+                    warranty_dict['user_display_name'] = username
+                else:
+                    warranty_dict['user_display_name'] = 'Unknown User'
+
+                warranties_list.append(warranty_dict)
+
+            return jsonify(warranties_list)
+    except Exception as e:
+        logger.error(f"Error retrieving archived global warranties: {e}")
+        return jsonify({"error": "Failed to retrieve archived global warranties"}), 500
     finally:
         if conn:
             release_db_connection(conn)

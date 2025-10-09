@@ -1,4 +1,26 @@
 # Changelog
+## 0.10.1.15 - 2025-10-09
+
+
+### Fixed
+- Global view on Index page now shows warranties from all users as expected:
+  - Backend: Added `GET /api/warranties/global/archived` and unified global queries to return complete sets with correlated subqueries for claim status; no accidental row collapse.
+  - Frontend: When scope is Global and Status is "All", archived warranties are merged from the new global archived endpoint into the main list. Archived view in Global scope now uses the global archived endpoint.
+  - Cache bust: Bumped `script.js` and service worker cache to ensure clients receive the updated logic.
+  - Files: `backend/warranties_routes.py`, `frontend/script.js`, `frontend/sw.js`, `frontend/index.html`, `frontend/status.html`
+
+### Added
+- Model Number field added to warranties:
+  - Backend: Added `model_number` column and wired through GET/POST/PUT.
+  - Frontend: New and Edit modals now include a Model Number input.
+  - Cards: When present, Model Number displays on warranty cards (all views).
+  - Files: `backend/migrations/047_add_model_number_to_warranties.sql`, `backend/warranties_routes.py`, `frontend/index.html`, `frontend/status.html`, `frontend/script.js`, `locales/en/translation.json`
+
+### Enhanced
+- Add Warranty modal tabs responsive alignment:
+  - Shrink tab label text and spacing at ≤740px to prevent wrapping and keep all five tabs aligned (Product, Warranty, Documents, Tags, Summary).
+  - Maintain icons with labels; no text hiding. Uses five-step progress indicator consistent across breakpoints.
+  - Files: `frontend/style.css`
 
 ## 0.10.1.14 - 2025-10-06
 

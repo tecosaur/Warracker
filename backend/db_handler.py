@@ -17,14 +17,40 @@ DB_USER = os.environ.get('DB_USER', 'warranty_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'warranty_password')
 
 connection_pool = None # Global connection pool for this module
+# Track the PID that created the current pool to detect post-fork reuse
+pool_pid: Optional[int] = None
+
+def _close_stale_pool_if_forked(current_pid: int) -> None:
+    """Close any existing pool if it was created in a different process.
+
+    Gunicorn with preload_app=True forks workers after the app (and pool) may be
+    initialized. Psycopg2 connections/pools are not fork-safe. If we detect that
+    the pool was created in a different PID, we proactively close it in this
+    process so a fresh, per-process pool can be created.
+    """
+    global connection_pool, pool_pid
+    if connection_pool is not None and pool_pid is not None and pool_pid != current_pid:
+        logger.warning(f"[DB_HANDLER] Detected PID change (pool pid {pool_pid} -> current pid {current_pid}). Closing stale pool and reinitializing...")
+        try:
+            # Close all connections owned by this (forked) process copy of the pool
+            connection_pool.closeall()
+        except Exception as close_err:
+            logger.warning(f"[DB_HANDLER] Error while closing stale pool in forked process: {close_err}")
+        finally:
+            connection_pool = None
+            pool_pid = None
 
 def init_db_pool(max_retries=5, retry_delay=5):
-    global connection_pool # Ensure we're modifying the global variable in this module
+    global connection_pool, pool_pid # Ensure we're modifying the global variable in this module
     attempt = 0
     last_exception = None
     
-    if connection_pool is not None:
-        logger.info("[DB_HANDLER] Database connection pool already initialized.")
+    current_pid = os.getpid()
+    # If a pool exists but was created in a different PID, ensure we drop it first
+    _close_stale_pool_if_forked(current_pid)
+
+    if connection_pool is not None and pool_pid == current_pid:
+        logger.info("[DB_HANDLER] Database connection pool already initialized for this process.")
         return connection_pool
 
     while attempt < max_retries:
@@ -43,6 +69,7 @@ def init_db_pool(max_retries=5, retry_delay=5):
                 application_name='warracker_optimized'  # Identify connections
             )
             logger.info("[DB_HANDLER] Database connection pool initialized successfully.")
+            pool_pid = current_pid
             return connection_pool # Return the pool for external check if needed
         except Exception as e:
             last_exception = e
@@ -58,18 +85,33 @@ def init_db_pool(max_retries=5, retry_delay=5):
         raise Exception("Unknown error creating database pool")
 
 def get_db_connection():
-    global connection_pool
-    if connection_pool is None:
-        logger.error("[DB_HANDLER] Database connection pool is None. Attempting to re-initialize.")
-        init_db_pool() # Attempt to initialize it
-        if connection_pool is None: # If still None after attempt
-            logger.critical("[DB_HANDLER] CRITICAL: Database pool re-initialization failed.")
+    global connection_pool, pool_pid
+    current_pid = os.getpid()
+
+    # Detect and clean up any forked/stale pool
+    _close_stale_pool_if_forked(current_pid)
+
+    if connection_pool is None or pool_pid != current_pid:
+        if connection_pool is None:
+            logger.info("[DB_HANDLER] Database connection pool not initialized in this process. Initializing now...")
+        else:
+            logger.warning("[DB_HANDLER] Pool PID mismatch detected. Reinitializing pool for current process...")
+        init_db_pool() # Attempt to initialize it for this PID
+        if connection_pool is None or pool_pid != current_pid: # If still invalid after attempt
+            logger.critical("[DB_HANDLER] CRITICAL: Database pool initialization failed for current process.")
             raise Exception("Database connection pool is not initialized and could not be re-initialized.")
     try:
         return connection_pool.getconn()
     except Exception as e:
         logger.error(f"[DB_HANDLER] Error getting connection from pool: {e}")
-        raise
+        # As a last resort, try reinitializing once in case the pool was invalidated
+        try:
+            _close_stale_pool_if_forked(os.getpid())
+            init_db_pool()
+            return connection_pool.getconn()
+        except Exception:
+            # Re-raise original to preserve context
+            raise
 
 def release_db_connection(conn):
     global connection_pool

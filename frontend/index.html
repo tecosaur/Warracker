@@ -416,6 +416,10 @@
                                         </div>
                                     </div>
                                     <div class="form-group">
+                                        <label for="modelNumber" data-i18n="warranties.model_number_optional">Model Number (Optional)</label>
+                                        <input type="text" id="modelNumber" name="model_number" class="form-control" data-i18n-placeholder="warranties.model_number_placeholder" placeholder="e.g. SM-G991U1">
+                                    </div>
+                                    <div class="form-group">
                                         <label for="vendor" data-i18n="warranties.vendor_optional">Vendor (Optional)</label>
                                         <input type="text" id="vendor" name="vendor" class="form-control" data-i18n-placeholder="warranties.vendor_placeholder" placeholder="e.g. Amazon, Best Buy, etc.">
                                     </div>
@@ -818,6 +822,10 @@
                             <div id="editSerialNumbersContainer">
                                 <!-- Serial number inputs will be added dynamically -->
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="editModelNumber" data-i18n="warranties.model_number_optional">Model Number (Optional)</label>
+                            <input type="text" id="editModelNumber" name="model_number" class="form-control" data-i18n-placeholder="warranties.model_number_placeholder" placeholder="e.g. SM-G991U1">
                         </div>
                         <div class="form-group">
                             <label for="editVendor" data-i18n="warranties.vendor_optional">Vendor (Optional)</label>
@@ -1318,7 +1326,7 @@
     </div>
     
     <script src="auth.js?v=20250119001"></script>
-    <script src="script.js?v=20250119001"></script>
+    <script src="script.js?v=20250119002"></script>
     <script>
         // Lightweight UI logic for Filter/Sort popovers (no change to core logic)
         document.addEventListener('DOMContentLoaded', function () {
