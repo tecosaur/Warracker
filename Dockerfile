@@ -7,7 +7,7 @@ ARG LIBPQ_DEV_VERSION=17.6-0+deb13u1
 # renovate: datasource=deb depName=libcurl4-openssl-dev
 ARG LIBCURL4_OPENSSL_DEV_VERSION=8.14.1-2
 # renovate: datasource=deb depName=libssl-dev
-ARG LIBSSL_DEV_VERSION=3.5.1-1
+ARG LIBSSL_DEV_VERSION=3.5.1-1+deb13u1
 # renovate: datasource=deb depName=pkg-config
 ARG PKG_CONFIG_VERSION=1.8.1-4
 # renovate: datasource=deb depName=nginx
@@ -25,9 +25,15 @@ ARG CA_CERTIFICATES_VERSION=20250419
 # renovate: datasource=deb depName=libpq5
 ARG LIBPQ5_VERSION=17.6-0+deb13u1
 # renovate: datasource=deb depName=libssl3t64
-ARG LIBSSL3T64_VERSION=3.5.1-1
+ARG LIBSSL3T64_VERSION=3.5.1-1+deb13u1
 
 FROM python:3.13-slim-trixie@sha256:079601253d5d25ae095110937ea8cfd7403917b53b077870bccd8b026dc7c42f AS builder
+
+ARG BUILD_ESSENTIAL_VERSION
+ARG LIBPQ_DEV_VERSION
+ARG LIBCURL4_OPENSSL_DEV_VERSION
+ARG LIBSSL_DEV_VERSION
+ARG PKG_CONFIG_VERSION
 
 # Install build tools (only in builder stage)
 RUN apt-get update && \
@@ -50,6 +56,16 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 FROM python:3.13-slim-trixie@sha256:079601253d5d25ae095110937ea8cfd7403917b53b077870bccd8b026dc7c42f AS runtime
 
+ARG NGINX_VERSION
+ARG SUPERVISOR_VERSION
+ARG POSTGRESQL_CLIENT_VERSION
+ARG GETTEXT_BASE_VERSION
+ARG CURL_VERSION
+ARG CA_CERTIFICATES_VERSION
+ARG LIBPQ5_VERSION
+ARG LIBCURL4_OPENSSL_DEV_VERSION
+ARG LIBSSL3T64_VERSION
+
 # Metadata for final image
 LABEL org.opencontainers.image.source="https://github.com/sassanix/Warracker"
 LABEL org.opencontainers.image.description="Warracker - Warranty Tracker"
@@ -65,7 +81,7 @@ RUN apt-get update && \
         ca-certificates=${CA_CERTIFICATES_VERSION} \
         libpq5=${LIBPQ5_VERSION} \
         libcurl4=${LIBCURL4_OPENSSL_DEV_VERSION} \
-        libssl3t64=${LIBSSL3_VERSION} && \
+        libssl3t64=${LIBSSL3T64_VERSION} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
