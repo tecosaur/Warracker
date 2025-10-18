@@ -1547,7 +1547,7 @@ def get_global_warranties():
                     w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
                     w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                     w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
-                    w.invoice_url, w.manual_url, w.other_document_url,
+                    w.invoice_url, w.manual_url, w.other_document_url, w.model_number,
                     u.username, u.email, u.first_name, u.last_name,
                     CASE
                         WHEN EXISTS (
@@ -1660,7 +1660,7 @@ def get_global_warranties_archived():
                     w.product_url, w.notes, w.purchase_price, w.user_id, w.created_at, w.updated_at, w.is_lifetime, 
                     w.vendor, w.warranty_type, w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days, w.product_photo_path, w.currency,
                     w.paperless_invoice_id, w.paperless_manual_id, w.paperless_photo_id, w.paperless_other_id,
-                    w.invoice_url, w.manual_url, w.other_document_url,
+                    w.invoice_url, w.manual_url, w.other_document_url, w.model_number,
                     u.username, u.email, u.first_name, u.last_name,
                     CASE
                         WHEN EXISTS (

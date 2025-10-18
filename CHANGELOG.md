@@ -1,5 +1,5 @@
 # Changelog
-## 0.10.1.15 - 2025-10-09
+## 0.10.1.15 - 2025-10-06
 
 
 ### Fixed
@@ -8,6 +8,10 @@
   - Frontend: When scope is Global and Status is "All", archived warranties are merged from the new global archived endpoint into the main list. Archived view in Global scope now uses the global archived endpoint.
   - Cache bust: Bumped `script.js` and service worker cache to ensure clients receive the updated logic.
   - Files: `backend/warranties_routes.py`, `frontend/script.js`, `frontend/sw.js`, `frontend/index.html`, `frontend/status.html`
+
+- Global view: Model Number now displays on warranty cards:
+  - Backend: Included `model_number` in global and archived global warranty queries so the UI can render it.
+  - Files: `backend/warranties_routes.py`
 
 ### Added
 - Model Number field added to warranties:
