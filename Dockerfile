@@ -15,7 +15,7 @@ ARG NGINX_VERSION=1.26.3-3+deb13u1
 # renovate: datasource=deb depName=supervisor
 ARG SUPERVISOR_VERSION=4.2.5-3
 # renovate: datasource=deb depName=postgresql-client
-ARG POSTGRESQL_CLIENT_VERSION=15.10-0+deb13u1
+ARG POSTGRESQL_CLIENT_VERSION=17+278
 # renovate: datasource=deb depName=gettext-base
 ARG GETTEXT_BASE_VERSION=0.23.1-2
 # renovate: datasource=deb depName=curl
