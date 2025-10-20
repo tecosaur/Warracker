@@ -114,7 +114,7 @@ The essential features are reliable and ready for everyday use. Development is o
 * ✅ Paperless-ngx integration
 * ✅ Localization Support
 * ✅ Warranty Claim Tracking
-* [ ] Audit trail
+* ✅ Audit trail
 * [ ] Calendar Integration
       
 ## 🚀Setup
