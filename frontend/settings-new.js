@@ -436,6 +436,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup Apprise event listeners
     setupAppriseEventListeners();
+
+    // Audit Trail button handler (admin section)
+    const viewAuditTrailBtn = document.getElementById('viewAuditTrailBtn');
+    if (viewAuditTrailBtn) {
+        viewAuditTrailBtn.addEventListener('click', loadAndDisplayAuditTrail);
+    }
     
     // Initialize delete button handling
     setupDeleteButton();
@@ -510,6 +516,76 @@ function initPage() {
     }
     
     console.log('Settings page initialization complete');
+}
+
+// ============================
+// Audit Trail functions
+// ============================
+
+async function loadAndDisplayAuditTrail() {
+    const displayArea = document.getElementById('auditTrailDisplay');
+    const loadingIndicator = document.getElementById('auditTrailLoading');
+    const table = document.getElementById('auditTrailTable');
+    const tableBody = document.getElementById('auditTrailTableBody');
+
+    if (!displayArea || !loadingIndicator || !table || !tableBody) return;
+
+    displayArea.style.display = 'block';
+    loadingIndicator.style.display = 'block';
+    table.style.display = 'none';
+    tableBody.innerHTML = '';
+
+    try {
+        const token = window.auth && window.auth.getToken ? window.auth.getToken() : localStorage.getItem('auth_token');
+        const response = await fetch('/api/admin/audit-trail?limit=200', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch audit log');
+        }
+
+        const logs = await response.json();
+        renderAuditTrail(logs);
+
+    } catch (error) {
+        console.error('Error loading audit trail:', error);
+        loadingIndicator.textContent = 'Error loading audit trail.';
+    }
+}
+
+function renderAuditTrail(logs) {
+    const loadingIndicator = document.getElementById('auditTrailLoading');
+    const table = document.getElementById('auditTrailTable');
+    const tableBody = document.getElementById('auditTrailTableBody');
+
+    loadingIndicator.style.display = 'none';
+
+    if (!Array.isArray(logs) || logs.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No audit records found.</td></tr>';
+    } else {
+        logs.forEach(log => {
+            const row = tableBody.insertRow();
+            const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleString() : '';
+            const username = (log.username || 'System');
+            const action = (log.action || '');
+            const details = log.details ? escapeHtmlSafe(log.details) : 'N/A';
+
+            row.innerHTML = `
+                <td title='${log.ip_address || ''}'>${timestamp}</td>
+                <td>${escapeHtmlSafe(username)}</td>
+                <td><span class='badge'>${escapeHtmlSafe(action)}</span></td>
+                <td style='white-space: pre-wrap; word-break: break-word;'>${details}</td>
+            `;
+        });
+    }
+    table.style.display = 'table';
+}
+
+function escapeHtmlSafe(text) {
+    if (typeof text !== 'string') return text;
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 /**

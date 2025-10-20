@@ -1,30 +1,99 @@
 # Changelog
-## 0.10.1.15 - 2025-10-06
+## 0.10.1.15 - 2025-10-19
+
+### Added  
+- **Renovate Bot Integration**: Automated dependency management system  
+  - Complete configuration in `renovate.json` with intelligent grouping (Debian packages, Python packages, GitHub Actions)  
+  - GitHub Actions workflow for automatic execution every Monday at midnight  
+  - Advanced features: merge confidence badges, version pinning, OpenSSF Scorecard security checks, and separation of multiple major releases  
+  - _Files: `.github/workflows/renovate.yml`, `renovate.json`_  
+
+- **Model Number field**: New optional field for warranties to track product model numbers  
+  - Backend: Added `model_number` column and wired through all GET/POST/PUT routes  
+  - Frontend: New and Edit modals include Model Number input; displayed on warranty cards (all views including Global)  
+  - _Files: `backend/migrations/047_add_model_number_to_warranties.sql`, `backend/warranties_routes.py`, `frontend/index.html`, `frontend/status.html`, `frontend/script.js`, `locales/en/translation.json`_  
+
+- **Administrator Audit Trail (admin-only)**  
+  - Backend: New `audit_log` table and centralized `create_audit_log` helper. Logs site setting changes (with secrets masked), user updates, and deletions. Added `GET /api/admin/audit-trail` endpoint.  
+  - Frontend: Added standalone Audit Trail section in Settings (separate from Apprise) with safe HTML rendering of timestamp, user, action, and details.  
+  - _Files: `backend/migrations/048_create_audit_log_table.sql`, `backend/audit_logger.py`, `backend/admin_routes.py`, `frontend/settings-new.html`, `frontend/settings-new.js`_  
+
+- **Docker configuration files**: Dedicated setup for containerized environments  
+  - `Docker/entrypoint.sh` – main entry script  
+  - `Docker/nginx-wrapper.sh` – NGINX wrapper  
+  - `Docker/supervisord.conf` – Supervisor configuration  
+  - _Files: `Docker/entrypoint.sh`, `Docker/nginx-wrapper.sh`, `Docker/supervisord.conf`_  
+
+### Enhanced  
+- **Dockerfile optimization**: Complete refactor using a multi-stage build  
+  - Smaller image size, clear separation between build and runtime stages  
+  - Pinned dependencies and applied Docker security best practices  
+  - _Files: `Dockerfile` (major refactor)_  
+
+- **Git configuration**: Enforced LF line endings for shell scripts  
+  - _Files: `.gitattributes`_  
+
+- **OIDC handler improvements**: Refactored authentication handler for maintainability  
+  - _Files: `backend/oidc_handler.py`_  
+
+- **Database handler enhancements**: Improved connection and query management  
+  - _Files: `backend/db_handler.py`_  
+
+- **Add Warranty modal tabs – responsive alignment**  
+  - Adjusted label size and spacing below ≤740px to prevent wrapping  
+  - Maintains icon+label pairing; five-step indicator consistent across breakpoints  
+  - _Files: `frontend/style.css`_  
+
+- **Frontend cache busting and version updates**  
+  - Updated service worker cache and version checker for new logic  
+  - Ensured clients receive updated assets  
+  - _Files: `frontend/sw.js`, `frontend/version-checker.js`, `frontend/*.html`_  
 
 
-### Fixed
-- Global view on Index page now shows warranties from all users as expected:
-  - Backend: Added `GET /api/warranties/global/archived` and unified global queries to return complete sets with correlated subqueries for claim status; no accidental row collapse.
-  - Frontend: When scope is Global and Status is "All", archived warranties are merged from the new global archived endpoint into the main list. Archived view in Global scope now uses the global archived endpoint.
-  - Cache bust: Bumped `script.js` and service worker cache to ensure clients receive the updated logic.
-  - Files: `backend/warranties_routes.py`, `frontend/script.js`, `frontend/sw.js`, `frontend/index.html`, `frontend/status.html`
+### Fixed  
+- **Global warranties view**: Global view on Index page now properly displays warranties from all users  
+  - Backend: Added `GET /api/warranties/global/archived` and unified global queries using correlated subqueries to avoid row collapse  
+  - Frontend: When scope = Global and Status = "All", merges archived warranties via the new endpoint  
+  - Archived Global view now uses the correct global archived endpoint  
+  - Cache bust applied to ensure updated logic  
+  - _Files: `backend/warranties_routes.py`, `frontend/script.js`, `frontend/sw.js`, `frontend/index.html`, `frontend/status.html`_  
 
-- Global view: Model Number now displays on warranty cards:
-  - Backend: Included `model_number` in global and archived global warranty queries so the UI can render it.
-  - Files: `backend/warranties_routes.py`
+- **Global view: Model Number display**  
+  - Backend: Included `model_number` in global and archived global warranty queries so the UI can render it correctly  
+  - _Files: `backend/warranties_routes.py`_  
 
-### Added
-- Model Number field added to warranties:
-  - Backend: Added `model_number` column and wired through GET/POST/PUT.
-  - Frontend: New and Edit modals now include a Model Number input.
-  - Cards: When present, Model Number displays on warranty cards (all views).
-  - Files: `backend/migrations/047_add_model_number_to_warranties.sql`, `backend/warranties_routes.py`, `frontend/index.html`, `frontend/status.html`, `frontend/script.js`, `locales/en/translation.json`
+### Dependencies  
+**Major updates:**  
+- **Python**: 3.13 → 3.14 (Docker base image)  
+- **gevent**: 24.2.1 → 25.9.1  
+- **flask-cors**: 4.0.1 → 6.0.1  
+- **Font Awesome**: 6.4.0 → 7.x  
+- **postgresql-client**: 15.10 → 17  
 
-### Enhanced
-- Add Warranty modal tabs responsive alignment:
-  - Shrink tab label text and spacing at ≤740px to prevent wrapping and keep all five tabs aligned (Product, Warranty, Documents, Tags, Summary).
-  - Maintain icons with labels; no text hiding. Uses five-step progress indicator consistent across breakpoints.
-  - Files: `frontend/style.css`
+**Minor/patch updates:**  
+- **Flask**: 3.0.3 → 3.1.2  
+- **Werkzeug**: 3.0.3 → 3.1.3  
+- **psycopg2**: 2.9.9 → 2.9.11  
+- **PyJWT**: 2.8.0 → 2.10.1  
+- **email-validator**: 2.1.1 → 2.3.0  
+- **APScheduler**: 3.10.4 → 3.11.0  
+- **python-dateutil**: 2.9.0 → 2.9.0.post0  
+- **Authlib**: 1.3.1 → 1.6.5  
+- **requests**: 2.32.3 → 2.32.5  
+- **setuptools**: <81 → 80.9.0  
+- **apprise**: 1.9.3 → 1.9.5  
+- **Babel**: 2.16.0 → 2.17.0  
+- **renovatebot/github-action**: v43.0.16 → v43.0.17  
+_Files: `backend/requirements.txt`, `Dockerfile`_  
+
+
+### Migration Notes  
+- Database migration **047** adds the `model_number` column (auto-runs on startup)  
+- Rebuild Docker image for **Python 3.14** and updated dependencies  
+- Verify **CORS** compatibility with `flask-cors` v6  
+- Confirm **Font Awesome v7** icons render correctly  
+- Ensure PostgreSQL server compatibility with **client v17**  
+
 
 ## 0.10.1.14 - 2025-10-06
 

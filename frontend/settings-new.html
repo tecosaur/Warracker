@@ -880,8 +880,45 @@
                     </div>
                 </div>
 
+                
+
             </div>
             
+            <!-- Audit Trail Section (Standalone) -->
+            <div id="auditTrailSection" class="admin-section" style="display: block; margin-top: 24px;">
+                <h2><i class="fas fa-history" style="margin-right: 8px;"></i>Audit Trail</h2>
+                <div class="card collapsible-card">
+                    <div class="card-header collapsible-header" data-target="auditTrailContent">
+                        <h3><i class="fas fa-list"></i> Recent Changes</h3>
+                        <i class="fas fa-chevron-down collapse-icon"></i>
+                    </div>
+                    <div class="card-body collapsible-content" id="auditTrailContent">
+                        <p class="text-muted">View a log of recent changes made by administrators and users.</p>
+                        <button id="viewAuditTrailBtn" class="btn btn-primary">
+                            <i class="fas fa-eye"></i> View Audit Log
+                        </button>
+                        <div id="auditTrailDisplay" style="display: none; margin-top: 20px;">
+                            <div id="auditTrailLoading" style="text-align: center;">
+                                <i class="fas fa-spinner fa-spin"></i> Loading log...
+                            </div>
+                            <div class="table-responsive">
+                               <table id="auditTrailTable" class="table" style="display: none; width: 100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>User</th>
+                                            <th>Action</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="auditTrailTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Ownership Management Section - Only visible to the owner -->
             <div id="ownershipSection" class="ownership-section" style="display: none;">
                 <h2><i class="fas fa-crown" style="color: #f39c12; margin-right: 8px;"></i><span data-i18n="settings.ownership_management">Ownership Management</span></h2>

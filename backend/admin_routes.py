@@ -10,12 +10,14 @@ try:
     from .auth_utils import admin_required
     from .apprise_handler import apprise_handler, APPRISE_AVAILABLE
     from .db_handler import get_db_connection, release_db_connection
+    from .audit_logger import create_audit_log
 except ImportError:
     import db_handler
     import notifications
     from auth_utils import admin_required
     from apprise_handler import apprise_handler, APPRISE_AVAILABLE
     from db_handler import get_db_connection, release_db_connection
+    from audit_logger import create_audit_log
 
 # Create the admin blueprint
 admin_bp = Blueprint('admin_bp', __name__)
@@ -143,7 +145,20 @@ def update_user(user_id):
             
             cur.execute(query, params)
             conn.commit()
-            
+
+            # Audit log for user updates
+            try:
+                details_list = []
+                if 'is_admin' in data:
+                    details_list.append(f"admin status to {data['is_admin']}")
+                if 'is_active' in data:
+                    details_list.append(f"active status to {data['is_active']}")
+                if details_list:
+                    details = 'Updated user: set ' + ', '.join(details_list)
+                    create_audit_log('UPDATE_USER', target_type='User', target_id=user_id, details=details)
+            except Exception as audit_err:
+                logger.warning(f"Failed to write audit log for user update {user_id}: {audit_err}")
+
             return jsonify({"message": "User updated successfully"}), 200
     except Exception as e:
         logger.error(f"Error updating user: {e}")
@@ -221,7 +236,13 @@ def delete_user(user_id):
             
             conn.commit()
             logger.info(f"User {user_id} deleted successfully")
-            
+
+            # Audit log for user deletion
+            try:
+                create_audit_log('DELETE_USER', target_type='User', target_id=user_id, details=f"Deleted user {user[1]} (ID: {user_id})")
+            except Exception as audit_err:
+                logger.warning(f"Failed to write audit log for user delete {user_id}: {audit_err}")
+
             return jsonify({"message": "User deleted successfully"}), 200
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
@@ -499,6 +520,17 @@ def update_site_settings():
             elif requires_restart: # This case might be redundant if all oidc_ keys trigger the above
                 response_message += " An application restart is required for some settings to take full effect."
             
+            # Audit log for updated settings (mask sensitive values)
+            try:
+                for key, val in data.items():
+                    masked_val = val
+                    key_lower = str(key).lower()
+                    if 'secret' in key_lower or 'token' in key_lower or 'password' in key_lower:
+                        masked_val = '********'
+                    create_audit_log('UPDATE_SETTING', target_type='SiteSetting', target_id=key, details=f'Set {key} to {masked_val}')
+            except Exception as audit_err:
+                logger.warning(f"Failed to write audit logs for settings update: {audit_err}")
+
             return jsonify({"message": response_message}), 200
     except Exception as e:
         logger.error(f"Error updating site settings: {e}")
@@ -508,6 +540,37 @@ def update_site_settings():
     finally:
         if conn:
             release_db_connection(conn) 
+
+
+# ============================
+# Audit Trail Routes
+# ============================
+
+@admin_bp.route('/audit-trail', methods=['GET'])
+@admin_required
+def get_audit_trail():
+    """Fetch audit trail records for administrators."""
+    limit = request.args.get('limit', 100, type=int)
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, timestamp, username, action, target_type, target_id, details, ip_address
+                FROM audit_log
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (limit,))
+            logs = cur.fetchall()
+            columns = [desc[0] for desc in cur.description]
+            result = [dict(zip(columns, row)) for row in logs]
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error fetching audit trail: {e}')
+        return jsonify({'error': 'Failed to fetch audit trail'}), 500
+    finally:
+        if conn:
+            release_db_connection(conn)
 
 # ============================
 # Notification & Scheduler Routes
