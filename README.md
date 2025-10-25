@@ -70,7 +70,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 
 ## Project Status
 
-**Warracker is in active beta.**
+**Warracker is in active development.**
 The essential features are reliable and ready for everyday use. Development is ongoing, with regular updates and improvements.
 
 * ✅ Stable core for tracking, notification , and managing warranty documents, files
