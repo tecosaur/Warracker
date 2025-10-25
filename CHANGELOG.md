@@ -1,5 +1,5 @@
 # Changelog
-## 0.10.1.15 - 2025-10-19
+## 1.0.0 - 2025-10-24 
 
 ### Added  
 - **Renovate Bot Integration**: Automated dependency management system  
@@ -7,6 +7,7 @@
   - GitHub Actions workflow for automatic execution every Monday at midnight  
   - Advanced features: merge confidence badges, version pinning, OpenSSF Scorecard security checks, and separation of multiple major releases  
   - _Files: `.github/workflows/renovate.yml`, `renovate.json`_  
+  - Credit: Renovate integration contributed by [@Erwan-loot](https://github.com/Erwan-loot)  
 
 - **Model Number field**: New optional field for warranties to track product model numbers  
   - Backend: Added `model_number` column and wired through all GET/POST/PUT routes  
@@ -24,11 +25,31 @@
   - `Docker/supervisord.conf` – Supervisor configuration  
   - _Files: `Docker/entrypoint.sh`, `Docker/nginx-wrapper.sh`, `Docker/supervisord.conf`_  
 
+- Polish language support added to all pages (index, about, status, settings) with comprehensive translations for UI elements, messages, and system text.  
+  - _Files: `locales/pl/translation.json`_  
+  - Credit: Polish translation contributed by [@GaikMarcin](https://github.com/GaikMarcin)  
+
+- Hebrew language support added across the app (index, about, status, settings) with full translations and RTL support.  
+  - Frontend: Added `he` to supported languages and RTL list, updated Settings language dropdown  
+  - Backend: Added `he` to supported languages and language map; migration updates DB constraint  
+  - _Files: `locales/he/translation.json`, `locales/en/translation.json`, `frontend/js/i18n.js`, `frontend/settings-new.html`, `backend/localization.py`, `backend/migrations/050_update_language_constraint_he.py`_  
+  - Credit: Hebrew translation contributed by [@ngfblog](https://github.com/ngfblog)  
+
+ - Warranty claim modal i18n: Completed translations for remaining locales  
+  - Coverage: `ar`, `cs`, `de`, `es`, `fa`, `fr`, `hi`, `it`, `ja`, `ko`, `nl`, `pt`, `ru`, `uk`, `zh_CN`, `zh_HK`  
+  - _Files: `locales/ar/translation.json`, `locales/cs/translation.json`, `locales/de/translation.json`, `locales/es/translation.json`, `locales/fa/translation.json`, `locales/fr/translation.json`, `locales/hi/translation.json`, `locales/it/translation.json`, `locales/ja/translation.json`, `locales/ko/translation.json`, `locales/nl/translation.json`, `locales/pt/translation.json`, `locales/ru/translation.json`, `locales/uk/translation.json`, `locales/zh_CN/translation.json`, `locales/zh_HK/translation.json`_  
+
+- About page: Reddit community link and localization  
+  - Added `https://www.reddit.com/r/Warracker/` under Community & Support with proper branding  
+  - Localized new label `about.reddit_community` across all supported locales  
+  - _Files: `frontend/about.html`, `locales/*/translation.json`_  
+
 ### Enhanced  
 - **Dockerfile optimization**: Complete refactor using a multi-stage build  
   - Smaller image size, clear separation between build and runtime stages  
   - Pinned dependencies and applied Docker security best practices  
   - _Files: `Dockerfile` (major refactor)_  
+  - Credit: Dockerfile optimization contributed by [@Erwan-loot](https://github.com/Erwan-loot)  
 
 - **Git configuration**: Enforced LF line endings for shell scripts  
   - _Files: `.gitattributes`_  
@@ -49,6 +70,26 @@
   - Ensured clients receive updated assets  
   - _Files: `frontend/sw.js`, `frontend/version-checker.js`, `frontend/*.html`_  
 
+- **PWA cache refresh and immediate activation**  
+  - Bumped service worker cache to `warracker-cache-v20251024001` and added `skipWaiting()` + `clients.claim()` for instant rollout.  
+  - Updated all `footer-fix.js` references to `?v=20251024001` and added to SW pre-cache to guarantee delivery of the scrollbar fix.  
+  - Cleaned service worker pre-cache by removing a duplicate `script.js` entry.  
+  - _Files: `frontend/sw.js`, `frontend/*.html`_  
+
+
+- **Search enhancements**: Include Model Number in search across Home and Status  
+  - Main view: Added `model_number` matching in quick search and filter pipeline; updated placeholder to mention model  
+  - Status page: Enabled search by `model_number` in the recent expirations table  
+  - Backend: Included `model_number` in statistics responses to support status page search  
+  - _Files: `frontend/script.js`, `frontend/status.js`, `backend/statistics_routes.py`, `frontend/index.html`, `locales/en/translation.json`_  
+
+- **Status page – Archived support**: Archived warranties are now first-class on the dashboard  
+  - Added "Archived" to the Status filter on the Recently Expired or Expiring Soon table  
+  - Rows show an "Archived" status with neutral grey styling that matches warranty cards  
+  - Backend statistics endpoints now include `is_archived` to power filtering and labels  
+  - Updated table filtering/sorting: archived items are excluded from Active/Expiring/Expired, appear under All and Archived, and sort with proper priority  
+  - _Files: `backend/statistics_routes.py`, `frontend/status.html`, `frontend/status.js`, `frontend/style.css`_  
+
 
 ### Fixed  
 - **Global warranties view**: Global view on Index page now properly displays warranties from all users  
@@ -61,6 +102,23 @@
 - **Global view: Model Number display**  
   - Backend: Included `model_number` in global and archived global warranty queries so the UI can render it correctly  
   - _Files: `backend/warranties_routes.py`_  
+
+- **Localization completeness: Model Number labels across all languages**  
+  - Added `warranties.model_number` and `warranties.model_number_optional` to all locales so warranty cards and forms display localized labels  
+  - Fixed Polish locale: added missing `warranties.model_number`; removed duplicate keys in warranties/messages  
+  - _Files: `locales/ar/translation.json`, `locales/cs/translation.json`, `locales/de/translation.json`, `locales/es/translation.json`, `locales/fa/translation.json`, `locales/fr/translation.json`, `locales/nl/translation.json`, `locales/ru/translation.json`, `locales/zh_CN/translation.json`, `locales/zh_HK/translation.json`, `locales/it/translation.json`, `locales/tr/translation.json`, `locales/uk/translation.json`, `locales/hi/translation.json`, `locales/ja/translation.json`, `locales/ko/translation.json`, `locales/pl/translation.json`, `locales/pt/translation.json`_  
+
+- **Add Warranty modal tabs: tiny-screen overlap**  
+  - Prevented tab labels from overlapping on very small devices (≤430px) by switching to icon-only tabs and enabling horizontal scrolling within the tab bar.  
+  - _Files: `frontend/style.css`_  
+
+- **Document URL links not visible unless notes existed**  
+  - Fixed warranty cards hiding the document links row when only external URLs were provided (Invoice/Manual/Files). The visibility check now includes `invoice_url`, `manual_url`, and `other_document_url`, so URL-only links render without requiring a note or uploaded file.  
+  - _Files: `frontend/script.js`_  
+
+- **Chrome: extra page horizontal scrollbar**  
+  - Removed `100vw` width and negative margin hacks from the footer script that caused horizontal overflow in Chrome; now uses `width: 100%` with zero side margins.  
+  - _Files: `frontend/footer-fix.js`_  
 
 ### Dependencies  
 **Major updates:**  
@@ -88,6 +146,7 @@ _Files: `backend/requirements.txt`, `Dockerfile`_
 
 
 ### Migration Notes  
+- Database migration **049** updates the `users.preferred_language` constraint to include 'pl'  
 - Database migration **047** adds the `model_number` column (auto-runs on startup)  
 - Rebuild Docker image for **Python 3.14** and updated dependencies  
 - Verify **CORS** compatibility with `flask-cors` v6  

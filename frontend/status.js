@@ -562,10 +562,12 @@
                 product_url: warranty.product_url,
                 purchase_price: warranty.purchase_price,
                 vendor: warranty.vendor,
+                model_number: warranty.model_number, // include model number for searching
                 serial_numbers: warranty.serial_numbers || [],
                 notes: warranty.notes,
                 manual_path: warranty.manual_path || null,
                 other_document_path: warranty.other_document_path || null,
+                is_archived: !!warranty.is_archived,
                 // Add user fields for global view
                 user_display_name: warranty.user_display_name,
                 username: warranty.username,
@@ -597,8 +599,19 @@
 
         let displayWarranties = allWarranties.filter(w => {
             const productName = (w.product_name || '').toLowerCase();
-            if (currentSearchTerm && !productName.includes(currentSearchTerm)) return false;
+            const modelNumber = (w.model_number || '').toLowerCase();
+            if (currentSearchTerm && !(productName.includes(currentSearchTerm) || modelNumber.includes(currentSearchTerm))) return false;
             
+            // Explicit archived filter
+            if (currentStatusValue === 'archived') {
+                return !!w.is_archived;
+            }
+
+            // Exclude archived from other filters
+            if (w.is_archived) {
+                return currentStatusValue === 'all';
+            }
+
             if (w.is_lifetime) {
                 if (currentStatusValue === 'expired' || currentStatusValue === 'expiring') return false;
                 return true; // Included in 'all' and 'active'
@@ -627,8 +640,8 @@
 
             // Prioritize lifetime sort or handle them based on specific column
             if (currentSort.column === 'status') {
-                 valA = getStatusPriority(a.expiration_date, today, aIsLifetime);
-                 valB = getStatusPriority(b.expiration_date, today, bIsLifetime);
+                 valA = getStatusPriority(a.expiration_date, today, aIsLifetime, !!a.is_archived);
+                 valB = getStatusPriority(b.expiration_date, today, bIsLifetime, !!b.is_archived);
             } else {
                 if (aIsLifetime && !bIsLifetime) return -1; 
                 if (!aIsLifetime && bIsLifetime) return 1;
@@ -664,7 +677,11 @@
             let statusText, statusClass;
             const todayForStatus = new Date(); todayForStatus.setHours(0,0,0,0);
 
-            if (warranty.is_lifetime) {
+            // Archived takes precedence: show as Archived regardless of expiration
+            if (warranty.is_archived) {
+                statusText = i18next.t('warranties.archived', 'Archived');
+                statusClass = 'status-archived';
+            } else if (warranty.is_lifetime) {
                 statusText = i18next.t('warranties.lifetime');
                 statusClass = 'status-lifetime';
             } else {
@@ -708,7 +725,8 @@
         });
     }
     
-    function getStatusPriority(expirationDateStr, today, isLifetime = false) {
+    function getStatusPriority(expirationDateStr, today, isLifetime = false, isArchived = false) {
+        if (isArchived) return -1; // Archived comes first (or last depending on sort direction)
         if (isLifetime) return 0; 
         if (!expirationDateStr) return 4; 
         const expirationDate = new Date(expirationDateStr);

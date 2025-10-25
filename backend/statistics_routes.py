@@ -167,7 +167,9 @@ def get_statistics():
                 SELECT
                     id, product_name, purchase_date, 
                     warranty_duration_years, warranty_duration_months, warranty_duration_days,
-                    expiration_date, invoice_path, manual_path, other_document_path, product_url, purchase_price, is_lifetime
+                    expiration_date, invoice_path, manual_path, other_document_path, product_url, purchase_price, is_lifetime,
+                    model_number,
+                    (archived_at IS NOT NULL) AS is_archived
                 {from_clause}
                 {where_clause}
                 ORDER BY expiration_date DESC
@@ -362,7 +364,9 @@ def get_global_statistics():
                     w.warranty_duration_years, w.warranty_duration_months, w.warranty_duration_days,
                     w.expiration_date, w.invoice_path, w.manual_path, w.other_document_path, 
                     w.product_url, w.purchase_price, w.is_lifetime,
-                    u.username, u.email, u.first_name, u.last_name
+                    u.username, u.email, u.first_name, u.last_name,
+                    w.model_number,
+                    (w.archived_at IS NOT NULL) AS is_archived
                 FROM warranties w
                 JOIN users u ON w.user_id = u.id
                 ORDER BY w.expiration_date DESC

@@ -2611,8 +2611,15 @@ async function renderWarranties(warrantiesToRender) {
             notesLinkHtml = `<a href="#" class="notes-link" data-id="${warranty.id}" title="View Notes"><i class='fas fa-sticky-note'></i> ${notesLabel}</a>`;
         }
         
-        const hasDocuments = warranty.product_url || warranty.invoice_path || warranty.manual_path || warranty.other_document_path || 
-                            warranty.paperless_invoice_id || warranty.paperless_manual_id || warranty.paperless_photo_id || warranty.paperless_other_id || hasNotes;
+        const hasDocuments = Boolean(
+            warranty.product_url ||
+            warranty.invoice_path || warranty.invoice_url ||
+            warranty.manual_path || warranty.manual_url ||
+            warranty.other_document_path || warranty.other_document_url ||
+            warranty.paperless_invoice_id || warranty.paperless_manual_id ||
+            warranty.paperless_photo_id || warranty.paperless_other_id ||
+            hasNotes
+        );
         
         
         // Get current user ID to check warranty ownership
@@ -3020,6 +3027,11 @@ function filterWarranties() {
             return true;
         }
 
+        // Check model number
+        if (warranty.model_number && warranty.model_number.toLowerCase().includes(searchTerm)) {
+            return true;
+        }
+
         // Check if any serial number contains search term
         if (warranty.serial_numbers && Array.isArray(warranty.serial_numbers)) {
             if (warranty.serial_numbers.some(sn => sn && sn.toLowerCase().includes(searchTerm))) {
@@ -3103,11 +3115,13 @@ function applyFilters() {
             const notesMatch = warranty.notes && warranty.notes.toLowerCase().includes(searchTerm);
             // Check if vendor contains search term
             const vendorMatch = warranty.vendor && warranty.vendor.toLowerCase().includes(searchTerm);
+            // Check if model number contains search term
+            const modelNumberMatch = warranty.model_number && warranty.model_number.toLowerCase().includes(searchTerm);
             // Check if any serial number contains search term
             const serialNumberMatch = warranty.serial_numbers && Array.isArray(warranty.serial_numbers) &&
                 warranty.serial_numbers.some(sn => sn && sn.toLowerCase().includes(searchTerm));
             // Return true if any match
-            if (!productNameMatch && !tagMatch && !notesMatch && !vendorMatch && !serialNumberMatch) {
+            if (!productNameMatch && !tagMatch && !notesMatch && !vendorMatch && !modelNumberMatch && !serialNumberMatch) {
                 return false;
             }
         }

@@ -431,6 +431,26 @@ input.invalid {
   .form-tab span { display: inline; font-size: 0.85rem; }
 }
 
+/* Extra small screens: prevent tab labels from cramping in Add Warranty modal */
+@media (max-width: 430px) {
+  #addWarrantyModal .form-tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  #addWarrantyModal .form-tab {
+    padding: 10px 4px;
+    gap: 0;
+  }
+  #addWarrantyModal .form-tab span {
+    display: none; /* show icons only to keep tabs readable */
+  }
+  #addWarrantyModal .form-tab i {
+    margin-right: 0;
+    font-size: 1.05rem;
+  }
+}
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -889,6 +909,18 @@ input.invalid {
 .status-expiring {
   background-color: rgba(241, 196, 15, 0.15);
   color: #f39c12;
+}
+
+/* Ensure all status badges share the same shape/spacing */
+.status-active,
+.status-expired,
+.status-expiring,
+.status-archived {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .serial-numbers {
@@ -3702,6 +3734,12 @@ input.invalid {
 }
 
 .warranty-status-row.status-archived {
+  background-color: rgba(128, 128, 128, 0.12);
+  color: var(--dark-gray);
+}
+
+/* Status badge for Archived on status page table */
+.status-archived {
   background-color: rgba(128, 128, 128, 0.12);
   color: var(--dark-gray);
 }

@@ -2025,7 +2025,8 @@ def get_locales():
             'ja': '日本語',
             'pt': 'Português',
             'ko': '한국어',
-            'tr': 'Türkçe'
+            'tr': 'Türkçe',
+            'pl': 'Polski'
         }
         
         locales = []

@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Supported languages
-SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'cs', 'nl', 'hi', 'fa', 'ar', 'ru', 'uk', 'zh_CN', 'zh_HK', 'ja', 'pt', 'ko', 'tr']
+SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'cs', 'nl', 'hi', 'fa', 'ar', 'ru', 'uk', 'zh_CN', 'zh_HK', 'ja', 'pt', 'ko', 'tr', 'pl', 'he']
 DEFAULT_LANGUAGE = 'en'
 
 # Global babel instance
@@ -40,7 +40,9 @@ def init_babel(app):
         'ja': '日本語',
         'pt': 'Português',
         'ko': '한국어',
-        'tr': 'Türkçe'
+        'tr': 'Türkçe',
+        'pl': 'Polski',
+        'he': 'עברית'
     }
     app.config['BABEL_DEFAULT_LOCALE'] = DEFAULT_LANGUAGE
     app.config['BABEL_DEFAULT_TIMEZONE'] = 'UTC'

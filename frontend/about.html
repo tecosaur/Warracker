@@ -180,6 +180,16 @@
             color: white;
         }
 
+        .social-link.reddit {
+            border-color: #FF4500;
+            color: #FF4500;
+        }
+
+        .social-link.reddit:hover {
+            background: #FF4500;
+            color: white;
+        }
+
         .social-link i {
             font-size: 1.1rem;
         }
@@ -323,7 +333,7 @@
             <!-- Hero Section -->
             <div class="about-hero">
                 <h1><i class="fas fa-shield-alt"></i> Warracker</h1>
-                <div class="version" id="versionDisplay" data-i18n="about.version">Version v0.10.1.15</div>
+                <div class="version" id="versionDisplay" data-i18n="about.version">Version v1.0.0</div>
                 <p class="description" data-i18n="about.description">
                     A comprehensive warranty management system designed to help you track, organize, and manage all your product warranties in one secure, user-friendly platform.
                 </p>
@@ -364,6 +374,9 @@
                         <a href="https://discord.gg/PGxVS3U2Nw" target="_blank" rel="noopener noreferrer" class="social-link discord">
                             <i class="fab fa-discord"></i> <span data-i18n="about.discord_community">Discord Community</span>
                         </a>
+                        <a href="https://www.reddit.com/r/Warracker/" target="_blank" rel="noopener noreferrer" class="social-link reddit">
+                            <i class="fab fa-reddit-alien"></i> <span data-i18n="about.reddit_community">Reddit Community</span>
+                        </a>
                         <a href="https://github.com/sassanix/Warracker/issues" target="_blank" rel="noopener noreferrer" class="social-link issues">
                             <i class="fas fa-bug"></i> <span data-i18n="about.report_issues">Report Issues</span>
                         </a>
@@ -403,7 +416,7 @@
     <script src="version-checker.js?v=20250119001" defer></script> <!-- Version checker script -->
     
     <!-- Footer Width Fix -->
-    <script src="footer-fix.js?v=20250119001"></script>
+    <script src="footer-fix.js?v=20251024001"></script>
     
     <!-- Footer Content Manager -->
     <script src="footer-content.js?v=20250119001"></script>
@@ -421,7 +434,7 @@
             // Update version display dynamically
             const versionDisplay = document.getElementById('versionDisplay');
             if (versionDisplay && window.i18next) {
-                const currentVersion = '0.10.1.15'; // This should match version-checker.js
+                const currentVersion = '1.0.0'; // This should match version-checker.js
                 versionDisplay.textContent = window.i18next.t('about.version') + ' v' + currentVersion;
             }
             

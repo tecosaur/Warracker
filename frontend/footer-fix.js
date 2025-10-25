@@ -20,12 +20,12 @@
                           document.body.classList.contains('dark-mode');
         
         if (isDarkMode) {
-            // Dark mode styles with full width override
+            // Dark mode styles without viewport-width hacks (prevents horizontal scrollbar)
             footer.style.cssText = `
-                width: 100vw !important;
+                width: 100% !important;
                 margin-top: 50px !important;
-                margin-left: calc(-50vw + 50%) !important;
-                margin-right: calc(-50vw + 50%) !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
                 padding: 20px !important;
                 text-align: center !important;
                 border-top: 1px solid #444 !important;
@@ -33,21 +33,18 @@
                 color: #e0e0e0 !important;
                 font-size: 0.9rem !important;
                 position: relative !important;
-                left: 0 !important;
-                right: 0 !important;
-                max-width: none !important;
                 box-sizing: border-box !important;
             `;
             if (link) {
                 link.style.cssText = 'color: #4dabf7 !important; text-decoration: none !important; font-weight: 500 !important;';
             }
         } else {
-            // Light mode styles with full width override
+            // Light mode styles without viewport-width hacks (prevents horizontal scrollbar)
             footer.style.cssText = `
-                width: 100vw !important;
+                width: 100% !important;
                 margin-top: 50px !important;
-                margin-left: calc(-50vw + 50%) !important;
-                margin-right: calc(-50vw + 50%) !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
                 padding: 20px !important;
                 text-align: center !important;
                 border-top: 1px solid #e0e0e0 !important;
@@ -55,9 +52,6 @@
                 color: #333333 !important;
                 font-size: 0.9rem !important;
                 position: relative !important;
-                left: 0 !important;
-                right: 0 !important;
-                max-width: none !important;
                 box-sizing: border-box !important;
             `;
             if (link) {

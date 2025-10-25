@@ -72,7 +72,7 @@
     "expiring_soon": "Expiring Soon",
     "lifetime": "Lifetime",
     "no_warranties": "No warranties yet. Add your first warranty to get started.",
-    "search_placeholder": "Find by name, vendors, notes, tag, or serial number...",
+    "search_placeholder": "Find by name, model, vendors, notes, tag, or serial number...",
     "warranty_type": "Warranty Type",
     "other_document": "Other Document",
     "product": "Product",
@@ -603,7 +603,9 @@
     "ja": "日本語",
     "pt": "Português",
     "ko": "한국어",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "pl": "Polski",
+    "he": "עברית"
   },
   "status": {
     "title": "Status - Warracker",
@@ -640,6 +642,7 @@
     "community_support": "Community & Support",
     "community_description": "Join our community for support, discussions, and updates. Report bugs, request features, or get help from other users and contributors.",
     "discord_community": "Discord Community",
+    "reddit_community": "Reddit Community",
     "report_issues": "Report Issues",
     "developer_info": "Developer Information",
     "developer_description": "Warracker is developed and maintained by Sassanix. The project is open-source and welcomes contributions from the community.",
