@@ -1,4 +1,13 @@
 # Changelog
+
+## 1.0.1 - 2025-10-26
+
+### Fixed  
+- Container startup loop caused by insufficient PostgreSQL privileges in the startup permissions script.  
+  - Wrapped the `ALTER ROLE ... CREATEROLE` in a safe DO block with exception handling so missing privilege is logged as a NOTICE and startup continues.  
+  - No feature changes; service now starts normally without elevated DB privileges.  
+  - _Files: `backend/fix_permissions.sql`_
+
 ## 1.0.0 - 2025-10-24 
 
 ### Added  

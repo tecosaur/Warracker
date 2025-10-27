@@ -1,7 +1,18 @@
 -- Script to fix PostgreSQL permissions for db_user
 
--- Grant role management privileges (removed SUPERUSER)
-ALTER ROLE %(db_user)s WITH CREATEROLE;
+DO $$
+BEGIN
+    -- Try to grant CREATEROLE, but continue if it fails
+    BEGIN
+        ALTER ROLE %(db_user)s WITH CREATEROLE;
+        RAISE NOTICE 'Successfully granted CREATEROLE to %(db_user)s';
+    EXCEPTION WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Insufficient privileges to grant CREATEROLE to %(db_user)s - this is optional and the application will work without it';
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Could not grant CREATEROLE to %(db_user)s - this is optional and the application will work without it';
+    END;
+END
+$$;
 
 -- Ensure all database objects are accessible
 GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO %(db_user)s;
@@ -45,4 +56,4 @@ BEGIN
             RAISE NOTICE 'Error changing ownership of function %%: %%', rec.proname, SQLERRM;
         END;
     END LOOP;
-END $$; 
+END $$;
