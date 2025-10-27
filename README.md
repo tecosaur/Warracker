@@ -63,7 +63,7 @@ The easiest way to organize product warranties, monitor expiration dates, and st
 | 📊 **Status Dashboard**          | Visual analytics and stats with charts, tables, and global/user views                                    |
 | 📱 **Responsive UI**             | Mobile-friendly interface with admin tools and improved UX                                               |
 | 📦 **Paperless-ngx Integration** | Store/manage documents directly in Paperless-ngx with file-level control                                 |
-| 📖 **Localization Support**      | [Full multilingual UI with 18 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
+| 📖 **Localization Support**      | [Full multilingual UI with 20 languages](https://github.com/sassanix/Warracker?tab=readme-ov-file#-localization-support), RTL support, instant language switching, and native name display |
 
 
 ---
@@ -231,6 +231,8 @@ Warracker offers **full multilingual UI support** with **18 languages**, includi
 | <img src="https://flagcdn.com/16x12/cn.png" width="16" height="12" alt="CN"> Chinese (Simplified) | zh_CN | 简体中文 | |
 | <img src="https://flagcdn.com/16x12/hk.png" width="16" height="12" alt="HK"> Chinese (Hong Kong) | zh_HK | 繁體中文 (香港) | |
 | <img src="https://flagcdn.com/16x12/tr.png" width="16" height="12" alt="TR"> Turkish | tr | Türkçe | |
+| <img src="https://flagcdn.com/16x12/pl.png" width="16" height="12" alt="PL"> Polish | pl | Polski | |
+| <img src="https://flagcdn.com/16x12/il.png" width="16" height="12" alt="IL"> Hebrew | he | עברית | *RTL Support* |
 
 ---
 
