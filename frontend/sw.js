@@ -1,4 +1,4 @@
-const CACHE_NAME = 'warracker-cache-v20251024001';
+const CACHE_NAME = 'warracker-cache-v20251030001';
 const urlsToCache = [
   // HTML pages
   './',
@@ -65,16 +65,36 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  const requestUrl = new URL(event.request.url);
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      }
-    )
+    caches.match(event.request).then(cachedResponse => {
+      const fetchPromise = fetch(event.request)
+        .then(networkResponse => {
+          const isSameOrigin = requestUrl.origin === self.location.origin;
+          const okToCache = isSameOrigin && networkResponse && networkResponse.status === 200 &&
+            ['document', 'script', 'style', 'image', 'font'].includes(event.request.destination);
+
+          if (okToCache) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          if (cachedResponse) return cachedResponse;
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+          return Promise.reject(new Error('Network error and no cache.'));
+        });
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });
 
