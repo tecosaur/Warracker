@@ -1131,12 +1131,13 @@ def import_warranties():
     conn = None
     imported_count = 0
     failed_rows = []
+    used_name_date_pairs = set()  # Track names used in this import for a given purchase_date
     row_number = 1 # Start from 1 for header
 
     # Required and optional CSV headers
     REQUIRED_CSV_HEADERS = ['ProductName', 'PurchaseDate']
     OPTIONAL_CSV_HEADERS = [
-        'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor', 'WarrantyType',
+        'ExpirationDate', 'IsLifetime', 'PurchasePrice', 'SerialNumber', 'ProductURL', 'Tags', 'Vendor', 'WarrantyType',
         'WarrantyDurationYears', 'WarrantyDurationMonths', 'WarrantyDurationDays'
     ]
 
@@ -1184,6 +1185,7 @@ def import_warranties():
                     tags_str = row.get('Tags', '').strip() # Get Tags string
                     vendor = row.get('Vendor', '').strip() # Extract Vendor
                     warranty_type = row.get('WarrantyType', '').strip() # Extract Warranty Type
+                    expiration_date_str = row.get('ExpirationDate', '').strip()
 
                     if not product_name:
                         errors.append("ProductName is required.")
@@ -1212,8 +1214,13 @@ def import_warranties():
 
                             if warranty_duration_years < 0 or warranty_duration_months < 0 or warranty_duration_days < 0:
                                 errors.append("Warranty duration components cannot be negative.")
-                            if warranty_duration_years == 0 and warranty_duration_months == 0 and warranty_duration_days == 0:
-                                errors.append("Warranty duration (Years, Months, or Days) is required unless IsLifetime is TRUE.")
+                            if (
+                                warranty_duration_years == 0 and
+                                warranty_duration_months == 0 and
+                                warranty_duration_days == 0 and
+                                not expiration_date_str
+                            ):
+                                errors.append("Either duration (Years, Months, Days) or an ExpirationDate is required unless IsLifetime is TRUE.")
                             if warranty_duration_years > 999:
                                 errors.append("WarrantyDurationYears must be 999 or less.")
                         except ValueError:
@@ -1230,19 +1237,39 @@ def import_warranties():
 
                     # Calculate expiration date if valid
                     if not errors and not is_lifetime and purchase_date:
-                        if warranty_duration_years > 0 or warranty_duration_months > 0 or warranty_duration_days > 0:
+                        expiration_date_str = row.get('ExpirationDate', '').strip()
+                        # Check if duration is zero and an exact expiration date is provided
+                        if (
+                            warranty_duration_years == 0 and
+                            warranty_duration_months == 0 and
+                            warranty_duration_days == 0 and
+                            expiration_date_str
+                        ):
+                            try:
+                                expiration_date = date_parse(expiration_date_str).date()
+                                if expiration_date < purchase_date:
+                                    errors.append("ExpirationDate cannot be before PurchaseDate.")
+                            except ValueError:
+                                errors.append("Invalid ExpirationDate format. Use YYYY-MM-DD.")
+                        # Existing duration calculation logic
+                        elif (
+                            warranty_duration_years > 0 or
+                            warranty_duration_months > 0 or
+                            warranty_duration_days > 0
+                        ):
                             try:
                                 expiration_date = purchase_date + relativedelta(
                                     years=warranty_duration_years,
                                     months=warranty_duration_months,
                                     days=warranty_duration_days
                                 )
-                                logger.info(f"[Import] Calculated expiration date: {expiration_date} for row {row_number}")
                             except Exception as calc_err:
                                 logger.error(f"[Import] Error calculating expiration date for row {row_number}: {calc_err}")
                                 errors.append("Failed to calculate expiration date from duration components.")
                                 expiration_date = None
-                        # No else needed here, error for missing duration already handled
+                        # If no duration and no exact date is provided for a non-lifetime warranty
+                        else:
+                            errors.append("Either duration (Years, Months, Days) or an ExpirationDate is required unless IsLifetime is TRUE.")
 
                     # Split serial numbers
                     serial_numbers = [sn.strip() for sn in serial_numbers_str.split(',') if sn.strip()] if serial_numbers_str else []
@@ -1301,14 +1328,25 @@ def import_warranties():
                             if processed_tag_ids:
                                 tag_ids_to_link = list(set(processed_tag_ids)) # Ensure unique IDs
 
-                    # --- Check for Duplicates --- 
+                    # --- Check for Duplicates and auto-append suffix --- 
                     if not errors and product_name and purchase_date:
-                        cur.execute("""
-                            SELECT id FROM warranties 
-                            WHERE user_id = %s AND product_name = %s AND purchase_date = %s
-                        """, (user_id, product_name, purchase_date))
-                        if cur.fetchone(): # Correctly indented
-                            errors.append("Duplicate warranty found (same product name and purchase date).")
+                        def is_name_taken(name_candidate):
+                            cur.execute(
+                                "SELECT 1 FROM warranties WHERE user_id = %s AND product_name = %s AND purchase_date = %s LIMIT 1",
+                                (user_id, name_candidate, purchase_date)
+                            )
+                            return cur.fetchone() is not None or (name_candidate, purchase_date) in used_name_date_pairs
+
+                        if is_name_taken(product_name):
+                            base_name = product_name
+                            suffix_index = 1
+                            while True:
+                                candidate_name = f"{base_name} ({suffix_index})"
+                                if not is_name_taken(candidate_name):
+                                    logger.info(f"[Import] Duplicate detected for row {row_number}. Renaming '{base_name}' to '{candidate_name}' for purchase date {purchase_date}.")
+                                    product_name = candidate_name
+                                    break
+                                suffix_index += 1
                     
                     # --- If errors, skip row --- 
                     if errors:
@@ -1381,6 +1419,9 @@ def import_warranties():
                                 ON CONFLICT (warranty_id, tag_id) DO NOTHING -- Avoid errors if somehow duplicated
                             """, (warranty_id, tag_id))
 
+                    # Track the used name+date pair to avoid collisions within the same CSV import
+                    used_name_date_pairs.add((product_name, purchase_date))
+
                     imported_count += 1
 
                 except Exception as e:
@@ -1389,21 +1430,31 @@ def import_warranties():
                     # Don't rollback yet, just record failure
 
             # --- Transaction Commit/Rollback --- 
-            if failed_rows:
-                conn.rollback() # Rollback if any row failed during processing or insertion
-                # Reset imported count if we rollback
-                final_success_count = 0 
-                # Modify errors for rows that might have been initially valid but failed due to rollback
-                final_failure_count = row_number - 1 # Total data rows processed
-                # Add a general error message
+            if imported_count > 0 and failed_rows:
+                # Partial success: commit successful rows and return 200 with error details for failed rows
+                conn.commit()
+                final_success_count = imported_count
+                final_failure_count = len(failed_rows)
                 return jsonify({
-                    "error": "Import failed due to errors in one or more rows. No warranties were imported.",
+                    "message": "CSV processed with some errors.",
+                    "success_count": final_success_count,
+                    "failure_count": final_failure_count,
+                    "errors": failed_rows
+                }), 200
+            elif imported_count == 0 and failed_rows:
+                # All rows failed: rollback and return 400
+                conn.rollback()
+                final_success_count = 0
+                final_failure_count = len(failed_rows)
+                return jsonify({
+                    "error": "Import failed due to errors in all rows. No warranties were imported.",
                     "success_count": 0,
                     "failure_count": final_failure_count,
-                    "errors": failed_rows 
+                    "errors": failed_rows
                 }), 400
             else:
-                conn.commit() # Commit transaction if all rows were processed successfully
+                # All rows succeeded
+                conn.commit()
                 final_success_count = imported_count
                 final_failure_count = len(failed_rows)
 
