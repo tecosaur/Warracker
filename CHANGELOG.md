@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.2 - 2025-10-30
+
+### Added  
+- **CSV Import: Exact Expiration Date support (`ExpirationDate`)**  
+  - Uses an exact `ExpirationDate` when duration fields (`WarrantyDurationYears`, `WarrantyDurationMonths`, `WarrantyDurationDays`) are all 0/blank and `IsLifetime` is `FALSE`.  
+  - Documentation updated to include the new field and its conditional usage.  
+  - _Files: `backend/warranties_routes.py`, `README.md`_
+
+### Enhanced  
+- **CSV Import: Partial commits with per-row errors**  
+  - Successful rows are committed even if some rows fail; the response includes detailed errors for failed rows.  
+  - Returns `200` for partial success; returns `400` only if all rows fail.  
+  - _Files: `backend/warranties_routes.py`_  
+
+- **CSV Import: Automatic duplicate name suffixing**  
+  - If a `ProductName` already exists for the same `PurchaseDate` (in the database or earlier in the same file), the importer now auto-renames it to `Name (1)`, `Name (2)`, etc.  
+  - Prevents hard failures for separate products that share the same name/date but have different serials/metadata.  
+  - _Files: `backend/warranties_routes.py`_
+
+ - **Permissions: Enhanced fixing process for upload folder and database**  
+   - Updated entrypoint log to "Fixing permissions (database and upload folder)" and invoke `fix_permissions.py` for both scopes  
+   - Split into `fix_upload_folder_permissions()` and `fix_database_permissions()`; recursively ensures upload ownership to `warracker:warracker` (uid:999, gid:999) with improved logging and connection retry handling  
+   - _Files: `Docker/entrypoint.sh`, `backend/fix_permissions.py`_  
+   - Credit: Enhancement contributed by [@Erwan-loot](https://github.com/Erwan-loot)  
+   - Ref: [commit b63f7d2](https://github.com/sassanix/Warracker/commit/b63f7d20860663c3c00a702ea830bbf058e612c3) (PR #180)  
+
 ## 1.0.1 - 2025-10-26
 
 ### Fixed  
